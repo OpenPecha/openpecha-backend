@@ -1,0 +1,102 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "UploadTextRequest",
+  "type": "object",
+  "properties": {
+    "author": {
+      "type": "string"
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "source": {
+      "type": "string",
+      "format": "uri"
+    },
+    "presentation": {
+      "type": "string",
+      "nullable": true
+    },
+    "usage_title": {
+      "type": "string",
+      "nullable": true
+    },
+    "title": {
+      "type": "string"
+    },
+    "long_title": {
+      "type": "string"
+    },
+    "alt_titles": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "type": {
+      "type": "string",
+      "enum": [
+        "commentary",
+        "root"
+      ]
+    },
+    "commentary_of": {
+      "type": "string",
+      "nullable": true
+    },
+    "version_of": {
+      "type": "string",
+      "nullable": true
+    },
+    "translation_of": {
+      "type": "string",
+      "nullable": true
+    },
+    "language": {
+      "type": "string",
+      "pattern": "^[a-z]{2}(-[A-Z]{2})?$"
+    }
+  },
+  "required": [
+    "author",
+    "date",
+    "source",
+    "title",
+    "long_title",
+    "alt_titles",
+    "language"
+  ],
+  "dependentSchemas": {
+    "type": {
+      "oneOf": [
+        {
+          "properties": {
+            "type": {
+              "const": "commentary"
+            },
+            "commentary_of": {
+              "type": "string"
+            }
+          },
+          "required": [
+            "commentary_of"
+          ]
+        },
+        {
+          "properties": {
+            "type": {
+              "const": "root"
+            }
+          },
+          "not": {
+            "required": [
+              "commentary_of"
+            ]
+          }
+        }
+      ]
+    }
+  },
+  "additionalProperties": false
+}

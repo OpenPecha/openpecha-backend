@@ -1,0 +1,15 @@
+{
+  "python.analysis.extraPaths": [
+    "functions/venv/lib/python3.12/site-packages"
+   ],
+   "pylint.args": [ 
+    "--disable=missing-class-docstring", 
+    "--disable=missing-function-docstring", 
+    "--disable=missing-module-docstring",
+    "--disable=broad-exception-caught"],
+    "[python]": {
+    "editor.defaultFormatter": "ms-python.black-formatter",
+    "editor.formatOnSave": true
+  }
+}
+
