@@ -2,9 +2,21 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Metadata",
   "type": "object",
+  "$defs": {
+    "localized_string": {
+      "type": "object",
+      "patternProperties": {
+        "^[a-z]{2}(-[A-Z]{2})?$": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": false,
+      "description": "Dictionary with language codes as keys and corresponding strings as values"
+    }
+  },
   "properties": {
     "author": {
-      "type": "string"
+      "$ref": "#/$defs/localized_string"
     },
     "date": {
       "type": "string",
@@ -15,31 +27,28 @@
       "format": "uri"
     },
     "presentation": {
-      "type": "string",
+      "$ref": "#/$defs/localized_string",
       "nullable": true
     },
     "usage_title": {
-      "type": "string",
+      "$ref": "#/$defs/localized_string",
       "nullable": true
     },
     "title": {
-      "type": "string"
+      "$ref": "#/$defs/localized_string"
     },
     "long_title": {
-      "type": "string"
+      "$ref": "#/$defs/localized_string"
     },
     "alt_titles": {
       "type": "array",
       "items": {
-        "type": "string"
+        "$ref": "#/$defs/localized_string"
       }
     },
     "type": {
       "type": "string",
-      "enum": [
-        "commentary",
-        "root"
-      ]
+      "enum": ["commentary", "root"]
     },
     "commentary_of": {
       "type": "string",
@@ -60,7 +69,6 @@
   },
   "required": [
     "author",
-    "date",
     "source",
     "title",
     "long_title",
@@ -79,9 +87,7 @@
               "type": "string"
             }
           },
-          "required": [
-            "commentary_of"
-          ]
+          "required": ["commentary_of"]
         },
         {
           "properties": {
@@ -90,9 +96,7 @@
             }
           },
           "not": {
-            "required": [
-              "commentary_of"
-            ]
+            "required": ["commentary_of"]
           }
         }
       ]
