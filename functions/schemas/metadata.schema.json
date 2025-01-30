@@ -33,7 +33,7 @@
       "format": "uri"
     },
     "document_id": {
-        "type": "string"
+      "type": "string"
     },
     "presentation": {
       "$ref": "#/$defs/localized_string"
@@ -54,13 +54,13 @@
       }
     },
     "commentary_of": {
-      "$ref" : "#/$defs/pecha_id"
+      "$ref": "#/$defs/pecha_id"
     },
     "version_of": {
-      "$ref" : "#/$defs/pecha_id"
+      "$ref": "#/$defs/pecha_id"
     },
     "translation_of": {
-      "$ref" : "#/$defs/pecha_id"
+      "$ref": "#/$defs/pecha_id"
     },
     "language": {
       "type": "string",
@@ -74,6 +74,44 @@
     "title",
     "long_title",
     "language"
+  ],
+  "oneOf": [
+    {
+      "required": ["commentary_of"],
+      "not": {
+        "anyOf": [
+          { "required": ["version_of"] },
+          { "required": ["translation_of"] }
+        ]
+      }
+    },
+    {
+      "required": ["version_of"],
+      "not": {
+        "anyOf": [
+          { "required": ["commentary_of"] },
+          { "required": ["translation_of"] }
+        ]
+      }
+    },
+    {
+      "required": ["translation_of"],
+      "not": {
+        "anyOf": [
+          { "required": ["commentary_of"] },
+          { "required": ["version_of"] }
+        ]
+      }
+    },
+    {
+      "not": {
+        "anyOf": [
+          { "required": ["commentary_of"] },
+          { "required": ["version_of"] },
+          { "required": ["translation_of"] }
+        ]
+      }
+    }
   ],
   "additionalProperties": false
 }

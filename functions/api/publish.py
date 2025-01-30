@@ -68,9 +68,12 @@ def parse(docx_file, metadata) -> Pecha:
     return GoogleDocTranslationParser().parse(path, metadata)
 
 
-def get_duplicate_key(doc_id: str):
+def get_duplicate_key(document_id: str):
     doc = next(
-        db.collection("metadata").where("document_id", "==", doc_id).limit(1).stream(),
+        db.collection("metadata")
+        .where("document_id", "==", document_id)
+        .limit(1)
+        .stream(),
         None,
     )
     return doc.id if doc else None
@@ -95,12 +98,12 @@ def publish():
     logger.info("Uploaded text file: %s", text.filename)
     logger.info("Metadata: %s", metadata)
 
-    duplicate_key = get_duplicate_key(metadata["doc_id"])
+    duplicate_key = get_duplicate_key(metadata["document_id"])
 
     if duplicate_key:
         return jsonify(
             {
-                "error": f"Document '{metadata["doc_id"]}' is already published (Pecha ID: {duplicate_key})"
+                "error": f"Document '{metadata["document_id"]}' is already published (Pecha ID: {duplicate_key})"
             },
             400,
         )

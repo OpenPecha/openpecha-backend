@@ -18,7 +18,7 @@ def pecha():
                 .get("title", {})
                 .get(data.get("language", "en"), ""),
             }
-            for doc in db.collection("text").stream()
+            for doc in db.collection("metadata").stream()
         ]
         return jsonify(metadata_list), 200
     except Exception as e:
