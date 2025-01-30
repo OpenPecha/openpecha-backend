@@ -1,26 +1,23 @@
 import logging
 
 from flask import Flask
-from firebase_functions import https_fn
+from firebase_functions import https_fn, options
 from api.publish import publish_bp
+from api.pecha import pecha_bp
 
-
-# class FirebaseConsoleHandler(logging.Handler):
-#   def emit(self, record):
-#       print(f"[{record.levelname}] {record.getMessage()}", flush=True)
-
-
-# Configure logging
 logging.basicConfig(level=logging.INFO)
-# firebase_handler = FirebaseConsoleHandler()
-# logging.getLogger().addHandler(firebase_handler)
-
 
 app = Flask(__name__)
 app.register_blueprint(publish_bp, url_prefix="/publish")
+app.register_blueprint(pecha_bp, url_prefix="/pecha")
 
 
 @https_fn.on_request(
+    cors=options.CorsOptions(
+        # cors_origins=["https://pecha-backend.web.app", "http://localhost:5002"],
+        cors_origins=["*"],
+        cors_methods=["GET", "POST", "OPTIONS"],
+    ),
     max_instances=1,
     secrets=[
         "GITHUB_TOKEN",

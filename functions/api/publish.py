@@ -3,20 +3,20 @@ import os
 import logging
 
 from pathlib import Path
+
 from flask import Blueprint, request, jsonify
 from jsonschema import Draft202012Validator
+from firebase_config import db
 
 from openpecha.pecha.parsers.google_doc.translation import GoogleDocTranslationParser
-from openpecha.alignment.serializers.translation import TextTranslationSerializer
+from openpecha.pecha.serializers.translation import TextTranslationSerializer
+from openpecha.pecha import Pecha
 
 publish_bp = Blueprint("publish", __name__)
 
 logger = logging.getLogger(__name__)
 
-DOC_FORMATS = [".docx"]
-
-with open("schemas/metadata.schema.json", "r", encoding="utf-8") as f:
-    metadata_schema = json.load(f)
+TEXT_FORMATS = [".docx"]
 
 
 def tmp_path(directory):
@@ -31,6 +31,9 @@ def validate_metadata(metadata: dict):
         metadata_json = json.loads(metadata)
     except json.JSONDecodeError as e:
         return False, f"Invalid JSON format for metadata: {str(e)}"
+
+    with open("schemas/metadata.schema.json", "r", encoding="utf-8") as f:
+        metadata_schema = json.load(f)
 
     validator = Draft202012Validator(metadata_schema)
     errors = [
@@ -49,82 +52,99 @@ def validate_file(text):
         return False, "Text file is required"
 
     _, extension = os.path.splitext(text.filename)
-    if extension in DOC_FORMATS:
+    if extension in TEXT_FORMATS:
         return True, None
 
     return (
         False,
-        f"Invalid file type. {extension} Supported types: {", ".join(DOC_FORMATS)}",
+        f"Invalid file type. {extension} Supported types: {", ".join(TEXT_FORMATS)}",
     )
 
 
-def parse(docx_file, metadata):
+def parse(docx_file, metadata) -> Pecha:
     path = tmp_path(docx_file.filename)
     docx_file.save(path)
 
-    pecha, _ = GoogleDocTranslationParser().parse(path, metadata, tmp_path("output"))
-    return pecha
+    return GoogleDocTranslationParser().parse(path, metadata)
 
 
-def serialize(original_path, translation_path):
-    serializer = TextTranslationSerializer()
-    return Path(
-        serializer.serialize(original_path, translation_path, tmp_path("output"), False)
+def get_duplicate_key(doc_id: str):
+    doc = next(
+        db.collection("metadata").where("document_id", "==", doc_id).limit(1).stream(),
+        None,
     )
+    return doc.id if doc else None
 
 
 @publish_bp.route("/", methods=["POST"], strict_slashes=False)
 def publish():
-    original_text = request.files.get("original_text")
-    translation_text = request.files.get("translation_text")
+    text = request.files.get("text")
 
-    original_metadata_json = request.form.get("original_metadata")
-    translation_metadata_json = request.form.get("translation_metadata")
+    metadata_json = request.form.get("metadata")
 
-    is_valid, error_message = validate_file(original_text)
+    is_valid, error_message = validate_file(text)
     if not is_valid:
-        return jsonify({"error": f"Original file: {error_message}"}), 400
+        return jsonify({"error": f"Text file: {error_message}"}), 400
 
-    is_valid, original_metadata = validate_metadata(original_metadata_json)
+    is_valid, metadata = validate_metadata(metadata_json)
     if not is_valid:
-        return jsonify({"error": f"Original metadata: {original_metadata}"}), (
-            400 if isinstance(original_metadata, str) else 422
+        return jsonify({"error": f"Metadata: {metadata}"}), (
+            400 if isinstance(metadata, str) else 422
         )
 
-    is_valid, error_message = validate_file(translation_text)
-    if not is_valid:
-        return jsonify({"error": f"Translation file: {error_message}"}), 400
+    logger.info("Uploaded text file: %s", text.filename)
+    logger.info("Metadata: %s", metadata)
 
-    is_valid, translation_metadata = validate_metadata(translation_metadata_json)
-    if not is_valid:
-        return jsonify({"error": f"Translation metadata: {translation_metadata}"}), (
-            400 if isinstance(translation_metadata, str) else 422
+    duplicate_key = get_duplicate_key(metadata["doc_id"])
+
+    if duplicate_key:
+        return jsonify(
+            {
+                "error": f"Document '{metadata["doc_id"]}' is already published (Pecha ID: {duplicate_key})"
+            },
+            400,
         )
 
-    logger.info("Uploaded original file: %s", original_text.filename)
-    logger.info("Original metadata: %s", original_metadata)
+    pecha = parse(text, metadata)
+    logger.info("Pecha created: %s %s", pecha.id, pecha.pecha_path)
 
-    logger.info("Uploaded translation file: %s", translation_text.filename)
-    logger.info("Translation metadata: %s", translation_metadata)
+    pecha.publish()
 
-    original_pecha = parse(original_text, original_metadata)
-    logger.info(
-        "Original pecha created: %s %s", original_pecha.id, original_pecha.pecha_path
-    )
+    serializer = TextTranslationSerializer()
+    if "translation_of" in metadata:
+        alignment = serializer.get_root_and_translation_layer(pecha, False)
+    else:
+        alignment = serializer.get_root_layer(pecha)
 
-    translation_pecha = parse(translation_text, translation_metadata)
-    logger.info(
-        "Translation pecha created: %s %s",
-        translation_pecha.id,
-        translation_pecha.pecha_path,
-    )
+    serialized_json = TextTranslationSerializer().serialize(pecha, False)
 
-    json_output_path = serialize(
-        original_pecha.pecha_path, translation_pecha.pecha_path
-    )
+    # try:
+    #     bucket = storage_client.bucket(STORAGE_BUCKET)
+    #     storage_path = f"serialized_data/{pecha.id}.json"
+    #     blob = bucket.blob(storage_path)
+    #     blob.upload_from_string(serialized_json, content_type="application/json")
+    #     storage_url = f"https://storage.googleapis.com/{STORAGE_BUCKET}/{storage_path}"
+    #     logger.info("Serialized JSON stored in Firebase Storage: %s", storage_url)
+    # except Exception as e:
+    #     logger.error("Error storing serialized JSON in Firebase Storage: %s", e)
+    #     return (
+    #         jsonify({"error": "Failed to store serialized JSON in Firebase Storage"}),
+    #         500,
+    #     )
 
     try:
-        with open(json_output_path, "r", encoding="utf-8") as json_file:
-            return jsonify(json.load(json_file)), 200
+        with db.transaction() as transaction:
+            doc_ref_metadata = db.collection("metadata").document(pecha.id)
+            doc_ref_alignment = db.collection("alignment").document(pecha.id)
+
+            transaction.set(doc_ref_metadata, metadata)
+            logger.info("Metadata saved to Firestore: %s", pecha.id)
+
+            transaction.set(doc_ref_alignment, alignment)
+            logger.info("Alignment saved to Firestore: %s", pecha.id)
+
     except Exception as e:
-        return jsonify({"error": f"Failed to produce JSON output: {str(e)}"}), 500
+        logger.error("Error saving to Firestore: %s", e)
+        return jsonify({"error": f"Failed to save to Firestore {str(e)}"}), 500
+
+    return jsonify({"pecha_id": pecha.id, "data": serialized_json}), 200

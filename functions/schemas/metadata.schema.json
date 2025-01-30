@@ -11,7 +11,13 @@
         }
       },
       "additionalProperties": false,
+      "required": ["en"],
       "description": "Dictionary with language codes as keys and corresponding strings as values"
+    },
+    "pecha_id": {
+      "type": "string",
+      "pattern": "^I[A-F0-9]{8}$",
+      "description": "ID pattern that starts with 'I' followed by 8 uppercase hex characters"
     }
   },
   "properties": {
@@ -26,13 +32,14 @@
       "type": "string",
       "format": "uri"
     },
+    "document_id": {
+        "type": "string"
+    },
     "presentation": {
-      "$ref": "#/$defs/localized_string",
-      "nullable": true
+      "$ref": "#/$defs/localized_string"
     },
     "usage_title": {
-      "$ref": "#/$defs/localized_string",
-      "nullable": true
+      "$ref": "#/$defs/localized_string"
     },
     "title": {
       "$ref": "#/$defs/localized_string"
@@ -46,21 +53,14 @@
         "$ref": "#/$defs/localized_string"
       }
     },
-    "type": {
-      "type": "string",
-      "enum": ["commentary", "root"]
-    },
     "commentary_of": {
-      "type": "string",
-      "nullable": true
+      "$ref" : "#/$defs/pecha_id"
     },
     "version_of": {
-      "type": "string",
-      "nullable": true
+      "$ref" : "#/$defs/pecha_id"
     },
     "translation_of": {
-      "type": "string",
-      "nullable": true
+      "$ref" : "#/$defs/pecha_id"
     },
     "language": {
       "type": "string",
@@ -69,38 +69,11 @@
   },
   "required": [
     "author",
+    "document_id",
     "source",
     "title",
     "long_title",
-    "alt_titles",
     "language"
   ],
-  "dependentSchemas": {
-    "type": {
-      "oneOf": [
-        {
-          "properties": {
-            "type": {
-              "const": "commentary"
-            },
-            "commentary_of": {
-              "type": "string"
-            }
-          },
-          "required": ["commentary_of"]
-        },
-        {
-          "properties": {
-            "type": {
-              "const": "root"
-            }
-          },
-          "not": {
-            "required": ["commentary_of"]
-          }
-        }
-      ]
-    }
-  },
   "additionalProperties": false
 }

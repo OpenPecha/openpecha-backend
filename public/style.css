@@ -1,0 +1,61 @@
+body {
+    font-family: Inter, -apple-system, system-ui, "Segoe UI", Helvetica, Arial, sans-serif;
+    margin: 20px;
+}
+
+.section {
+    margin-bottom: 20px;
+}
+
+.localized-container {
+    border: 1px solid #ccc;
+    padding: 10px;
+    margin-bottom: 10px;
+}
+
+.localized-row {
+    margin-bottom: 5px;
+}
+
+.localized-row input {
+    margin-right: 5px;
+}
+
+.alt-title-block {
+    border: 1px solid #999;
+    padding: 10px;
+    margin-bottom: 10px;
+}
+
+table {
+    border-collapse: collapse;
+    width: 50%;
+}
+
+/* Table & cell borders: 1px */
+table,
+th,
+td {
+    border: 1px solid #000;
+}
+
+td {
+    padding: 12px;
+    vertical-align: left;
+}
+
+.label-cell {
+    text-align: right;
+    white-space: nowrap;
+    font-weight: bold;
+}
+
+.input-cell {
+    width: 100%;
+}
+
+.submit-button {
+    padding: 13px 20px;
+    font-size: 16px;
+    font-weight: 600;
+}
