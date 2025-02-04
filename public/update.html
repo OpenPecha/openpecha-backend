@@ -1,0 +1,47 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="stylesheet" href="style.css" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Update</title>
+  </head>
+  <body>
+    <form>
+      <table>
+        <tr>
+          <td class="label-cell">Published Text:</td>
+          <td class="input-cell">
+            <select id="published_text">
+              <option value=""></option>
+            </select>
+          </td>
+        </tr>
+        <tr>
+          <td class="label-cell">Document</td>
+          <td class="input-cell">
+            <input type="url" id="udocLink" placeholder="Google Docs URL" />
+          </td>
+        </tr>
+      </table>
+      <button type="button" class="submit-button" onclick="handleUpdate()">
+        Submit
+      </button>
+    </form>
+    <script src="script.js"></script>
+    <script src="google_drive.js"></script>
+    <script src="submit.js"></script>
+    <script
+      async
+      defer
+      src="https://apis.google.com/js/api.js"
+      onload="gapiLoaded()"
+    ></script>
+    <script
+      async
+      defer
+      src="https://accounts.google.com/gsi/client"
+      onload="gisLoaded()"
+    ></script>
+  </body>
+</html>

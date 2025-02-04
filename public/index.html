@@ -1,127 +1,163 @@
 <!DOCTYPE html>
 <html lang="en">
-
-<head>
-    <meta charset="UTF-8">
+  <head>
+    <meta charset="UTF-8" />
     <title>Publish Text</title>
     <link rel="stylesheet" href="style.css" />
-</head>
+  </head>
 
-<body>
+  <body>
     <h1>Metadata Form</h1>
-
+    <a class="nav-items" href="update.html">UPDATE</a>
     <form>
-        <table>
-            <tr>
-                <td class="label-cell">Author</td>
-                <td class="input-cell">
-                    <div id="author-container"></div>
-                    <button type="button" class="button-11" onclick="attemptAddLocalizedRow('author-container')">➕</button>
-                </td>
-            </tr>
+      <table>
+        <tr>
+          <td class="label-cell">Author</td>
+          <td class="input-cell">
+            <div id="author-container"></div>
+            <button
+              type="button"
+              class="button-11"
+              onclick="attemptAddLocalizedRow('author-container')"
+            >
+              ➕
+            </button>
+          </td>
+        </tr>
 
-            <tr>
-                <td class="label-cell">Composition Date</td>
-                <td class="input-cell">
-                    <input type="date" id="date">
-                </td>
-            </tr>
+        <tr>
+          <td class="label-cell">Composition Date</td>
+          <td class="input-cell">
+            <input type="date" id="date" />
+          </td>
+        </tr>
 
-            <tr>
-                <td class="label-cell">Source (URL)</td>
-                <td class="input-cell">
-                    <input type="url" id="source" placeholder="https://example.com">
-                </td>
-            </tr>
+        <tr>
+          <td class="label-cell">Source (URL)</td>
+          <td class="input-cell">
+            <input type="url" id="source" placeholder="https://example.com" />
+          </td>
+        </tr>
 
-            <tr>
-                <td class="label-cell">Presentation</td>
-                <td class="input-cell">
-                    <div id="presentation-container"></div>
-                    <button type="button" onclick="attemptAddLocalizedRow('presentation-container')">➕</button>
-                </td>
-            </tr>
+        <tr>
+          <td class="label-cell">Presentation</td>
+          <td class="input-cell">
+            <div id="presentation-container"></div>
+            <button
+              type="button"
+              onclick="attemptAddLocalizedRow('presentation-container')"
+            >
+              ➕
+            </button>
+          </td>
+        </tr>
 
-            <tr>
-                <td class="label-cell">Usage Title</td>
-                <td class="input-cell">
-                    <div id="usage-container"></div>
-                    <button type="button" onclick="attemptAddLocalizedRow('usage-container')">➕</button>
-                </td>
-            </tr>
+        <tr>
+          <td class="label-cell">Usage Title</td>
+          <td class="input-cell">
+            <div id="usage-container"></div>
+            <button
+              type="button"
+              onclick="attemptAddLocalizedRow('usage-container')"
+            >
+              ➕
+            </button>
+          </td>
+        </tr>
 
-            <tr>
-                <td class="label-cell">Title</td>
-                <td class="input-cell">
-                    <div id="title-container"></div>
-                    <button type="button" onclick="attemptAddLocalizedRow('title-container')">➕</button>
-                </td>
-            </tr>
+        <tr>
+          <td class="label-cell">Title</td>
+          <td class="input-cell">
+            <div id="title-container"></div>
+            <button
+              type="button"
+              onclick="attemptAddLocalizedRow('title-container')"
+            >
+              ➕
+            </button>
+          </td>
+        </tr>
 
-            <tr>
-                <td class="label-cell">Long Title</td>
-                <td class="input-cell">
-                    <div id="longtitle-container"></div>
-                    <button type="button" onclick="attemptAddLocalizedRow('longtitle-container')">➕</button>
-                </td>
-            </tr>
+        <tr>
+          <td class="label-cell">Long Title</td>
+          <td class="input-cell">
+            <div id="longtitle-container"></div>
+            <button
+              type="button"
+              onclick="attemptAddLocalizedRow('longtitle-container')"
+            >
+              ➕
+            </button>
+          </td>
+        </tr>
 
-            <tr>
-                <td class="label-cell">Alt Titles</td>
-                <td class="input-cell">
-                    <div id="alt-titles-array"></div>
-                    <button type="button" onclick="addAltTitlesBlock()">➕</button>
-                </td>
-            </tr>
+        <tr>
+          <td class="label-cell">Alt Titles</td>
+          <td class="input-cell">
+            <div id="alt-titles-array"></div>
+            <button type="button" onclick="addAltTitlesBlock()">➕</button>
+          </td>
+        </tr>
 
-            <tr>
-                <td class="label-cell">Version of</td>
-                <td class="input-cell">
-                    <select id="version_of">
-                        <option value=""></option>
-                    </select>
-                </td>
-            </tr>
+        <tr>
+          <td class="label-cell">Version of</td>
+          <td class="input-cell">
+            <select id="version_of">
+              <option value=""></option>
+            </select>
+          </td>
+        </tr>
 
-            <tr>
-                <td class="label-cell">Translation of</td>
-                <td class="input-cell">
-                    <select id="translation_of">
-                        <option value=""></option>
-                    </select>
-                </td>
-            </tr>
+        <tr>
+          <td class="label-cell">Translation of</td>
+          <td class="input-cell">
+            <select id="translation_of">
+              <option value=""></option>
+            </select>
+          </td>
+        </tr>
 
-            <tr>
-                <td class="label-cell">Commentary of</td>
-                <td class="input-cell">
-                    <select id="commentary_of">
-                        <option value=""></option>
-                    </select>
-                </td>
-            </tr>
+        <tr>
+          <td class="label-cell">Commentary of</td>
+          <td class="input-cell">
+            <select id="commentary_of">
+              <option value=""></option>
+            </select>
+          </td>
+        </tr>
 
-            <tr>
-                <td class="label-cell">Language</td>
-                <td class="input-cell">
-                    <input type="text" id="language" placeholder="e.g., en or bo">
-                </td>
-            </tr>
+        <tr>
+          <td class="label-cell">Language</td>
+          <td class="input-cell">
+            <input type="text" id="language" placeholder="e.g., en or bo" />
+          </td>
+        </tr>
 
-            <tr>
-                <td class="label-cell">Document</td>
-                <td class="input-cell">
-                    <input type="url" id="docLink" placeholder="Google Docs URL">
-                </td>
-            </tr>
-        </table>
-        <button type="button" class="submit-button" onclick="handleSubmit()">Publish</button>
+        <tr>
+          <td class="label-cell">Document</td>
+          <td class="input-cell">
+            <input type="url" id="docLink" placeholder="Google Docs URL" />
+          </td>
+        </tr>
+      </table>
+      <button type="button" class="submit-button" onclick="handleSubmit()">
+        Publish
+      </button>
     </form>
     <script src="script.js"></script>
     <script src="google_drive.js"></script>
     <script src="submit.js"></script>
-    <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
-    <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
-</body>
-
+    <script
+      async
+      defer
+      src="https://apis.google.com/js/api.js"
+      onload="gapiLoaded()"
+    ></script>
+    <script
+      async
+      defer
+      src="https://accounts.google.com/gsi/client"
+      onload="gisLoaded()"
+    ></script>
+  </body>
 </html>
