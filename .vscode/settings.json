@@ -1,7 +1,8 @@
 {
   "python.analysis.extraPaths": [
     "functions/venv/lib/python3.12/site-packages",
-    "./functions"
+    "./functions",
+    "./functions/api"
    ],
    "pylint.args": [ 
     "--disable=missing-class-docstring", 

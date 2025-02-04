@@ -1,18 +1,21 @@
-import json
 import os
 import logging
+import json
 
 from pathlib import Path
 
 from flask import Blueprint, request, jsonify
-from jsonschema import Draft202012Validator
 from firebase_config import db
 
 from openpecha.pecha.parsers.google_doc.translation import GoogleDocTranslationParser
 from openpecha.pecha.serializers.translation import TextTranslationSerializer
 from openpecha.pecha import Pecha
 
+from api.metadata import validate
+
+
 publish_bp = Blueprint("publish", __name__)
+update_text_bp = Blueprint("update-text", __name__)
 
 logger = logging.getLogger(__name__)
 
@@ -21,30 +24,6 @@ TEXT_FORMATS = [".docx"]
 
 def tmp_path(directory):
     return Path(f"/tmp/{directory}")
-
-
-def validate_metadata(metadata: dict):
-    if not metadata:
-        return False, "Metadata is required"
-
-    try:
-        metadata_json = json.loads(metadata)
-    except json.JSONDecodeError as e:
-        return False, f"Invalid JSON format for metadata: {str(e)}"
-
-    with open("schemas/metadata.schema.json", "r", encoding="utf-8") as f:
-        metadata_schema = json.load(f)
-
-    validator = Draft202012Validator(metadata_schema)
-    errors = [
-        {"message": e.message, "path": list(e.path), "schema_path": list(e.schema_path)}
-        for e in validator.iter_errors(metadata_json)
-    ]
-
-    if errors:
-        return False, errors
-
-    return True, metadata_json
 
 
 def validate_file(text):
@@ -83,17 +62,20 @@ def get_duplicate_key(document_id: str):
 def publish():
     text = request.files.get("text")
 
-    metadata_json = request.form.get("metadata")
-
     is_valid, error_message = validate_file(text)
     if not is_valid:
         return jsonify({"error": f"Text file: {error_message}"}), 400
 
-    is_valid, metadata = validate_metadata(metadata_json)
+    metadata_json = request.form.get("metadata")
+
+    try:
+        metadata = json.loads(metadata_json)
+    except json.JSONDecodeError as e:
+        return False, f"Invalid JSON format for metadata: {str(e)}"
+
+    is_valid, errors = validate(metadata)
     if not is_valid:
-        return jsonify({"error": f"Metadata: {metadata}"}), (
-            400 if isinstance(metadata, str) else 422
-        )
+        return jsonify({"error": errors}), 422
 
     logger.info("Uploaded text file: %s", text.filename)
     logger.info("Metadata: %s", metadata)
@@ -151,3 +133,38 @@ def publish():
         return jsonify({"error": f"Failed to save to Firestore {str(e)}"}), 500
 
     return jsonify({"pecha_id": pecha.id, "data": serialized_json}), 200
+
+
+@update_text_bp.route("/", methods=["POST"], strict_slashes=False)
+def update_text():
+    doc_id = request.form.get("id")
+    if not doc_id:
+        return jsonify({"error": "Missing required 'id' parameter"}), 400
+
+    text = request.files.get("text")
+    if not text:
+        return jsonify({"error": "Missing required 'text' parameter"}), 400
+
+    is_valid, error_message = validate_file(text)
+    if not is_valid:
+        return jsonify({"error": f"Text file: {error_message}"}), 400
+
+    try:
+        doc = db.collection("metadata").document(doc_id).get()
+
+        if not doc.exists:
+            return jsonify({"error": "Metadata not found"}), 404
+
+        metadata = doc.to_dict()
+
+    except Exception as e:
+        return jsonify({"error": f"Failed to retrieve metadata: {str(e)}"}), 500
+
+    logger.info("Metadata: %s", metadata)
+
+    pecha = parse(text, metadata)
+    logger.info("Pecha created: %s %s", pecha.id, pecha.pecha_path)
+
+    pecha.publish()
+
+    return jsonify({"message": "Text updated successfully", "id": doc_id}), 201
