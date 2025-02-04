@@ -1,195 +1,357 @@
-// Utility: returns whether all existing rows in a container are filled
-function allRowsFilled(containerId) {
-    const container = document.getElementById(containerId);
-    if (!container) return true; // If no container, trivially "filled"
-
-    const rows = container.querySelectorAll(".localized-row");
-    for (let row of rows) {
-        const langInput = row.querySelector(".lang-input");
-        const valInput = row.querySelector(".val-input");
-        // language code or value might be empty => return false
-        if (!langInput.value.trim() || !valInput.value.trim()) {
-            return false;
-        }
-    }
-    return true;
-}
-
-// Creates a single row {language, value}. If it's the first row, we make it "en" & disabled
-function createLocalizedRow(isFirstRow = false, placeholder) {
-    const row = document.createElement("div");
-    row.className = "localized-row";
-
-    // Language code input
-    const langInput = document.createElement("input");
-    langInput.type = "text";
-    langInput.className = "lang-input";
-    if (isFirstRow) {
-        langInput.value = "en";
-        langInput.disabled = true;
-    } else {
-        langInput.placeholder = "Lang code (e.g., bo)";
+class LocalizedForm {
+    constructor() {
+        this.baseLanguageSelect = document.getElementById("baseLanguage");
+        this.formContent = document.getElementById("formContent");
+        this.pechaOptionsContainer = document.getElementById(
+            "pechaOptionsContainer"
+        );
+        this.pechaOptions = document.getElementById("pechaOptions");
+        this.typeRadios = document.querySelectorAll(
+            'input[name="documentType"]'
+        );
+        this.publishButton = document.getElementById("publishButton")
+        this.setupEventListeners();
     }
 
-    // Value input
-    const valInput = document.createElement("input");
-    valInput.type = "text";
-    valInput.placeholder = "Localized Value";
-    valInput.className = "val-input";
-
-    row.appendChild(langInput);
-    row.appendChild(valInput);
-
-    // Remove button (except for the first "en" row)
-    if (!isFirstRow) {
-        const removeButton = document.createElement("button");
-        removeButton.type = "button";
-        removeButton.textContent = "❌";
-        removeButton.className = "remove-lang";
-        removeButton.onclick = () => row.remove(); // Remove row on click
-        row.appendChild(removeButton);
-    }
-
-    return row;
-}
-
-// Adds a row to a localized container only if existing rows are filled
-function attemptAddLocalizedRow(containerId) {
-    // Check if all existing rows are filled
-    if (!allRowsFilled(containerId)) {
-        alert("Please fill out all existing language rows before adding a new one.");
-        return;
-    }
-    // If filled, add a new row
-    addLocalizedRow(containerId, false);
-    // attachSaveListeners();
-}
-
-function addLocalizedRow(containerId, isFirstRow = false) {
-    const container = document.getElementById(containerId);
-    if (!container) return;
-
-    const row = createLocalizedRow(isFirstRow);
-    container.appendChild(row);
-}
-
-// Adds an alt-title block (which is an array item of localized container)
-function addAltTitlesBlock() {
-    const altTitlesArray = document.getElementById("alt-titles-array");
-
-    const block = document.createElement("div");
-    block.className = "alt-title-block";
-
-    // localized-container
-    const container = document.createElement("div");
-    container.className = "localized-container";
-    container.id = `alt_title_${Date.now()}`;
-    block.appendChild(container);
-
-    // Add the + language button
-    const addLangBtn = document.createElement("button");
-    addLangBtn.type = "button";
-    addLangBtn.textContent = "➕";
-    addLangBtn.onclick = () => attemptAddLocalizedRow(container.id);
-
-    block.appendChild(addLangBtn);
-    altTitlesArray.appendChild(block);
-
-    // Initially add one row (with "en")
-    addLocalizedRow(container.id, true);
-}
-
-// Gathers data from a localized container -> { lang: value, ... }
-function gatherLocalizedData(containerId) {
-    const container = document.getElementById(containerId);
-    if (!container) return {};
-
-    const rows = container.querySelectorAll(".localized-row");
-    const data = {};
-
-    rows.forEach((row) => {
-        const langInput = row.querySelector(".lang-input");
-        const valInput = row.querySelector(".val-input");
-        if (langInput && valInput && langInput.value.trim()) {
-            data[langInput.value.trim()] = valInput.value.trim();
-        }
-    });
-    return data;
-}
-
-// Gathers data from an array of alt-title blocks
-function gatherAltTitles() {
-    const altTitlesArray = document.getElementById("alt-titles-array");
-    const blocks = altTitlesArray.querySelectorAll(".alt-title-block");
-    const result = [];
-
-    blocks.forEach((block) => {
-        const container = block.querySelector(".localized-container");
-        if (container) {
-            const obj = gatherLocalizedData(container.id);
-            if (Object.keys(obj).length > 0) {
-                result.push(obj);
+    setupEventListeners() {
+        // Base Language Selection
+        this.baseLanguageSelect.addEventListener("change", () => {
+            const baseLanguage = this.baseLanguageSelect.value;
+            if (baseLanguage) {
+                this.formContent.classList.add("visible");
+                this.initializeFields(baseLanguage);
+            } else {
+                this.formContent.classList.remove("visible");
             }
-        }
-    });
-    return result;
-}
+        });
 
-// INITIAL SETUP - Add default "en" row to each localized container
-window.onload = () => {
-    const containers = [
-        "author-container",
-        "presentation-container",
-        "usage-container",
-        "title-container",
-        "longtitle-container"
-    ];
-    containers.forEach((cId) => addLocalizedRow(cId, true)); // create initial "en" row
-};
-
-// Ensure only one of version_of, translation_of, or commentary_of is selected
-function enforceMutualExclusivity(selectedId) {
-    const fields = ["version_of", "translation_of", "commentary_of"];
-    fields.forEach(id => {
-        if (id !== selectedId) {
-            document.getElementById(id).value = "";
-        }
-    });
-}
-
-async function fetchPechaOptions() {
-    try {
-        const response = await fetch("https://api-aq25662yyq-uc.a.run.app/pecha/");
-        if (!response.ok) {
-            throw new Error(`Failed to fetch data: ${response.statusText}`);
-        }
-        const pechas = await response.json();
-
-        // Get dropdown elements
-        const dropdowns = ["commentary_of", "version_of", "translation_of"];
-        dropdowns.forEach(id => {
-            const select = document.getElementById(id);
-            select.innerHTML = `<option value=""></option>`; // Reset options
-
-            pechas.forEach(pecha => {
-                const option = document.createElement("option");
-                option.value = pecha.id;
-                option.textContent = `${pecha.title} (${pecha.id})`;
-                select.appendChild(option);
+        this.publishButton.addEventListener("click", () => {
+            this.handlePublish();
+        });
+        // Add Localization Buttons
+        document.querySelectorAll(".add-localization").forEach((button) => {
+            button.addEventListener("click", (e) => {
+                const formGroup = e.target.closest(".form-group");
+                this.addLocalization(formGroup);
             });
         });
 
-        console.log("Dropdowns populated successfully.");
-    } catch (error) {
-        console.error("Error loading pecha options:", error);
+        // Type Radio Selection
+        this.typeRadios.forEach((radio) => {
+            radio.addEventListener("change", () => {
+                if (radio.checked) {
+                    this.pechaOptionsContainer.classList.add("visible");
+                    this.fetchPechaOptions();
+                }
+            });
+        });
+    }
+
+    initializeFields(baseLanguage) {
+        document
+            .querySelectorAll(".form-group[data-field]")
+            .forEach((group) => {
+                const localizationsDiv = group.querySelector(".localizations");
+                localizationsDiv.innerHTML = ""; // Clear existing
+                this.createLocalizationInput(
+                    localizationsDiv,
+                    baseLanguage,
+                    true
+                );
+            });
+    }
+
+    createLocalizationInput(container, language, isFirst = false) {
+        const inputContainer = document.createElement("div");
+        inputContainer.className = "input-container";
+
+        const inputGroup = document.createElement("div");
+        inputGroup.className = "input-group";
+
+        const inputWrapper = document.createElement("div");
+        inputWrapper.className = "input-wrapper";
+
+        const isTextarea =
+            container.closest(".form-group").dataset.field === "presentation";
+        let input;
+
+        if (isTextarea) {
+            input = document.createElement("textarea");
+            input.placeholder = "Enter text";
+        } else {
+            input = document.createElement("input");
+            input.type = "text";
+            input.placeholder = "Enter text";
+        }
+
+        input.setAttribute("required", "");
+
+        const langSelect = document.createElement("select");
+        langSelect.innerHTML = `
+    <option value="">Language</option>
+    <option value="en">English</option>
+    <option value="fr">French</option>
+    <option value="bo">Tibetan</option>
+  `;
+        langSelect.setAttribute("required", "");
+
+        if (isFirst) {
+            langSelect.value = language;
+            langSelect.disabled = true;
+        }
+
+        inputWrapper.appendChild(input);
+        inputWrapper.appendChild(langSelect);
+        inputGroup.appendChild(inputWrapper);
+
+        if (!isFirst) {
+            const removeButton = document.createElement("button");
+            removeButton.type = "button";
+            removeButton.className = "remove-btn";
+            removeButton.innerHTML = '<i class="fas fa-times"></i>';
+            removeButton.addEventListener("click", () => {
+                inputContainer.remove();
+            });
+            inputGroup.appendChild(removeButton);
+        }
+
+        inputContainer.appendChild(inputGroup);
+        container.appendChild(inputContainer);
+    }
+
+    addLocalization(formGroup) {
+        const localizationsDiv = formGroup.querySelector(".localizations");
+        const inputs = localizationsDiv.querySelectorAll("input, textarea");
+        const selects = localizationsDiv.querySelectorAll("select");
+
+        // Validate existing fields
+        let isValid = true;
+        inputs.forEach((input, index) => {
+            if (!input.value || !selects[index].value) {
+                isValid = false;
+                input.closest(".input-wrapper").classList.add("error");
+            }
+        });
+
+        if (!isValid) {
+            alert(
+                "Please fill in all existing fields before adding a new localization"
+            );
+            return;
+        }
+
+        // Clear any existing error states
+        localizationsDiv
+            .querySelectorAll(".input-wrapper")
+            .forEach((wrapper) => {
+                wrapper.classList.remove("error");
+            });
+
+        this.createLocalizationInput(localizationsDiv);
+    }
+
+    async fetchPechaOptions() {
+        try {
+            const response = await fetch(
+                "https://api-aq25662yyq-uc.a.run.app/pecha/"
+            );
+            if (!response.ok) {
+                throw new Error(`Failed to fetch data: ${response.statusText}`);
+            }
+            const pechas = await response.json();
+            console.log("Pecha options:", pechas);
+
+            // Clear existing options, keep the first "Select pecha" option
+            while (this.pechaOptions.options.length > 1) {
+                this.pechaOptions.remove(1);
+            }
+
+            pechas.forEach((pecha) => {
+                const option = document.createElement("option");
+                option.value = pecha.id;
+                option.textContent = `(${pecha.id}) ${pecha.title}`;
+                this.pechaOptions.appendChild(option);
+            });
+            console.log("Dropdowns populated successfully.");
+        } catch (error) {
+            console.error("Error loading pecha options:", error);
+            alert("Unable to load pecha options. Please try again later.");
+        }
+    }
+
+    collectFormData() {
+        const metadata = {
+            language: this.baseLanguageSelect.value,
+        }
+        // Collect localized fields
+        document.querySelectorAll(".form-group[data-field]").forEach(group => {
+            const fieldName = group.dataset.field;
+            const localizations = {};
+
+            group.querySelectorAll(".input-container").forEach(container => {
+                const input = container.querySelector("input, textarea");
+                const select = container.querySelector("select");
+
+                if (input && input.value && select) {
+                    const lang = select.disabled ? this.baseLanguageSelect.value : select.value;
+                    localizations[lang] = input.value;
+                }
+            });
+
+            if (Object.keys(localizations).length > 0) {
+                metadata[fieldName] = localizations;
+            }
+        });
+
+        // Collect non-localized fields
+        metadata.data = document.querySelector('input[type="date"]').value;
+        metadata.source = document.querySelector('input[placeholder="https://example.com"]').value;
+
+        // Collect document type and pecha
+        const selectedType = document.querySelector('input[name="documentType"]:checked');
+        if (selectedType) {
+            metadata[selectedType.value] = this.pechaOptions.value
+        }
+        // Collect Google Docs id 
+        metadata.document_id = this.extractDocIdFromLink(document.querySelector('input[placeholder="Google docs URL"]').value);
+
+        return metadata
+    }
+
+    validateRequiredFields(metadata) {
+        const errors = [];
+
+        // Check author in English
+        if (!metadata.author) {
+            errors.push('author');
+            this.highlightError('author');
+        }
+
+        // Check source URL
+        if (!metadata.source) {
+            errors.push('source');
+            document.querySelector('input[placeholder="https://example.com"]')
+                .closest('.input-wrapper').classList.add('error');
+        }
+
+        // Check title in English
+        if (!metadata.title) {
+            errors.push('title');
+            this.highlightError('title');
+        }
+
+        // Check long title in English
+        if (!metadata.long_title) {
+            errors.push('longTitle');
+            this.highlightError('longTitle');
+        }
+
+        // Check base language
+        if (!metadata.language) {
+            errors.push('language');
+            this.baseLanguageSelect.classList.add('error');
+        }
+
+        return errors.length === 0;
+    }
+
+    highlightError(fieldName) {
+        const formGroup = document.querySelector(`.form-group[data-field="${fieldName}"]`);
+        if (formGroup) {
+            const inputs = formGroup.querySelectorAll('.input-container');
+            inputs.forEach(container => {
+                container.querySelector('.input-wrapper').classList.add('error');
+
+            });
+        }
+    }
+
+    clearErrors() {
+        // Clear all error states
+        document.querySelectorAll('.error').forEach(element => {
+            element.classList.remove('error');
+        });
+        this.baseLanguageSelect.classList.remove('error');
+    }
+
+    extractDocIdFromLink(docLink) {
+        console.log("doc link ", docLink);
+        // Typical Docs link: https://docs.google.com/document/d/<DOC_ID>/edit
+        // We want the <DOC_ID> after "/d/" and before "/edit"
+        const regex = /\/d\/([^/]+)/;
+        const match = docLink.match(regex);
+        return match ? match[1] : null;
+    }
+
+    async handlePublish() {
+        // Clear any existing error states
+        this.clearErrors();
+
+        // Collect form data
+        const metadata = this.collectFormData();
+
+        // Validate required fields
+        if (!this.validateRequiredFields(metadata)) {
+            alert("Please fill in all required fields.");
+            return;
+        }
+
+        console.log("Form Data:", metadata);
+        let blob;
+        if (metadata.document_id) {
+            try {
+                blob = await downloadDoc(metadata.document_id);
+            } catch (err) {
+                alert("Download failed: " + err.message);
+                return;
+            }
+        } else {
+            alert("Invalid Google Docs link");
+            return;
+        }
+        // If validation passes, log the data
+        console.log("Form Data:", JSON.stringify(metadata, null, 2));
+
+        const formData = new FormData();
+        formData.append("text", blob, `text_${metadata.document_id}.docx`); // Binary file
+        formData.append("metadata", JSON.stringify(metadata)); // JSON metadata
+        console.log("form data ::::",formData)
+        try {
+            const response = await fetch("https://api-aq25662yyq-uc.a.run.app/publish/", {
+                // const response = await fetch("http://127.0.0.1:5001/pecha-backend/us-central1/api/publish/", {
+                method: "POST",
+                body: formData,
+            });
+
+            if (response.ok) {
+                const jsonResponse = await response.json();
+                const pechaId = jsonResponse.pecha_id;
+                const serializedData = jsonResponse.data;
+
+                const blob = new Blob([JSON.stringify(serializedData, null)], {
+                    type: "application/json",
+                });
+
+                const downloadUrl = URL.createObjectURL(blob);
+                const a = document.createElement("a");
+                a.href = downloadUrl;
+                a.download = `${pechaId}.json`;
+                document.body.appendChild(a);
+                a.click();
+                a.remove();
+                URL.revokeObjectURL(downloadUrl);
+
+                alert("File and metadata successfully submitted!");
+            } else {
+                const error = await response.text();
+                alert(`Failed to submit: ${error}`);
+            }
+        } catch (err) {
+            console.error("Error submitting form:", err);
+            alert(`Error: ${err.message}`);
+        }
     }
 }
 
-document.addEventListener("DOMContentLoaded", () => {
-    fetchPechaOptions();
-    ["version_of", "translation_of", "commentary_of"].forEach(id => {
-        document.getElementById(id).addEventListener("change", function () {
-            enforceMutualExclusivity(id);
-        });
-    });
-});
+// Initialize the form
+new LocalizedForm();

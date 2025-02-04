@@ -19,7 +19,6 @@ function getFormData() {
 async function handleSubmit() {
     metadata = getFormData()
 
-
     if (!metadata.author.en || !metadata.source || !metadata.title.en || !metadata.long_title.en || !metadata.language) {
         alert("Please fill in all required fields.");
         return;

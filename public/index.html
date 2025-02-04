@@ -1,127 +1,151 @@
 <!DOCTYPE html>
 <html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="./style.css" >
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+    />
+    <title>Metadata Form</title>
+    <style>
+      
+    </style>
+  </head>
+  <body>
+    <div class="heading">
+      <h1>Metadata Form</h1>
+    </div>
+    <div class="base-language">
+      <label for="baseLanguage">Base Language:</label>
+      <select id="baseLanguage">
+        <option value="">Select language</option>
+        <option value="en">English</option>
+        <option value="fr">French</option>
+        <option value="bo">Tibetan</option>
+      </select>
+    </div>
 
-<head>
-    <meta charset="UTF-8">
-    <title>Publish Text</title>
-    <link rel="stylesheet" href="style.css" />
-</head>
+    <div id="formContent" class="form-content">
+      <form id="metadataForm">
+        <div class="form-group" data-field="author">
+          <label>Author</label>
+          <div class="localizations"></div>
+          <button type="button" class="add-localization">
+            <i class="fas fa-plus-circle"></i>
+            Add Localization
+          </button>
+        </div>
+        <div class="form-group">
+          <label>Composition Date</label>
+          <div class="input-wrapper">
+            <input type="date" />
+          </div>
+        </div>
 
-<body>
-    <h1>Metadata Form</h1>
+        <div class="form-group source-url">
+          <label>Source URL</label>
+          <div class="input-wrapper">
+            <input type="url" placeholder="https://example.com" />
+          </div>
+        </div>
 
-    <form>
-        <table>
-            <tr>
-                <td class="label-cell">Author</td>
-                <td class="input-cell">
-                    <div id="author-container"></div>
-                    <button type="button" class="button-11" onclick="attemptAddLocalizedRow('author-container')">➕</button>
-                </td>
-            </tr>
+        <div class="form-group" data-field="presentation">
+          <label>Presentation</label>
+          <div class="localizations"></div>
+          <button type="button" class="add-localization">
+            <i class="fas fa-plus-circle"></i>
+            Add Localization
+          </button>
+        </div>
 
-            <tr>
-                <td class="label-cell">Composition Date</td>
-                <td class="input-cell">
-                    <input type="date" id="date">
-                </td>
-            </tr>
+        <div class="form-group" data-field="usage_title">
+          <label>Usage Title</label>
+          <div class="localizations"></div>
+          <button type="button" class="add-localization">
+            <i class="fas fa-plus-circle"></i>
+            Add Localization
+          </button>
+        </div>
 
-            <tr>
-                <td class="label-cell">Source (URL)</td>
-                <td class="input-cell">
-                    <input type="url" id="source" placeholder="https://example.com">
-                </td>
-            </tr>
+        <div class="form-group" data-field="title">
+          <label>Title</label>
+          <div class="localizations"></div>
+          <button type="button" class="add-localization">
+            <i class="fas fa-plus-circle"></i>
+            Add Localization
+          </button>
+        </div>
 
-            <tr>
-                <td class="label-cell">Presentation</td>
-                <td class="input-cell">
-                    <div id="presentation-container"></div>
-                    <button type="button" onclick="attemptAddLocalizedRow('presentation-container')">➕</button>
-                </td>
-            </tr>
+        <div class="form-group" data-field="long_title">
+          <label>Long Title</label>
+          <div class="localizations"></div>
+          <button type="button" class="add-localization">
+            <i class="fas fa-plus-circle"></i>
+            Add Localization
+          </button>
+        </div>
 
-            <tr>
-                <td class="label-cell">Usage Title</td>
-                <td class="input-cell">
-                    <div id="usage-container"></div>
-                    <button type="button" onclick="attemptAddLocalizedRow('usage-container')">➕</button>
-                </td>
-            </tr>
+        <div class="form-group" data-field="alt_titles">
+          <label>Alternative Titles</label>
+          <div class="localizations"></div>
+          <button type="button" class="add-localization">
+            <i class="fas fa-plus-circle"></i>
+            Add Localization
+          </button>
+        </div>
 
-            <tr>
-                <td class="label-cell">Title</td>
-                <td class="input-cell">
-                    <div id="title-container"></div>
-                    <button type="button" onclick="attemptAddLocalizedRow('title-container')">➕</button>
-                </td>
-            </tr>
+        <div class="form-group">
+          <label>Type</label>
+          <div class="radio-group">
+            <label class="radio-option">
+              <input type="radio" name="documentType" value="version_of" />
+              Version of
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="documentType" value="commentary_of" />
+              Commentary of
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="documentType" value="translation_of" />
+              Translation of
+            </label>
+          </div>
 
-            <tr>
-                <td class="label-cell">Long Title</td>
-                <td class="input-cell">
-                    <div id="longtitle-container"></div>
-                    <button type="button" onclick="attemptAddLocalizedRow('longtitle-container')">➕</button>
-                </td>
-            </tr>
+          <div id="pechaOptionsContainer">
+            <select id="pechaOptions">
+              <option value="">Select pecha</option>
+            </select>
+          </div>
+        </div>
 
-            <tr>
-                <td class="label-cell">Alt Titles</td>
-                <td class="input-cell">
-                    <div id="alt-titles-array"></div>
-                    <button type="button" onclick="addAltTitlesBlock()">➕</button>
-                </td>
-            </tr>
+        <div class="form-group">
+          <label>Document</label>
+          <div class="input-wrapper">
+            <input type="url" placeholder="Google docs URL" />
+          </div>
+        </div>
 
-            <tr>
-                <td class="label-cell">Version of</td>
-                <td class="input-cell">
-                    <select id="version_of">
-                        <option value=""></option>
-                    </select>
-                </td>
-            </tr>
+        <button type="button" id="publishButton" class="publish-button">
+          Publish
+        </button>
+      </form>
+    </div>
 
-            <tr>
-                <td class="label-cell">Translation of</td>
-                <td class="input-cell">
-                    <select id="translation_of">
-                        <option value=""></option>
-                    </select>
-                </td>
-            </tr>
-
-            <tr>
-                <td class="label-cell">Commentary of</td>
-                <td class="input-cell">
-                    <select id="commentary_of">
-                        <option value=""></option>
-                    </select>
-                </td>
-            </tr>
-
-            <tr>
-                <td class="label-cell">Language</td>
-                <td class="input-cell">
-                    <input type="text" id="language" placeholder="e.g., en or bo">
-                </td>
-            </tr>
-
-            <tr>
-                <td class="label-cell">Document</td>
-                <td class="input-cell">
-                    <input type="url" id="docLink" placeholder="Google Docs URL">
-                </td>
-            </tr>
-        </table>
-        <button type="button" class="submit-button" onclick="handleSubmit()">Publish</button>
-    </form>
     <script src="script.js"></script>
     <script src="google_drive.js"></script>
-    <script src="submit.js"></script>
-    <script async defer src="https://apis.google.com/js/api.js" onload="gapiLoaded()"></script>
-    <script async defer src="https://accounts.google.com/gsi/client" onload="gisLoaded()"></script>
-</body>
-
+    <script
+      async
+      defer
+      src="https://apis.google.com/js/api.js"
+      onload="gapiLoaded()"
+    ></script>
+    <script
+      async
+      defer
+      src="https://accounts.google.com/gsi/client"
+      onload="gisLoaded()"
+    ></script>
+  </body>
 </html>
