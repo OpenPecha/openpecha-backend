@@ -4,4 +4,4 @@ firebase-functions==0.1.2
 Flask==3.1.0
 functions-framework==3.8.2
 jsonschema==4.23.0
-openpecha @ git+https://github.com/OpenPecha/toolkit-v2.git@1c78f209ef1937c067d50b8d35fa9bc1a94bb2b2
+openpecha @ git+https://github.com/OpenPecha/toolkit-v2.git@f28e32f8c17ad21a455a58ad36e0d4ca557990f3

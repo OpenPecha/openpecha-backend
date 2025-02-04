@@ -166,7 +166,7 @@ async function fetchPechaOptions() {
       throw new Error(`Failed to fetch data: ${response.statusText}`);
     }
     const pechas = await response.json();
-    const isUpdatePage = window.location.pathname.includes("update.html");
+    const isUpdatePage = window.location.pathname.includes("update");
     const dropdowns = isUpdatePage
       ? ["published_text"]
       : ["commentary_of", "version_of", "translation_of"];

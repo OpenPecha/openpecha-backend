@@ -20,10 +20,10 @@ def validate(metadata: dict):
         for e in validator.iter_errors(metadata)
     ]
 
-    if errors.count > 0:
+    if len(errors) > 0:
         return False, errors
 
-    return True
+    return True, None
 
 
 @metadata_bp.route("/<string:doc_id>", methods=["GET"], strict_slashes=False)

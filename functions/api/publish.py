@@ -8,8 +8,13 @@ from flask import Blueprint, request, jsonify
 from firebase_config import db
 
 from openpecha.pecha.parsers.google_doc.translation import GoogleDocTranslationParser
+from openpecha.pecha.parsers.google_doc.commentary.number_list import (
+    DocxNumberListCommentaryParser,
+)
 from openpecha.pecha.serializers.translation import TextTranslationSerializer
 from openpecha.pecha import Pecha
+from openpecha.storages import update_github_repo
+
 
 from api.metadata import validate
 
@@ -40,11 +45,19 @@ def validate_file(text):
     )
 
 
-def parse(docx_file, metadata) -> Pecha:
+def parse(docx_file, metadata, pecha_id=None) -> Pecha:
     path = tmp_path(docx_file.filename)
     docx_file.save(path)
 
-    return GoogleDocTranslationParser().parse(path, metadata)
+    if metadata.get("commentary_of"):
+        return DocxNumberListCommentaryParser().parse(
+            input=path, metadata=metadata, pecha_id=pecha_id
+        )
+
+    else:
+        return GoogleDocTranslationParser().parse(
+            input=path, metadata=metadata, pecha_id=pecha_id
+        )
 
 
 def get_duplicate_key(document_id: str):
@@ -137,8 +150,8 @@ def publish():
 
 @update_text_bp.route("/", methods=["POST"], strict_slashes=False)
 def update_text():
-    doc_id = request.form.get("id")
-    if not doc_id:
+    pecha_id = request.form.get("id")
+    if not pecha_id:
         return jsonify({"error": "Missing required 'id' parameter"}), 400
 
     text = request.files.get("text")
@@ -150,7 +163,7 @@ def update_text():
         return jsonify({"error": f"Text file: {error_message}"}), 400
 
     try:
-        doc = db.collection("metadata").document(doc_id).get()
+        doc = db.collection("metadata").document(pecha_id).get()
 
         if not doc.exists:
             return jsonify({"error": "Metadata not found"}), 404
@@ -162,9 +175,13 @@ def update_text():
 
     logger.info("Metadata: %s", metadata)
 
-    pecha = parse(text, metadata)
+    pecha = parse(
+        text,
+        metadata,
+        pecha_id,
+    )
     logger.info("Pecha created: %s %s", pecha.id, pecha.pecha_path)
 
-    pecha.publish()
+    update_github_repo(pecha.pecha_path, pecha.id)
 
-    return jsonify({"message": "Text updated successfully", "id": doc_id}), 201
+    return jsonify({"message": "Text updated successfully", "id": pecha_id}), 201

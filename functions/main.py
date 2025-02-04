@@ -27,7 +27,7 @@ app.register_blueprint(update_text_bp, url_prefix="/update-text")
         "GITHUB_TOKEN",
         "GITHUB_USERNAME",
         "GITHUB_EMAIL",
-        "PECHA_DATA_GITHUB_ORG",
+        "GITHUB_ORG_NAME",
     ],
 )
 def api(req: https_fn.Request) -> https_fn.Response:
