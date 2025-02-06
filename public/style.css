@@ -146,7 +146,8 @@ select.error {
 .form-group[data-field="title"] label::after,
 .form-group[data-field="long_title"] label::after,
 .base-language label::after,
-.source-url label::after {
+.source-url label::after,
+.document-id label::after {
     content: " *";
     color: #dc3545;
 }

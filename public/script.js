@@ -242,8 +242,8 @@ class LocalizedForm {
 
         // Check long title in English
         if (!metadata.long_title) {
-            errors.push('longTitle');
-            this.highlightError('longTitle');
+            errors.push('long_title');
+            this.highlightError('long_title');
         }
 
         // Check base language
@@ -252,6 +252,11 @@ class LocalizedForm {
             this.baseLanguageSelect.classList.add('error');
         }
 
+        if (!metadata.document_id) {
+            errors.push('document_id');
+            document.querySelector('input[placeholder="Google docs URL"]')
+                .closest('.input-wrapper').classList.add('error');
+        }
         return errors.length === 0;
     }
 
