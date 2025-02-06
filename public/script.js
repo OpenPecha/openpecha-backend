@@ -2,6 +2,7 @@ class LocalizedForm {
     constructor() {
         this.baseLanguageSelect = document.getElementById("baseLanguage");
         this.formContent = document.getElementById("formContent");
+        this.addAltTitleButton = document.getElementById("addAltTitle");
         this.pechaOptionsContainer = document.getElementById(
             "pechaOptionsContainer"
         );
@@ -23,19 +24,27 @@ class LocalizedForm {
             } else {
                 this.formContent.classList.remove("visible");
             }
-        });
-
-        this.publishButton.addEventListener("click", () => {
-            this.handlePublish();
+            // will remove the alternate titles if the base language is changed
+            const altTitles = document.getElementById("alt-titles");
+            altTitles.innerHTML = "";
         });
         // Add Localization Buttons
         document.querySelectorAll(".add-localization").forEach((button) => {
             button.addEventListener("click", (e) => {
                 const formGroup = e.target.closest(".form-group");
-                this.addLocalization(formGroup);
+                // this.addLocalization(formGroup);
+                if (formGroup.classList.contains('alt-title-group')) {
+                    this.addLocalizationToAltTitle(formGroup);
+                } else {
+                    this.addLocalization(formGroup);
+                }
             });
         });
-
+        // Add Alternative Title Button
+        this.addAltTitleButton.addEventListener("click", () => {
+            const baseLanguage = this.baseLanguageSelect.value;
+            this.addAltTitles(baseLanguage);
+        });
         // Type Radio Selection
         this.typeRadios.forEach((radio) => {
             radio.addEventListener("change", () => {
@@ -44,6 +53,10 @@ class LocalizedForm {
                     this.fetchPechaOptions();
                 }
             });
+        });
+        // Publish Button
+        this.publishButton.addEventListener("click", () => {
+            this.handlePublish();
         });
     }
 
@@ -72,7 +85,7 @@ class LocalizedForm {
         inputWrapper.className = "input-wrapper";
 
         const isTextarea =
-            container.closest(".form-group").dataset.field === "presentation";
+            container.closest(".form-group")?.dataset.field === "presentation";
         let input;
 
         if (isTextarea) {
@@ -149,6 +162,76 @@ class LocalizedForm {
 
         this.createLocalizationInput(localizationsDiv);
     }
+    
+    addLocalizationToAltTitle(altTitleGroup) {
+        const localizationsDiv = altTitleGroup.querySelector(".localizations");
+        const inputs = localizationsDiv.querySelectorAll("input");
+        const selects = localizationsDiv.querySelectorAll("select");
+
+        // Validate existing fields
+        let isValid = true;
+        inputs.forEach((input, index) => {
+            if (!input.value || !selects[index].value) {
+                isValid = false;
+                input.closest(".input-wrapper").classList.add("error");
+            }
+        });
+
+        if (!isValid) {
+            alert("Please fill in all existing fields before adding a new localization");
+            return;
+        }
+
+        // Clear any existing error states
+        localizationsDiv.querySelectorAll(".input-wrapper").forEach((wrapper) => {
+            wrapper.classList.remove("error");
+        });
+
+        this.createLocalizationInput(localizationsDiv);
+    }
+
+    addAltTitles(baseLanguage) {
+        const altTitles = document.getElementById("alt-titles");
+
+        // Create a new alt-title group
+        const altTitleGroup = document.createElement("div");
+        altTitleGroup.className = "form-group alt-title-group";
+
+        // Create localizations container
+        const localizationsDiv = document.createElement("div");
+        localizationsDiv.className = "localizations";
+
+        // Add the first localization input
+        this.createLocalizationInput(localizationsDiv, baseLanguage, true);
+
+        // Create add localization button
+        const addLocalizationBtn = document.createElement("button");
+        addLocalizationBtn.type = "button";
+        addLocalizationBtn.className = "add-localization";
+        addLocalizationBtn.innerHTML = '<i class="fas fa-plus-circle"></i> Add Localization';
+        addLocalizationBtn.addEventListener("click", (e) => {
+            const formGroup = e.target.closest(".form-group");
+                this.addLocalization(formGroup);
+            
+        });
+
+        // Create remove alt-title button
+        const removeAltTitleBtn = document.createElement("button");
+        removeAltTitleBtn.type = "button";
+        removeAltTitleBtn.className = "remove-alt-title";
+        removeAltTitleBtn.innerHTML = '<i class="fas fa-times"></i>';
+        removeAltTitleBtn.addEventListener("click", () => {
+            altTitleGroup.remove();
+        });
+
+        // Assemble the alt-title group
+        altTitleGroup.appendChild(localizationsDiv);
+        altTitleGroup.appendChild(addLocalizationBtn);
+        altTitleGroup.appendChild(removeAltTitleBtn);
+
+        // Add to the form
+        altTitles.appendChild(altTitleGroup);
+    }
 
     async fetchPechaOptions() {
         try {
@@ -184,6 +267,7 @@ class LocalizedForm {
             language: this.baseLanguageSelect.value,
         }
         // Collect localized fields
+        const alt_titles = [];
         document.querySelectorAll(".form-group[data-field]").forEach(group => {
             const fieldName = group.dataset.field;
             const localizations = {};
@@ -202,9 +286,33 @@ class LocalizedForm {
                 metadata[fieldName] = localizations;
             }
         });
+        // collect alternate titles
+        const altTitleGroups = document.querySelectorAll('.alt-title-group');
 
+        altTitleGroups.forEach(group => {
+            const alternateTitle = {};
+
+            // Select all input fields and their corresponding select fields within the group
+            const inputs = group.querySelectorAll('input');
+            const selects = group.querySelectorAll('select');
+
+            // Iterate over inputs and selects and map them together based on their index
+            inputs.forEach((input, index) => {
+                const language = selects[index].value; // Get the selected language from the select
+                if (language && input.value.trim()) {
+                    alternateTitle[language] = input.value.trim(); // Add to the object if both language and value exist
+                }
+            });
+
+            // Push the alternateTitle object to the alt_titles array if it has any data
+            if (Object.keys(alternateTitle).length > 0) {
+                alt_titles.push(alternateTitle);
+            }
+        });
+
+        metadata.alt_titles = alt_titles;
         // Collect non-localized fields
-        metadata.data = document.querySelector('input[type="date"]').value;
+        metadata.date = document.querySelector('input[type="date"]').value;
         metadata.source = document.querySelector('input[placeholder="https://example.com"]').value;
 
         // Collect document type and pecha
@@ -294,14 +402,12 @@ class LocalizedForm {
 
         // Collect form data
         const metadata = this.collectFormData();
-
         // Validate required fields
         if (!this.validateRequiredFields(metadata)) {
             alert("Please fill in all required fields.");
             return;
         }
 
-        console.log("Form Data:", metadata);
         let blob;
         if (metadata.document_id) {
             try {
@@ -320,7 +426,7 @@ class LocalizedForm {
         const formData = new FormData();
         formData.append("text", blob, `text_${metadata.document_id}.docx`); // Binary file
         formData.append("metadata", JSON.stringify(metadata)); // JSON metadata
-        console.log("form data ::::",formData)
+        console.log("form data ::::", formData)
         try {
             const response = await fetch("https://api-aq25662yyq-uc.a.run.app/publish/", {
                 // const response = await fetch("http://127.0.0.1:5001/pecha-backend/us-central1/api/publish/", {

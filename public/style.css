@@ -6,6 +6,25 @@ body {
     color: #333;
 }
 
+.base-language {
+    margin-bottom: 24px;
+}
+
+.base-language select {
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-radius: 4px;
+    outline: none;
+}
+
+.form-content {
+    display: none;
+}
+
+.form-content.visible {
+    display: block;
+}
+
 .form-group {
     margin-bottom: 24px;
 }
@@ -65,7 +84,7 @@ body {
     font-size: 18px;
 }
 
-.add-localization {
+.add-localization,.add-alt-title {
     display: flex;
     align-items: center;
     gap: 4px;
@@ -78,21 +97,36 @@ body {
     margin-top: 8px;
 }
 
-.add-localization:hover {
+.add-localization:hover, .add-alt-title:hover {
     color: #1976d2;
 }
 
-.base-language {
-    margin-bottom: 24px;
-}
 
-.base-language select {
-    padding: 8px;
+.alt-title-group {
+    position: relative;
     border: 1px solid #ddd;
+    padding: 15px;
+    margin: 10px 0;
     border-radius: 4px;
-    outline: none;
 }
 
+.remove-alt-title {
+    position: absolute;
+    top: 1px;
+    right: 1px;
+    background: none;
+    border: none;
+    color: #ff4444;
+    cursor: pointer;
+}
+
+.alt-title-group .add-localization {
+    margin-top: 10px;
+}
+
+.alt-title-group .localizations {
+    margin-bottom: 10px;
+}
 .radio-group {
     display: flex;
     gap: 16px;
@@ -116,14 +150,6 @@ body {
 
 .radio-option input[type="radio"] {
     accent-color: #2196f3;
-}
-
-.form-content {
-    display: none;
-}
-
-.form-content.visible {
-    display: block;
 }
 
 .error {
