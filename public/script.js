@@ -147,9 +147,10 @@ class LocalizedForm {
         });
 
         if (!isValid) {
-            alert(
-                "Please fill in all existing fields before adding a new localization"
-            );
+            // alert(
+            //     "Please fill in all existing fields before adding a new localization"
+            // );
+            this.showToast("Please fill in all existing fields before adding a new localization", "warning");
             return;
         }
 
@@ -162,7 +163,7 @@ class LocalizedForm {
 
         this.createLocalizationInput(localizationsDiv);
     }
-    
+
     addLocalizationToAltTitle(altTitleGroup) {
         const localizationsDiv = altTitleGroup.querySelector(".localizations");
         const inputs = localizationsDiv.querySelectorAll("input");
@@ -178,7 +179,8 @@ class LocalizedForm {
         });
 
         if (!isValid) {
-            alert("Please fill in all existing fields before adding a new localization");
+            // alert("Please fill in all existing fields before adding a new localization");
+            this.showToast("Please fill in all existing fields before adding a new localization", "warning");
             return;
         }
 
@@ -211,8 +213,8 @@ class LocalizedForm {
         addLocalizationBtn.innerHTML = '<i class="fas fa-plus-circle"></i> Add Localization';
         addLocalizationBtn.addEventListener("click", (e) => {
             const formGroup = e.target.closest(".form-group");
-                this.addLocalization(formGroup);
-            
+            this.addLocalization(formGroup);
+
         });
 
         // Create remove alt-title button
@@ -404,7 +406,8 @@ class LocalizedForm {
         const metadata = this.collectFormData();
         // Validate required fields
         if (!this.validateRequiredFields(metadata)) {
-            alert("Please fill in all required fields.");
+            // alert("Please fill in all required fields.");
+            this.showToast("Please fill in all required fields.", "error");
             return;
         }
 
@@ -452,7 +455,8 @@ class LocalizedForm {
                 a.remove();
                 URL.revokeObjectURL(downloadUrl);
 
-                alert("File and metadata successfully submitted!");
+                // alert("File and metadata successfully submitted!");
+                this.showToast("File and metadata successfully submitted!", "success");
             } else {
                 const error = await response.text();
                 alert(`Failed to submit: ${error}`);
@@ -461,6 +465,24 @@ class LocalizedForm {
             console.error("Error submitting form:", err);
             alert(`Error: ${err.message}`);
         }
+    }
+
+    showToast(message, type) {
+        const toastContainer = document.getElementById('toastContainer');
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.textContent = message;
+        toastContainer.appendChild(toast);
+
+        // Auto-close the toast after 3 seconds
+        setTimeout(() => {
+            toast.remove();
+        }, 3000);
+    }
+
+    clearToasts() {
+        const toastContainer = document.getElementById('toastContainer');
+        toastContainer.innerHTML = '';
     }
 }
 
