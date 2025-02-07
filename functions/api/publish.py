@@ -8,6 +8,10 @@ from flask import Blueprint, request, jsonify
 from firebase_config import db
 
 from openpecha.pecha.parsers.google_doc.translation import GoogleDocTranslationParser
+
+from openpecha.pecha.parsers.google_doc.numberlist_translation import (
+    DocxNumberListTranslationParser,
+)
 from openpecha.pecha.parsers.google_doc.commentary.number_list import (
     DocxNumberListCommentaryParser,
 )
@@ -53,9 +57,8 @@ def parse(docx_file, metadata, pecha_id=None) -> Pecha:
         return DocxNumberListCommentaryParser().parse(
             input=path, metadata=metadata, pecha_id=pecha_id
         )
-
     else:
-        return GoogleDocTranslationParser().parse(
+        return DocxNumberListTranslationParser().parse(
             input=path, metadata=metadata, pecha_id=pecha_id
         )
 
@@ -108,13 +111,13 @@ def publish():
 
     pecha.publish()
 
-    serializer = TextTranslationSerializer()
-    if "translation_of" in metadata:
-        alignment = serializer.get_root_and_translation_layer(pecha, False)
-    else:
-        alignment = serializer.get_root_layer(pecha)
+    # serializer = TextTranslationSerializer()
+    # if "translation_of" in metadata:
+    #     alignment = serializer.get_root_and_translation_layer(pecha, False)
+    # else:
+    #     alignment = serializer.get_root_layer(pecha)
 
-    serialized_json = TextTranslationSerializer().serialize(pecha, False)
+    # serialized_json = TextTranslationSerializer().serialize(pecha, False)
 
     # try:
     #     bucket = storage_client.bucket(STORAGE_BUCKET)
@@ -133,19 +136,20 @@ def publish():
     try:
         with db.transaction() as transaction:
             doc_ref_metadata = db.collection("metadata").document(pecha.id)
-            doc_ref_alignment = db.collection("alignment").document(pecha.id)
+            # doc_ref_alignment = db.collection("alignment").document(pecha.id)
 
             transaction.set(doc_ref_metadata, metadata)
             logger.info("Metadata saved to Firestore: %s", pecha.id)
 
-            transaction.set(doc_ref_alignment, alignment)
-            logger.info("Alignment saved to Firestore: %s", pecha.id)
+            # transaction.set(doc_ref_alignment, alignment)
+            # logger.info("Alignment saved to Firestore: %s", pecha.id)
 
     except Exception as e:
         logger.error("Error saving to Firestore: %s", e)
         return jsonify({"error": f"Failed to save to Firestore {str(e)}"}), 500
 
-    return jsonify({"pecha_id": pecha.id, "data": serialized_json}), 200
+    # return jsonify({"pecha_id": pecha.id, "data": serialized_json}), 200
+    return jsonify({"message": "Text published successfully", "id": pecha.id}), 200
 
 
 @update_text_bp.route("/", methods=["POST"], strict_slashes=False)
