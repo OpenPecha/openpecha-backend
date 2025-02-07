@@ -3,16 +3,15 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="stylesheet" href="./style.css" >
-    <link rel="stylesheet" href="./toast_style.css">
+    <link rel="stylesheet" href="./style.css" />
+    <link rel="stylesheet" href="./toast_style.css" />
+    <link rel="stylesheet" href="./calendar_style.css" />
     <link
       rel="stylesheet"
       href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
     />
     <title>Metadata Form</title>
-    <style>
-      
-    </style>
+    <style></style>
   </head>
   <body>
     <div id="toastContainer"></div>
@@ -39,10 +38,46 @@
             Add Localization
           </button>
         </div>
+
+        <!-- // custom date picker -->
         <div class="form-group">
           <label>Composition Date</label>
-          <div class="input-wrapper">
-            <input type="date" />
+            <div class="date-display" id="selectedDate">No date selected</div>
+          <div class="date-picker-container" id="datePickerContainer">
+            <div class="era-selector">
+              <label>Era: </label>
+              <select id="eraSelect" class="era-select">
+                <option value="Standard">Standard</option>
+                <option value="BC">BC</option>
+                <option value="AD">AD</option>
+              </select>
+            </div>
+
+            <div id="standardPicker">
+              <div class="calendar-header">
+                <button type="button" id="prevYear">◄◄</button>
+                <button type="button" id="prevMonth">◄</button>
+                <span id="currentMonth">January 2024</span>
+                <button type="button" id="nextMonth">►</button>
+                <button type="button" id="nextYear">►►</button>
+              </div>
+
+              <div class="calendar-grid" id="calendarGrid">
+                <!-- Calendar will be generated here -->
+              </div>
+            </div>
+
+            <div id="historicalPicker" class="hidden">
+              <div class="year-selector">
+                <label>Year: </label>
+                <input
+                  type="number"
+                  id="historicalYearInput"
+                  class="year-input"
+                  min="1"
+                />
+              </div>
+            </div>
           </div>
         </div>
 
@@ -89,7 +124,7 @@
           </button>
         </div>
 
-        <div class="form-group" >
+        <div class="form-group">
           <label>Alternate Titles</label>
           <div class="alt-titles" id="alt-titles"></div>
           <button type="button" class="add-alt-title" id="addAltTitle">
@@ -137,6 +172,7 @@
     </div>
 
     <script src="script.js"></script>
+    <script src="calendar.js"></script>
     <script src="google_drive.js"></script>
     <script
       async

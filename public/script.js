@@ -314,7 +314,7 @@ class LocalizedForm {
 
         metadata.alt_titles = alt_titles;
         // Collect non-localized fields
-        metadata.date = document.querySelector('input[type="date"]').value;
+        metadata.date = document.getElementById("selectedDate").innerHTML;
         metadata.source = document.querySelector('input[placeholder="https://example.com"]').value;
 
         // Collect document type and pecha
@@ -404,6 +404,8 @@ class LocalizedForm {
 
         // Collect form data
         const metadata = this.collectFormData();
+
+        console.log("meta data ", metadata);
         // Validate required fields
         if (!this.validateRequiredFields(metadata)) {
             // alert("Please fill in all required fields.");
