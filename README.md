@@ -10,6 +10,10 @@ npm install -g firebase-tools
 ```
 firebase login
 ```
+4. Login to Google Cloud
+```
+gcloud auth application-default login
+```
 
 ## Preparing to build the backend
 1. Navigate to the `functions` directory
