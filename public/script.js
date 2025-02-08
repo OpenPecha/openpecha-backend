@@ -269,7 +269,6 @@ class LocalizedForm {
             language: this.baseLanguageSelect.value,
         }
         // Collect localized fields
-        const alt_titles = [];
         document.querySelectorAll(".form-group[data-field]").forEach(group => {
             const fieldName = group.dataset.field;
             const localizations = {};
@@ -289,6 +288,7 @@ class LocalizedForm {
             }
         });
         // collect alternate titles
+        const alt_titles = [];
         const altTitleGroups = document.querySelectorAll('.alt-title-group');
 
         altTitleGroups.forEach(group => {
@@ -296,11 +296,16 @@ class LocalizedForm {
 
             // Select all input fields and their corresponding select fields within the group
             const inputs = group.querySelectorAll('input');
+            console.log("inputs ", inputs);
             const selects = group.querySelectorAll('select');
 
             // Iterate over inputs and selects and map them together based on their index
             inputs.forEach((input, index) => {
-                const language = selects[index].value; // Get the selected language from the select
+                const language = selects[index].value; 
+                // if (!language) {
+                //     this.showToast("Please select a language for each alternate title", "warning");
+                //     return;
+                // }
                 if (language && input.value.trim()) {
                     alternateTitle[language] = input.value.trim(); // Add to the object if both language and value exist
                 }
@@ -404,7 +409,6 @@ class LocalizedForm {
 
         // Collect form data
         const metadata = this.collectFormData();
-
         console.log("meta data ", metadata);
         // Validate required fields
         if (!this.validateRequiredFields(metadata)) {
