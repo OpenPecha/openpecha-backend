@@ -26,30 +26,29 @@ def validate(metadata: dict):
     return True, None
 
 
-@metadata_bp.route("/<string:doc_id>", methods=["GET"], strict_slashes=False)
-def get_metadata(doc_id):
+@metadata_bp.route("/<string:pecha_id>", methods=["GET"], strict_slashes=False)
+def get_metadata(pecha_id):
     try:
-        doc = db.collection("metadata").document(doc_id).get()
+        doc = db.collection("metadata").document(pecha_id).get()
 
         if not doc.exists:
             return jsonify({"error": "Metadata not found"}), 404
 
-        return jsonify({"id": doc_id, "metadata": doc.to_dict()}), 200
+        return jsonify(doc.to_dict()), 200
 
     except Exception as e:
         return jsonify({"error": f"Failed to retrieve metadata: {str(e)}"}), 500
 
 
-@metadata_bp.route("/", methods=["PUT"], strict_slashes=False)
-def put_metadata():
+@metadata_bp.route("/<string:pecha_id>", methods=["PUT"], strict_slashes=False)
+def put_metadata(pecha_id):
     try:
         data = request.get_json()
-        doc_id = data.get("id")
         metadata = data.get("metadata")
 
-        if not doc_id or not metadata:
+        if not metadata:
             return (
-                jsonify({"error": "Both 'id' and 'metadata' fields are required"}),
+                jsonify({"error": "'metadata' field is required"}),
                 400,
             )
 
@@ -57,9 +56,18 @@ def put_metadata():
         if not is_valid:
             return jsonify({"error": errors}), 422
 
-        db.collection("metadata").document(doc_id).set(metadata)
+        doc_ref = db.collection("metadata").document(pecha_id)
+        doc = doc_ref.get()
 
-        return jsonify({"message": "Metadata stored successfully", "id": doc_id}), 201
+        if not doc.exists:
+            return jsonify({"error": f"Metadata with ID '{pecha_id}' not found"}), 404
+
+        doc_ref.set(metadata)
+
+        return (
+            jsonify({"message": "Metadata updated successfully", "id": pecha_id}),
+            200,
+        )
 
     except Exception as e:
-        return jsonify({"error": f"Failed to store metadata: {str(e)}"}), 500
+        return jsonify({"error": f"Failed to update metadata: {str(e)}"}), 500

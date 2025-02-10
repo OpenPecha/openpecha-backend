@@ -2,10 +2,12 @@ import logging
 
 from flask import Flask
 from firebase_functions import https_fn, options
-from api.publish import publish_bp
-from api.publish import update_text_bp
+from api.publish import publish_bp, update_text_bp
 from api.pecha import pecha_bp
 from api.metadata import metadata_bp
+from api.languages import languages_bp
+from api.schema import schema_bp
+from api.api import api_bp
 
 logging.basicConfig(level=logging.INFO)
 
@@ -14,6 +16,9 @@ app.register_blueprint(publish_bp, url_prefix="/publish")
 app.register_blueprint(pecha_bp, url_prefix="/pecha")
 app.register_blueprint(metadata_bp, url_prefix="/metadata")
 app.register_blueprint(update_text_bp, url_prefix="/update-text")
+app.register_blueprint(languages_bp, url_prefix="/languages")
+app.register_blueprint(schema_bp, url_prefix="/schema")
+app.register_blueprint(api_bp, url_prefix="/api")
 
 
 @https_fn.on_request(

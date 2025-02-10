@@ -146,7 +146,7 @@ def publish():
 
     except Exception as e:
         logger.error("Error saving to Firestore: %s", e)
-        return jsonify({"error": f"Failed to save to Firestore {str(e)}"}), 500
+        return jsonify({"error": f"Failed to save to DB {str(e)}"}), 500
 
     # return jsonify({"pecha_id": pecha.id, "data": serialized_json}), 200
     return jsonify({"message": "Text published successfully", "id": pecha.id}), 200
