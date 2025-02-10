@@ -9,15 +9,44 @@
         "firebase-debug.log",
         "firebase-debug.*.log",
         "*.local"
+      ],
+      "predeploy": "echo 'COMMIT_SHA=$(git rev-parse HEAD)' > .env",
+      "files": [
+        "schema/openapi.yaml"
       ]
     }
   ],
   "hosting": {
     "public": "public",
+    "headers": [
+      {
+        "source": "**",
+        "headers": [
+          {
+            "key": "Cache-Control",
+            "value": "no-store, no-cache, must-revalidate, max-age=0"
+          }
+        ]
+      }
+    ],
+    "rewrites": [
+      {
+        "source": "/schema/metadata",
+        "function": "api"
+      }
+    ],
+    "redirects": [
+    {
+      "source": "/api",
+      "destination": "/swagger/",
+      "type": 301
+    }
+  ],
     "ignore": [
       "firebase.json",
       "**/.*",
       "**/node_modules/**"
-    ]
+    ],
+    "cleanUrls": true
   }
 }

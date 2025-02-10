@@ -1,0 +1,355 @@
+openapi: '3.1.0'
+info:
+  title: OpenPecha API
+  version: '0.1.0'
+servers:
+  - url: https://api-aq25662yyq-uc.a.run.app
+
+paths:
+  /publish:
+    post:
+      summary: Publish a text document with metadata
+      description: Accepts a text document (.docx) and associated metadata in JSON format, processes them, and stores the resulting Pecha in the database.
+      tags:
+        - pecha
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - text
+                - metadata
+              properties:
+                text:
+                  type: string
+                  format: binary
+                  description: The uploaded text file (must be .docx format).
+                metadata:
+                  type: string
+                  format: json
+                  description: JSON-encoded metadata describing the document. The structure follows [metadata schema](https://pecha-backend.web.app/schema/metadata).
+      responses:
+        "200":
+          description: Successfully published the text document.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - Text published successfully
+                  id:
+                    type: string
+                    description: The ID of the newly created Pecha.
+                    examples: 
+                      - I857977C3
+        "400":
+          description: Bad request (e.g., invalid file format or missing metadata).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    examples:
+                      - "Text file: Invalid file type. Supported types: .docx"
+        "422":
+          description: Unprocessable entity (e.g., invalid metadata format).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: array
+                    description: Detailed validation errors.
+                    items:
+                      properties:
+                        message:
+                          type: string
+                          description: Validation error message.
+                          examples: 
+                            - "'author' is a required property"
+                        path:
+                          type: array
+                          items:
+                            type: string
+                          description: The path to the field causing the validation error.
+                          examples: 
+                            - ["author"]
+                        schema_path:
+                          type: array
+                          items:
+                            type: string
+                          description: The schema path related to the error.
+                          examples: 
+                            - ["properties", "author", "required"]
+        "500":
+          description: Internal server error (e.g., database failure).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    examples:
+                      - Failed to save to DB
+  /pechas:
+    get:
+      summary: Retrieve a list of Pechas
+      description: Returns a list of Pecha IDs along with their corresponding titles.
+      tags:
+        - pecha
+      responses:
+        "200":
+          description: Successfully retrieved the list of Pechas.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                      description: Unique Pecha ID.
+                      examples: 
+                        - I857977C3
+                    title:
+                      type: string
+                      description: Title of the Pecha in its respective language.
+                      examples:
+                        - "Illuminating the Intent Chapter 6"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    examples: 
+                      - "Failed to retrieve pechas: {DB error message}"
+  /languages:
+    get:
+      summary: Retrieve the list of available languages
+      description: Fetches all available languages from DB, returning an array where each item contains a language code and name.
+      tags:
+        - other
+      responses:
+        "200":
+          description: Successfully retrieved the list of languages.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    code:
+                      type: string
+                      description: The ISO language code.
+                      examples:
+                        - bo
+                    name:
+                      type: string
+                      description: The name of the language.
+                      examples:
+                        - Tibetan
+        "500":
+          description: Internal server error (e.g., database failure).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              examples:
+                errorExample:
+                  summary: Example error response
+                  value:
+                    {
+                      "error": "Failed to retrieve languages from Firestore"
+                    }
+  /metadata/{pecha_id}:
+    get:
+      summary: Retrieve metadata by Pecha ID
+      description: Fetch metadata associated with the given Pecha
+      tags:
+        - pecha
+      parameters:
+        - name: pecha_id
+          in: path
+          required: true
+          description: The Pecha whose metadata is being requested.
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Metadata retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "https://pecha-backend.web.app/schema/metadata"
+        "404":
+          description: Metadata not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    examples: 
+                      - Metadata not found
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    examples: 
+                      - "Failed to retrieve metadata: {error details}"
+    put:
+      summary: Overwrite metadata by ID
+      description: Overwrites metadata for a given Pecha ID in Firestore. The metadata must be valid.
+      tags:
+        - pecha
+      parameters:
+        - name: pecha_id
+          in: path
+          required: true
+          description: The Pecha ID whose metadata is being updated.
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                metadata:
+                  type: object
+                  description: The updated metadata object.
+              required:
+                - metadata
+      responses:
+        "200":
+          description: Metadata updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - Metadata updated successfully
+                  id:
+                    type: string
+                    examples:
+                      - I62E00D78
+        "400":
+          description: Bad request (missing metadata field)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    examples: 
+                      - \'metadata\' field is required
+        "404":
+          description: Metadata not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    examples:
+                      - Metadata with ID \'I62E00D78\' not found
+        "422":
+          description: Metadata validation error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: object
+                    description: Details of validation errors
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    examples:
+                      - "Failed to update metadata: {error details}"
+  /schema/metadata:
+    get:
+      summary: Retrieve the Metadata Schema
+      description: Returns the full JSON schema definition for metadata validation.
+      tags:
+        - schema
+      responses:
+        "200":
+          description: Successfully retrieved the metadata schema.
+          content:
+            application/json:
+              schema:
+                type: object
+                description: The full JSON schema definition.
+        "404":
+          description: Schema file not found.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    examples:
+                      - "Schema not found"
+  /api/version:
+      get:
+        summary: Get API version and Git SHA
+        description: Returns the current API version and the Git commit SHA of the deployed code.
+        operationId: getVersion
+        tags:
+            - api
+        responses:
+            "200":
+              description: Successfully retrieved version information
+              content:
+                application/json:
+                  schema:
+                    type: object
+                    properties:
+                      version:
+                          type: string
+                          examples: 
+                            - "0.1.0"
+                      git_sha:
+                          type: string
+                          examples:
+                            - "b706d2b1a5d0176df374da25c970274b2e0f7770"
+

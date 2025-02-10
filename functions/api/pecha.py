@@ -22,5 +22,5 @@ def pecha():
         ]
         return jsonify(metadata_list), 200
     except Exception as e:
-        logger.error("Error saving to Firestore: %s", e)
+        logger.error("Error saving to DB: %s", e)
         return jsonify({"error": f"Failed to retrieve pechas: {str(e)}"}), 500

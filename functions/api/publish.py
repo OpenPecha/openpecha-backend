@@ -1,18 +1,30 @@
-import json
 import os
 import logging
+import json
 
 from pathlib import Path
 
 from flask import Blueprint, request, jsonify
-from jsonschema import Draft202012Validator
 from firebase_config import db
 
 from openpecha.pecha.parsers.google_doc.translation import GoogleDocTranslationParser
+
+from openpecha.pecha.parsers.google_doc.numberlist_translation import (
+    DocxNumberListTranslationParser,
+)
+from openpecha.pecha.parsers.google_doc.commentary.number_list import (
+    DocxNumberListCommentaryParser,
+)
 from openpecha.pecha.serializers.translation import TextTranslationSerializer
 from openpecha.pecha import Pecha
+from openpecha.storages import update_github_repo
+
+
+from api.metadata import validate
+
 
 publish_bp = Blueprint("publish", __name__)
+update_text_bp = Blueprint("update-text", __name__)
 
 logger = logging.getLogger(__name__)
 
@@ -21,30 +33,6 @@ TEXT_FORMATS = [".docx"]
 
 def tmp_path(directory):
     return Path(f"/tmp/{directory}")
-
-
-def validate_metadata(metadata: dict):
-    if not metadata:
-        return False, "Metadata is required"
-
-    try:
-        metadata_json = json.loads(metadata)
-    except json.JSONDecodeError as e:
-        return False, f"Invalid JSON format for metadata: {str(e)}"
-
-    with open("schemas/metadata.schema.json", "r", encoding="utf-8") as f:
-        metadata_schema = json.load(f)
-
-    validator = Draft202012Validator(metadata_schema)
-    errors = [
-        {"message": e.message, "path": list(e.path), "schema_path": list(e.schema_path)}
-        for e in validator.iter_errors(metadata_json)
-    ]
-
-    if errors:
-        return False, errors
-
-    return True, metadata_json
 
 
 def validate_file(text):
@@ -61,11 +49,18 @@ def validate_file(text):
     )
 
 
-def parse(docx_file, metadata) -> Pecha:
+def parse(docx_file, metadata, pecha_id=None) -> Pecha:
     path = tmp_path(docx_file.filename)
     docx_file.save(path)
 
-    return GoogleDocTranslationParser().parse(path, metadata)
+    if metadata.get("commentary_of"):
+        return DocxNumberListCommentaryParser().parse(
+            input=path, metadata=metadata, pecha_id=pecha_id
+        )
+    else:
+        return DocxNumberListTranslationParser().parse(
+            input=path, metadata=metadata, pecha_id=pecha_id
+        )
 
 
 def get_duplicate_key(document_id: str):
@@ -83,17 +78,20 @@ def get_duplicate_key(document_id: str):
 def publish():
     text = request.files.get("text")
 
-    metadata_json = request.form.get("metadata")
-
     is_valid, error_message = validate_file(text)
     if not is_valid:
         return jsonify({"error": f"Text file: {error_message}"}), 400
 
-    is_valid, metadata = validate_metadata(metadata_json)
+    metadata_json = request.form.get("metadata")
+
+    try:
+        metadata = json.loads(metadata_json)
+    except json.JSONDecodeError as e:
+        return False, f"Invalid JSON format for metadata: {str(e)}"
+
+    is_valid, errors = validate(metadata)
     if not is_valid:
-        return jsonify({"error": f"Metadata: {metadata}"}), (
-            400 if isinstance(metadata, str) else 422
-        )
+        return jsonify({"error": errors}), 422
 
     logger.info("Uploaded text file: %s", text.filename)
     logger.info("Metadata: %s", metadata)
@@ -113,13 +111,13 @@ def publish():
 
     pecha.publish()
 
-    serializer = TextTranslationSerializer()
-    if "translation_of" in metadata:
-        alignment = serializer.get_root_and_translation_layer(pecha, False)
-    else:
-        alignment = serializer.get_root_layer(pecha)
+    # serializer = TextTranslationSerializer()
+    # if "translation_of" in metadata:
+    #     alignment = serializer.get_root_and_translation_layer(pecha, False)
+    # else:
+    #     alignment = serializer.get_root_layer(pecha)
 
-    serialized_json = TextTranslationSerializer().serialize(pecha, False)
+    # serialized_json = TextTranslationSerializer().serialize(pecha, False)
 
     # try:
     #     bucket = storage_client.bucket(STORAGE_BUCKET)
@@ -138,16 +136,56 @@ def publish():
     try:
         with db.transaction() as transaction:
             doc_ref_metadata = db.collection("metadata").document(pecha.id)
-            doc_ref_alignment = db.collection("alignment").document(pecha.id)
+            # doc_ref_alignment = db.collection("alignment").document(pecha.id)
 
             transaction.set(doc_ref_metadata, metadata)
             logger.info("Metadata saved to Firestore: %s", pecha.id)
 
-            transaction.set(doc_ref_alignment, alignment)
-            logger.info("Alignment saved to Firestore: %s", pecha.id)
+            # transaction.set(doc_ref_alignment, alignment)
+            # logger.info("Alignment saved to Firestore: %s", pecha.id)
 
     except Exception as e:
         logger.error("Error saving to Firestore: %s", e)
-        return jsonify({"error": f"Failed to save to Firestore {str(e)}"}), 500
+        return jsonify({"error": f"Failed to save to DB {str(e)}"}), 500
 
-    return jsonify({"pecha_id": pecha.id, "data": serialized_json}), 200
+    # return jsonify({"pecha_id": pecha.id, "data": serialized_json}), 200
+    return jsonify({"message": "Text published successfully", "id": pecha.id}), 200
+
+
+@update_text_bp.route("/", methods=["POST"], strict_slashes=False)
+def update_text():
+    pecha_id = request.form.get("id")
+    if not pecha_id:
+        return jsonify({"error": "Missing required 'id' parameter"}), 400
+
+    text = request.files.get("text")
+    if not text:
+        return jsonify({"error": "Missing required 'text' parameter"}), 400
+
+    is_valid, error_message = validate_file(text)
+    if not is_valid:
+        return jsonify({"error": f"Text file: {error_message}"}), 400
+
+    try:
+        doc = db.collection("metadata").document(pecha_id).get()
+
+        if not doc.exists:
+            return jsonify({"error": "Metadata not found"}), 404
+
+        metadata = doc.to_dict()
+
+    except Exception as e:
+        return jsonify({"error": f"Failed to retrieve metadata: {str(e)}"}), 500
+
+    logger.info("Metadata: %s", metadata)
+
+    pecha = parse(
+        text,
+        metadata,
+        pecha_id,
+    )
+    logger.info("Pecha created: %s %s", pecha.id, pecha.pecha_path)
+
+    update_github_repo(pecha.pecha_path, pecha.id)
+
+    return jsonify({"message": "Text updated successfully", "id": pecha_id}), 201
