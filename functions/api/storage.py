@@ -1,13 +1,15 @@
-# import firebase_admin
-# from firebase_admin import firestore
-# from openpecha.pecha import Pecha
+import logging
 
-# app = firebase_admin.initialize_app()
-# db = firestore.client()
+from firebase_config import storage_bucket
+
+logger = logging.getLogger(__name__)
 
 
-# def upload_text(pecha: Pecha):
-#     doc_ref = db.collection("text").document("document_id")
-#     doc_ref.set(
-#         {"id": "document_id", "created_at": firestore.firestore.SERVER_TIMESTAMP}
-#     )
+def store_serialized(pecha_id, json):
+    storage_path = f"serialized_data/{pecha_id}.json"
+    blob = storage_bucket.blob(storage_path)
+    blob.upload_from_string(json, content_type="application/json")
+    blob.make_public()
+
+    logger.log("Uploaded to storage: %s", blob.public_url)
+    return blob.public_url
