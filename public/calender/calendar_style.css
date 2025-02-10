@@ -1,0 +1,97 @@
+/* Date Picker Styles */
+.date-picker-container {
+    display: none;
+    width: 300px;
+    padding: 20px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    background: #fff;
+}
+
+.date-picker-container.open {
+    display: block;
+}
+.calendar-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 10px;
+}
+
+.calendar-grid {
+    display: grid;
+    grid-template-columns: repeat(7, 1fr);
+    gap: 5px;
+    text-align: center;
+}
+
+.calendar-cell {
+    padding: 5px;
+    cursor: pointer;
+    border: 1px solid #eee;
+}
+
+.calendar-cell:hover {
+    background: #f0f0f0;
+}
+
+.calendar-header button {
+    background: none;
+    border: none;
+    cursor: pointer;
+    padding: 5px 10px;
+}
+
+.calendar-header button:hover {
+    background: #f0f0f0;
+    border-radius: 3px;
+}
+
+.selected {
+    background: #007bff;
+    color: white;
+}
+
+.era-selector {
+    margin: 10px 0;
+    display: flex;
+    gap: 10px;
+    align-items: center;
+}
+
+.weekday-header {
+    font-weight: bold;
+    background: #f8f9fa;
+}
+
+.date-display {
+    cursor: pointer;
+    margin-top: 10px;
+    margin-bottom: 5px;
+    padding: 10px;
+    border-radius: 3px;
+    text-align: center;
+    border: 1px solid #ccc;
+    width: fit-content;
+}
+.date-input{
+    display: none;
+}
+.year-selector{
+    display: flex;
+    gap: 10px;
+    align-items: center;
+    margin: 10px 0;
+}
+
+.year-input, .era-select {
+    width: 100px;
+    padding: 5px;
+    border: 1px solid #ccc;
+    border-radius: 3px;
+    outline: none;
+}
+
+.hidden {
+    display: none;
+}

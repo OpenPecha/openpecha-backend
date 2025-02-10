@@ -1,0 +1,186 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <link rel="stylesheet" href="./style.css" />
+    <link rel="stylesheet" href="../toast_style.css" />
+    <link rel="stylesheet" href="../calender/calendar_style.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+    />
+    <title>Metadata Form</title>
+    <style></style>
+  </head>
+  <body>
+    <div id="toastContainer"></div>
+    <div class="heading">
+      <h1 class="meta-heading">Metadata Form</h1>
+    </div>
+    <div class="base-language">
+      <label for="baseLanguage">Base Language:</label>
+      <select id="baseLanguage">
+      </select>
+    </div>
+
+    <div id="formContent" class="form-content">
+      <form id="metadataForm">
+        <div class="form-group" data-field="author">
+          <label>Author</label>
+          <div class="localizations"></div>
+          <button type="button" class="add-localization">
+            <i class="fas fa-plus-circle"></i>
+            Add Localization
+          </button>
+        </div>
+
+        <!-- // custom date picker -->
+        <div class="form-group">
+          <label>Composition Date</label>
+            <div class="date-display" id="selectedDate">No date selected</div>
+          <div class="date-picker-container" id="datePickerContainer">
+            <div class="era-selector">
+              <label>Era: </label>
+              <select id="eraSelect" class="era-select">
+                <option value="Standard">Standard</option>
+                <option value="BC">BC</option>
+                <option value="AD">AD</option>
+              </select>
+            </div>
+
+            <div id="standardPicker">
+              <div class="calendar-header">
+                <button type="button" id="prevYear">◄◄</button>
+                <button type="button" id="prevMonth">◄</button>
+                <span id="currentMonth">January 2024</span>
+                <button type="button" id="nextMonth">►</button>
+                <button type="button" id="nextYear">►►</button>
+              </div>
+
+              <div class="calendar-grid" id="calendarGrid">
+                <!-- Calendar will be generated here -->
+              </div>
+            </div>
+
+            <div id="historicalPicker" class="hidden">
+              <div class="year-selector">
+                <label>Year: </label>
+                <input
+                  type="number"
+                  id="historicalYearInput"
+                  class="year-input"
+                  min="1"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-group source-url">
+          <label>Source URL</label>
+          <div class="input-wrapper">
+            <input type="url" placeholder="https://example.com" />
+          </div>
+        </div>
+
+        <div class="form-group" data-field="presentation">
+          <label>Presentation</label>
+          <div class="localizations"></div>
+          <button type="button" class="add-localization">
+            <i class="fas fa-plus-circle"></i>
+            Add Localization
+          </button>
+        </div>
+
+        <div class="form-group" data-field="usage_title">
+          <label>Usage Title</label>
+          <div class="localizations"></div>
+          <button type="button" class="add-localization">
+            <i class="fas fa-plus-circle"></i>
+            Add Localization
+          </button>
+        </div>
+
+        <div class="form-group" data-field="title">
+          <label>Title</label>
+          <div class="localizations"></div>
+          <button type="button" class="add-localization">
+            <i class="fas fa-plus-circle"></i>
+            Add Localization
+          </button>
+        </div>
+
+        <div class="form-group" data-field="long_title">
+          <label>Long Title</label>
+          <div class="localizations"></div>
+          <button type="button" class="add-localization">
+            <i class="fas fa-plus-circle"></i>
+            Add Localization
+          </button>
+        </div>
+
+        <div class="form-group">
+          <label>Alternate Titles</label>
+          <div class="alt-titles" id="alt-titles"></div>
+          <button type="button" class="add-alt-title" id="addAltTitle">
+            <i class="fas fa-plus-circle"></i>
+            <!-- <i class="fa-solid fa-plus"></i> -->
+            Add alternate title
+          </button>
+        </div>
+
+        <div class="form-group">
+          <label>Type</label>
+          <div class="radio-group">
+            <label class="radio-option">
+              <input type="radio" name="documentType" value="version_of" />
+              Version of
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="documentType" value="commentary_of" />
+              Commentary of
+            </label>
+            <label class="radio-option">
+              <input type="radio" name="documentType" value="translation_of" />
+              Translation of
+            </label>
+          </div>
+
+          <div id="pechaOptionsContainer">
+            <select id="pechaOptions">
+              <option value="">Select pecha</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group document-id">
+          <label>Document</label>
+          <div class="input-wrapper">
+            <input type="url" placeholder="Google docs URL" />
+          </div>
+        </div>
+
+        <button type="button" id="publishButton" class="publish-button">
+          Publish
+        </button>
+      </form>
+    </div>
+
+    <script src="script.js"></script>
+    <script src="../calender/calendar.js"></script>
+    <script src="../google_drive.js"></script>
+    <script
+      async
+      defer
+      src="https://apis.google.com/js/api.js"
+      onload="gapiLoaded()"
+    ></script>
+    <script
+      async
+      defer
+      src="https://accounts.google.com/gsi/client"
+      onload="gisLoaded()"
+    ></script>
+  </body>
+</html>
