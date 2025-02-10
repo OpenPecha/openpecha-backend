@@ -12,21 +12,17 @@ class LocalizedForm {
         );
         this.publishButton = document.getElementById("publishButton")
         this.setupEventListeners();
-        this.lanugageOptions={};
+        this.languageOptions=[];
         this.fetchLanguages().then(languages => {
-            this.lanugageOptions = languages;
-            let languagesArray = Object.keys(languages);
-            let temp = `
-        <option value="">Select language</option>
-            `
-            ;
-            languagesArray.forEach(lang => {
-                   temp+=`
-                <option value=${lang}>${languages[lang]}</option>
-                `;
-                })
-                this.baseLanguageSelect.innerHTML = temp;
-        })
+            console.log("Languages:", languages); // Log the fetched languages
+            this.languageOptions = languages;
+            let temp = `<option value="">Language</option>`; 
+            languages.forEach(lang => {
+                temp += `<option value="${lang.code}">${lang.name}</option>`;
+            });
+
+            this.baseLanguageSelect.innerHTML = temp;
+        });
     }
 
     setupEventListeners() {
@@ -115,16 +111,12 @@ class LocalizedForm {
         }
 
         input.setAttribute("required", "");
-        let temp = `<option value="">Select Language</option>`;
-
         const langSelect = document.createElement("select");
-        let languagesArray = Object.keys(this.lanugageOptions);
-            languagesArray.forEach(lang => {
-                   temp+=`
-                <option value=${lang}>${this.lanugageOptions[lang]}</option>
-                `;
-                })
-                langSelect.innerHTML = temp;
+        let temp = `<option value="">Language</option>`;
+        this.languageOptions.forEach(lang => {
+            temp += `<option value="${lang.code}">${lang.name}</option>`;
+        });
+        langSelect.innerHTML = temp;
         langSelect.setAttribute("required", "");
 
         if (isFirst) {
