@@ -12,9 +12,21 @@ class LocalizedForm {
         );
         this.publishButton = document.getElementById("publishButton")
         this.setupEventListeners();
+        this.lanugageOptions={};
         this.fetchLanguages().then(languages => {
-            console.log("languages ", languages);
-        });
+            this.lanugageOptions = languages;
+            let languagesArray = Object.keys(languages);
+            let temp = `
+        <option value="">Select language</option>
+            `
+            ;
+            languagesArray.forEach(lang => {
+                   temp+=`
+                <option value=${lang}>${languages[lang]}</option>
+                `;
+                })
+                this.baseLanguageSelect.innerHTML = temp;
+        })
     }
 
     setupEventListeners() {
@@ -103,14 +115,16 @@ class LocalizedForm {
         }
 
         input.setAttribute("required", "");
+        let temp = `<option value="">Select Language</option>`;
 
         const langSelect = document.createElement("select");
-        langSelect.innerHTML = `
-    <option value="">Language</option>
-    <option value="en">English</option>
-    <option value="fr">French</option>
-    <option value="bo">Tibetan</option>
-  `;
+        let languagesArray = Object.keys(this.lanugageOptions);
+            languagesArray.forEach(lang => {
+                   temp+=`
+                <option value=${lang}>${this.lanugageOptions[lang]}</option>
+                `;
+                })
+                langSelect.innerHTML = temp;
         langSelect.setAttribute("required", "");
 
         if (isFirst) {
@@ -285,7 +299,7 @@ class LocalizedForm {
             }
 
             const data = await response.json();
-            console.log("languages ::",data);
+            // console.log("languages ::",data);
             return data;
         } catch (error) {
             console.error('Error fetching languages:', error);
