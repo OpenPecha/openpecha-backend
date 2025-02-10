@@ -12,6 +12,9 @@ class LocalizedForm {
         );
         this.publishButton = document.getElementById("publishButton")
         this.setupEventListeners();
+        this.fetchLanguages().then(languages => {
+            console.log("languages ", languages);
+        });
     }
 
     setupEventListeners() {
@@ -72,6 +75,8 @@ class LocalizedForm {
                     true
                 );
             });
+        
+        
     }
 
     createLocalizationInput(container, language, isFirst = false) {
@@ -261,6 +266,29 @@ class LocalizedForm {
         } catch (error) {
             console.error("Error loading pecha options:", error);
             alert("Unable to load pecha options. Please try again later.");
+        }
+    }
+
+    async fetchLanguages() {
+        const url = "https://api-aq25662yyq-uc.a.run.app/languages";
+
+        try {
+            const response = await fetch(url, {
+                method: 'GET', // GET is the default method, so this is optional
+                headers: {
+                    'Accept': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            console.log("languages ::",data);
+            return data;
+        } catch (error) {
+            console.error('Error fetching languages:', error);
         }
     }
 

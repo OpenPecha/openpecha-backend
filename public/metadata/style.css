@@ -1,0 +1,259 @@
+:root {
+    /* Colors */
+    --color-primary: #2196f3;
+    --color-primary-dark: #1976d2;
+    --color-error: #dc3545;
+    --color-border: #ddd;
+    --color-text: #333;
+    --color-white: #fff;
+    --color-hover-bg: #f5f5f5;
+    --color-error-bg: #fff8f8;
+    --color-disabled: #ccc;
+
+    /* Spacing */
+    --spacing-xs: 4px;
+    --spacing-sm: 8px;
+    --spacing-md: 12px;
+    --spacing-lg: 16px;
+    --spacing-xl: 24px;
+
+    /* Border radius */
+    --border-radius: 4px;
+
+    /* Common styles */
+    --input-padding: var(--spacing-md);
+    --border: 1px solid var(--color-border);
+}
+
+/* Base styles */
+body {
+    font-family: Inter, -apple-system, system-ui, "Segoe UI", Helvetica, Arial, sans-serif;
+    max-width: 800px;
+    margin: 10px auto 20px;
+    padding: 20px;
+    color: var(--color-text);
+}
+
+
+
+/* Form elements */
+.form-group {
+    margin-bottom: var(--spacing-xl);
+}
+
+.form-group label {
+    display: block;
+    font-weight: 500;
+    margin-bottom: var(--spacing-sm);
+}
+
+/* Input styles */
+.localizations{
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-sm);
+    flex-wrap: wrap;
+}
+.input-wrapper {
+    display: flex;
+    flex: 1;
+    border: var(--border);
+    border-radius: var(--border-radius);
+    overflow: hidden;
+}
+
+.input-wrapper input,
+.input-wrapper textarea,
+.input-wrapper select{
+    padding: var(--input-padding);
+    border: none;
+    outline: none;
+    font-size: 16px;
+    background-color: var(--color-white);
+}
+
+.base-language select,
+#pechaOptionsContainer select {
+    padding: 5px 10px;
+    font-size: 16px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    background-color: #f9f9f9;
+    /* appearance: none; */
+    /* Remove default arrow */
+    /* -webkit-appearance: none; */
+    /* Remove default arrow for Safari */
+    /* -moz-appearance: none; */
+    /* Remove default arrow for Firefox */
+    cursor: pointer;
+    outline: none;
+    transition: border-color 0.3s ease, box-shadow 0.3s ease;
+}
+
+.base-language select option,
+#pechaOptionsContainer select option {
+     padding: 10px;
+     font-size: 14px;
+ }
+
+.input-wrapper input,
+.input-wrapper textarea {
+    flex: 1;
+}
+
+.input-wrapper textarea {
+    min-height: 100px;
+    resize: vertical;
+}
+
+.input-wrapper select {
+    border-left: var(--border);
+}
+
+/* Button styles */
+.button-base {
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.remove-btn {
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    padding: var(--spacing-sm);
+    background: none;
+    color: var(--color-error);
+    font-size: 18px;
+}
+
+.add-localization,
+.add-alt-title {
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-xs);
+    padding: var(--spacing-sm) var(--spacing-md);
+    background: none;
+    color: var(--color-primary);
+    font-size: 14px;
+    margin-top: var(--spacing-sm);
+}
+
+.add-localization:hover,
+.add-alt-title:hover {
+    color: var(--color-primary-dark);
+}
+
+.publish-button {
+    border: none;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    background-color: var(--color-primary);
+    color: var(--color-white);
+    padding: var(--spacing-md) var(--spacing-xl);
+    border-radius: var(--border-radius);
+    font-size: 16px;
+    margin-top: var(--spacing-xl);
+}
+
+.publish-button:hover {
+    background-color: var(--color-primary-dark);
+}
+
+.publish-button:disabled {
+    background-color: var(--color-disabled);
+    cursor: not-allowed;
+}
+
+/* Group layouts */
+.input-group {
+    display: flex;
+    gap: var(--spacing-sm);
+    align-items: center;
+}
+
+.radio-group {
+    display: flex;
+    gap: var(--spacing-lg);
+    flex-wrap: wrap;
+    margin-bottom: var(--spacing-lg);
+}
+
+.radio-option {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-sm);
+    padding: var(--spacing-sm) var(--spacing-lg);
+    border: var(--border);
+    border-radius: var(--border-radius);
+    cursor: pointer;
+}
+
+.radio-option:hover {
+    background-color: var(--color-hover-bg);
+}
+
+.radio-option input[type="radio"] {
+    accent-color: var(--color-primary);
+}
+
+/* Alt title styles */
+.alt-title-group {
+    position: relative;
+    border: var(--border);
+    padding: 15px;
+    margin: 10px 0;
+    border-radius: var(--border-radius);
+}
+
+.remove-alt-title {
+    position: absolute;
+    top: 1px;
+    right: 1px;
+    background: none;
+    border: none;
+    color: var(--color-error);
+    cursor: pointer;
+}
+
+/* Error states */
+.error,
+select.error {
+    border-color: var(--color-error) !important;
+}
+
+.input-wrapper.error input,
+.input-wrapper.error textarea,
+.input-wrapper.error select {
+    background-color: var(--color-error-bg);
+}
+
+/* Required field indicators */
+[data-field="author"] label::after,
+[data-field="title"] label::after,
+[data-field="long_title"] label::after,
+.base-language label::after,
+.source-url label::after,
+.document-id label::after {
+    content: " *";
+    color: var(--color-error);
+}
+
+/* Visibility utilities */
+.form-content {
+    display: none;
+    margin-top: var(--spacing-lg);
+}
+
+.form-content.visible,
+#pechaOptionsContainer.visible {
+    display: block;
+}
+
+#pechaOptionsContainer {
+    display: none;
+    margin-top: var(--spacing-lg);
+}
