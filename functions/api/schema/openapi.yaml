@@ -100,43 +100,6 @@ paths:
                     type: string
                     examples:
                       - Failed to save to DB
-  /pechas:
-    get:
-      summary: Retrieve a list of Pechas
-      description: Returns a list of Pecha IDs along with their corresponding titles.
-      tags:
-        - pecha
-      responses:
-        "200":
-          description: Successfully retrieved the list of Pechas.
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    id:
-                      type: string
-                      description: Unique Pecha ID.
-                      examples: 
-                        - I857977C3
-                    title:
-                      type: string
-                      description: Title of the Pecha in its respective language.
-                      examples:
-                        - "Illuminating the Intent Chapter 6"
-        "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    examples: 
-                      - "Failed to retrieve pechas: {DB error message}"
   /languages:
     get:
       summary: Retrieve the list of available languages
@@ -177,7 +140,7 @@ paths:
                   summary: Example error response
                   value:
                     {
-                      "error": "Failed to retrieve languages from Firestore"
+                      "error": "Failed to retrieve languages from DB"
                     }
   /metadata/{pecha_id}:
     get:
@@ -189,6 +152,7 @@ paths:
         - name: pecha_id
           in: path
           required: true
+          allowEmptyValue: false
           description: The Pecha whose metadata is being requested.
           schema:
             type: string
@@ -223,7 +187,7 @@ paths:
                       - "Failed to retrieve metadata: {error details}"
     put:
       summary: Overwrite metadata by ID
-      description: Overwrites metadata for a given Pecha ID in Firestore. The metadata must be valid.
+      description: Overwrites metadata for a given Pecha ID in DB. The metadata must be valid.
       tags:
         - pecha
       parameters:
@@ -352,4 +316,104 @@ paths:
                           type: string
                           examples:
                             - "b706d2b1a5d0176df374da25c970274b2e0f7770"
+  /pechas:
+    post:
+      summary: Filter Pechas by metadata
+      description: |
+        Filter Pechas using **four possible modes**:
+        
+        1. **Single Field Query** - Search by a single metadata field.
+        2. **AND Query** - Return results that match **all** given conditions.  
+        3. **OR Query** - Return results that match **any** given conditions.
+        4. **No Filters** - If the request body is empty, all Pechas are returned.  
+        
+        **Limitations:**
+        - `$exists` is **only supported in single field queries**.
+        - `$exists` is **not allowed** in `and` or `or` queries.
 
+      tags:
+        - pecha
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                filter:
+                  oneOf:
+                    - type: object
+                      description: "Single Field Query"
+                    - type: object
+                      properties:
+                        and:
+                          type: array
+                          items:
+                            type: object
+                          description: "Conditions to match all (AND query)"
+                    - type: object
+                      properties:
+                        or:
+                          type: array
+                          items:
+                            type: object
+                          description: "Conditions to match any (OR query)"
+            examples:
+              allPechas:
+                value: {}
+                summary: "Return all Pechas (no filters applied)"
+              singleFieldQuery:
+                value: { "filter": { "commentary_of": {"$exists": true} } }
+                summary: "Filter by a single field"
+              andQuery:
+                value:
+                  filter:
+                    and:
+                      - { "language": "en" }
+                      - {"source": "https://example.com"}
+                summary: "Match all conditions (AND)"
+              orQuery:
+                value:
+                  filter:
+                    or:
+                      - { "language": "en" }
+                      - { "commentary_of": "I0EA4B6C3" }
+                summary: "Match any condition (OR)"
+      responses:
+        "200":
+          description: Successfully retrieved filtered Pechas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                      description: Unique Pecha ID.
+                      examples: 
+                        - I857977C3
+                    title:
+                      type: string
+                      description: Title of the Pecha in its respective language.
+                      examples:
+                        - "Illuminating the Intent Chapter 6"
+        "400":
+          description: Invalid request or unsupported query format
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string

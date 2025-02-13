@@ -10,7 +10,7 @@
         "firebase-debug.*.log",
         "*.local"
       ],
-      "predeploy": "echo 'COMMIT_SHA=$(git rev-parse HEAD)' > .env",
+      "predeploy": "./predeploy.sh",
       "files": [
         "schema/openapi.yaml"
       ]

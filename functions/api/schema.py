@@ -1,4 +1,5 @@
 import os
+
 from flask import Blueprint, jsonify, send_file
 
 schema_bp = Blueprint("schema", __name__)

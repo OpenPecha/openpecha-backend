@@ -1,9 +1,9 @@
 import json
 import logging
 
-from jsonschema import Draft202012Validator
-from flask import Blueprint, request, jsonify
 from firebase_config import db
+from flask import Blueprint, jsonify, request
+from jsonschema import Draft202012Validator
 
 metadata_bp = Blueprint("metadata", __name__)
 

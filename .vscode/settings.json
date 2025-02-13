@@ -1,17 +1,28 @@
 {
-  "python.analysis.extraPaths": [
-    "functions/venv/lib/python3.12/site-packages",
-    "./functions",
-    "./functions/api"
-   ],
-   "pylint.args": [ 
-    "--disable=missing-class-docstring", 
-    "--disable=missing-function-docstring", 
-    "--disable=missing-module-docstring",
-    "--disable=broad-exception-caught"],
+    "python.analysis.extraPaths": [
+        "functions/venv/lib/python3.12/site-packages",
+        "./functions",
+        "./functions/api"
+    ],
+    "pylint.args": [
+        "--disable=missing-class-docstring",
+        "--disable=missing-function-docstring",
+        "--disable=missing-module-docstring",
+        "--disable=broad-exception-caught",
+        "--disable=too-many-return-statements",
+        "--max-line-length=120"
+    ],
+    "black-formatter.args": ["--line-length", "120"],
     "[python]": {
-    "editor.defaultFormatter": "ms-python.black-formatter",
-    "editor.formatOnSave": true
-  }
+        "editor.defaultFormatter": "ms-python.black-formatter",
+        "editor.formatOnSave": true
+    },
+    "python.analysis.typeCheckingMode": "standard",
+    "editor.codeActionsOnSave": {
+        "source.organizeImports": "explicit"
+    },
+    "flake8.args": [
+        "--ignore=E501,W503",
+        "--max-line-length=120"
+    ],
 }
-
