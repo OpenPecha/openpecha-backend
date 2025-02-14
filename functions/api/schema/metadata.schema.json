@@ -7,7 +7,8 @@
       "type": "object",
       "patternProperties": {
         "^[a-z]{2}(-[A-Z]{2})?$": {
-          "type": "string"
+          "type": "string",
+          "minLength": 1
         }
       },
       "additionalProperties": false,
@@ -26,14 +27,16 @@
     },
     "date": {
       "type": "string",
-      "format": "date"
+      "format": "date",
+      "minLength": 1
     },
     "source": {
       "type": "string",
       "format": "uri"
     },
     "document_id": {
-      "type": "string"
+      "type": "string",
+      "minLength": 1
     },
     "presentation": {
       "$ref": "#/$defs/localized_string"
@@ -51,7 +54,8 @@
       "type": "array",
       "items": {
         "$ref": "#/$defs/localized_string"
-      }
+      },
+      "minItems": 1
     },
     "commentary_of": {
       "$ref": "#/$defs/pecha_id"

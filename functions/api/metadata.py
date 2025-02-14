@@ -10,6 +10,29 @@ metadata_bp = Blueprint("metadata", __name__)
 logger = logging.getLogger(__name__)
 
 
+def sanitize(metadata):
+    """Recursively remove empty lists, empty dicts, None elements, and trim strings."""
+
+    if isinstance(metadata, list):
+        return [v for v in map(sanitize, metadata) if v not in ("", {}, [], None)]
+
+    if isinstance(metadata, dict):
+        return {k: v for k, v in ((k, sanitize(v)) for k, v in metadata.items()) if v not in ("", {}, [], None)}
+
+    if isinstance(metadata, str):
+        metadata = metadata.strip()
+
+    return metadata
+
+
+def trim_json(data):
+    if isinstance(data, dict):
+        return {k: trim_json(v) for k, v in data.items()}
+    if isinstance(data, list):
+        return [trim_json(v) for v in data]
+    return data.strip() if isinstance(data, str) else data
+
+
 def validate(metadata: dict):
     with open("schema/metadata.schema.json", "r", encoding="utf-8") as f:
         metadata_schema = json.load(f)
@@ -41,7 +64,7 @@ def get_metadata(pecha_id):
 
 
 @metadata_bp.route("/<string:pecha_id>", methods=["PUT"], strict_slashes=False)
-def put_metadata(pecha_id):
+def put_metadata(pecha_id: str):
     try:
         data = request.get_json()
         metadata = data.get("metadata")

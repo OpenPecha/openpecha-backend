@@ -1,4 +1,5 @@
 import logging
+import tempfile
 from pathlib import Path
 from typing import Any, Dict, List, Tuple
 
@@ -22,8 +23,9 @@ def get_metadata_chain(metadata: Dict[str, Any]) -> List[Dict[str, Any]]:
     return chain
 
 
-def tmp_path(directory: str):
-    return Path(f"/tmp/{directory}")
+def tmp_path(filename: str) -> Path:
+    with tempfile.NamedTemporaryFile(delete=False, suffix=Path(filename).suffix) as temp:
+        return Path(temp.name)
 
 
 def parse(docx_file: FileStorage, metadata: Dict[str, Any], pecha_id: str | None = None) -> Pecha:
@@ -39,7 +41,7 @@ def parse(docx_file: FileStorage, metadata: Dict[str, Any], pecha_id: str | None
         return DocxNumberListTranslationParser().parse(input=path, metadata=metadata, pecha_id=pecha_id)
 
 
-def process_pecha(text, metadata) -> Tuple[str | None, str | None]:
+def process_pecha(text: FileStorage, metadata: dict[str, Any]) -> Tuple[str | None, str | None]:
     """
     Handles Pecha processing: parsing, alignment, serialization, storage, and database transactions.
 

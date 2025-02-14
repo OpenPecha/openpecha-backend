@@ -1,7 +1,7 @@
 import json
 import logging
 
-from api.metadata import validate
+from api.metadata import trim_json, validate
 from api.text import validate_file
 from firebase_config import db
 from flask import Blueprint, jsonify, request
@@ -41,6 +41,10 @@ def publish():
     except json.JSONDecodeError as e:
         return jsonify({"error": f"Invalid JSON format for metadata: {str(e)}"}), 400
 
+    metadata = trim_json(metadata)
+    if not metadata or not isinstance(metadata, dict):
+        return jsonify({"error": "Invalid metadata"}), 400
+
     is_valid, errors = validate(metadata)
     if not is_valid:
         return jsonify({"error": errors}), 422
@@ -49,6 +53,9 @@ def publish():
     logger.info("Metadata: %s", metadata)
 
     doc_id = metadata["document_id"]
+    if not isinstance(doc_id, str):
+        return jsonify({"error": "Invalid metadata"}), 400
+
     duplicate_key = get_duplicate_key(doc_id)
 
     if duplicate_key:
