@@ -1,5 +1,6 @@
 import logging
 
+from filter_model import AndFilter, FilterModel, OrFilter, SingleFilter
 from firebase_config import db
 from flask import Blueprint, jsonify, request
 from google.cloud.firestore_v1.base_query import FieldFilter, Or
@@ -22,58 +23,29 @@ def pechas():
         ]
 
     try:
-        filters = request.get_json().get("filter")
+        filter_json = request.get_json().get("filter")
 
-        if not filters:
+        if not filter_json:
             return jsonify(extract_info(db.collection("metadata"))), 200
+
+        filter_model = FilterModel.model_validate(filter_json)
 
         col_ref = db.collection("metadata")
 
-        def contains_exists(conditions):
-            return any(
-                isinstance(value, dict) and "$exists" in value
-                for condition in conditions
-                for _, value in condition.items()
-            )
+        def parse_filter(single_filter: SingleFilter):
+            return FieldFilter(single_filter.field, single_filter.operator, single_filter.value)
 
-        if "or" in filters and contains_exists(filters["or"]):
-            return jsonify({"error": "$exists cannot be used in an OR query"}), 400
+        if isinstance(filter_model, OrFilter):
+            return jsonify(extract_info(col_ref.where(filter=Or([parse_filter(f) for f in filter_model.filters])))), 200
 
-        if "and" in filters and contains_exists(filters["and"]):
-            return jsonify({"error": "$exists cannot be used in an AND query"}), 400
-
-        # Handle OR queries
-        if "or" in filters:
-            or_filters = [
-                FieldFilter(key, "==", value) for condition in filters["or"] for key, value in condition.items()
-            ]
-            query = col_ref.where(filter=Or(or_filters))
-            return jsonify(extract_info(query)), 200
-
-        # Handle AND queries
-        if "and" in filters:
+        if isinstance(filter_model, AndFilter):
             query = col_ref
-            for condition in filters["and"]:
-                key, value = next(iter(condition.items()))
-                query = query.where(filter=FieldFilter(key, "==", value))
-
+            for f in filter_model.filters:
+                query = query.where(filter=parse_filter(f))
             return jsonify(extract_info(query)), 200
 
-        # Handle single field as a Fallback (only if 'or' and 'and' are absent)
-        if isinstance(filters, dict) and len(filters) == 1:
-            key, value = next(iter(filters.items()))
-
-            if isinstance(value, dict) and "$exists" in value:
-                if not isinstance(value["$exists"], bool):
-                    return (
-                        jsonify({"error": "Incorrect $exists syntax, must be true/false"}),
-                        400,
-                    )
-                query = col_ref.where(filter=FieldFilter(key, "!=", None))
-            else:
-                query = col_ref.where(filter=FieldFilter(key, "==", value))
-
-            return jsonify(extract_info(query)), 200
+        if isinstance(filter_model, SingleFilter):
+            return jsonify(extract_info(col_ref.where(filter=parse_filter(filter_model)))), 200
 
         return jsonify({"error": "No valid filters provided"}), 400
 

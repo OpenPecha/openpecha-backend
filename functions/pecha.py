@@ -1,7 +1,7 @@
 import logging
 import tempfile
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any
 
 from firebase_config import db
 from openpecha.pecha import Pecha, get_pecha_alignment_data
@@ -13,7 +13,7 @@ from werkzeug.datastructures import FileStorage
 logger = logging.getLogger(__name__)
 
 
-def get_metadata_chain(metadata: Dict[str, Any]) -> List[Dict[str, Any]]:
+def get_metadata_chain(metadata: dict[str, Any]) -> list[dict[str, Any]]:
     chain = [metadata]
     while (next_id := next(filter(metadata.get, ("commentary_of", "version_of", "translation_of")), None)) and (
         metadata := db.collection("metadata").document(next_id).get().to_dict()
@@ -23,16 +23,16 @@ def get_metadata_chain(metadata: Dict[str, Any]) -> List[Dict[str, Any]]:
     return chain
 
 
-def tmp_path(filename: str) -> Path:
+def create_tmp(filename: str) -> Path:
     with tempfile.NamedTemporaryFile(delete=False, suffix=Path(filename).suffix) as temp:
         return Path(temp.name)
 
 
-def parse(docx_file: FileStorage, metadata: Dict[str, Any], pecha_id: str | None = None) -> Pecha:
+def parse(docx_file: FileStorage, metadata: dict[str, Any], pecha_id: str | None = None) -> Pecha:
     if not docx_file.filename:
         raise ValueError("docx_file has no filename")
 
-    path = tmp_path(docx_file.filename)
+    path = create_tmp(docx_file.filename)
     docx_file.save(path)
 
     if metadata.get("commentary_of", ""):
@@ -41,7 +41,7 @@ def parse(docx_file: FileStorage, metadata: Dict[str, Any], pecha_id: str | None
         return DocxNumberListTranslationParser().parse(input=path, metadata=metadata, pecha_id=pecha_id)
 
 
-def process_pecha(text: FileStorage, metadata: dict[str, Any]) -> Tuple[str | None, str | None]:
+def process_pecha(text: FileStorage, metadata: dict[str, Any]) -> tuple[str | None, str | None]:
     """
     Handles Pecha processing: parsing, alignment, serialization, storage, and database transactions.
 
@@ -50,11 +50,11 @@ def process_pecha(text: FileStorage, metadata: dict[str, Any]) -> Tuple[str | No
         - `("Error message", None)` if an error occurs.
     """
     try:
-        metadata_chain = get_metadata_chain(metadata=metadata)
+        # metadata_chain = get_metadata_chain(metadata=metadata)
+        pecha = parse(text, metadata)
+        # pecha = parse(text, metadata_chain)
 
-        pecha = parse(text, metadata_chain)
-
-        logger.info("Pecha created: %s %s", pecha.id, pecha.pecha_path)
+        # logger.info("Pecha created: %s %s", pecha.id, pecha.pecha_path)
 
         alignment = get_pecha_alignment_data(pecha)
         serialized_json = ""  # = TextTranslationSerializer().serialize(pecha, False)

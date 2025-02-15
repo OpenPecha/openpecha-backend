@@ -1,10 +1,9 @@
-import json
 import logging
 
-from api.metadata import trim_json, validate
 from api.text import validate_file
 from firebase_config import db
 from flask import Blueprint, jsonify, request
+from metadata_model import MetadataModel
 from pecha import process_pecha
 
 publish_bp = Blueprint("publish", __name__)
@@ -32,39 +31,26 @@ def publish():
         return jsonify({"error": f"Text file: {error_message}"}), 400
 
     metadata_json = request.form.get("metadata")
-
     if not metadata_json:
         return jsonify({"error": "Missing metadata"}), 400
 
-    try:
-        metadata = json.loads(metadata_json)
-    except json.JSONDecodeError as e:
-        return jsonify({"error": f"Invalid JSON format for metadata: {str(e)}"}), 400
-
-    metadata = trim_json(metadata)
-    if not metadata or not isinstance(metadata, dict):
-        return jsonify({"error": "Invalid metadata"}), 400
-
-    is_valid, errors = validate(metadata)
-    if not is_valid:
-        return jsonify({"error": errors}), 422
+    metadata = MetadataModel.model_validate(metadata_json)
 
     logger.info("Uploaded text file: %s", text.filename)
     logger.info("Metadata: %s", metadata)
 
-    doc_id = metadata["document_id"]
-    if not isinstance(doc_id, str):
+    if not isinstance(metadata.document_id, str):
         return jsonify({"error": "Invalid metadata"}), 400
 
-    duplicate_key = get_duplicate_key(doc_id)
+    duplicate_key = get_duplicate_key(metadata.document_id)
 
     if duplicate_key:
         return (
-            jsonify({"error": f"Document '{doc_id}' is already published as: {duplicate_key}"}),
+            jsonify({"error": f"Document '{metadata.document_id}' is already published as: {duplicate_key}"}),
             400,
         )
 
-    error_message, pecha_id = process_pecha(text=text, metadata=metadata)
+    error_message, pecha_id = process_pecha(text=text, metadata=metadata.model_dump())
     if error_message:
         return jsonify({"error": error_message}), 500
 
