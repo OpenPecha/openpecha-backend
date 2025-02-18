@@ -21,7 +21,22 @@ from pydantic import ValidationError
         # Invalid: `or` filter contains a missing field
         ({"filter": {"or": [{"operator": "==", "value": "en"}]}}, "field"),
         # Invalid: Random extra field
-        ({"filter": {"field": "author", "operator": "==", "value": "Alice", "extra": "unexpected"}}, "extra"),
+        ({"filter": {"field": "author", "operator": "==", "value": "Alice", "extra": "unexpected"}}, "extra_forbidden"),
+        (
+            {
+                "filter": {
+                    "and": [
+                        {"field": "language", "operator": "==", "value": "en"},
+                        {"field": "author", "operator": "!=", "value": "Bob"},
+                    ],
+                    "or": [
+                        {"field": "language", "operator": "==", "value": "en"},
+                        {"field": "author", "operator": "!=", "value": "Bob"},
+                    ],
+                }
+            },
+            "or",
+        ),
     ],
 )
 def test_invalid_filter_model(invalid_data, expected_error):

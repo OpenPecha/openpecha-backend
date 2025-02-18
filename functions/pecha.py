@@ -5,8 +5,7 @@ from typing import Any
 
 from firebase_config import db
 from openpecha.pecha import Pecha, get_pecha_alignment_data
-from openpecha.pecha.parsers.google_doc.commentary.number_list import DocxNumberListCommentaryParser
-from openpecha.pecha.parsers.google_doc.numberlist_translation import DocxNumberListTranslationParser
+from openpecha.pecha.parsers.google_doc import DocxParser
 from storage import Storage
 from werkzeug.datastructures import FileStorage
 
@@ -35,10 +34,9 @@ def parse(docx_file: FileStorage, metadata: dict[str, Any], pecha_id: str | None
     path = create_tmp(docx_file.filename)
     docx_file.save(path)
 
-    if metadata.get("commentary_of", ""):
-        return DocxNumberListCommentaryParser().parse(input=path, metadata=metadata, pecha_id=pecha_id)
-    else:
-        return DocxNumberListTranslationParser().parse(input=path, metadata=metadata, pecha_id=pecha_id)
+    return DocxParser().parse(
+        docx_file=path, metadatas=get_metadata_chain(metadata=metadata), output_path=path, pecha_id=pecha_id
+    )
 
 
 def process_pecha(text: FileStorage, metadata: dict[str, Any]) -> tuple[str | None, str | None]:

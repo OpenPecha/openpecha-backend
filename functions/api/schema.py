@@ -1,19 +1,20 @@
 import os
 
+from filter_model import FilterModel
 from flask import Blueprint, jsonify, send_file
-from metadata_model import metadata_json_schema
+from metadata_model import MetadataModel
 
 schema_bp = Blueprint("schema", __name__)
 
 
 @schema_bp.route("/metadata", methods=["GET"])
 def get_metadata_schema():
-    return jsonify(metadata_json_schema), 200
+    return jsonify(MetadataModel.model_json_schema()), 200
 
 
 @schema_bp.route("/filter", methods=["GET"])
 def get_filter_schema():
-    return jsonify(metadata_json_schema), 200
+    return jsonify(FilterModel.model_json_schema()), 200
 
 
 @schema_bp.route("/openapi", methods=["GET"])

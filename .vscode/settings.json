@@ -10,6 +10,7 @@
         "--disable=missing-module-docstring",
         "--disable=broad-exception-caught",
         "--disable=too-many-return-statements",
+        "--disable=too-few-public-methods",
         "--max-line-length=120",
     ],
     "black-formatter.args": [
