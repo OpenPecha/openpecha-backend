@@ -25,13 +25,27 @@
         "source.organizeImports": "explicit"
     },
     "flake8.args": [
+        "--exclude=tests",
         "--ignore=E501,W503",
         "--max-line-length=120"
+    ],
+    "flake8.ignorePatterns": [
+        "**/tests/*.py"
     ],
     "files.exclude": {
         "**/__pycache__": true,
         "**/.git": true,
         "**/venv": true,
-        "**/.firebase": true
-    }
+        "**/.firebase": true,
+        "**/.pytest_cache": true
+    },
+    "bandit.ignorePatterns": [
+        "**/tests/*.py"
+    ],
+    "python.testing.pytestArgs": [
+        "functions",
+        "--log-cli-level=DEBUG"
+    ],
+    "python.testing.unittestEnabled": false,
+    "python.testing.pytestEnabled": true
 }

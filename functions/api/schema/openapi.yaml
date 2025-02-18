@@ -152,7 +152,6 @@ paths:
         - name: pecha_id
           in: path
           required: true
-          allowEmptyValue: false
           description: The Pecha whose metadata is being requested.
           schema:
             type: string

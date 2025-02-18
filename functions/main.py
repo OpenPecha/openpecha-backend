@@ -1,5 +1,3 @@
-import logging
-
 from api.api import api_bp
 from api.languages import languages_bp
 from api.metadata import metadata_bp
@@ -8,18 +6,34 @@ from api.publish import publish_bp
 from api.schema import schema_bp
 from api.text import text_bp
 from firebase_functions import https_fn, options
-from flask import Flask
+from flask import Flask, request
 
-logging.basicConfig(level=logging.INFO)
 
-app = Flask(__name__)
-app.register_blueprint(publish_bp, url_prefix="/publish")
-app.register_blueprint(pechas_bp, url_prefix="/pechas")
-app.register_blueprint(metadata_bp, url_prefix="/metadata")
-app.register_blueprint(languages_bp, url_prefix="/languages")
-app.register_blueprint(schema_bp, url_prefix="/schema")
-app.register_blueprint(api_bp, url_prefix="/api")
-app.register_blueprint(text_bp, url_prefix="/text")
+def create_app(testing=False):
+    app = Flask(__name__)
+    app.config["TESTING"] = testing
+
+    app.register_blueprint(publish_bp, url_prefix="/publish")
+    app.register_blueprint(pechas_bp, url_prefix="/pechas")
+    app.register_blueprint(metadata_bp, url_prefix="/metadata")
+    app.register_blueprint(languages_bp, url_prefix="/languages")
+    app.register_blueprint(schema_bp, url_prefix="/schema")
+    app.register_blueprint(api_bp, url_prefix="/api")
+    app.register_blueprint(text_bp, url_prefix="/text")
+
+    @app.after_request
+    def log_response(response):
+        app.logger.info(
+            "Request: %s %s Body: %s | Response: %s | Status: %d",
+            request.method,
+            request.path,
+            request.get_data(),
+            response.get_json() if response.is_json else response.data.decode(),
+            response.status_code,
+        )
+        return response
+
+    return app
 
 
 @https_fn.on_request(
@@ -37,5 +51,6 @@ app.register_blueprint(text_bp, url_prefix="/text")
     ],
 )
 def api(req: https_fn.Request) -> https_fn.Response:
+    app = create_app()
     with app.request_context(req.environ):
         return app.full_dispatch_request()
