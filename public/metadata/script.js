@@ -351,9 +351,13 @@ class LocalizedForm {
             }
         });
 
-        metadata.alt_titles = alt_titles;
+        if(alt_titles.length > 0)
+            metadata.alt_titles = alt_titles;
         // Collect non-localized fields
-        metadata.date = document.getElementById("selectedDate").innerHTML;
+        const selectedDate = document.getElementById("selectedDate").innerHTML;
+        if (selectedDate && selectedDate !== "No date selected") {
+            metadata.date = selectedDate;
+        }
         metadata.source = document.querySelector('input[placeholder="https://example.com"]').value;
 
         // Collect document type and pecha
