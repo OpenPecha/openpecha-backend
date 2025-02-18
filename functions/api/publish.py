@@ -21,8 +21,12 @@ from openpecha.storages import update_github_repo
 
 
 from api.metadata import validate
+import shutil
+from unittest import mock
+from openpecha.config import  TEMP_CACHE_PATH, GITHUB_ORG_NAME
+from openpecha.github_utils import  clone_repo
 
-
+org_name = GITHUB_ORG_NAME
 publish_bp = Blueprint("publish", __name__)
 update_text_bp = Blueprint("update-text", __name__)
 
@@ -45,7 +49,7 @@ def validate_file(text):
 
     return (
         False,
-        f"Invalid file type. {extension} Supported types: {", ".join(TEXT_FORMATS)}",
+        f"Invalid file type. {extension} Supported types: {', '.join(TEXT_FORMATS)}",
     )
 
 
@@ -61,6 +65,47 @@ def parse(docx_file, metadata, pecha_id=None) -> Pecha:
         return DocxNumberListTranslationParser().parse(
             input=path, metadata=metadata, pecha_id=pecha_id
         )
+
+def update_pecha(docx_file, metadata, pecha_id):
+    if (TEMP_CACHE_PATH / pecha_id).exists():
+        shutil.rmtree(TEMP_CACHE_PATH / pecha_id)
+
+    old_pecha_path = clone_repo(pecha_id, TEMP_CACHE_PATH, org_name)
+    path = tmp_path(docx_file.filename)
+    docx_file.save(path)
+
+    pecha = Pecha.from_path(old_pecha_path)
+
+    base_names = list(pecha.bases.keys())
+
+    layers_file_names = []
+    for layer_file_name, _ in pecha.get_layers(base_name=base_names[0]):
+        layers_file_names.append(layer_file_name)        
+
+
+    # Extract the number after the last '-'
+    layer_file_id = layers_file_names[0].split("-")[-1].split(".")[0]
+
+
+    with mock.patch("openpecha.pecha.get_base_id") as mock_get_base_id, \
+         mock.patch("openpecha.pecha.get_layer_id") as mock_get_layer_id:
+        
+        mock_get_base_id.return_value = base_names[0]
+        mock_get_layer_id.return_value = layer_file_id
+        
+        if metadata.get("commentary_of"):
+            pecha = DocxNumberListCommentaryParser().parse(
+                input=path, metadata=metadata, pecha_id=pecha_id
+            )
+        else:
+            pecha = DocxNumberListTranslationParser().parse(
+                input=path, metadata=metadata, pecha_id=pecha_id
+            )
+    
+    updated_pecha_path = pecha.pecha_path
+
+    return updated_pecha_path, old_pecha_path
+
 
 
 def get_duplicate_key(document_id: str):
@@ -101,7 +146,8 @@ def publish():
     if duplicate_key:
         return jsonify(
             {
-                "error": f"Document '{metadata["document_id"]}' is already published (Pecha ID: {duplicate_key})"
+                "error": f"Document '{metadata['document_id']}' is already published (Pecha ID: {duplicate_key})"
+
             },
             400,
         )
@@ -179,13 +225,13 @@ def update_text():
 
     logger.info("Metadata: %s", metadata)
 
-    pecha = parse(
+    updated_pecha_path, old_pecha_path = update_pecha(
         text,
         metadata,
         pecha_id,
     )
-    logger.info("Pecha created: %s %s", pecha.id, pecha.pecha_path)
+    logger.info("Pecha created: %s %s", updated_pecha_path, old_pecha_path)
 
-    update_github_repo(pecha.pecha_path, pecha.id)
+    update_github_repo(updated_pecha_path, old_pecha_path)
 
     return jsonify({"message": "Text updated successfully", "id": pecha_id}), 201
