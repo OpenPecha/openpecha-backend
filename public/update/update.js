@@ -22,7 +22,15 @@ class UpdateMetaData {
 
     async fetchPechaOptions() {
         try {
-            const response = await fetch(`${this.API_ENDPOINT}/pecha/`);
+            const response = await fetch(`${this.API_ENDPOINT}/pechas`, {
+                method: 'POST',
+                headers: {
+                    'accept': 'application/json',
+                    'Content-Type': 'application/json' 
+                },
+                body: JSON.stringify({}) 
+            });
+
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
             const pechas = await response.json();
