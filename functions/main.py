@@ -1,24 +1,42 @@
-import logging
-
-from flask import Flask
-from firebase_functions import https_fn, options
-from api.publish import publish_bp, update_text_bp
-from api.pecha import pecha_bp
-from api.metadata import metadata_bp
-from api.languages import languages_bp
-from api.schema import schema_bp
 from api.api import api_bp
+from api.languages import languages_bp
+from api.metadata import metadata_bp
+from api.pecha import pecha_bp
+from api.schema import schema_bp
+from api.text import text_bp
+from firebase_functions import https_fn, options
+from flask import Flask, request
 
-logging.basicConfig(level=logging.INFO)
 
-app = Flask(__name__)
-app.register_blueprint(publish_bp, url_prefix="/publish")
-app.register_blueprint(pecha_bp, url_prefix="/pecha")
-app.register_blueprint(metadata_bp, url_prefix="/metadata")
-app.register_blueprint(update_text_bp, url_prefix="/update-text")
-app.register_blueprint(languages_bp, url_prefix="/languages")
-app.register_blueprint(schema_bp, url_prefix="/schema")
-app.register_blueprint(api_bp, url_prefix="/api")
+def create_app(testing=False):
+    app = Flask(__name__)
+    app.config["TESTING"] = testing
+
+    app.register_blueprint(pecha_bp, url_prefix="/pecha")
+    app.register_blueprint(metadata_bp, url_prefix="/metadata")
+    app.register_blueprint(languages_bp, url_prefix="/languages")
+    app.register_blueprint(schema_bp, url_prefix="/schema")
+    app.register_blueprint(api_bp, url_prefix="/api")
+    app.register_blueprint(text_bp, url_prefix="/text")
+
+    @app.after_request
+    def log_response(response):
+        if response.is_json:
+            response_body = response.get_json()
+        else:
+            response_body = response.data.decode() if response.mimetype.startswith("text/") else "<binary data>"
+
+        app.logger.info(
+            "Request: %s %s Body: %s | Response: %s | Status: %d",
+            request.method,
+            request.path,
+            request.get_data(),
+            response_body,
+            response.status_code,
+        )
+        return response
+
+    return app
 
 
 @https_fn.on_request(
@@ -36,5 +54,6 @@ app.register_blueprint(api_bp, url_prefix="/api")
     ],
 )
 def api(req: https_fn.Request) -> https_fn.Response:
+    app = create_app()
     with app.request_context(req.environ):
         return app.full_dispatch_request()

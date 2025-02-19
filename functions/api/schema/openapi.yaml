@@ -6,9 +6,9 @@ servers:
   - url: https://api-aq25662yyq-uc.a.run.app
 
 paths:
-  /publish:
+  /pecha:
     post:
-      summary: Publish a text document with metadata
+      summary: Create a Pecha
       description: Accepts a text document (.docx) and associated metadata in JSON format, processes them, and stores the resulting Pecha in the database.
       tags:
         - pecha
@@ -100,15 +100,27 @@ paths:
                     type: string
                     examples:
                       - Failed to save to DB
-  /pechas:
-    get:
-      summary: Retrieve a list of Pechas
-      description: Returns a list of Pecha IDs along with their corresponding titles.
+  /pecha/filter:
+    post:
+      summary: Filter Pechas by metadata
+      description: |
+        Filter Pechas using **four possible modes**:
+        
+        1. **Single Field Query** - Search by a single metadata field.
+        2. **AND Query** - Return results that match **all** given conditions.  
+        3. **OR Query** - Return results that match **any** given conditions.
+        4. **No Filters** - If the request body is empty, all Pechas are returned.  
       tags:
         - pecha
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+                $ref: "https://pecha-backend.web.app/schema/filter"
       responses:
         "200":
-          description: Successfully retrieved the list of Pechas.
+          description: Successfully retrieved filtered Pechas
           content:
             application/json:
               schema:
@@ -126,8 +138,66 @@ paths:
                       description: Title of the Pecha in its respective language.
                       examples:
                         - "Illuminating the Intent Chapter 6"
+        "400":
+          description: Invalid request or unsupported query format
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
         "500":
-          description: Internal server error
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+  /pecha/{pecha_id}/publish:
+    post:
+      summary: Publish a Pecha to Pecha.org
+      description: The Pecha referenced by the ID in the path will be serialized, and the result uploaded to Pecha.org
+      tags:
+        - pecha
+      parameters:
+        - name: pecha_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the Pecha to be published.
+      responses:
+        "200":
+          description: Pecha published successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - Pecha published successfully
+                  id:
+                    type: string
+                    examples: 
+                    - I857977C3
+        "400":
+          description: Bad request due to missing Pecha ID.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    examples:
+                      - Missing Pecha ID
+        "500":
+          description: Internal server error if publishing fails.
           content:
             application/json:
               schema:
@@ -136,7 +206,7 @@ paths:
                   error:
                     type: string
                     examples: 
-                      - "Failed to retrieve pechas: {DB error message}"
+                      - "Failed to publish pecha: Internal error"
   /languages:
     get:
       summary: Retrieve the list of available languages
@@ -177,7 +247,7 @@ paths:
                   summary: Example error response
                   value:
                     {
-                      "error": "Failed to retrieve languages from Firestore"
+                      "error": "Failed to retrieve languages from DB"
                     }
   /metadata/{pecha_id}:
     get:
@@ -223,7 +293,7 @@ paths:
                       - "Failed to retrieve metadata: {error details}"
     put:
       summary: Overwrite metadata by ID
-      description: Overwrites metadata for a given Pecha ID in Firestore. The metadata must be valid.
+      description: Overwrites metadata for a given Pecha ID in DB. The metadata must be valid.
       tags:
         - pecha
       parameters:
@@ -352,4 +422,3 @@ paths:
                           type: string
                           examples:
                             - "b706d2b1a5d0176df374da25c970274b2e0f7770"
-
