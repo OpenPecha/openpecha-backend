@@ -33,6 +33,10 @@
       {
         "source": "/schema/metadata",
         "function": "api"
+      },
+      {
+        "source": "/schema/filter",
+        "function": "api"
       }
     ],
     "redirects": [

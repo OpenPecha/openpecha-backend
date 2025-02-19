@@ -3,7 +3,7 @@ import os
 
 from firebase_config import db
 from flask import Blueprint, jsonify, request
-from pecha import process_pecha
+from pecha_handling import process_pecha
 from werkzeug.datastructures import FileStorage
 
 text_bp = Blueprint("text", __name__)

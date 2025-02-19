@@ -26,21 +26,31 @@ class FilterModel(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
         json_schema_extra={
-            "examples": [
-                {"field": "author", "operator": "==", "value": None},
-                {"field": "status", "operator": "!=", "value": "inactive"},
-                {
+            "single_condition_commentary": {
+                "summary": "Filter by commentary_of",
+                "value": {"field": "commentary_of", "operator": "==", "value": None},
+            },
+            "single_condition_language": {
+                "summary": "Filter by language",
+                "value": {"field": "language", "operator": "!=", "value": "en"},
+            },
+            "and_filter_example": {
+                "summary": "AND filter: multiple conditions",
+                "value": {
                     "and": [
-                        {"field": "category", "operator": "==", "value": "fiction"},
-                        {"field": "published", "operator": "!=", "value": None},
+                        {"field": "language", "operator": "==", "value": "en"},
+                        {"field": "source", "operator": "!=", "value": "https://example.com"},
                     ]
                 },
-                {
+            },
+            "or_filter_example": {
+                "summary": "OR filter: multiple conditions",
+                "value": {
                     "or": [
-                        {"field": "author", "operator": "==", "value": "Alice"},
-                        {"field": "author", "operator": "==", "value": "Bob"},
+                        {"field": "language", "operator": "==", "value": "en"},
+                        {"field": "language", "operator": "==", "value": "bo"},
                     ]
                 },
-            ]
+            },
         },
     )

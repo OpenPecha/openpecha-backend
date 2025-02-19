@@ -1,8 +1,7 @@
 from api.api import api_bp
 from api.languages import languages_bp
 from api.metadata import metadata_bp
-from api.pechas import pechas_bp
-from api.publish import publish_bp
+from api.pecha import pecha_bp
 from api.schema import schema_bp
 from api.text import text_bp
 from firebase_functions import https_fn, options
@@ -13,8 +12,7 @@ def create_app(testing=False):
     app = Flask(__name__)
     app.config["TESTING"] = testing
 
-    app.register_blueprint(publish_bp, url_prefix="/publish")
-    app.register_blueprint(pechas_bp, url_prefix="/pechas")
+    app.register_blueprint(pecha_bp, url_prefix="/pecha")
     app.register_blueprint(metadata_bp, url_prefix="/metadata")
     app.register_blueprint(languages_bp, url_prefix="/languages")
     app.register_blueprint(schema_bp, url_prefix="/schema")
@@ -23,12 +21,17 @@ def create_app(testing=False):
 
     @app.after_request
     def log_response(response):
+        if response.is_json:
+            response_body = response.get_json()
+        else:
+            response_body = response.data.decode() if response.mimetype.startswith("text/") else "<binary data>"
+
         app.logger.info(
             "Request: %s %s Body: %s | Response: %s | Status: %d",
             request.method,
             request.path,
             request.get_data(),
-            response.get_json() if response.is_json else response.data.decode(),
+            response_body,
             response.status_code,
         )
         return response

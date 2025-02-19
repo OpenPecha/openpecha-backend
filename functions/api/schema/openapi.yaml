@@ -6,9 +6,9 @@ servers:
   - url: https://api-aq25662yyq-uc.a.run.app
 
 paths:
-  /publish:
+  /pecha:
     post:
-      summary: Publish a text document with metadata
+      summary: Create a Pecha
       description: Accepts a text document (.docx) and associated metadata in JSON format, processes them, and stores the resulting Pecha in the database.
       tags:
         - pecha
@@ -100,6 +100,113 @@ paths:
                     type: string
                     examples:
                       - Failed to save to DB
+  /pecha/filter:
+    post:
+      summary: Filter Pechas by metadata
+      description: |
+        Filter Pechas using **four possible modes**:
+        
+        1. **Single Field Query** - Search by a single metadata field.
+        2. **AND Query** - Return results that match **all** given conditions.  
+        3. **OR Query** - Return results that match **any** given conditions.
+        4. **No Filters** - If the request body is empty, all Pechas are returned.  
+      tags:
+        - pecha
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+                $ref: "https://pecha-backend.web.app/schema/filter"
+      responses:
+        "200":
+          description: Successfully retrieved filtered Pechas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                      description: Unique Pecha ID.
+                      examples: 
+                        - I857977C3
+                    title:
+                      type: string
+                      description: Title of the Pecha in its respective language.
+                      examples:
+                        - "Illuminating the Intent Chapter 6"
+        "400":
+          description: Invalid request or unsupported query format
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+  /pecha/{pecha_id}/publish:
+    post:
+      summary: Publish a Pecha to Pecha.org
+      description: The Pecha referenced by the ID in the path will be serialized, and the result uploaded to Pecha.org
+      tags:
+        - pecha
+      parameters:
+        - name: pecha_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the Pecha to be published.
+      responses:
+        "200":
+          description: Pecha published successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - Pecha published successfully
+                  id:
+                    type: string
+                    examples: 
+                    - I857977C3
+        "400":
+          description: Bad request due to missing Pecha ID.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    examples:
+                      - Missing Pecha ID
+        "500":
+          description: Internal server error if publishing fails.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    examples: 
+                      - "Failed to publish pecha: Internal error"
   /languages:
     get:
       summary: Retrieve the list of available languages
@@ -315,104 +422,3 @@ paths:
                           type: string
                           examples:
                             - "b706d2b1a5d0176df374da25c970274b2e0f7770"
-  /pechas:
-    post:
-      summary: Filter Pechas by metadata
-      description: |
-        Filter Pechas using **four possible modes**:
-        
-        1. **Single Field Query** - Search by a single metadata field.
-        2. **AND Query** - Return results that match **all** given conditions.  
-        3. **OR Query** - Return results that match **any** given conditions.
-        4. **No Filters** - If the request body is empty, all Pechas are returned.  
-        
-        **Limitations:**
-        - `$exists` is **only supported in single field queries**.
-        - `$exists` is **not allowed** in `and` or `or` queries.
-
-      tags:
-        - pecha
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                filter:
-                  oneOf:
-                    - type: object
-                      description: "Single Field Query"
-                    - type: object
-                      properties:
-                        and:
-                          type: array
-                          items:
-                            type: object
-                          description: "Conditions to match all (AND query)"
-                    - type: object
-                      properties:
-                        or:
-                          type: array
-                          items:
-                            type: object
-                          description: "Conditions to match any (OR query)"
-            examples:
-              allPechas:
-                value: {}
-                summary: "Return all Pechas (no filters applied)"
-              singleFieldQuery:
-                value: { "filter": { "commentary_of": {"$exists": true} } }
-                summary: "Filter by a single field"
-              andQuery:
-                value:
-                  filter:
-                    and:
-                      - { "language": "en" }
-                      - {"source": "https://example.com"}
-                summary: "Match all conditions (AND)"
-              orQuery:
-                value:
-                  filter:
-                    or:
-                      - { "language": "en" }
-                      - { "commentary_of": "I0EA4B6C3" }
-                summary: "Match any condition (OR)"
-      responses:
-        "200":
-          description: Successfully retrieved filtered Pechas
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    id:
-                      type: string
-                      description: Unique Pecha ID.
-                      examples: 
-                        - I857977C3
-                    title:
-                      type: string
-                      description: Title of the Pecha in its respective language.
-                      examples:
-                        - "Illuminating the Intent Chapter 6"
-        "400":
-          description: Invalid request or unsupported query format
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-        "500":
-          description: Server error
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
