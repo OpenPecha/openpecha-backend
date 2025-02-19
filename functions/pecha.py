@@ -22,8 +22,8 @@ def get_metadata_chain(metadata: dict[str, Any]) -> list[dict[str, Any]]:
     return chain
 
 
-def create_tmp(filename: str) -> Path:
-    with tempfile.NamedTemporaryFile(delete=False, suffix=Path(filename).suffix) as temp:
+def create_tmp() -> Path:
+    with tempfile.NamedTemporaryFile(delete=False) as temp:
         return Path(temp.name)
 
 
@@ -31,11 +31,14 @@ def parse(docx_file: FileStorage, metadata: dict[str, Any], pecha_id: str | None
     if not docx_file.filename:
         raise ValueError("docx_file has no filename")
 
-    path = create_tmp(docx_file.filename)
+    path = create_tmp()
     docx_file.save(path)
 
     return DocxParser().parse(
-        docx_file=path, metadatas=get_metadata_chain(metadata=metadata), output_path=path, pecha_id=pecha_id
+        docx_file=path,
+        metadatas=get_metadata_chain(metadata=metadata),
+        output_path=Path(tempfile.gettempdir()),
+        pecha_id=pecha_id,
     )
 
 

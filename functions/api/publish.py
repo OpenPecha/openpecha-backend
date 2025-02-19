@@ -1,3 +1,4 @@
+import json
 import logging
 
 from api.text import validate_file
@@ -34,7 +35,8 @@ def publish():
     if not metadata_json:
         return jsonify({"error": "Missing metadata"}), 400
 
-    metadata = MetadataModel.model_validate(metadata_json)
+    metadata_dict = json.loads(metadata_json)
+    metadata = MetadataModel.model_validate(metadata_dict)
 
     logger.info("Uploaded text file: %s", text.filename)
     logger.info("Metadata: %s", metadata)

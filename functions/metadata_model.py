@@ -1,6 +1,6 @@
 from typing import Mapping, Sequence
 
-from pydantic import AnyUrl, BaseModel, ConfigDict, Field, RootModel, model_validator
+from pydantic import AnyUrl, BaseModel, ConfigDict, Field, RootModel, field_serializer, model_validator
 
 
 class NonemptyString(RootModel[str]):
@@ -48,17 +48,17 @@ class MetadataModel(BaseModel):
     )
     alt_titles: Sequence[Mapping[str, NonemptyString]] | None = Field(None, min_length=1)
     commentary_of: str | None = Field(
-        ...,
+        None,
         description="ID pattern that starts with 'I' followed by 8 uppercase hex characters",
         pattern="^I[A-F0-9]{8}$",
     )
     version_of: str | None = Field(
-        ...,
+        None,
         description="ID pattern that starts with 'I' followed by 8 uppercase hex characters",
         pattern="^I[A-F0-9]{8}$",
     )
     translation_of: str | None = Field(
-        ...,
+        None,
         description="ID pattern that starts with 'I' followed by 8 uppercase hex characters",
         pattern="^I[A-F0-9]{8}$",
     )
@@ -87,6 +87,10 @@ class MetadataModel(BaseModel):
             ]
         },
     )
+
+    @field_serializer("source")
+    def serialize_url(self, source: AnyUrl):
+        return str(source)
 
     @model_validator(mode="after")
     def check_mutually_exclusive_fields(self):
