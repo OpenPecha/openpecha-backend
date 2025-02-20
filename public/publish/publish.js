@@ -25,7 +25,7 @@ class UpdateMetaData {
 
     async fetchPechaOptions() {
         try {
-            const response = await fetch(`${this.API_ENDPOINT}/pechas`, {
+            const response = await fetch(`${this.API_ENDPOINT}/metadata/filter/`, {
                 method: 'POST',
                 headers: {
                     'accept': 'application/json',
@@ -197,41 +197,19 @@ class UpdateMetaData {
         const validatedData = this.validateFields();
         if (!validatedData) return;
 
-        alert('Publishing is not implemented yet');
-        // try {
-        //     const { publishTextId } = validatedData;
-        //     const blob = await downloadDoc(docId);
-        //     if (!blob) {
-        //         this.showToast("Failed to download document", "error")
-        //         throw new Error('Failed to download document');
-        //     }
-
-        //     await this.uploadDocument(publishTextId, blob, docId);
-        //     this.showToast('Document updated successfully!', 'success');
-        //     this.elements.form.reset();
-        // } catch (error) {
-        //     console.error('Error during update:', error);
-        //     this.showToast(`Error: ${error.message}`, 'error');
-        // }
+        try {
+            const { publishTextId } = validatedData;
+            const response = await fetch(`${this.API_ENDPOINT}/pecha/${publishTextId}/publish`, {
+                method: 'POST'
+            });
+            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            this.showToast('Pecha published successfully', 'success');
+            this.elements.form.reset();
+        } catch (error) {
+            console.error('Error publishing:', error);
+            this.showToast(`Error: ${error.message}`, 'error');
+        }
     }
-
-    // async uploadDocument(publishTextId, blob, docId) {
-    //     const formData = new FormData();
-    //     formData.append('text', blob, `text_${docId}.docx`);
-    //     formData.append('id', publishTextId);
-
-    //     const response = await fetch(`${this.API_ENDPOINT}/update-text/`, {
-    //         method: 'POST',
-    //         body: formData
-    //     });
-
-    //     if (!response.ok) {
-    //         const errorText = await response.text();
-    //         this.showToast("Update failed", "error")
-    //         throw new Error(`Update failed: ${errorText}`);
-    //     }
-    //     return response;
-    // }
 
     showToast(message, type) {
         this.clearToasts();
