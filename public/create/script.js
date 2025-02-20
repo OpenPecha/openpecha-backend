@@ -1,5 +1,6 @@
 class LocalizedForm {
     constructor() {
+        this.API_ENDPOINT = 'https://api-aq25662yyq-uc.a.run.app';
         this.baseLanguageSelect = document.getElementById("baseLanguage");
         this.formContent = document.getElementById("formContent");
         this.addAltTitleButton = document.getElementById("addAltTitle");
@@ -59,9 +60,10 @@ class LocalizedForm {
         // Type Radio Selection
         this.typeRadios.forEach((radio) => {
             radio.addEventListener("change", () => {
+                console.log("value:::",radio.value);
                 if (radio.checked) {
                     this.pechaOptionsContainer.classList.add("visible");
-                    this.fetchPechaOptions();
+                    this.fetchPechaOptions(radio.value);
                 }
             });
         });
@@ -246,11 +248,26 @@ class LocalizedForm {
         altTitles.appendChild(altTitleGroup);
     }
 
-    async fetchPechaOptions() {
+    async fetchPechaOptions(filterBy) {
+        let body = { filter: {} };
+
+        if (filterBy === "commentary_of") {
+            body.filter = { "field": "commentary_of", "operator": "!=", "value": null };
+        } else if (filterBy === "version_of") {
+            body.filter = { "field": "version_of", "operator": "!=", "value": null };
+        } else if (filterBy === "translation_of") {
+            body.filter = { "field": "translation_of", "operator": "!=", "value": null };
+        }
+
         try {
-            const response = await fetch(
-                "https://api-aq25662yyq-uc.a.run.app/pecha/"
-            );
+            const response = await fetch(`${this.API_ENDPOINT}/metadata/filter/`, {
+                method: 'POST',
+                headers: {
+                    'accept': 'application/json',
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify(body)
+            });
             if (!response.ok) {
                 throw new Error(`Failed to fetch data: ${response.statusText}`);
             }
@@ -276,11 +293,10 @@ class LocalizedForm {
     }
 
     async fetchLanguages() {
-        const url = "https://api-aq25662yyq-uc.a.run.app/languages";
 
         try {
-            const response = await fetch(url, {
-                method: 'GET', // GET is the default method, so this is optional
+            const response = await fetch(`${this.API_ENDPOINT}/languages`, {
+                method: 'GET',
                 headers: {
                     'Accept': 'application/json'
                 }
@@ -475,8 +491,7 @@ class LocalizedForm {
         formData.append("metadata", JSON.stringify(metadata)); // JSON metadata
         console.log("form data ::::", formData)
         try {
-            const response = await fetch("https://api-aq25662yyq-uc.a.run.app/publish/", {
-                // const response = await fetch("http://127.0.0.1:5001/pecha-backend/us-central1/api/publish/", {
+            const response = await fetch(`${this.API_ENDPOINT}/pecha/`, {
                 method: "POST",
                 body: formData,
             });
@@ -499,8 +514,8 @@ class LocalizedForm {
                 a.remove();
                 URL.revokeObjectURL(downloadUrl);
 
-                // alert("File and metadata successfully submitted!");
                 this.showToast("File and metadata successfully submitted!", "success");
+                this.clearForm();
             } else {
                 const error = await response.text();
                 alert(`Failed to submit: ${error}`);
@@ -527,6 +542,55 @@ class LocalizedForm {
     clearToasts() {
         const toastContainer = document.getElementById('toastContainer');
         toastContainer.innerHTML = '';
+    }
+
+    clearForm() {
+        const currentLanguage = this.baseLanguageSelect.value;
+
+        // Clear source URL
+        document.querySelector('input[placeholder="https://example.com"]').value = '';
+
+        // Clear Google docs URL
+        document.querySelector('input[placeholder="Google docs URL"]').value = '';
+
+        // Clear alt titles
+        const altTitles = document.getElementById('alt-titles');
+        if (altTitles) {
+            altTitles.innerHTML = '';
+        }
+
+        // Reset date picker
+        const dateDisplay = document.getElementById('selectedDate');
+        if (dateDisplay) {
+            dateDisplay.textContent = 'No date selected';
+        }
+
+        // Reset era select to Standard
+        const eraSelect = document.getElementById('eraSelect');
+        if (eraSelect) {
+            eraSelect.value = 'Standard';
+        }
+
+        // Clear historical year input
+        const historicalYearInput = document.getElementById('historicalYearInput');
+        if (historicalYearInput) {
+            historicalYearInput.value = '';
+        }
+
+        // Uncheck all radio buttons
+        this.typeRadios.forEach(radio => {
+            radio.checked = false;
+        });
+
+        // Hide and reset pecha options
+        this.pechaOptionsContainer.classList.remove('visible');
+        this.pechaOptions.value = '';
+
+        // Clear any error states
+        this.clearErrors();
+
+        // Reinitialize the form with the current language
+        this.initializeFields(currentLanguage);
     }
 }
 
