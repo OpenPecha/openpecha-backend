@@ -5,9 +5,13 @@ class UpdateMetaData {
             pechaSelect: document.getElementById('pechaOptions'),
             docsInput: document.getElementById('googleDocsInput'),
             updateButton: document.getElementById('updateButton'),
-            toastContainer: document.getElementById('toastContainer')
+            buttonText: document.querySelector('.button-text'),
+            spinner: document.querySelector('.spinner'),
+            toastContainer: document.getElementById('toastContainer'),
+            formGroups: document.querySelectorAll('.form-group')
         };
 
+        this.isLoading = false;
         this.API_ENDPOINT = 'https://api-aq25662yyq-uc.a.run.app';
         this.setupEventListeners();
         this.fetchPechaOptions();
@@ -16,19 +20,33 @@ class UpdateMetaData {
     setupEventListeners() {
         this.elements.form.addEventListener('submit', (e) => {
             e.preventDefault();
-            this.handleUpdate();
+            if (!this.isLoading) {
+                this.handleUpdate();
+            }
+        });
+    }
+
+    setLoadingState(loading) {
+        this.isLoading = loading;
+        this.elements.updateButton.disabled = loading;
+        this.elements.buttonText.textContent = loading ? 'Updating...' : 'Submit';
+        this.elements.spinner.style.display = loading ? 'inline-block' : 'none';
+
+        this.elements.formGroups.forEach(group => {
+            group.classList.toggle('disabled', loading);
         });
     }
 
     async fetchPechaOptions() {
+        this.setLoadingState(true);
         try {
-            const response = await fetch(`${this.API_ENDPOINT}/pechas`, {
+            const response = await fetch(`${this.API_ENDPOINT}/metadata/filter/`, {
                 method: 'POST',
                 headers: {
                     'accept': 'application/json',
-                    'Content-Type': 'application/json' 
+                    'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({}) 
+                body: JSON.stringify({})
             });
 
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -38,6 +56,8 @@ class UpdateMetaData {
         } catch (error) {
             console.error('Error loading pecha options:', error);
             this.showToast('Unable to load pecha options. Please try again later.', 'error');
+        } finally {
+            this.setLoadingState(false);
         }
     }
 
@@ -80,11 +100,13 @@ class UpdateMetaData {
         const validatedData = this.validateFields();
         if (!validatedData) return;
 
+        this.setLoadingState(true);
+
         try {
             const { publishTextId, docId } = validatedData;
             const blob = await downloadDoc(docId);
             if (!blob) {
-                this.showToast("Failed to download document","error")
+                this.showToast("Failed to download document", "error");
                 throw new Error('Failed to download document');
             }
 
@@ -94,22 +116,23 @@ class UpdateMetaData {
         } catch (error) {
             console.error('Error during update:', error);
             this.showToast(`Error: ${error.message}`, 'error');
+        } finally {
+            this.setLoadingState(false);
         }
     }
 
     async uploadDocument(publishTextId, blob, docId) {
         const formData = new FormData();
         formData.append('text', blob, `text_${docId}.docx`);
-        formData.append('id', publishTextId);
 
-        const response = await fetch(`${this.API_ENDPOINT}/update-text/`, {
-            method: 'POST',
+        const response = await fetch(`${this.API_ENDPOINT}/text/${publishTextId}`, {
+            method: 'PUT',
             body: formData
         });
 
         if (!response.ok) {
             const errorText = await response.text();
-            this.showToast("Update failed","error")
+            this.showToast("Update failed", "error");
             throw new Error(`Update failed: ${errorText}`);
         }
         return response;
@@ -136,6 +159,5 @@ class UpdateMetaData {
         this.elements.toastContainer.innerHTML = '';
     }
 }
-
 
 document.addEventListener('DOMContentLoaded', () => new UpdateMetaData());

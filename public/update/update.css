@@ -67,6 +67,11 @@ input:focus {
 
 .submit-button {
     background-color: var(--primary-color);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-width: 120px;
     color: white;
     padding: 12px 24px;
     border: none;
@@ -96,4 +101,55 @@ input:focus {
     .heading h1 {
         font-size: 1.5em;
     }
+}
+
+.spinner {
+    width: 24px;
+    height: 24px;
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid #3498db;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    display: none;
+    margin: 0 auto;
+}
+
+/* .submit-button {
+    position: relative;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    min-width: 120px;
+} */
+
+.submit-button:disabled {
+    background-color: #cccccc;
+    cursor: not-allowed;
+    opacity: 0.7;
+}
+
+.submit-button .spinner {
+    display: inline-block;
+    margin: 0;
+    width: 16px;
+    height: 16px;
+    border-width: 2px;
+}
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
+}
+
+.form-group.disabled label,
+.form-group.disabled input,
+.form-group.disabled select {
+    opacity: 0.7;
+    pointer-events: none;
 }
