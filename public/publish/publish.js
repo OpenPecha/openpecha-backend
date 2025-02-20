@@ -19,7 +19,7 @@ class UpdateMetaData {
 
         this.elements.form.addEventListener('submit', (e) => {
             e.preventDefault();
-            this.handleUpdate();
+            this.handlePublish();
         });
     }
 
@@ -164,6 +164,7 @@ class UpdateMetaData {
             this.showErrorState('Failed to load metadata. Please try again.');
         }
     }
+    
     updatePechaOptions(pechas) {
         // Clear existing options except the first one
         this.elements.pechaSelect.innerHTML = '<option value="">Select pecha</option>';
@@ -192,44 +193,45 @@ class UpdateMetaData {
         return { publishTextId };
     }
 
-    async handleUpdate() {
+    async handlePublish() {
         const validatedData = this.validateFields();
         if (!validatedData) return;
 
-        try {
-            const { publishTextId, docId } = validatedData;
-            const blob = await downloadDoc(docId);
-            if (!blob) {
-                this.showToast("Failed to download document", "error")
-                throw new Error('Failed to download document');
-            }
+        alert('Publishing is not implemented yet');
+        // try {
+        //     const { publishTextId } = validatedData;
+        //     const blob = await downloadDoc(docId);
+        //     if (!blob) {
+        //         this.showToast("Failed to download document", "error")
+        //         throw new Error('Failed to download document');
+        //     }
 
-            await this.uploadDocument(publishTextId, blob, docId);
-            this.showToast('Document updated successfully!', 'success');
-            this.elements.form.reset();
-        } catch (error) {
-            console.error('Error during update:', error);
-            this.showToast(`Error: ${error.message}`, 'error');
-        }
+        //     await this.uploadDocument(publishTextId, blob, docId);
+        //     this.showToast('Document updated successfully!', 'success');
+        //     this.elements.form.reset();
+        // } catch (error) {
+        //     console.error('Error during update:', error);
+        //     this.showToast(`Error: ${error.message}`, 'error');
+        // }
     }
 
-    async uploadDocument(publishTextId, blob, docId) {
-        const formData = new FormData();
-        formData.append('text', blob, `text_${docId}.docx`);
-        formData.append('id', publishTextId);
+    // async uploadDocument(publishTextId, blob, docId) {
+    //     const formData = new FormData();
+    //     formData.append('text', blob, `text_${docId}.docx`);
+    //     formData.append('id', publishTextId);
 
-        const response = await fetch(`${this.API_ENDPOINT}/update-text/`, {
-            method: 'POST',
-            body: formData
-        });
+    //     const response = await fetch(`${this.API_ENDPOINT}/update-text/`, {
+    //         method: 'POST',
+    //         body: formData
+    //     });
 
-        if (!response.ok) {
-            const errorText = await response.text();
-            this.showToast("Update failed", "error")
-            throw new Error(`Update failed: ${errorText}`);
-        }
-        return response;
-    }
+    //     if (!response.ok) {
+    //         const errorText = await response.text();
+    //         this.showToast("Update failed", "error")
+    //         throw new Error(`Update failed: ${errorText}`);
+    //     }
+    //     return response;
+    // }
 
     showToast(message, type) {
         this.clearToasts();
