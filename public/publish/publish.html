@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Update pecha interface" />
+    <title>Update Pecha</title>
+    <link rel="stylesheet" href="./publish.css" />
+    <link rel="stylesheet" href="../toast_style.css"/>
+</head>
+<body>
+    <div id="toastContainer" role="alert" aria-live="polite"></div>
+    <main>
+        <div class="heading">
+            <h1>Publish Pecha</h1>
+        </div>
+        <form id="publishForm" novalidate>
+            <div class="form-group">
+                <label for="pechaOptions">Published Pecha</label>
+                <div id="pechaOptionsContainer">
+                    <select id="pechaOptions" required>
+                        <option value="">Select pecha</option>
+                    </select>
+                </div>
+            </div>
+            <button type="submit" class="publish-button" id="updateButton">
+                Submit
+            </button>
+        </form>
+        <div class="metadata-container">
+            
+        </div>
+    </main>
+
+    <!-- Scripts -->
+    <script src="./publish.js" defer></script>
+    <script src="../google_drive.js" defer></script>
+    <script 
+        src="https://apis.google.com/js/api.js"
+        onload="gapiLoaded()"
+        async 
+        defer
+    ></script>
+    <script 
+        src="https://accounts.google.com/gsi/client"
+        onload="gisLoaded()"
+        async 
+        defer
+    ></script>
+</body>
+</html>
