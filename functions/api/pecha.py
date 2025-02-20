@@ -1,17 +1,12 @@
 import json
 import logging
-import tempfile
-from pathlib import Path
-from typing import Any
 
 from api.text import validate_file
 from firebase_config import db
 from flask import Blueprint, jsonify, request, send_file
 from metadata_model import MetadataModel
-from openpecha.pecha import Pecha, get_pecha_alignment_data
-from openpecha.pecha.parsers.docx import DocxParser
+from pecha_handling import process_pecha
 from storage import Storage
-from werkzeug.datastructures import FileStorage
 
 pecha_bp = Blueprint("pecha", __name__)
 
@@ -24,83 +19,6 @@ def get_duplicate_key(document_id: str):
         None,
     )
     return doc.id if doc else None
-
-
-def get_metadata_chain(metadata: dict[str, Any]) -> list[dict[str, Any]]:
-    chain = [metadata]
-    while (next_id := next(filter(metadata.get, ("commentary_of", "version_of", "translation_of")), None)) and (
-        metadata := db.collection("metadata").document(next_id).get().to_dict()
-    ):
-        chain.append(metadata)
-
-    return chain
-
-
-def parse(docx_file: FileStorage, metadata: dict[str, Any], pecha_id: str | None = None) -> Pecha:
-    if not docx_file.filename:
-        raise ValueError("docx_file has no filename")
-
-    with tempfile.NamedTemporaryFile(delete=False, suffix=".docx") as tmp:
-        path = Path(tmp.name)
-        docx_file.save(path)
-
-    return DocxParser().parse(
-        docx_file=path,
-        metadatas=get_metadata_chain(metadata=metadata),
-        output_path=Path(tempfile.gettempdir()),
-        pecha_id=pecha_id,
-    )
-
-
-def process_pecha(text: FileStorage, metadata: dict[str, Any]) -> tuple[str | None, str | None]:
-    """
-    Handles Pecha processing: parsing, alignment, storage, and database transactions.
-
-    Returns:
-        - `(None, pecha.id)` if successful.
-        - `("Error message", None)` if an error occurs.
-    """
-    try:
-        pecha = parse(text, metadata)
-
-        logger.info("Pecha created: %s %s", pecha.id, pecha.pecha_path)
-
-        alignment = get_pecha_alignment_data(pecha)
-    except Exception as e:
-        return f"Could not process metadata {str(e)}", None
-
-    storage = Storage()
-
-    try:
-        storage.store_pecha_opf(pecha)
-    except Exception as e:
-        logger.error("Error saving Pecha to storage: %s", e)
-        return f"Failed to save to storage {str(e)}", None
-
-    try:
-        with db.transaction() as transaction:
-            doc_ref_metadata = db.collection("metadata").document(pecha.id)
-            doc_ref_alignment = db.collection("alignment").document(pecha.id)
-
-            transaction.set(doc_ref_metadata, metadata)
-            logger.info("Metadata saved to DB: %s", pecha.id)
-
-            if alignment:
-                transaction.set(doc_ref_alignment, alignment)
-
-            logger.info("Alignment saved to DB: %s", pecha.id)
-
-    except Exception as e:
-        logger.error("Error saving to DB: %s", e)
-        try:
-            storage.rollback_pecha_opf(pecha_id=pecha.id)
-            storage.rollback_pechaorg_json(pecha_id=pecha.id)
-        except Exception as rollback_error:
-            logger.error("Rollback failed: %s", rollback_error)
-
-        return f"Failed to save to DB {str(e)}", None
-
-    return None, pecha.id
 
 
 @pecha_bp.route("/", methods=["POST"], strict_slashes=False)
