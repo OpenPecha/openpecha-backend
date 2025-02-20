@@ -476,3 +476,110 @@ paths:
                           type: string
                           examples:
                             - "b706d2b1a5d0176df374da25c970274b2e0f7770"
+  /text/{pecha_id}:
+    put:
+      summary: Upload a text to update a Pecha
+      description: Uploads a docx file and updates the Pecha. The Pecha is re-parsed.
+      operationId: putText
+      tags:
+        - Pecha
+      parameters:
+        - name: pecha_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the Pecha that is being updated.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                docx:
+                  type: string
+                  format: binary
+                  description: The docx file containing the updated Pecha content.
+            examples:
+              valid_docx:
+                summary: Valid docx file upload
+                description: A valid docx file to update a Pecha.
+                value:
+                  docx: (binary content of a DOCX file)
+      responses:
+        "201":
+          description: Successfully updated the Pecha.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  pecha_id:
+                    type: string
+                  metadata:
+                    type: object
+                    additionalProperties: true
+              examples:
+                success:
+                  summary: Pecha updated successfully
+                  description: The Pecha was updated with the uploaded DOCX file.
+                  value:
+                    message: "Pecha updated successfully"
+        "400":
+          description: Bad request due to missing or invalid DOCX file.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              examples:
+                missing_docx:
+                  summary: Missing DOCX file
+                  description: No file was provided in the request.
+                  value:
+                    error: "Missing required 'docx' parameter"
+                invalid_docx:
+                  summary: Invalid DOCX file format
+                  description: The uploaded file is not a valid DOCX format.
+                  value:
+                    error: "Invalid file format: Expected a DOCX file"
+        "404":
+          description: Pecha metadata not found.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              examples:
+                metadata_not_found:
+                  summary: Pecha metadata not found
+                  description: The Pecha ID does not exist in DB.
+                  value:
+                    error: "Metadata not found"
+        "500":
+          description: Internal server error if updating the Pecha fails.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              examples:
+                retrieval_error:
+                  summary: Failed to retrieve metadata
+                  description: An error occurred while retrieving Pecha metadata.
+                  value:
+                    error: "Failed to retrieve metadata: Internal error"
+                processing_error:
+                  summary: Failed to process docx file
+                  description: The uploaded docx file could not be processed.
+                  value:
+                    error: "An unexpected processing error occurred."

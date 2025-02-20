@@ -1,6 +1,6 @@
 import firebase_admin
 from firebase_admin import credentials, firestore, storage
-from google.cloud import logging  # pylint:disable=no-name-in-module
+from google.cloud import logging
 
 try:
     firebase_admin.get_app()  # Check if Firebase is already initialized
