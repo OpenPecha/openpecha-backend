@@ -6,12 +6,66 @@ servers:
   - url: https://api-aq25662yyq-uc.a.run.app
 
 paths:
+  /pecha/{pecha_id}:
+    get:
+      summary: Retrieve a Pecha OPF File
+      description: Returns the OPF ZIP file for a given Pecha ID.
+      tags:
+        - Pecha
+      parameters:
+        - name: pecha_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the Pecha whose OPF file is requested.
+      responses:
+        "200":
+          description: Successfully retrieved the OPF ZIP file.
+          content:
+            application/zip:
+              schema:
+                type: string
+                format: binary
+              examples:
+                success:
+                  summary: OPF ZIP File Download
+                  description: The OPF ZIP file for a given Pecha ID.
+                  value: (binary content of the ZIP file)
+          headers:
+            Content-Disposition:
+              description: Suggests the filename for download.
+              schema:
+                type: string
+              examples:
+                attachment:
+                  summary: File Attachment Header
+                  description: Indicates the file should be downloaded.
+                  value: "attachment; filename=I857977C3.zip"
+        "404":
+          description: Pecha not found.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+        "500":
+          description: Internal server error if retrieving the Pecha fails.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
   /pecha:
     post:
       summary: Create a Pecha
       description: Accepts a text document (.docx) and associated metadata in JSON format, processes them, and stores the resulting Pecha in the database.
       tags:
-        - pecha
+        - Pecha
       requestBody:
         required: true
         content:
@@ -100,68 +154,12 @@ paths:
                     type: string
                     examples:
                       - Failed to save to DB
-  /pecha/filter:
-    post:
-      summary: Filter Pechas by metadata
-      description: |
-        Filter Pechas using **four possible modes**:
-        
-        1. **Single Field Query** - Search by a single metadata field.
-        2. **AND Query** - Return results that match **all** given conditions.  
-        3. **OR Query** - Return results that match **any** given conditions.
-        4. **No Filters** - If the request body is empty, all Pechas are returned.  
-      tags:
-        - pecha
-      requestBody:
-        required: false
-        content:
-          application/json:
-            schema:
-                $ref: "https://pecha-backend.web.app/schema/filter"
-      responses:
-        "200":
-          description: Successfully retrieved filtered Pechas
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    id:
-                      type: string
-                      description: Unique Pecha ID.
-                      examples: 
-                        - I857977C3
-                    title:
-                      type: string
-                      description: Title of the Pecha in its respective language.
-                      examples:
-                        - "Illuminating the Intent Chapter 6"
-        "400":
-          description: Invalid request or unsupported query format
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-        "500":
-          description: Server error
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
   /pecha/{pecha_id}/publish:
     post:
       summary: Publish a Pecha to Pecha.org
       description: The Pecha referenced by the ID in the path will be serialized, and the result uploaded to Pecha.org
       tags:
-        - pecha
+        - Pecha
       parameters:
         - name: pecha_id
           in: path
@@ -212,7 +210,7 @@ paths:
       summary: Retrieve the list of available languages
       description: Fetches all available languages from DB, returning an array where each item contains a language code and name.
       tags:
-        - other
+        - Other
       responses:
         "200":
           description: Successfully retrieved the list of languages.
@@ -254,7 +252,7 @@ paths:
       summary: Retrieve metadata by Pecha ID
       description: Fetch metadata associated with the given Pecha
       tags:
-        - pecha
+        - Pecha
       parameters:
         - name: pecha_id
           in: path
@@ -295,7 +293,7 @@ paths:
       summary: Overwrite metadata by ID
       description: Overwrites metadata for a given Pecha ID in DB. The metadata must be valid.
       tags:
-        - pecha
+        - Pecha
       parameters:
         - name: pecha_id
           in: path
@@ -374,12 +372,68 @@ paths:
                     type: string
                     examples:
                       - "Failed to update metadata: {error details}"
+  /metadata/filter:
+    post:
+      summary: Filter metadata
+      description: |
+        Filter metadata using **four possible modes**:
+        
+        1. **Single Field Query** - Search by a single metadata field.
+        2. **AND Query** - Return results that match **all** given conditions.  
+        3. **OR Query** - Return results that match **any** given conditions.
+        4. **No Filters** - If the request body is empty, all Pechas are returned.  
+      tags:
+        - Pecha
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+                $ref: "https://pecha-backend.web.app/schema/filter"
+      responses:
+        "200":
+          description: Successfully retrieved filtered metadata
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                      description: Unique Pecha ID.
+                      examples: 
+                        - I857977C3
+                    title:
+                      type: string
+                      description: Title of the Pecha in its respective language.
+                      examples:
+                        - "Illuminating the Intent Chapter 6"
+        "400":
+          description: Invalid request or unsupported query format
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+        "500":
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
   /schema/metadata:
     get:
       summary: Retrieve the Metadata Schema
       description: Returns the full JSON schema definition for metadata validation.
       tags:
-        - schema
+        - Schema
       responses:
         "200":
           description: Successfully retrieved the metadata schema.
@@ -405,7 +459,7 @@ paths:
         description: Returns the current API version and the Git commit SHA of the deployed code.
         operationId: getVersion
         tags:
-            - api
+            - API
         responses:
             "200":
               description: Successfully retrieved version information

@@ -10,10 +10,7 @@
         "firebase-debug.*.log",
         "*.local"
       ],
-      "predeploy": "./predeploy.sh",
-      "files": [
-        "schema/openapi.yaml"
-      ]
+      "predeploy": "./predeploy.sh"
     }
   ],
   "hosting": {
@@ -40,12 +37,12 @@
       }
     ],
     "redirects": [
-    {
-      "source": "/api",
-      "destination": "/swagger/",
-      "type": 301
-    }
-  ],
+      {
+        "source": "/api",
+        "destination": "/swagger/",
+        "type": 301
+      }
+    ],
     "ignore": [
       "firebase.json",
       "**/.*",
