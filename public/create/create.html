@@ -22,6 +22,7 @@
       <label for="baseLanguage">Language of Text:</label>
       <select id="baseLanguage">
       </select>
+      <div id="baseLanguageLoader" class="spinner"></div>
     </div>
 
     <div id="formContent" class="form-content">
@@ -161,8 +162,9 @@
           </div>
         </div>
 
-        <button type="button" id="publishButton" class="publish-button">
-          Publish
+        <button type="button" id="createButton" class="create-button">
+          <span class="create-button-text">Submit</span>
+          <div class="spinner"></div>
         </button>
       </form>
     </div>

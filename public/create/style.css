@@ -72,6 +72,16 @@ body {
     background-color: var(--color-white);
 }
 
+.base-language {
+    display: flex;
+    padding: 0;
+    margin:0;
+    gap: var(--spacing-md);
+    align-items: center;
+}
+.base-language .spinner{
+    display: inline-block;
+}
 .base-language select,
 #pechaOptionsContainer select {
     padding: 5px 10px;
@@ -79,12 +89,6 @@ body {
     border: 1px solid #ccc;
     border-radius: 5px;
     background-color: #f9f9f9;
-    /* appearance: none; */
-    /* Remove default arrow */
-    /* -webkit-appearance: none; */
-    /* Remove default arrow for Safari */
-    /* -moz-appearance: none; */
-    /* Remove default arrow for Firefox */
     cursor: pointer;
     outline: none;
     transition: border-color 0.3s ease, box-shadow 0.3s ease;
@@ -111,11 +115,6 @@ body {
 }
 
 /* Button styles */
-.button-base {
-    border: none;
-    cursor: pointer;
-    transition: all 0.3s ease;
-}
 
 .remove-btn {
     border: none;
@@ -147,7 +146,11 @@ body {
     color: var(--color-primary-dark);
 }
 
-.publish-button {
+.create-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: var(--spacing-md);
     border: none;
     cursor: pointer;
     transition: all 0.3s ease;
@@ -159,15 +162,39 @@ body {
     margin-top: var(--spacing-xl);
 }
 
-.publish-button:hover {
+.create-button:hover {
     background-color: var(--color-primary-dark);
 }
 
-.publish-button:disabled {
+.create-button:disabled {
     background-color: var(--color-disabled);
     cursor: not-allowed;
 }
 
+.create-button .spinner {
+    display: none;
+    margin: 0;
+    width: 16px;
+    height: 16px;
+    border-width: 2px;
+}
+.base-language .spinner {
+    display: none;
+    margin: 0;
+    width: 12px;
+    height: 12px;
+    border-width: 2px;
+}
+.spinner {
+    width: 24px;
+    height: 24px;
+    border: 3px solid #f3f3f3;
+    border-top: 3px solid #3498db;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    display: none;
+    margin: 0 auto;
+}
 /* Group layouts */
 .input-group {
     display: flex;
@@ -256,4 +283,28 @@ select.error {
 #pechaOptionsContainer {
     display: none;
     margin-top: var(--spacing-lg);
+}
+
+/* disabled */
+.form-group.disabled label,
+.form-group.disabled input,
+.form-group.disabled button,
+.form-group.disabled textarea,
+.form-group.disabled select,
+.form-group.disabled #selectedDate,
+#baseLanguage:disabled {
+    opacity: 0.7;
+    pointer-events: none;
+}
+
+/* animations */
+
+@keyframes spin {
+    0% {
+        transform: rotate(0deg);
+    }
+
+    100% {
+        transform: rotate(360deg);
+    }
 }
