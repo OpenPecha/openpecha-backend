@@ -15,6 +15,15 @@
   </head>
   <body>
     <div id="toastContainer"></div>
+    <div id="popupContainer" class="popup-container">
+      <div id="closePopup" class="close-popup">
+        <i class="fas fa-times"></i>
+      </div>
+      <span id="pechaIdText">dfkjlsdfj</span>
+      <button type="button" id="copyPechaId">
+        <i class="fas fa-copy"></i>
+      </button>
+    </div>
     <div class="heading">
       <h1 class="meta-heading">Create Pecha</h1>
     </div>
@@ -22,6 +31,7 @@
       <label for="baseLanguage">Language of Text:</label>
       <select id="baseLanguage">
       </select>
+      <div id="baseLanguageLoader" class="spinner"></div>
     </div>
 
     <div id="formContent" class="form-content">
@@ -161,8 +171,9 @@
           </div>
         </div>
 
-        <button type="button" id="publishButton" class="publish-button">
-          Publish
+        <button type="button" id="createButton" class="create-button">
+          <span class="create-button-text">Submit</span>
+          <div class="spinner"></div>
         </button>
       </form>
     </div>
