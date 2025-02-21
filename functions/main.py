@@ -21,6 +21,11 @@ def create_app(testing=False):
 
     @app.after_request
     def log_response(response):
+        try:
+            request_body = request.get_json() if request.is_json else request.get_data(as_text=True)
+        except Exception:
+            request_body = "<unknown>"
+
         if response.is_json:
             response_body = response.get_json()
         else:
@@ -30,7 +35,7 @@ def create_app(testing=False):
             "Request: %s %s Body: %s | Response: %s | Status: %d",
             request.method,
             request.path,
-            request.get_data(),
+            request_body,
             response_body,
             response.status_code,
         )

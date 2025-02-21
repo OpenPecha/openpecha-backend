@@ -5,7 +5,9 @@ from api.text import validate_file
 from firebase_config import db
 from flask import Blueprint, jsonify, request, send_file
 from metadata_model import MetadataModel
-from pecha_handling import process_pecha
+from pecha_handling import process_pecha, retrieve_pecha, serialize
+from pecha_uploader.config import Destination_url
+from pecha_uploader.pipeline import upload
 from storage import Storage
 
 pecha_bp = Blueprint("pecha", __name__)
@@ -57,7 +59,9 @@ def post_pecha():
     if error_message:
         return jsonify({"error": error_message}), 500
 
-    return jsonify({"message": "Text published successfully", "id": pecha_id}), 200
+    title = metadata.title.get(metadata.language, "")
+
+    return jsonify({"message": "Text published successfully", "id": pecha_id, "title": title}), 200
 
 
 @pecha_bp.route("/<string:pecha_id>", methods=["GET"], strict_slashes=False)
@@ -84,9 +88,12 @@ def publish(pecha_id: str):
         if not pecha_id:
             return jsonify({"error": "Missing Pecha Id"}), 400
 
-        storage = Storage()
-        serialized_json = ""
-        storage.store_pechaorg_json(pecha_id=pecha_id, json_data=serialized_json)
+        pecha = retrieve_pecha(pecha_id=pecha_id)
+        serialized = serialize(pecha=pecha)
+
+        Storage().store_pechaorg_json(pecha_id=pecha_id, json_dict=serialized)
+
+        upload(text=serialized, destination_url=Destination_url.STAGING, overwrite=True)
 
         return jsonify({"message": "Pecha published successfully", "id": pecha_id}), 200
 

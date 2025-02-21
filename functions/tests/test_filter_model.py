@@ -50,50 +50,41 @@ def test_invalid_filter_model(invalid_data, expected_error):
 @pytest.mark.parametrize(
     "input_data, expected_dict",
     [
-        ({}, {"filter": None}),
-        ({"filter": None}, {"filter": None}),
+        ({}, None),
         (
-            {"filter": {"field": "language", "operator": "==", "value": "en"}},
-            {"filter": {"field": "language", "operator": "==", "value": "en"}},
+            {"field": "language", "operator": "==", "value": "en"},
+            {"field": "language", "operator": "==", "value": "en"},
         ),
         (
-            {"filter": {"field": "language", "operator": "==", "value": None}},
-            {"filter": {"field": "language", "operator": "==", "value": None}},
+            {"field": "language", "operator": "==", "value": None},
+            {"field": "language", "operator": "==", "value": None},
         ),
         (
             {
-                "filter": {
-                    "and": [
-                        {"field": "language", "operator": "==", "value": "en"},
-                        {"field": "author", "operator": "!=", "value": "Bob"},
-                    ]
-                }
+                "and": [
+                    {"field": "language", "operator": "==", "value": "en"},
+                    {"field": "author", "operator": "!=", "value": "Bob"},
+                ]
             },
             {
-                "filter": {
-                    "and": [
-                        {"field": "language", "operator": "==", "value": "en"},
-                        {"field": "author", "operator": "!=", "value": "Bob"},
-                    ]
-                }
+                "and": [
+                    {"field": "language", "operator": "==", "value": "en"},
+                    {"field": "author", "operator": "!=", "value": "Bob"},
+                ]
             },
         ),
         (
             {
-                "filter": {
-                    "or": [
-                        {"field": "language", "operator": "==", "value": "zh"},
-                        {"field": "author", "operator": "==", "value": "Alice"},
-                    ]
-                }
+                "or": [
+                    {"field": "language", "operator": "==", "value": "zh"},
+                    {"field": "author", "operator": "==", "value": "Alice"},
+                ]
             },
             {
-                "filter": {
-                    "or": [
-                        {"field": "language", "operator": "==", "value": "zh"},
-                        {"field": "author", "operator": "==", "value": "Alice"},
-                    ]
-                }
+                "or": [
+                    {"field": "language", "operator": "==", "value": "zh"},
+                    {"field": "author", "operator": "==", "value": "Alice"},
+                ]
             },
         ),
     ],

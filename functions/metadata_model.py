@@ -66,6 +66,7 @@ class MetadataModel(BaseModel):
 
     model_config = ConfigDict(
         extra="forbid",
+        str_strip_whitespace=True,
         json_schema_extra={
             "examples": [
                 {

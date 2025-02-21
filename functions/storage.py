@@ -1,7 +1,9 @@
+import json
 import logging
 import shutil
 import tempfile
 from pathlib import Path
+from typing import Any
 
 from firebase_admin import storage
 from openpecha.pecha import Pecha
@@ -13,31 +15,39 @@ class Storage:
     def __init__(self):
         self.bucket = storage.bucket()
 
-    def store_pechaorg_json(self, pecha_id: str, json_data: str) -> str:
-        return self._upload_file(Storage._pechaorg_json_path(pecha_id=pecha_id), json_data=json_data)
+    def store_pechaorg_json(self, pecha_id: str, json_dict: dict[str, Any]) -> str:
+        json_str = json.dumps(json_dict)
+        return self._upload(Storage._pechaorg_json_path(pecha_id=pecha_id), json_str=json_str)
 
     def store_pecha_opf(self, pecha: Pecha) -> str:
         zip_path = f"{pecha.id}.zip"
         shutil.make_archive(pecha.id, "zip", pecha.pecha_path)
 
-        return self._upload_file(storage_path=Storage._pecha_opf_path(pecha_id=pecha.id), file_path=zip_path)
+        return self._upload(storage_path=Storage._pecha_opf_path(pecha_id=pecha.id), file_path=zip_path)
 
-    def retrieve_pechaorg_json(self, pecha_id: str) -> str:
+    def retrieve_pechaorg_json(self, pecha_id: str) -> dict[str, Any]:
         json_bytes = self._get_file(Storage._pechaorg_json_path(pecha_id))
-        return json_bytes.decode("utf-8")
+        json_str = json_bytes.decode("utf-8")
+        return json.loads(json_str)
 
     def retrieve_pecha_opf(self, pecha_id: str) -> Path:
-        with tempfile.TemporaryDirectory() as temp_dir:
-            zip_path = Path(temp_dir) / f"{pecha_id}.zip"
-            zip_path.write_bytes(self._get_file(Storage._pecha_opf_path(pecha_id)))
+        temp_dir = tempfile.gettempdir()
+        zip_path = Path(temp_dir) / f"{pecha_id}.zip"
+        zip_path.write_bytes(self._get_file(Storage._pecha_opf_path(pecha_id)))
 
-            return zip_path
+        return zip_path
 
     def rollback_pechaorg_json(self, pecha_id: str):
         self._rollback(f"pechaorg/{pecha_id}.json")
 
     def rollback_pecha_opf(self, pecha_id: str):
         self._rollback(f"opf/{pecha_id}.zip")
+
+    def pechaorg_json_exists(self, pecha_id: str) -> bool:
+        return self._file_exists(Storage._pechaorg_json_path(pecha_id))
+
+    def pecha_opf_exists(self, pecha_id: str) -> bool:
+        return self._file_exists(Storage._pecha_opf_path(pecha_id))
 
     @staticmethod
     def _pecha_opf_path(pecha_id: str) -> str:
@@ -52,11 +62,11 @@ class Storage:
         blob.delete()
         logger.info("Rolled back: %s", blob.name)
 
-    def _upload_file(self, storage_path: str, json_data=None, file_path=None) -> str:
+    def _upload(self, storage_path: str, json_str=None, file_path=None) -> str:
         blob = self.bucket.blob(storage_path)
 
-        if json_data:
-            blob.upload_from_string(json_data, content_type="application/json")
+        if json_str:
+            blob.upload_from_string(json_str, content_type="application/json")
         elif file_path:
             blob.upload_from_filename(file_path)
         else:
@@ -73,5 +83,8 @@ class Storage:
             raise FileNotFoundError(f"File not found in storage: {storage_path}")
 
         file_data = blob.download_as_bytes()
-        logger.info("Retrieved from storage: %s", storage_path)
+        logger.info("Retrieved from storage: %s, size: %s", storage_path, file_data.count)
         return file_data
+
+    def _file_exists(self, storage_path: str) -> bool:
+        return self.bucket.blob(storage_path).exists()

@@ -66,9 +66,8 @@ def filter_metadata():
         ]
 
     try:
-        filter_json = request.get_json(silent=True)
-
-        if not filter_json:
+        data = request.get_json(silent=True) or {}
+        if not (filter_json := data.get("filter")):
             return jsonify(extract_info(db.collection("metadata"))), 200
 
         try:
@@ -78,7 +77,7 @@ def filter_metadata():
 
         logger.debug("Parsed filter: %s", filter_model.model_dump())
 
-        if (f := filter_model.filter) is None:
+        if (f := filter_model.root) is None:
             return jsonify({"error": "Invalid filters provided"}), 400
 
         col_ref = db.collection("metadata")

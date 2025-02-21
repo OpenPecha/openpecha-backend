@@ -62,4 +62,6 @@ The website will be available at:
 ```
 https://pecha-backend.web.app
 ```
+## Documentation
+Available at: https://pecha-backend.web.app/api
 

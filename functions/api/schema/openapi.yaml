@@ -6,6 +6,105 @@ servers:
   - url: https://api-aq25662yyq-uc.a.run.app
 
 paths:
+  /pecha:
+    post:
+      summary: Create a Pecha
+      description: Accepts a text document (.docx) and associated metadata in JSON format, processes them, and stores the resulting Pecha in the database.
+      tags:
+        - Pecha
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - text
+                - metadata
+              properties:
+                text:
+                  type: string
+                  format: binary
+                  description: The uploaded text file (must be .docx format).
+                metadata:
+                  type: string
+                  format: json
+                  description: JSON-encoded metadata describing the document. The structure follows [metadata schema](https://pecha-backend.web.app/schema/metadata).
+      responses:
+        "200":
+          description: Successfully published the text document.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - Text published successfully
+                  id:
+                    type: string
+                    description: The ID of the newly created Pecha.
+                    examples: 
+                      - I857977C3
+                  title:
+                    type: string
+                    description: The title of the newly created Pecha, in the language of the text
+                    examples:
+                      - "Illuminating the Intent"
+        "400":
+          description: Bad request (e.g., invalid file format or missing metadata).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    examples:
+                      - "Text file: Invalid file type. Supported types: .docx"
+        "422":
+          description: Unprocessable entity (e.g., invalid metadata format).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: array
+                    description: Detailed validation errors.
+                    items:
+                      properties:
+                        message:
+                          type: string
+                          description: Validation error message.
+                          examples: 
+                            - "'author' is a required property"
+                        path:
+                          type: array
+                          items:
+                            type: string
+                          description: The path to the field causing the validation error.
+                          examples: 
+                            - ["author"]
+                        schema_path:
+                          type: array
+                          items:
+                            type: string
+                          description: The schema path related to the error.
+                          examples: 
+                            - ["properties", "author", "required"]
+        "500":
+          description: Internal server error (e.g., database failure).
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    examples:
+                      - Failed to save to DB
   /pecha/{pecha_id}:
     get:
       summary: Retrieve a Pecha OPF File
@@ -60,100 +159,6 @@ paths:
                 properties:
                   error:
                     type: string
-  /pecha:
-    post:
-      summary: Create a Pecha
-      description: Accepts a text document (.docx) and associated metadata in JSON format, processes them, and stores the resulting Pecha in the database.
-      tags:
-        - Pecha
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              required:
-                - text
-                - metadata
-              properties:
-                text:
-                  type: string
-                  format: binary
-                  description: The uploaded text file (must be .docx format).
-                metadata:
-                  type: string
-                  format: json
-                  description: JSON-encoded metadata describing the document. The structure follows [metadata schema](https://pecha-backend.web.app/schema/metadata).
-      responses:
-        "200":
-          description: Successfully published the text document.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    examples:
-                      - Text published successfully
-                  id:
-                    type: string
-                    description: The ID of the newly created Pecha.
-                    examples: 
-                      - I857977C3
-        "400":
-          description: Bad request (e.g., invalid file format or missing metadata).
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    examples:
-                      - "Text file: Invalid file type. Supported types: .docx"
-        "422":
-          description: Unprocessable entity (e.g., invalid metadata format).
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: array
-                    description: Detailed validation errors.
-                    items:
-                      properties:
-                        message:
-                          type: string
-                          description: Validation error message.
-                          examples: 
-                            - "'author' is a required property"
-                        path:
-                          type: array
-                          items:
-                            type: string
-                          description: The path to the field causing the validation error.
-                          examples: 
-                            - ["author"]
-                        schema_path:
-                          type: array
-                          items:
-                            type: string
-                          description: The schema path related to the error.
-                          examples: 
-                            - ["properties", "author", "required"]
-        "500":
-          description: Internal server error (e.g., database failure).
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    examples:
-                      - Failed to save to DB
   /pecha/{pecha_id}/publish:
     post:
       summary: Publish a Pecha to Pecha.org
@@ -389,7 +394,10 @@ paths:
         content:
           application/json:
             schema:
-                $ref: "https://pecha-backend.web.app/schema/filter"
+              type: object
+              properties:
+                filter:
+                  $ref: "https://pecha-backend.web.app/schema/filter"
       responses:
         "200":
           description: Successfully retrieved filtered metadata
@@ -428,6 +436,31 @@ paths:
                 properties:
                   error:
                     type: string
+  /schema/filter:
+    get:
+      summary: Retrieve the Filter Schema
+      description: Returns the full JSON schema definition for filter validation.
+      tags:
+        - Schema
+      responses:
+        "200":
+          description: Successfully retrieved the filter schema.
+          content:
+            application/json:
+              schema:
+                type: object
+                description: The full JSON schema definition.
+        "404":
+          description: Schema file not found.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    examples:
+                      - "Schema not found"
   /schema/metadata:
     get:
       summary: Retrieve the Metadata Schema
@@ -539,7 +572,7 @@ paths:
                     type: string
               examples:
                 missing_docx:
-                  summary: Missing DOCX file
+                  summary: Missing docx file
                   description: No file was provided in the request.
                   value:
                     error: "Missing required 'docx' parameter"
