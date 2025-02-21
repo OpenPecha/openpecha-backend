@@ -3,6 +3,10 @@ class LocalizedForm {
         this.API_ENDPOINT = 'https://api-aq25662yyq-uc.a.run.app';
         this.baseLanguageSelect = document.getElementById("baseLanguage");
         this.baseLanguageLoader = document.getElementById("baseLanguageLoader");
+        this.popupContainer = document.getElementById("popupContainer");
+        this.closePopupButton = document.getElementById("closePopup");
+        this.pechaIdText = document.getElementById("pechaIdText");
+        this.copyPechaIdButton = document.getElementById("copyPechaId");
         this.formContent = document.getElementById("formContent");
         this.formGroups = document.querySelectorAll(".form-group");
         this.addAltTitleButton = document.getElementById("addAltTitle");
@@ -70,6 +74,13 @@ class LocalizedForm {
                     this.fetchPechaOptions(radio.value);
                 }
             });
+        });
+        // Copy Pecha ID Button
+        this.copyPechaIdButton.addEventListener("click", () => {
+            this.copyPechIdAndTitle();
+        });
+        this.closePopupButton.addEventListener("click", () => {
+            this.popupContainer.classList.remove("visible");
         });
         // Publish Button
         this.createButton.addEventListener("click", () => {
@@ -509,7 +520,8 @@ class LocalizedForm {
 
             const jsonResponse = await response.json();
             await this.handleSuccessfulSubmission(jsonResponse);
-
+            this.popupContainer.classList.add("visible");
+            this.pechaIdText.textContent = `${jsonResponse.id} - ${jsonResponse.title}`;
             this.showToast("File and metadata successfully submitted!", "success");
             this.clearForm();
 
@@ -559,6 +571,21 @@ class LocalizedForm {
         }
     }
 
+    async copyPechIdAndTitle() {
+            navigator.clipboard.writeText(this.pechaIdText.textContent)
+                .then(() => {
+                    console.log("Text copied to clipboard:", this.pechaIdText.textContent);
+                    this.copyPechaIdButton.style.color = "#2196f3";
+
+                    setTimeout(() => {
+                        this.copyPechaIdButton.style.color = "#ddd"; 
+                    }, 2000); 
+                })
+                .catch((err) => {
+                    console.error("Failed to copy text:", err);
+                    alert("Failed to copy text. Please try again.");
+                });
+    }
     showToast(message, type) {
         const toastContainer = document.getElementById('toastContainer');
         const toast = document.createElement('div');

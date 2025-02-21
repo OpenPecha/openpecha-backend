@@ -258,6 +258,37 @@ select.error {
     background-color: var(--color-error-bg);
 }
 
+/* style for pop up */
+.popup-container{
+    display: none;
+    position: fixed;
+    top: 20px;
+    right: 20px;
+    padding: 10px 8px;
+    border: 1px solid var(--color-border);
+    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+    border-radius: 5px;
+    
+}
+
+.popup-container .close-popup{
+    position: absolute;
+    right:0px;
+    top:-15px;
+    cursor: pointer;
+    font-size: 14px;
+    font-weight: 600;
+    color: var(--color-error);
+    margin-left: 10px;
+}
+#copyPechaId {
+    margin-left: 4px;
+    padding:0;
+    border:none;
+    color: var(--color-border);
+    background-color: transparent;
+    cursor: pointer;
+}
 /* Required field indicators */
 [data-field="author"] label::after,
 [data-field="title"] label::after,
@@ -276,7 +307,8 @@ select.error {
 }
 
 .form-content.visible,
-#pechaOptionsContainer.visible {
+#pechaOptionsContainer.visible,
+.popup-container.visible {
     display: block;
 }
 
