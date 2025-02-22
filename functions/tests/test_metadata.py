@@ -40,7 +40,7 @@ def mock_db():
         {"title": {"en": "Book Five"}, "language": "en", "source": None}
     )
 
-    with patch("api.pechas.db", mock_db):
+    with patch("api.metadata.db", mock_db):
         yield mock_db
 
 
@@ -89,9 +89,9 @@ def mock_db():
         ({"filter": {"field": "nonexistent", "operator": "==", "value": "test"}}, []),
     ],
 )
-def test_filter_pechas(mock_db, client, filter_payload, expected_result):
+def test_filter_metadata(mock_db, client, filter_payload, expected_result):
     """Test various filtering scenarios."""
-    response = client.post("/pechas", json=filter_payload)
+    response = client.post("/metadata/filter", json=filter_payload)
 
     assert response.status_code == 200
     assert sorted(response.json, key=lambda x: x["id"]) == sorted(expected_result, key=lambda x: x["id"])

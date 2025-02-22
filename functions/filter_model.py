@@ -1,4 +1,4 @@
-from typing import Any, Literal, Union
+from typing import Any, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, RootModel
 
@@ -65,4 +65,4 @@ class OrFilter(BaseModel):
 
 
 class FilterModel(RootModel):
-    root: Union[Condition, AndFilter, OrFilter]
+    root: Condition | AndFilter | OrFilter

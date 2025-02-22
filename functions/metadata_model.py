@@ -1,10 +1,8 @@
-from typing import Mapping, Sequence
+from typing import Annotated, Mapping, Sequence
 
 from pydantic import AnyUrl, BaseModel, ConfigDict, Field, RootModel, field_serializer, model_validator
 
-
-class NonemptyString(RootModel[str]):
-    root: str = Field(..., pattern="\\S")
+NonEmptyStr = Annotated[str, Field(min_length=1)]
 
 
 class PechaId(RootModel[str]):
@@ -15,38 +13,41 @@ class PechaId(RootModel[str]):
     )
 
 
-class LocalizedString(RootModel[Mapping[str, NonemptyString]]):
-    root: Mapping[str, NonemptyString] = Field(
+class LocalizedString(RootModel[Mapping[str, NonEmptyStr]]):
+    root: Mapping[str, NonEmptyStr] = Field(
         ...,
         description="Dictionary with language codes as keys and corresponding strings as values",
     )
 
+    def __getitem__(self, item):
+        return self.root[item]
+
 
 class MetadataModel(BaseModel):
-    author: Mapping[str, NonemptyString] = Field(
+    author: LocalizedString = Field(
         ...,
         description="Dictionary with language codes as keys and corresponding strings as values",
     )
     date: str | None = Field(None, pattern="\\S")
     source: AnyUrl
     document_id: str = Field(..., pattern="\\S")
-    presentation: Mapping[str, NonemptyString] | None = Field(
+    presentation: LocalizedString | None = Field(
         None,
         description="Dictionary with language codes as keys and corresponding strings as values",
     )
-    usage_title: Mapping[str, NonemptyString] | None = Field(
+    usage_title: LocalizedString | None = Field(
         None,
         description="Dictionary with language codes as keys and corresponding strings as values",
     )
-    title: Mapping[str, NonemptyString] = Field(
+    title: LocalizedString = Field(
         ...,
         description="Dictionary with language codes as keys and corresponding strings as values",
     )
-    long_title: Mapping[str, NonemptyString] = Field(
+    long_title: LocalizedString = Field(
         ...,
         description="Dictionary with language codes as keys and corresponding strings as values",
     )
-    alt_titles: Sequence[Mapping[str, NonemptyString]] | None = Field(None, min_length=1)
+    alt_titles: Sequence[LocalizedString] | None = Field(None, min_length=1)
     commentary_of: str | None = Field(
         None,
         description="ID pattern that starts with 'I' followed by 8 uppercase hex characters",

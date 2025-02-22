@@ -35,6 +35,7 @@ def put_metadata(pecha_id: str):
             return jsonify({"error": "Missing metadata"}), 400
 
         metadata = MetadataModel.model_validate(metadata_json)
+        logger.info("Parsed metadata: %s", metadata.model_dump_json())
 
         doc_ref = db.collection("metadata").document(pecha_id)
         doc = doc_ref.get()
@@ -75,7 +76,7 @@ def filter_metadata():
         except Exception as e:
             return jsonify({"error": f"Invalid filter: {str(e)}"}), 400
 
-        logger.debug("Parsed filter: %s", filter_model.model_dump())
+        logger.info("Parsed filter: %s", filter_model.model_dump())
 
         if (f := filter_model.root) is None:
             return jsonify({"error": "Invalid filters provided"}), 400

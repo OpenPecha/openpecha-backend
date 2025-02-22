@@ -56,6 +56,7 @@ def create_app(testing=False):
         "GITHUB_USERNAME",
         "GITHUB_EMAIL",
         "GITHUB_ORG_NAME",
+        "PECHA_API_KEY",
     ],
 )
 def api(req: https_fn.Request) -> https_fn.Response:

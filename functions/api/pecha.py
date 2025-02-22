@@ -3,10 +3,11 @@ import logging
 
 from api.text import validate_file
 from firebase_config import db
+from firebase_functions.params import SecretParam
 from flask import Blueprint, jsonify, request, send_file
 from metadata_model import MetadataModel
 from pecha_handling import process_pecha, retrieve_pecha, serialize
-from pecha_uploader.config import Destination_url
+from pecha_uploader.config import Destination_url, set_api_key
 from pecha_uploader.pipeline import upload
 from storage import Storage
 
@@ -59,9 +60,9 @@ def post_pecha():
     if error_message:
         return jsonify({"error": error_message}), 500
 
-    title = metadata.title.get(metadata.language, "")
+    title = metadata.title[metadata.language] or metadata.title["en"]
 
-    return jsonify({"message": "Text published successfully", "id": pecha_id, "title": title}), 200
+    return jsonify({"message": "Text created successfully", "id": pecha_id, "title": title}), 200
 
 
 @pecha_bp.route("/<string:pecha_id>", methods=["GET"], strict_slashes=False)
@@ -89,10 +90,15 @@ def publish(pecha_id: str):
             return jsonify({"error": "Missing Pecha Id"}), 400
 
         pecha = retrieve_pecha(pecha_id=pecha_id)
+        logger.info("Successfully retrieved Pecha %s from storage", pecha_id)
+
         serialized = serialize(pecha=pecha)
+        logger.info("Successfully serialized Pecha %s", pecha_id)
 
         Storage().store_pechaorg_json(pecha_id=pecha_id, json_dict=serialized)
+        logger.info("Successfully saved Pecha %s to storage", pecha_id)
 
+        set_api_key(SecretParam("PECHA_API_KEY").value)
         upload(text=serialized, destination_url=Destination_url.STAGING, overwrite=True)
 
         return jsonify({"message": "Pecha published successfully", "id": pecha_id}), 200

@@ -1,3 +1,4 @@
+import json
 import logging
 import tempfile
 import zipfile
@@ -5,7 +6,7 @@ from pathlib import Path
 from typing import Any
 
 from firebase_config import db
-from openpecha.pecha import Pecha, get_pecha_alignment_data
+from openpecha.pecha import Pecha
 from openpecha.pecha.parsers.docx import DocxParser
 from openpecha.pecha.serializers.pecha_db import Serializer
 from openpecha.pecha.serializers.pecha_db.updated_opf_serializer import update_serialize_json
@@ -15,8 +16,8 @@ from werkzeug.datastructures import FileStorage
 logger = logging.getLogger(__name__)
 
 
-def db_get_alignment(pecha_id: str) -> dict[str, Any]:
-    return db.collection("alignment").document(pecha_id).get().to_dict()
+# def db_get_alignment(pecha_id: str) -> dict[str, Any]:
+#     return db.collection("alignment").document(pecha_id).get().to_dict()
 
 
 def db_get_metadata(pecha_id: str) -> dict[str, Any]:
@@ -47,10 +48,10 @@ def get_id_metadata_chain(pecha_id: str, metadata: dict[str, Any]) -> list[tuple
 def retrieve_pecha(pecha_id) -> Pecha:
     zip_path = Storage().retrieve_pecha_opf(pecha_id)
 
-    with tempfile.TemporaryDirectory() as temp_dir:
-        extract_path = Path(temp_dir) / pecha_id
-        zipfile.ZipFile(zip_path).extractall(extract_path)
-        return Pecha.from_path(extract_path)
+    temp_dir = tempfile.gettempdir()
+    extract_path = Path(temp_dir) / pecha_id
+    zipfile.ZipFile(zip_path).extractall(extract_path)
+    return Pecha.from_path(extract_path)
 
 
 def get_pecha_chain(pecha_ids: list[str]) -> list[Pecha]:
@@ -77,7 +78,7 @@ def parse(docx_file: FileStorage, metadata: dict[str, Any], pecha_id: str | None
 
 
 def serialize(pecha: Pecha) -> dict[str, Any]:
-    alignment = db_get_alignment(pecha_id=pecha.id)
+    # alignment = db_get_alignment(pecha_id=pecha.id)
     metadata = db_get_metadata(pecha_id=pecha.id)
 
     id_metadata_chain = get_id_metadata_chain(pecha_id=pecha.id, metadata=metadata)
@@ -85,13 +86,19 @@ def serialize(pecha: Pecha) -> dict[str, Any]:
 
     storage = Storage()
     if storage.pechaorg_json_exists(pecha_id=pecha.id):
-        json = storage.retrieve_pechaorg_json(pecha_id=pecha.id)
-        update_serialize_json(pecha=pecha, metadatas=metadata_chain, json=json)
+        pecha_json = storage.retrieve_pechaorg_json(pecha_id=pecha.id)
+
+        logger.info("Serialized Pecha %s already exist, updating the json", pecha.id)
+        return update_serialize_json(pecha=pecha, metadatas=metadata_chain, json=pecha_json)
 
     id_chain = [id for id, _ in id_metadata_chain]
+    logger.info(f"Pecha IDs: {id_chain}")
     pecha_chain = get_pecha_chain(pecha_ids=id_chain)
 
-    return Serializer().serialize(pechas=pecha_chain, metadatas=metadata_chain, alignment_data=alignment)
+    logger.info("Serialized Pecha %s doesn't exist, starting serialize", pecha.id)
+    logger.info(f"Pechas: {pecha_chain} metadata: {metadata_chain}")
+
+    return Serializer().serialize(pechas=pecha_chain, metadatas=metadata_chain)
 
 
 def process_pecha(text: FileStorage, metadata: dict[str, Any]) -> tuple[str | None, str | None]:
@@ -107,7 +114,7 @@ def process_pecha(text: FileStorage, metadata: dict[str, Any]) -> tuple[str | No
 
         logger.info("Pecha created: %s %s", pecha.id, pecha.pecha_path)
 
-        alignment = get_pecha_alignment_data(pecha)
+        # alignment = get_pecha_alignment_data(pecha)
     except Exception as e:
         return f"Could not process metadata {str(e)}", None
 
@@ -122,24 +129,25 @@ def process_pecha(text: FileStorage, metadata: dict[str, Any]) -> tuple[str | No
     try:
         with db.transaction() as transaction:
             doc_ref_metadata = db.collection("metadata").document(pecha.id)
-            doc_ref_alignment = db.collection("alignment").document(pecha.id)
+            # doc_ref_alignment = db.collection("alignment").document(pecha.id)
 
+            logger.info("Saving metadata to DB: %s", json.dumps(metadata))
             transaction.set(doc_ref_metadata, metadata)
             logger.info("Metadata saved to DB: %s", pecha.id)
 
-            if alignment:
-                transaction.set(doc_ref_alignment, alignment)
+            # if alignment:
+            #     logger.info("Saving alignment to DB: %s", json.dumps(alignment))
+            #     transaction.set(doc_ref_alignment, alignment)
 
-            logger.info("Alignment saved to DB: %s", pecha.id)
+            # logger.info("Alignment saved to DB: %s", pecha.id)
 
     except Exception as e:
         logger.error("Error saving to DB: %s", e)
         try:
             storage.rollback_pecha_opf(pecha_id=pecha.id)
-            storage.rollback_pechaorg_json(pecha_id=pecha.id)
         except Exception as rollback_error:
             logger.error("Rollback failed: %s", rollback_error)
 
-        return f"Failed to save to DB {str(e)}", None
+        return f"Failed to save to DB {str(e)} metadata: {metadata}", None
 
     return None, pecha.id

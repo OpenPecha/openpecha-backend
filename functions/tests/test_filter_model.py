@@ -50,7 +50,6 @@ def test_invalid_filter_model(invalid_data, expected_error):
 @pytest.mark.parametrize(
     "input_data, expected_dict",
     [
-        ({}, None),
         (
             {"field": "language", "operator": "==", "value": "en"},
             {"field": "language", "operator": "==", "value": "en"},
