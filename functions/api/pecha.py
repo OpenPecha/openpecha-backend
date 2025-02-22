@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 
 from api.text import validate_file
 from firebase_config import db
@@ -98,7 +99,11 @@ def publish(pecha_id: str):
         Storage().store_pechaorg_json(pecha_id=pecha_id, json_dict=serialized)
         logger.info("Successfully saved Pecha %s to storage", pecha_id)
 
-        set_api_key(SecretParam("PECHA_API_KEY").value)
+        # set_api_key(SecretParam("PECHA_API_KEY").value)
+
+        if not os.getenv("PECHA_API_KEY"):
+            os.environ["PECHA_API_KEY"] = SecretParam("PECHA_API_KEY").value
+
         upload(text=serialized, destination_url=Destination_url.STAGING, overwrite=True)
 
         return jsonify({"message": "Pecha published successfully", "id": pecha_id}), 200
