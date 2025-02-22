@@ -2,7 +2,13 @@ class LocalizedForm {
     constructor() {
         this.API_ENDPOINT = 'https://api-aq25662yyq-uc.a.run.app';
         this.baseLanguageSelect = document.getElementById("baseLanguage");
+        this.baseLanguageLoader = document.getElementById("baseLanguageLoader");
+        this.popupContainer = document.getElementById("popupContainer");
+        this.closePopupButton = document.getElementById("closePopup");
+        this.pechaIdText = document.getElementById("pechaIdText");
+        this.copyPechaIdButton = document.getElementById("copyPechaId");
         this.formContent = document.getElementById("formContent");
+        this.formGroups = document.querySelectorAll(".form-group");
         this.addAltTitleButton = document.getElementById("addAltTitle");
         this.pechaOptionsContainer = document.getElementById(
             "pechaOptionsContainer"
@@ -11,13 +17,15 @@ class LocalizedForm {
         this.typeRadios = document.querySelectorAll(
             'input[name="documentType"]'
         );
-        this.publishButton = document.getElementById("publishButton")
+        this.createButton = document.getElementById("createButton")
+        this.createBtnText = document.querySelector(".create-button-text");
+        this.creatingSpinner = createButton.querySelector(".spinner")
+        this.creating = false;
         this.setupEventListeners();
-        this.languageOptions=[];
+        this.languageOptions = [];
         this.fetchLanguages().then(languages => {
-            console.log("Languages:", languages); // Log the fetched languages
             this.languageOptions = languages;
-            let temp = `<option value="">Language</option>`; 
+            let temp = `<option value="">Language</option>`;
             languages.forEach(lang => {
                 temp += `<option value="${lang.code}">${lang.name}</option>`;
             });
@@ -60,16 +68,23 @@ class LocalizedForm {
         // Type Radio Selection
         this.typeRadios.forEach((radio) => {
             radio.addEventListener("change", () => {
-                console.log("value:::",radio.value);
+                console.log("value:::", radio.value);
                 if (radio.checked) {
                     this.pechaOptionsContainer.classList.add("visible");
                     this.fetchPechaOptions(radio.value);
                 }
             });
         });
+        // Copy Pecha ID Button
+        this.copyPechaIdButton.addEventListener("click", () => {
+            this.copyPechIdAndTitle();
+        });
+        this.closePopupButton.addEventListener("click", () => {
+            this.popupContainer.classList.remove("visible");
+        });
         // Publish Button
-        this.publishButton.addEventListener("click", () => {
-            this.handlePublish();
+        this.createButton.addEventListener("click", () => {
+            this.handleCreatePecha();
         });
     }
 
@@ -85,8 +100,20 @@ class LocalizedForm {
                     true
                 );
             });
-        
-        
+
+
+    }
+
+    setCreatingState(creating) {
+        this.creating = creating;
+        this.createButton.disabled = creating;
+        this.createBtnText.textContent = creating ? 'Creating...' : 'Create';
+        this.creatingSpinner.style.display = creating ? 'inline-block' : 'none';
+
+        this.formGroups.forEach(group => {
+            group.classList.toggle('disabled', creating);
+        });
+        this.baseLanguageSelect.disabled = creating;
     }
 
     createLocalizationInput(container, language, isFirst = false) {
@@ -293,7 +320,8 @@ class LocalizedForm {
     }
 
     async fetchLanguages() {
-
+        this.baseLanguageSelect.style.display = "none";
+        this.baseLanguageLoader.style.display = "inline-block";
         try {
             const response = await fetch(`${this.API_ENDPOINT}/languages`, {
                 method: 'GET',
@@ -311,6 +339,9 @@ class LocalizedForm {
             return data;
         } catch (error) {
             console.error('Error fetching languages:', error);
+        } finally {
+            this.baseLanguageSelect.style.display = "inline-block";
+            this.baseLanguageLoader.style.display = "none";
         }
     }
 
@@ -351,7 +382,7 @@ class LocalizedForm {
 
             // Iterate over inputs and selects and map them together based on their index
             inputs.forEach((input, index) => {
-                const language = selects[index].value; 
+                const language = selects[index].value;
                 // if (!language) {
                 //     this.showToast("Please select a language for each alternate title", "warning");
                 //     return;
@@ -367,7 +398,7 @@ class LocalizedForm {
             }
         });
 
-        if(alt_titles.length > 0)
+        if (alt_titles.length > 0)
             metadata.alt_titles = alt_titles;
         // Collect non-localized fields
         const selectedDate = document.getElementById("selectedDate").innerHTML;
@@ -457,75 +488,104 @@ class LocalizedForm {
         return match ? match[1] : null;
     }
 
-    async handlePublish() {
-        // Clear any existing error states
-        this.clearErrors();
-
-        // Collect form data
-        const metadata = this.collectFormData();
-        console.log("meta data ", metadata);
-        // Validate required fields
-        if (!this.validateRequiredFields(metadata)) {
-            // alert("Please fill in all required fields.");
-            this.showToast("Please fill in all required fields.", "error");
-            return;
-        }
-
-        let blob;
-        if (metadata.document_id) {
-            try {
-                blob = await downloadDoc(metadata.document_id);
-            } catch (err) {
-                alert("Download failed: " + err.message);
-                return;
-            }
-        } else {
-            alert("Invalid Google Docs link");
-            return;
-        }
-        // If validation passes, log the data
-        console.log("Form Data:", JSON.stringify(metadata, null, 2));
-
-        const formData = new FormData();
-        formData.append("text", blob, `text_${metadata.document_id}.docx`); // Binary file
-        formData.append("metadata", JSON.stringify(metadata)); // JSON metadata
-        console.log("form data ::::", formData)
+    async handleCreatePecha() {
         try {
-            const response = await fetch(`${this.API_ENDPOINT}/pecha/`, {
-                method: "POST",
-                body: formData,
-            });
+            this.clearErrors();
+            const metadata = this.collectFormData();
 
-            if (response.ok) {
-                const jsonResponse = await response.json();
-                const pechaId = jsonResponse.pecha_id;
-                const serializedData = jsonResponse.data;
-
-                const blob = new Blob([JSON.stringify(serializedData, null)], {
-                    type: "application/json",
-                });
-
-                const downloadUrl = URL.createObjectURL(blob);
-                const a = document.createElement("a");
-                a.href = downloadUrl;
-                a.download = `${pechaId}.json`;
-                document.body.appendChild(a);
-                a.click();
-                a.remove();
-                URL.revokeObjectURL(downloadUrl);
-
-                this.showToast("File and metadata successfully submitted!", "success");
-                this.clearForm();
-            } else {
-                const error = await response.text();
-                alert(`Failed to submit: ${error}`);
+            if (!this.validateRequiredFields(metadata)) {
+                throw new Error('Please fill in all required fields.');
             }
-        } catch (err) {
-            console.error("Error submitting form:", err);
-            alert(`Error: ${err.message}`);
+
+            if (!metadata.document_id) {
+                throw new Error('Invalid Google Docs link');
+            }
+
+            this.setCreatingState(true);
+            // Fetch document and prepare form data concurrently
+            const [blob] = await Promise.all([
+                downloadDoc(metadata.document_id).catch(err => {
+                    throw new Error(`Download failed: ${err.message}`);
+                })
+            ]);
+
+            const formData = await this.prepareFormData(blob, metadata);
+
+            const response = await this.submitFormData(formData);
+
+            if (!response.ok) {
+                const error = await response.text();
+                throw new Error(`Failed to create: ${error}`);
+            }
+
+            const jsonResponse = await response.json();
+            await this.handleSuccessfulSubmission(jsonResponse);
+            this.popupContainer.classList.add("visible");
+            this.pechaIdText.textContent = `${jsonResponse.id} - ${jsonResponse.title}`;
+            this.showToast("File and metadata successfully submitted!", "success");
+            this.clearForm();
+
+        } catch (error) {
+            console.error('Error in handleCreatePecha:', error);
+            this.showToast(error, "error");
+        } finally {
+            this.setCreatingState(false);
         }
     }
 
+    // Helper methods to publish
+    async prepareFormData(blob, metadata) {
+        const formData = new FormData();
+        formData.append("text", blob, `text_${metadata.document_id}.docx`);
+        formData.append("metadata", JSON.stringify(metadata));
+        return formData;
+    }
+
+    async submitFormData(formData) {
+        return fetch(`${this.API_ENDPOINT}/pecha/`, {
+            method: "POST",
+            body: formData
+        });
+    }
+
+    async handleSuccessfulSubmission(jsonResponse) {
+        const { pecha_id, data: serializedData } = jsonResponse;
+
+        const blob = new Blob([JSON.stringify(serializedData, null)], {
+            type: "application/json"
+        });
+
+        await this.downloadFile(blob, `${pecha_id}.json`);
+    }
+
+    async downloadFile(blob, filename) {
+        const downloadUrl = URL.createObjectURL(blob);
+        try {
+            const a = document.createElement("a");
+            a.href = downloadUrl;
+            a.download = filename;
+            document.body.appendChild(a);
+            a.click();
+        } finally {
+            URL.revokeObjectURL(downloadUrl);
+        }
+    }
+
+    async copyPechIdAndTitle() {
+            navigator.clipboard.writeText(this.pechaIdText.textContent)
+                .then(() => {
+                    console.log("Text copied to clipboard:", this.pechaIdText.textContent);
+                    this.copyPechaIdButton.style.color = "#2196f3";
+
+                    setTimeout(() => {
+                        this.copyPechaIdButton.style.color = "#ddd"; 
+                    }, 2000); 
+                })
+                .catch((err) => {
+                    console.error("Failed to copy text:", err);
+                    alert("Failed to copy text. Please try again.");
+                });
+    }
     showToast(message, type) {
         const toastContainer = document.getElementById('toastContainer');
         const toast = document.createElement('div');
