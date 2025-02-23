@@ -279,11 +279,12 @@ class LocalizedForm {
         let body = { filter: {} };
 
         if (filterBy === "commentary_of") {
-            body.filter = { "field": "commentary_of", "operator": "!=", "value": null };
+            // body.filter = { "field": "commentary_of", "operator": "!=", "value": null };
+            body.filter ={}
         } else if (filterBy === "version_of") {
-            body.filter = { "field": "version_of", "operator": "!=", "value": null };
+            body.filter = { "field": "language", "operator": "==", "value": this.baseLanguageSelect.value };
         } else if (filterBy === "translation_of") {
-            body.filter = { "field": "translation_of", "operator": "!=", "value": null };
+            body.filter = { "field": "translation_of", "operator": "!=", "value": this.baseLanguageSelect.value };
         }
 
         try {
@@ -512,6 +513,7 @@ class LocalizedForm {
             const formData = await this.prepareFormData(blob, metadata);
 
             const response = await this.submitFormData(formData);
+            console.log("response:::", response);
 
             if (!response.ok) {
                 const error = await response.text();
@@ -542,7 +544,7 @@ class LocalizedForm {
     }
 
     async submitFormData(formData) {
-        return fetch(`${this.API_ENDPOINT}/pecha/`, {
+        return fetch(`${this.API_ENDPOINT}/pecha`, {
             method: "POST",
             body: formData
         });

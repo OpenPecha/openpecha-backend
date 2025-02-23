@@ -274,12 +274,12 @@ select.error {
 .popup-container .close-popup{
     position: absolute;
     right:0px;
-    top:-15px;
+    top:0px;
+    transform: translate(50%, -50%);
     cursor: pointer;
     font-size: 14px;
     font-weight: 600;
     color: var(--color-error);
-    margin-left: 10px;
 }
 #copyPechaId {
     margin-left: 4px;
