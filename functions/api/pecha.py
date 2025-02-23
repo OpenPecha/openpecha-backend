@@ -8,7 +8,7 @@ from firebase_functions.params import SecretParam
 from flask import Blueprint, jsonify, request, send_file
 from metadata_model import MetadataModel
 from pecha_handling import process_pecha, retrieve_pecha, serialize
-from pecha_uploader.config import Destination_url, set_api_key
+from pecha_uploader.config import Destination_url
 from pecha_uploader.pipeline import upload
 from storage import Storage
 

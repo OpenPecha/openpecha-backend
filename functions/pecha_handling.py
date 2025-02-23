@@ -37,10 +37,22 @@ def get_metadata_chain(metadata: dict[str, Any]) -> list[dict[str, Any]]:
 def get_id_metadata_chain(pecha_id: str, metadata: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
     chain = [(pecha_id, metadata)]
 
-    while (next_id := next(filter(metadata.get, ("commentary_of", "version_of", "translation_of")), None)) and (
-        metadata := db_get_metadata(next_id)
-    ):
+    logger.info("Starting metadata chain traversal from Pecha ID: %s", pecha_id)
+
+    next_id = metadata.get("commentary_of") or metadata.get("version_of") or metadata.get("translation_of")
+
+    while next_id:
+        metadata = db_get_metadata(next_id)
+
+        if not metadata:
+            raise ValueError(f"Metadata for ID {next_id} not found.")
+
+        logger.info("Traversing to Pecha ID: %s", next_id)
         chain.append((next_id, metadata))
+
+        next_id = metadata.get("commentary_of") or metadata.get("version_of") or metadata.get("translation_of")
+
+    logger.info("Metadata Chain: %s", [(pecha_id, metadata) for pecha_id, metadata in chain])
 
     return chain
 
@@ -92,11 +104,11 @@ def serialize(pecha: Pecha) -> dict[str, Any]:
         return update_serialize_json(pecha=pecha, metadatas=metadata_chain, json=pecha_json)
 
     id_chain = [id for id, _ in id_metadata_chain]
-    logger.info(f"Pecha IDs: {id_chain}")
+    logger.info("Pecha IDs: %s", ", ".join(id_chain))
     pecha_chain = get_pecha_chain(pecha_ids=id_chain)
 
     logger.info("Serialized Pecha %s doesn't exist, starting serialize", pecha.id)
-    logger.info(f"Pechas: {pecha_chain} metadata: {metadata_chain}")
+    logger.info("Pechas: %s", [pecha.id for pecha in pecha_chain])
 
     return Serializer().serialize(pechas=pecha_chain, metadatas=metadata_chain)
 
