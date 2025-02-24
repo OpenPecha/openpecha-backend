@@ -9,11 +9,12 @@ class UpdateMetaData {
         };
 
         this.API_ENDPOINT = 'https://api-aq25662yyq-uc.a.run.app';
+        this.isLoading = false;
         this.setupEventListeners();
         this.fetchPechaOptions();
         this.showInitialMetadataState();
     }
-
+    
     setupEventListeners() {
         this.elements.pechaSelect.addEventListener('change', () => this.handlePechaSelect());
 
@@ -23,7 +24,36 @@ class UpdateMetaData {
         });
     }
 
+    setLoading(isLoading) {
+        this.isLoading = isLoading;
+        this.elements.pechaSelect.disabled = isLoading;
+        this.elements.publishButton.disabled = isLoading;
+
+        if (isLoading) {
+            this.elements.publishButton.innerHTML = `
+                <div class="button-spinner"></div>
+                <span>Publishing...</span>
+            `;
+        } else {
+            this.elements.publishButton.textContent = 'Publish';
+        }
+    }
+
+    showSelectLoading(isLoading) {
+        this.elements.pechaSelect.disabled = isLoading;
+        this.elements.publishButton.disabled = isLoading;
+        if (isLoading) {
+            const loadingOption = document.createElement('option');
+            loadingOption.value = '';
+            loadingOption.textContent = 'Loading pechas...';
+            this.elements.pechaSelect.innerHTML = '';
+            this.elements.pechaSelect.appendChild(loadingOption);
+        }
+    }
+
     async fetchPechaOptions() {
+        this.showSelectLoading(true);
+
         try {
             const response = await fetch(`${this.API_ENDPOINT}/metadata/filter/`, {
                 method: 'POST',
@@ -41,8 +71,11 @@ class UpdateMetaData {
         } catch (error) {
             console.error('Error loading pecha options:', error);
             this.showToast('Unable to load pecha options. Please try again later.', 'error');
+        } finally {
+            this.showSelectLoading(false);
         }
     }
+
 
     async handlePechaSelect() {
         const pechaId = this.elements.pechaSelect.value;
@@ -113,6 +146,22 @@ class UpdateMetaData {
         if (value === null || value === undefined) {
             return '<span class="empty-value">N/A</span>';
         }
+        if (Array.isArray(value)) {
+            if (value.length === 0) return '<span class="empty-value">N/A</span>';
+
+            return value.map(item => {
+                const entries = Object.entries(item);
+                if (entries.length === 0) return '<span class="empty-value">N/A</span>';
+
+                return entries.map(([lang, text]) => `
+            <div class="localized-value">
+                <span class="language-tag">${lang}</span>
+                <span class="text">${text}</span>
+            </div>
+        `).join('');
+            }).join('');
+        }
+
         if (typeof value === 'object') {
             const entries = Object.entries(value);
             if (entries.length === 0) return '<span class="empty-value">N/A</span>';
@@ -197,17 +246,23 @@ class UpdateMetaData {
         const validatedData = this.validateFields();
         if (!validatedData) return;
 
+        this.setLoading(true);
+
         try {
             const { publishTextId } = validatedData;
             const response = await fetch(`${this.API_ENDPOINT}/pecha/${publishTextId}/publish`, {
                 method: 'POST'
             });
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+
             this.showToast('Pecha published successfully', 'success');
             this.elements.form.reset();
+            this.showInitialMetadataState();
         } catch (error) {
             console.error('Error publishing:', error);
             this.showToast(`Error: ${error.message}`, 'error');
+        } finally {
+            this.setLoading(false);
         }
     }
 
