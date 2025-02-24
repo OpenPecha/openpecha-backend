@@ -284,7 +284,8 @@ class LocalizedForm {
         } else if (filterBy === "version_of") {
             body.filter = { "field": "language", "operator": "==", "value": this.baseLanguageSelect.value };
         } else if (filterBy === "translation_of") {
-            body.filter = { "field": "translation_of", "operator": "!=", "value": this.baseLanguageSelect.value };
+            // body.filter = { "field": "language", "operator": "!=", "value": this.baseLanguageSelect.value };
+            body.filter = {}
         }
 
         try {
