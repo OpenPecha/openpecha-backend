@@ -526,7 +526,7 @@ class LocalizedForm {
             this.popupContainer.classList.add("visible");
             this.pechaIdText.textContent = `${jsonResponse.id} - ${jsonResponse.title}`;
             this.showToast("File and metadata successfully submitted!", "success");
-            this.clearForm();
+            // this.clearForm();
 
         } catch (error) {
             console.error('Error in handleCreatePecha:', error);
