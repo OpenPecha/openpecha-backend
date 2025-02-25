@@ -26,11 +26,11 @@ class UpdateMetaData {
         });
     }
 
-    setLoadingState(loading) {
+    setLoadingState(loading, isFetchingPecha = false) {
         this.isLoading = loading;
         this.elements.updateButton.disabled = loading;
-        this.elements.buttonText.textContent = loading ? 'Updating...' : 'Submit';
-        this.elements.spinner.style.display = loading ? 'inline-block' : 'none';
+        this.elements.buttonText.textContent = loading && !isFetchingPecha ? 'Updating...' : 'Submit';
+        this.elements.spinner.style.display = loading && !isFetchingPecha ? 'inline-block' : 'none';
 
         this.elements.formGroups.forEach(group => {
             group.classList.toggle('disabled', loading);
@@ -38,7 +38,7 @@ class UpdateMetaData {
     }
 
     async fetchPechaOptions() {
-        this.setLoadingState(true);
+        this.setLoadingState(true, true);
         try {
             const response = await fetch(`${this.API_ENDPOINT}/metadata/filter/`, {
                 method: 'POST',
