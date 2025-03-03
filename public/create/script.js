@@ -279,13 +279,11 @@ class LocalizedForm {
         let body = { filter: {} };
 
         if (filterBy === "commentary_of") {
-            // body.filter = { "field": "commentary_of", "operator": "!=", "value": null };
-            body.filter ={}
+            body.filter = {"and":[{"field":"commentary_of","operator":"==","value":null},{"field":"translation_of","operator":"==","value":null}]};
         } else if (filterBy === "version_of") {
-            body.filter = { "field": "language", "operator": "==", "value": this.baseLanguageSelect.value };
+            body.filter = { "and": [{ "field": "commentary_of", "operator": "==", "value": null }, { "field": "version_of", "operator": "==", "value": null }, {"field":"translation_of", "operator":"==","value":null}] };
         } else if (filterBy === "translation_of") {
-            // body.filter = { "field": "language", "operator": "!=", "value": this.baseLanguageSelect.value };
-            body.filter = {}
+            body.filter = { "field": "language", "operator": "==", "value": "bo" };
         }
 
         try {
