@@ -150,7 +150,7 @@ class LocalizedForm {
 
         if (isFirst) {
             langSelect.value = language;
-            langSelect.disabled = true;
+            langSelect.disabled = false;
         }
 
         inputWrapper.appendChild(input);
@@ -409,7 +409,7 @@ class LocalizedForm {
 
         // Collect document type and pecha
         const selectedType = document.querySelector('input[name="documentType"]:checked');
-        if (selectedType) {
+        if (selectedType && this.pechaOptions.value) {
             metadata[selectedType.value] = this.pechaOptions.value
         }
         // Collect Google Docs id 
