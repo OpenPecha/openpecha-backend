@@ -117,6 +117,9 @@ body {
 /* Button styles */
 
 .remove-btn {
+    position: absolute;
+    right: 0;
+    transform: translateX(100%);
     border: none;
     cursor: pointer;
     transition: all 0.3s ease;
@@ -197,6 +200,7 @@ body {
 }
 /* Group layouts */
 .input-group {
+    position:relative;
     display: flex;
     gap: var(--spacing-sm);
     align-items: center;

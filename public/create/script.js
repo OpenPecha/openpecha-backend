@@ -250,7 +250,7 @@ class LocalizedForm {
         const addLocalizationBtn = document.createElement("button");
         addLocalizationBtn.type = "button";
         addLocalizationBtn.className = "add-localization";
-        addLocalizationBtn.innerHTML = '<i class="fas fa-plus-circle"></i> Add Localization';
+        addLocalizationBtn.innerHTML = '<i class="fas fa-plus-circle"></i> Add Title';
         addLocalizationBtn.addEventListener("click", (e) => {
             const formGroup = e.target.closest(".form-group");
             this.addLocalization(formGroup);
