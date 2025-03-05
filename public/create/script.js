@@ -93,7 +93,7 @@ class LocalizedForm {
             .querySelectorAll(".form-group[data-field]")
             .forEach((group) => {
                 const localizationsDiv = group.querySelector(".localizations");
-                localizationsDiv.innerHTML = ""; // Clear existing
+                // localizationsDiv.innerHTML = ""; // Clear existing
                 this.createLocalizationInput(
                     localizationsDiv,
                     baseLanguage,
@@ -359,7 +359,7 @@ class LocalizedForm {
                 const select = container.querySelector("select");
 
                 if (input && input.value && select) {
-                    const lang = select.disabled ? this.baseLanguageSelect.value : select.value;
+                    const lang = select.value;
                     localizations[lang] = input.value;
                 }
             });
@@ -435,9 +435,10 @@ class LocalizedForm {
         }
 
         // Check title in English
-        if (!metadata.title) {
+        if (!metadata.title || !metadata.title.en || !metadata.title.bo) {
+            const fieldIndex = !metadata.title ? 0 : !metadata.title.bo ? 0 : 1;
             errors.push('title');
-            this.highlightError('title');
+            this.highlightError('title',fieldIndex);
         }
 
         // Check long title in English
@@ -460,14 +461,13 @@ class LocalizedForm {
         return errors.length === 0;
     }
 
-    highlightError(fieldName) {
+    highlightError(fieldName, fieldIndex=0) {
         const formGroup = document.querySelector(`.form-group[data-field="${fieldName}"]`);
         if (formGroup) {
-            const inputs = formGroup.querySelectorAll('.input-container');
-            inputs.forEach(container => {
-                container.querySelector('.input-wrapper').classList.add('error');
-
-            });
+            const inputs = formGroup.querySelectorAll('.input-container')[fieldIndex];
+            // inputs.forEach(container => {
+                inputs.querySelector('.input-wrapper').classList.add('error');
+            // });
         }
     }
 
