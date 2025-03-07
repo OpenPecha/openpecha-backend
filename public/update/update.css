@@ -1,11 +1,21 @@
 /* Variables for consistent colors */
 :root {
     --primary-color: #4A90E2;
-    --primary-hover: #357ABD;
-    --background-color: #F5F7FA;
-    --text-color: #333333;
-    --border-color: #E1E8ED;
-    --black: #000000;
+        --primary-hover: #357ABD;
+        --background-color: #F5F7FA;
+        --text-color: #333333;
+        --border-color: #E1E8ED;
+        --black: #000000;
+        --white: #FFFFFF;
+        --light-gray: #F5F5F5;
+        --medium-gray: #CCCCCC;
+        --error-color: #DC3545;
+        --error-bg: #FFF3F3;
+        --placeholder-color: #999999;
+        --box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+        --spinner-border: 4px;
+        --container-width: 600px;
+        --form-spacing: 20px;
 }
 
 body {
@@ -152,4 +162,93 @@ input:focus {
 .form-group.disabled select {
     opacity: 0.7;
     pointer-events: none;
+}
+
+/* Metadata container */
+.metadata-container {
+    min-width: var(--container-width);
+    width: fit-content;
+    margin: var(--form-spacing) auto;
+    background: var(--white);
+    border-radius: 8px;
+    box-shadow: var(--box-shadow);
+    overflow: hidden;
+}
+
+/* States for metadata */
+.metadata-placeholder,
+.metadata-loading,
+.metadata-error {
+    padding: 40px;
+    text-align: center;
+}
+
+.metadata-placeholder {
+    color: var(--text-color);
+    background-color: var(--background-color);
+    max-width: var(--container-width);
+    margin: auto;
+}
+
+.metadata-error {
+    color: var(--error-color);
+    background-color: var(--error-bg);
+}
+
+/* Content layout */
+.metadata-content {
+    padding: var(--form-spacing);
+}
+
+.metadata-item {
+    padding: 16px;
+    display: flex;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.metadata-item:last-child {
+    border-bottom: none;
+}
+
+.metadata-key {
+    width: 150px;
+    font-weight: bold;
+    font-size: 0.9em;
+}
+
+.localized-value {
+    display: flex;
+    align-items: flex-start;
+    margin: 4px 0;
+    gap: 8px;
+}
+
+.language-tag {
+    color: var(--primary-color);
+    font-size: 0.85em;
+    padding: 2px 6px;
+    background-color: rgba(74, 144, 226, 0.1);
+    border-radius: 4px;
+    min-width: 24px;
+    text-align: center;
+}
+
+.empty-value {
+    color: var(--placeholder-color);
+    font-style: italic;
+}
+
+/* Spinners */
+.loading-spinner,
+.button-spinner {
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+}
+
+.loading-spinner {
+    width: 40px;
+    height: 40px;
+    margin: 0 auto 16px;
+    border: var(--spinner-border) solid #f3f3f3;
+    border-top: var(--spinner-border) solid var(--primary-color);
 }

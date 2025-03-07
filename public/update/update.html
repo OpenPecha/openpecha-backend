@@ -7,6 +7,7 @@
     <title>Update Pecha</title>
     <link rel="stylesheet" href="update.css" />
     <link rel="stylesheet" href="../toast_style.css"/>
+    <link rel="stylesheet" href="../custom/select/select.css"/>
 </head>
 <body>
     <div id="toastContainer" role="alert" aria-live="polite"></div>
@@ -40,11 +41,15 @@
                 <div class="spinner"></div>
             </button>
         </form>
+        <div class="metadata-container">
+            
+        </div>
     </main>
 
     <!-- Scripts -->
     <script src="update.js"></script>
     <script src="../google_drive.js"></script>
+    <script src="../custom/select/index.js"></script>
     <script 
         src="https://apis.google.com/js/api.js"
         onload="gapiLoaded()"

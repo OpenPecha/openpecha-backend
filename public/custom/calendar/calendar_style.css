@@ -1,7 +1,7 @@
 /* Date Picker Styles */
 .date-picker-container {
     display: none;
-    width: 300px;
+    width: fit-content;
     padding: 20px;
     border: 1px solid #ccc;
     border-radius: 5px;
