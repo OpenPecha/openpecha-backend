@@ -18,6 +18,9 @@
     --form-spacing: 20px;
 }
 
+*{
+    box-sizing: border-box;
+}
 /* Base styles */
 body {
     font-family: 'Arial', sans-serif;
@@ -59,19 +62,13 @@ label {
     font-weight: bold;
 }
 
-select,
-input {
+select {
     width: 100%;
     padding: 10px;
     border: 1px solid var(--border-color);
     border-radius: 4px;
     font-size: 16px;
     transition: border-color 0.3s ease;
-}
-
-select:focus,
-input:focus {
-    border-color: var(--primary-color);
 }
 
 /* Button styles */
