@@ -13,7 +13,6 @@ class LocalizedForm {
         this.pechaOptionsContainer = document.getElementById(
             "pechaOptionsContainer"
         );
-        this.pechaOptions = document.getElementById("pechaOptions");
         this.typeRadios = document.querySelectorAll(
             'input[name="documentType"]'
         );
@@ -21,7 +20,6 @@ class LocalizedForm {
         this.createBtnText = document.querySelector(".create-button-text");
         this.creatingSpinner = createButton.querySelector(".spinner")
         this.creating = false;
-        this.setupEventListeners();
         this.languageOptions = [];
         this.fetchLanguages().then(languages => {
             this.languageOptions = languages;
@@ -32,6 +30,7 @@ class LocalizedForm {
 
             this.baseLanguageSelect.innerHTML = temp;
         });
+        this.setupEventListeners();
     }
 
     setupEventListeners() {
@@ -40,7 +39,7 @@ class LocalizedForm {
             const baseLanguage = this.baseLanguageSelect.value;
             if (baseLanguage) {
                 this.formContent.classList.add("visible");
-                this.initializeFields(baseLanguage);
+                this.initializeFields(this.baseLanguageSelect.value);
             } else {
                 this.formContent.classList.remove("visible");
             }
@@ -60,6 +59,7 @@ class LocalizedForm {
                 }
             });
         });
+
         // Add Alternative Title Button
         this.addAltTitleButton.addEventListener("click", () => {
             const baseLanguage = this.baseLanguageSelect.value;
@@ -100,7 +100,6 @@ class LocalizedForm {
                     true
                 );
             });
-
 
     }
 
@@ -276,17 +275,32 @@ class LocalizedForm {
     }
 
     async fetchPechaOptions(filterBy) {
-        let body = { filter: {} };
+        let body = {filter: {} };
+        const filters = {
+            "commentary_of": {
+                "and": [
+                    { "field": "commentary_of", "operator": "==", "value": null },
+                    { "field": "translation_of", "operator": "==", "value": null }
+                ]
+            },
+            "version_of": {
+                "and": [
+                    { "field": "commentary_of", "operator": "==", "value": null },
+                    { "field": "version_of", "operator": "==", "value": null },
+                    { "field": "translation_of", "operator": "==", "value": null }
+                ]
+            },
+            "translation_of": {
+                "field": "language",
+                "operator": "==",
+                "value": "bo"
+            }
+        };
 
-        if (filterBy === "commentary_of") {
-            body.filter = {"and":[{"field":"commentary_of","operator":"==","value":null},{"field":"translation_of","operator":"==","value":null}]};
-        } else if (filterBy === "version_of") {
-            body.filter = { "and": [{ "field": "commentary_of", "operator": "==", "value": null }, { "field": "version_of", "operator": "==", "value": null }, {"field":"translation_of", "operator":"==","value":null}] };
-        } else if (filterBy === "translation_of") {
-            body.filter = { "field": "language", "operator": "==", "value": "bo" };
-        }
+        body.filter = filters[filterBy] || {};
 
         try {
+            this.handleSpinner(this.pechaOptionsContainer, true);
             const response = await fetch(`${this.API_ENDPOINT}/metadata/filter/`, {
                 method: 'POST',
                 headers: {
@@ -299,24 +313,18 @@ class LocalizedForm {
                 throw new Error(`Failed to fetch data: ${response.statusText}`);
             }
             const pechas = await response.json();
-            console.log("Pecha options:", pechas);
-
-            // Clear existing options, keep the first "Select pecha" option
-            while (this.pechaOptions.options.length > 1) {
-                this.pechaOptions.remove(1);
-            }
-
-            pechas.forEach((pecha) => {
-                const option = document.createElement("option");
-                option.value = pecha.id;
-                option.textContent = `(${pecha.id}) ${pecha.title}`;
-                this.pechaOptions.appendChild(option);
-            });
-            console.log("Dropdowns populated successfully.");
+            this.handleSpinner(this.pechaOptionsContainer, false);
+            this.updatePechaOptions(pechas)
         } catch (error) {
+            this.handleSpinner(this.pechaOptionsContainer, false);
             console.error("Error loading pecha options:", error);
             alert("Unable to load pecha options. Please try again later.");
         }
+    }
+
+    updatePechaOptions(pechas) {
+        this.pechaOptionsContainer.innerHTML = "";
+        new CustomSearchableDropdown(this.pechaOptionsContainer, pechas, "selectedPecha" );
     }
 
     async fetchLanguages() {
@@ -335,7 +343,6 @@ class LocalizedForm {
             }
 
             const data = await response.json();
-            // console.log("languages ::",data);
             return data;
         } catch (error) {
             console.error('Error fetching languages:', error);
@@ -409,8 +416,9 @@ class LocalizedForm {
 
         // Collect document type and pecha
         const selectedType = document.querySelector('input[name="documentType"]:checked');
-        if (selectedType && this.pechaOptions.value) {
-            metadata[selectedType.value] = this.pechaOptions.value
+        this.selectedPecha = document.getElementById("selectedPecha");
+        if (selectedType && this.selectedPecha.dataset.value) {
+            metadata[selectedType.value] = this.selectedPecha.dataset.value;
         }
         // Collect Google Docs id 
         metadata.document_id = this.extractDocIdFromLink(document.querySelector('input[placeholder="Google docs URL"]').value);
@@ -480,7 +488,6 @@ class LocalizedForm {
     }
 
     extractDocIdFromLink(docLink) {
-        console.log("doc link ", docLink);
         // Typical Docs link: https://docs.google.com/document/d/<DOC_ID>/edit
         // We want the <DOC_ID> after "/d/" and before "/edit"
         const regex = /\/d\/([^/]+)/;
@@ -587,6 +594,15 @@ class LocalizedForm {
                     alert("Failed to copy text. Please try again.");
                 });
     }
+
+    handleSpinner(parentNode, show) {
+        parentNode.innerHTML = '';
+        const spinner = document.createElement('div');
+        spinner.className = 'spinner';
+        spinner.style.display = show ? 'inline-block' : 'none';
+        parentNode.appendChild(spinner);
+    }
+
     showToast(message, type) {
         const toastContainer = document.getElementById('toastContainer');
         const toast = document.createElement('div');
@@ -645,7 +661,6 @@ class LocalizedForm {
 
         // Hide and reset pecha options
         this.pechaOptionsContainer.classList.remove('visible');
-        this.pechaOptions.value = '';
 
         // Clear any error states
         this.clearErrors();
@@ -656,4 +671,4 @@ class LocalizedForm {
 }
 
 // Initialize the form
-new LocalizedForm();
+document.addEventListener('DOMContentLoaded', () => new LocalizedForm());

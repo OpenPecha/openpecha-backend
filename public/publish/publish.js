@@ -2,6 +2,7 @@ class UpdateMetaData {
     constructor() {
         this.elements = {
             form: document.getElementById('publishForm'),
+            pechaOptionsContainer: document.getElementById('pechaOptionsContainer'),
             pechaSelect: document.getElementById('pechaOptions'),
             publishButton: document.getElementById('publishButton'),
             toastContainer: document.getElementById('toastContainer'),
@@ -10,13 +11,17 @@ class UpdateMetaData {
 
         this.API_ENDPOINT = 'https://api-aq25662yyq-uc.a.run.app';
         this.isLoading = false;
-        this.setupEventListeners();
         this.fetchPechaOptions();
+        this.setupEventListeners();
         this.showInitialMetadataState();
     }
     
     setupEventListeners() {
-        this.elements.pechaSelect.addEventListener('change', () => this.handlePechaSelect());
+
+        // Listen for changes on the custom dropdown
+        this.elements.pechaOptionsContainer.addEventListener('customDropdownChange', () => {
+            this.handlePechaSelect();
+        });
 
         this.elements.form.addEventListener('submit', (e) => {
             e.preventDefault();
@@ -77,22 +82,9 @@ class UpdateMetaData {
     }
 
 
-    async handlePechaSelect() {
-        const pechaId = this.elements.pechaSelect.value;
-
-        if (!pechaId) {
-            console.log("No pechaId selected");
-            return;
-        }
-
-        try {
-            const metadata = await this.fetchMetadata(pechaId);
-            console.log('Metadata received:', metadata);
-            // You can now use the metadata as needed
-        } catch (error) {
-            console.error('Error in handlePechaSelect:', error);
-            this.showToast('Unable to fetch metadata. Please try again later.', 'error');
-        }
+    updatePechaOptions(pechas) {
+        this.elements.pechaSelect.style.display = 'none';
+        new CustomSearchableDropdown(this.elements.pechaOptionsContainer, pechas, "selectedPecha");
     }
 
     async fetchMetadata(pechaId) {
@@ -196,7 +188,8 @@ class UpdateMetaData {
     }
 
     async handlePechaSelect() {
-        const pechaId = this.elements.pechaSelect.value;
+        this.selectedPecha = document.getElementById("selectedPecha");
+        const pechaId = this.selectedPecha.dataset.value;
 
         if (!pechaId) {
             this.showInitialMetadataState();
@@ -213,27 +206,11 @@ class UpdateMetaData {
             this.showErrorState('Failed to load metadata. Please try again.');
         }
     }
-    
-    updatePechaOptions(pechas) {
-        // Clear existing options except the first one
-        this.elements.pechaSelect.innerHTML = '<option value="">Select pecha</option>';
 
-        // Use DocumentFragment for better performance
-        const fragment = document.createDocumentFragment();
-
-        pechas.forEach(({ id, title }) => {
-            const option = document.createElement('option');
-            option.value = id;
-            option.textContent = `(${id}) ${title}`;
-            fragment.appendChild(option);
-        });
-
-        this.elements.pechaSelect.appendChild(fragment);
-    }
 
     validateFields() {
-        const publishTextId = this.elements.pechaSelect.value.trim();
-
+        this.selectedPecha = document.getElementById("selectedPecha");
+        const publishTextId = this.selectedPecha.dataset.value;
         if (!publishTextId) {
             this.showToast('Please select the published text', 'warning');
             return false;
@@ -281,6 +258,7 @@ class UpdateMetaData {
         this.elements.toastContainer.innerHTML = '';
     }
 }
+
 
 
 document.addEventListener('DOMContentLoaded', () => new UpdateMetaData());

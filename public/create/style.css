@@ -188,6 +188,7 @@ body {
     height: 12px;
     border-width: 2px;
 }
+
 .spinner {
     width: 24px;
     height: 24px;
@@ -317,7 +318,7 @@ select.error {
 }
 
 #pechaOptionsContainer {
-    display: none;
+    display: block;
     margin-top: var(--spacing-lg);
 }
 
