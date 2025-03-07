@@ -159,6 +159,56 @@ paths:
                 properties:
                   error:
                     type: string
+    delete:
+      summary: Delete a Pecha
+      description: Deletes a Pecha from the database.
+      tags:
+        - Pecha
+      parameters:
+        - name: pecha_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the Pecha to be deleted.
+      responses:
+        "200":
+          description: Pecha deleted successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    examples:
+                      - I857977C3
+                  message:
+                    type: string
+                    examples:
+                      - Pecha deleted successfully
+        "404":
+          description: Pecha not found.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    examples:
+                      - Pecha I857977C3 not found
+        "500":
+          description: Internal server error if deleting the Pecha fails.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    examples:
+                      - "Failed to delete pecha: Internal error"
   /pecha/{pecha_id}/publish:
     post:
       summary: Publish a Pecha to Pecha.org
@@ -550,17 +600,12 @@ paths:
                 properties:
                   message:
                     type: string
-                  pecha_id:
+                    examples:
+                      - Pecha updated successfully
+                  id:
                     type: string
-                  metadata:
-                    type: object
-                    additionalProperties: true
-              examples:
-                success:
-                  summary: Pecha updated successfully
-                  description: The Pecha was updated with the uploaded DOCX file.
-                  value:
-                    message: "Pecha updated successfully"
+                    examples:
+                      - I857977C3
         "400":
           description: Bad request due to missing or invalid DOCX file.
           content:
@@ -570,17 +615,8 @@ paths:
                 properties:
                   error:
                     type: string
-              examples:
-                missing_docx:
-                  summary: Missing docx file
-                  description: No file was provided in the request.
-                  value:
-                    error: "Missing required 'docx' parameter"
-                invalid_docx:
-                  summary: Invalid DOCX file format
-                  description: The uploaded file is not a valid DOCX format.
-                  value:
-                    error: "Invalid file format: Expected a DOCX file"
+                    examples:
+                      - "Missing required 'docx' parameter"
         "404":
           description: Pecha metadata not found.
           content:
@@ -590,12 +626,8 @@ paths:
                 properties:
                   error:
                     type: string
-              examples:
-                metadata_not_found:
-                  summary: Pecha metadata not found
-                  description: The Pecha ID does not exist in DB.
-                  value:
-                    error: "Metadata not found"
+                    examples:
+                      - "Pecha metadata not found"
         "500":
           description: Internal server error if updating the Pecha fails.
           content:
@@ -605,14 +637,5 @@ paths:
                 properties:
                   error:
                     type: string
-              examples:
-                retrieval_error:
-                  summary: Failed to retrieve metadata
-                  description: An error occurred while retrieving Pecha metadata.
-                  value:
-                    error: "Failed to retrieve metadata: Internal error"
-                processing_error:
-                  summary: Failed to process docx file
-                  description: The uploaded docx file could not be processed.
-                  value:
-                    error: "An unexpected processing error occurred."
+                    examples:
+                      - "Failed to update Pecha: Internal error"
