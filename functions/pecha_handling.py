@@ -16,10 +16,6 @@ from werkzeug.datastructures import FileStorage
 logger = logging.getLogger(__name__)
 
 
-# def db_get_alignment(pecha_id: str) -> dict[str, Any]:
-#     return db.collection("alignment").document(pecha_id).get().to_dict()
-
-
 def db_get_metadata(pecha_id: str) -> dict[str, Any]:
     return db.collection("metadata").document(pecha_id).get().to_dict()
 
@@ -90,7 +86,6 @@ def parse(docx_file: FileStorage, metadata: dict[str, Any], pecha_id: str | None
 
 
 def serialize(pecha: Pecha) -> dict[str, Any]:
-    # alignment = db_get_alignment(pecha_id=pecha.id)
     metadata = db_get_metadata(pecha_id=pecha.id)
 
     id_metadata_chain = get_id_metadata_chain(pecha_id=pecha.id, metadata=metadata)
@@ -133,6 +128,7 @@ def process_pecha(
     storage = Storage()
 
     try:
+        storage.store_pecha_doc(pecha_id=pecha.id, doc=text.stream)
         storage.store_pecha_opf(pecha)
     except Exception as e:
         logger.error("Error saving Pecha to storage: %s", e)
@@ -147,16 +143,10 @@ def process_pecha(
             transaction.set(doc_ref_metadata, metadata)
             logger.info("Metadata saved to DB: %s", pecha.id)
 
-            # if alignment:
-            #     logger.info("Saving alignment to DB: %s", json.dumps(alignment))
-            #     transaction.set(doc_ref_alignment, alignment)
-
-            # logger.info("Alignment saved to DB: %s", pecha.id)
-
     except Exception as e:
         logger.error("Error saving to DB: %s", e)
         try:
-            storage.rollback_pecha_opf(pecha_id=pecha.id)
+            storage.delete_pecha_opf(pecha_id=pecha.id)
         except Exception as rollback_error:
             logger.error("Rollback failed: %s", rollback_error)
 

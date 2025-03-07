@@ -159,6 +159,48 @@ paths:
                 properties:
                   error:
                     type: string
+    delete:
+      summary: Delete a Pecha
+      description: Deletes a Pecha from the database.
+      tags:
+        - Pecha
+      parameters:
+        - name: pecha_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the Pecha to be deleted.
+      responses:
+        "200":
+          description: Pecha deleted successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - Pecha deleted successfully
+        "404":
+          description: Pecha not found.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+        "500":
+          description: Internal server error if deleting the Pecha fails.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
   /pecha/{pecha_id}/publish:
     post:
       summary: Publish a Pecha to Pecha.org

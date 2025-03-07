@@ -1,10 +1,8 @@
 import json
 import logging
-import os
 
 from api.text import validate_file
 from firebase_config import db
-from firebase_functions.params import SecretParam
 from flask import Blueprint, jsonify, request, send_file
 from metadata_model import MetadataModel
 from pecha_handling import process_pecha, retrieve_pecha, serialize
@@ -84,6 +82,27 @@ def get_pecha(pecha_id: str):
         return jsonify({"error": f"Failed to get Pecha {pecha_id}: {str(e)}"}), 500
 
 
+@pecha_bp.route("/<string:pecha_id>", methods=["DELETE"], strict_slashes=False)
+def delete_pecha(pecha_id: str):
+    doc_ref = db.collection("metadata").document(pecha_id)
+    if not doc_ref.get().exists:
+        return jsonify({"error": f"Pecha {pecha_id} not found"}), 404
+
+    try:
+        storage = Storage()
+        storage.delete_pecha_doc(pecha_id=pecha_id)
+        storage.delete_pecha_opf(pecha_id=pecha_id)
+        storage.delete_pechaorg_json(pecha_id=pecha_id)
+    except Exception as e:
+        logger.warning("Failed to delete Pecha %s: %s", pecha_id, e)
+
+    try:
+        doc_ref.delete()
+        return jsonify({"message": "Pecha deleted successfully", "id": pecha_id}), 200
+    except Exception as e:
+        return jsonify({"error": f"Failed to delete Pecha {pecha_id}: {str(e)}"}), 500
+
+
 @pecha_bp.route("/<string:pecha_id>/publish", methods=["POST"], strict_slashes=False)
 def publish(pecha_id: str):
     try:
@@ -98,11 +117,6 @@ def publish(pecha_id: str):
 
         Storage().store_pechaorg_json(pecha_id=pecha_id, json_dict=serialized)
         logger.info("Successfully saved Pecha %s to storage", pecha_id)
-
-        # set_api_key(SecretParam("PECHA_API_KEY").value)
-
-        if not os.getenv("PECHA_API_KEY"):
-            os.environ["PECHA_API_KEY"] = SecretParam("PECHA_API_KEY").value
 
         upload(text=serialized, destination_url=Destination_url.STAGING, overwrite=True)
 

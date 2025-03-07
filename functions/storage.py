@@ -3,7 +3,7 @@ import logging
 import shutil
 import tempfile
 from pathlib import Path
-from typing import Any
+from typing import IO, Any
 
 from firebase_admin import storage
 from openpecha.pecha import Pecha
@@ -17,13 +17,32 @@ class Storage:
 
     def store_pechaorg_json(self, pecha_id: str, json_dict: dict[str, Any]) -> str:
         json_str = json.dumps(json_dict)
-        return self._upload(Storage._pechaorg_json_path(pecha_id=pecha_id), json_str=json_str)
+
+        blob = self.bucket.blob(Storage._pechaorg_json_path(pecha_id))
+        blob.upload_from_string(json_str, content_type="application/json")
+        blob.make_public()
+        logger.info("Uploaded to storage: %s", blob.public_url)
+
+        return blob.public_url
 
     def store_pecha_opf(self, pecha: Pecha) -> str:
         zip_path = f"{pecha.id}.zip"
         shutil.make_archive(pecha.id, "zip", pecha.pecha_path)
 
-        return self._upload(storage_path=Storage._pecha_opf_path(pecha_id=pecha.id), file_path=zip_path)
+        blob = self.bucket.blob(Storage._pecha_opf_path(pecha_id=pecha.id))
+        blob.upload_from_filename(zip_path)
+        blob.make_public()
+        logger.info("Uploaded to storage: %s", blob.public_url)
+
+        return blob.public_url
+
+    def store_pecha_doc(self, pecha_id: str, doc: IO[bytes]) -> str:
+        blob = self.bucket.blob(Storage._pecha_doc_path(pecha_id))
+        blob.upload_from_file(doc)
+        blob.make_public()
+        logger.info("Uploaded to storage: %s", blob.public_url)
+
+        return blob.public_url
 
     def retrieve_pechaorg_json(self, pecha_id: str) -> dict[str, Any]:
         json_bytes = self._get_file(Storage._pechaorg_json_path(pecha_id))
@@ -37,11 +56,14 @@ class Storage:
 
         return zip_path
 
-    def rollback_pechaorg_json(self, pecha_id: str):
-        self._rollback(f"pechaorg/{pecha_id}.json")
+    def delete_pechaorg_json(self, pecha_id: str):
+        self._delete(Storage._pechaorg_json_path(pecha_id))
 
-    def rollback_pecha_opf(self, pecha_id: str):
-        self._rollback(f"opf/{pecha_id}.zip")
+    def delete_pecha_opf(self, pecha_id: str):
+        self._delete(Storage._pecha_opf_path(pecha_id))
+
+    def delete_pecha_doc(self, pecha_id: str):
+        self._delete(Storage._pecha_doc_path(pecha_id))
 
     def pechaorg_json_exists(self, pecha_id: str) -> bool:
         return self._file_exists(Storage._pechaorg_json_path(pecha_id))
@@ -57,24 +79,14 @@ class Storage:
     def _pechaorg_json_path(pecha_id: str) -> str:
         return f"pechaorg/{pecha_id}.json"
 
-    def _rollback(self, storage_path):
+    @staticmethod
+    def _pecha_doc_path(pecha_id: str) -> str:
+        return f"doc/{pecha_id}.docx"
+
+    def _delete(self, storage_path):
         blob = self.bucket.blob(storage_path)
         blob.delete()
         logger.info("Rolled back: %s", blob.name)
-
-    def _upload(self, storage_path: str, json_str=None, file_path=None) -> str:
-        blob = self.bucket.blob(storage_path)
-
-        if json_str:
-            blob.upload_from_string(json_str, content_type="application/json")
-        elif file_path:
-            blob.upload_from_filename(file_path)
-        else:
-            raise ValueError("Either content or file_path must be provided")
-
-        blob.make_public()
-        logger.info("Uploaded to storage: %s", blob.public_url)
-        return blob.public_url
 
     def _get_file(self, storage_path: str) -> bytes:
         blob = self.bucket.blob(storage_path)
