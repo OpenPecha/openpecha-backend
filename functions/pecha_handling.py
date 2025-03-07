@@ -113,7 +113,9 @@ def serialize(pecha: Pecha) -> dict[str, Any]:
     return Serializer().serialize(pechas=pecha_chain, metadatas=metadata_chain)
 
 
-def process_pecha(text: FileStorage, metadata: dict[str, Any]) -> tuple[str | None, str | None]:
+def process_pecha(
+    text: FileStorage, metadata: dict[str, Any], pecha_id: str | None = None
+) -> tuple[str | None, str | None]:
     """
     Handles Pecha processing: parsing, alignment, serialization, storage, and database transactions.
 
@@ -122,11 +124,9 @@ def process_pecha(text: FileStorage, metadata: dict[str, Any]) -> tuple[str | No
         - `("Error message", None)` if an error occurs.
     """
     try:
-        pecha = parse(text, metadata)
+        pecha = parse(docx_file=text, metadata=metadata, pecha_id=pecha_id)
 
         logger.info("Pecha created: %s %s", pecha.id, pecha.pecha_path)
-
-        # alignment = get_pecha_alignment_data(pecha)
     except Exception as e:
         return f"Could not process metadata {str(e)}", None
 

@@ -5,6 +5,8 @@ from firebase_config import db
 from flask import Blueprint, jsonify, request
 from google.cloud.firestore_v1.base_query import FieldFilter, Or
 from metadata_model import MetadataModel
+from pecha_handling import retrieve_pecha
+from storage import Storage
 
 metadata_bp = Blueprint("metadata", __name__)
 
@@ -36,6 +38,13 @@ def put_metadata(pecha_id: str):
 
         metadata = MetadataModel.model_validate(metadata_json)
         logger.info("Parsed metadata: %s", metadata.model_dump_json())
+
+        pecha = retrieve_pecha(pecha_id)
+        pecha.set_metadata(metadata.model_dump())
+
+        Storage().store_pecha_opf(pecha)
+
+        logger.info("Updated Pecha stored successfully")
 
         doc_ref = db.collection("metadata").document(pecha_id)
         doc = doc_ref.get()

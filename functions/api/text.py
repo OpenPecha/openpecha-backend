@@ -51,7 +51,7 @@ def put_text(pecha_id: str):
     except Exception as e:
         return jsonify({"error": f"Failed to retrieve metadata: {str(e)}"}), 500
 
-    error_message, _ = process_pecha(text=text, metadata=metadata)
+    error_message, _ = process_pecha(text=text, metadata=metadata, pecha_id=pecha_id)
 
     if error_message:
         return jsonify({"error": error_message}), 500

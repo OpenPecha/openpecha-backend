@@ -4,6 +4,6 @@ Flask==3.1.0
 functions-framework==3.8.2
 jsonschema==4.23.0
 mock-firestore-plus==0.12.0
-openpecha @ git+https://github.com/OpenPecha/toolkit-v2.git@4cf63e8a56ad2a4279a560af52603783063ebe44
+openpecha @ git+https://github.com/OpenPecha/toolkit-v2.git@ec897f0c9a453be77405bda604e010b57d0466dc
 pecha_uploader @ git+https://github.com/OpenPecha/pecha_uploader.git@606749da960741f36913f86e9fc16a7c0222657b
 google-cloud-logging==3.11.4
