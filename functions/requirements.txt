@@ -5,5 +5,5 @@ functions-framework==3.8.2
 jsonschema==4.23.0
 mock-firestore-plus==0.12.0
 openpecha @ git+https://github.com/OpenPecha/toolkit-v2.git@25de3cbfd867e7874d07b45f607987761d92e67f
-pecha_uploader @ git+https://github.com/OpenPecha/pecha_uploader.git@606749da960741f36913f86e9fc16a7c0222657b
+pecha_uploader @ git+https://github.com/OpenPecha/pecha_uploader.git@b763bf9cea940493b71a0838f8b0e2ceb2490165
 google-cloud-logging==3.11.4
