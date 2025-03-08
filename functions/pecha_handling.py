@@ -128,7 +128,9 @@ def process_pecha(
     storage = Storage()
 
     try:
-        storage.store_pecha_doc(pecha_id=pecha.id, doc=text.stream)
+        stream = text.stream
+        stream.seek(0)
+        storage.store_pecha_doc(pecha_id=pecha.id, doc=stream)
         storage.store_pecha_opf(pecha)
     except Exception as e:
         logger.error("Error saving Pecha to storage: %s", e)

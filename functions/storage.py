@@ -26,8 +26,8 @@ class Storage:
         return blob.public_url
 
     def store_pecha_opf(self, pecha: Pecha) -> str:
-        zip_path = f"{pecha.id}.zip"
-        shutil.make_archive(pecha.id, "zip", pecha.pecha_path)
+        path = Path(tempfile.gettempdir()) / pecha.id
+        zip_path = shutil.make_archive(str(path), "zip", pecha.pecha_path)
 
         blob = self.bucket.blob(Storage._pecha_opf_path(pecha_id=pecha.id))
         blob.upload_from_filename(zip_path)
