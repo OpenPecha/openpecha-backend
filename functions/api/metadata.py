@@ -21,7 +21,13 @@ def get_metadata(pecha_id):
         if not doc.exists:
             return jsonify({"error": "Metadata not found"}), 404
 
-        return jsonify(doc.to_dict()), 200
+        response = jsonify(doc.to_dict())
+
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+
+        return response, 200
 
     except Exception as e:
         return jsonify({"error": f"Failed to retrieve metadata: {str(e)}"}), 500

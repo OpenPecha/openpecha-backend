@@ -70,12 +70,18 @@ def get_pecha(pecha_id: str):
         storage = Storage()
         opf_path = storage.retrieve_pecha_opf(pecha_id=pecha_id)
 
-        return send_file(
+        response = send_file(
             opf_path,
             mimetype="application/zip",
             as_attachment=True,
             download_name=f"{pecha_id}.zip",
         )
+
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+
+        return response
     except FileNotFoundError:
         return jsonify({"error": f"Pecha {pecha_id} not found"}), 404
     except Exception as e:
