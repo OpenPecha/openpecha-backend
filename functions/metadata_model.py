@@ -29,7 +29,14 @@ class MetadataModel(BaseModel):
         description="Dictionary with language codes as keys and corresponding strings as values",
     )
     date: str | None = Field(None, pattern="\\S")
-    source: AnyUrl
+    source: str | None = Field(
+        None,
+        description="An optional string describing the source of this Pecha",
+    )
+    source_url: AnyUrl | None = Field(
+        None,
+        description="An optional URL pointing to the source of this Pecha",
+    )
     document_id: str = Field(..., pattern="\\S")
     presentation: LocalizedString | None = Field(
         None,
@@ -79,7 +86,7 @@ class MetadataModel(BaseModel):
                         "en": ("Illuminating the Intent Chapter 6, verses 1 to 64 Literal Translation, Monlam AI")
                     },
                     "presentation": {"en": ""},
-                    "source": "https://docs.google.com/document/d/1vgnfCQH3yaWPDaMDFXT_5GhlG0M9kEra0mxkDX46VLE",
+                    "source_url": "https://docs.google.com/document/d/1vgnfCQH3yaWPDaMDFXT_5GhlG0M9kEra0mxkDX46VLE",
                     "title": {
                         "bo": "དགོངས་པ་རབ་གསལ་ལས་སེམས་བསྐྱེད་དྲུག་པ། ཤོ་ལོ་ཀ ༡ ནས་ ༦༤",
                         "en": "Illuminating the Intent Chapter 6",
@@ -90,9 +97,9 @@ class MetadataModel(BaseModel):
         },
     )
 
-    @field_serializer("source")
-    def serialize_url(self, source: AnyUrl):
-        return str(source)
+    @field_serializer("source_url")
+    def serialize_url(self, source_url: AnyUrl):
+        return str(source_url)
 
     @model_validator(mode="after")
     def check_mutually_exclusive_fields(self):
@@ -106,5 +113,9 @@ class MetadataModel(BaseModel):
 
         if len(non_null_fields) > 1:
             raise ValueError(f"Only one of {list(exclusive_fields.keys())} can be set. Found: {non_null_fields}")
+
+        # Ensure that at least one of source or source_url is set
+        if not self.source and not self.source_url:
+            raise ValueError("Either 'source' or 'source_url' must be provided.")
 
         return self
