@@ -55,8 +55,8 @@
               <label>Era: </label>
               <select id="eraSelect" class="era-select">
                 <option value="Standard">Standard</option>
-                <option value="BC">BC</option>
-                <option value="AD">AD</option>
+                <option value="BCE">BCE</option>
+                <option value="CE">CE</option>
               </select>
             </div>
 
@@ -64,7 +64,11 @@
               <div class="calendar-header">
                 <button type="button" id="prevYear">◄◄</button>
                 <button type="button" id="prevMonth">◄</button>
-                <span id="currentMonth">January 2024</span>
+                <!-- <span id="currentMonth">January 2024</span> -->
+                 <div class="month-year-container">
+                  <span id="currentMonth">January 2024</span>
+                  <input class="year-select-input" aria-label="Select Year" type="number" min="1" max="9999" id="yearInput"/>
+                 </div>
                 <button type="button" id="nextMonth">►</button>
                 <button type="button" id="nextYear">►►</button>
               </div>
@@ -76,14 +80,22 @@
 
             <div id="historicalPicker" class="hidden">
               <div class="year-selector">
-                <label>Year: </label>
+                <label>From: </label>
                 <input
                   type="number"
-                  id="historicalYearInput"
+                  id="historicalYearStart"
+                  class="year-input"
+                  min="1"
+                />
+                 <label>To: </label>
+                <input
+                  type="number"
+                  id="historicalYearEnd"
                   class="year-input"
                   min="1"
                 />
               </div>
+              <span class="historical-year-note">*for specific year only enter from year</span>
             </div>
           </div>
         </div>

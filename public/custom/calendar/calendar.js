@@ -3,7 +3,8 @@ class HistoricalDatePicker {
         this.currentDate = new Date();
         this.selectedDate = null;
         this.era = 'Standard';
-        this.historicalYear = null;
+        this.historicalStart = null;
+        this.historicalEnd = null;
         this.initializeElements();
         this.addEventListeners();
         this.renderCalendar();
@@ -17,9 +18,11 @@ class HistoricalDatePicker {
         this.prevMonthBtn = document.getElementById('prevMonth');
         this.nextMonthBtn = document.getElementById('nextMonth');
         this.currentMonthElement = document.getElementById('currentMonth');
+        this.yearSelectInput = document.getElementById("yearInput");
         this.calendarGrid = document.getElementById('calendarGrid');
         this.selectedDateElement = document.getElementById('selectedDate');
-        this.historicalYearInput = document.getElementById('historicalYearInput');
+        this.historicalYearStart = document.getElementById('historicalYearStart');
+        this.historicalYearEnd = document.getElementById('historicalYearEnd');
         this.standardPicker = document.getElementById('standardPicker');
         this.historicalPicker = document.getElementById('historicalPicker');
     }
@@ -33,19 +36,40 @@ class HistoricalDatePicker {
         this.prevMonthBtn.addEventListener('click', () => this.changeMonth(-1));
         this.nextMonthBtn.addEventListener('click', () => this.changeMonth(1));
 
+        // Add year input event listener
+        this.yearSelectInput.addEventListener('change', () => {
+            const year = parseInt(this.yearSelectInput.value);
+            if (!isNaN(year) && year > 0 && year < 10000) {
+                this.currentDate.setFullYear(year);
+                this.renderCalendar();
+            } else {
+                // Reset to current value if invalid
+                this.yearSelectInput.value = this.currentDate.getFullYear();
+            }
+        });
+
+        // Prevent calendar from closing when clicking on year input
+        this.yearSelectInput.addEventListener('click', (event) => {
+            event.stopPropagation();
+        });
+
         this.eraSelect.addEventListener('change', () => {
             this.era = this.eraSelect.value;
             this.updatePickerVisibility();
             this.updateDateDisplay();
         });
 
-        this.historicalYearInput.addEventListener('change', () => {
-            const year = parseInt(this.historicalYearInput.value);
-            if (!isNaN(year)) {
-                this.historicalYear = year;
-                this.updateDateDisplay();
-                this.datePickerContainer.classList.remove('open');
-            }
+        this.historicalYearStart.addEventListener('change', (event) => {
+            const year = parseInt(this.historicalYearStart.value);
+            this.historicalStart = !isNaN(year) ? year : 0;
+            this.updateDateDisplay();
+            this.datePickerContainer.classList.remove('open');
+        });
+        this.historicalYearEnd.addEventListener('change', (event) => {
+            const year = parseInt(this.historicalYearEnd.value);
+            this.historicalEnd = !isNaN(year) ? year : 0;
+            this.updateDateDisplay();
+            this.datePickerContainer.classList.remove('open');
         });
     }
 
@@ -87,7 +111,8 @@ class HistoricalDatePicker {
         // Update month/year display
         const monthNames = ['January', 'February', 'March', 'April', 'May', 'June',
             'July', 'August', 'September', 'October', 'November', 'December'];
-        this.currentMonthElement.textContent = `${monthNames[month]} ${year}`;
+        this.currentMonthElement.textContent = `${monthNames[month]}`;
+        this.yearSelectInput.value = year;
 
         const firstDay = new Date(year, month, 1);
         const lastDay = new Date(year, month + 1, 0);
@@ -130,9 +155,9 @@ class HistoricalDatePicker {
             const month = this.selectedDate.getMonth() + 1;
             const year = this.selectedDate.getFullYear();
             this.selectedDateElement.textContent = `${year}-${month.toString().padStart(2, '0')}-${day.toString().padStart(2, '0')}`;
-        } else if ((this.era === 'BC' || this.era === 'AD') && this.historicalYear) {
+        } else if ((this.era === 'BCE' || this.era === 'CE') && this.historicalStart) {
             this.selectedDateElement.textContent =
-                `${this.historicalYear} ${this.era}`;
+                `${this.historicalStart}${this.historicalEnd ? "-" + this.historicalEnd : ""} ${this.era}`;
         } else {
             this.selectedDateElement.textContent = 'No date selected';
         }

@@ -91,7 +91,43 @@
     border-radius: 3px;
     outline: none;
 }
+.month-year-container {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
 
+.year-select-input {
+    width: 70px;
+    padding: 2px 4px;
+    border: 1px solid #ccc;
+    border-radius: 4px;
+    text-align: center;
+    font-size: 14px;
+}
+
+.year-select-input:focus {
+    outline: 1px solid #007bff;
+    border-color: #007bff;
+}
+
+.historical-year-note{
+    width: 100%;
+    color:rgb(245, 77, 77);
+    font-size: 12px;
+    float: right;
+}
 .hidden {
     display: none;
+}
+
+input[type="number"] {
+    -moz-appearance: textfield;
+    /* Firefox */
+}
+
+input[type="number"]::-webkit-inner-spin-button,
+input[type="number"]::-webkit-outer-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
 }

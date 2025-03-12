@@ -92,7 +92,6 @@ class LocalizedForm {
         document
             .querySelectorAll(".form-group[data-field]")
             .forEach((group) => {
-                console.log(":::v", group);
                 const localizationsDiv = group.querySelector(".localizations");
                 if (group.dataset.field !== "title") {
                     localizationsDiv.innerHTML = ""; // Clear existing
