@@ -71,6 +71,16 @@ select {
     transition: border-color 0.3s ease;
 }
 
+.radio-group {
+    display: flex;
+    gap: 16px;
+    margin-bottom: 8px;
+}
+.radio-group label {
+    font-weight: normal;
+    cursor: pointer;
+}
+
 /* Button styles */
 .publish-button {
     display: flex;
