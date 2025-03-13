@@ -273,7 +273,7 @@ select.error {
     border: 1px solid var(--color-border);
     box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
     border-radius: 5px;
-    
+    z-index: 1000;
 }
 
 .popup-container .close-popup{
@@ -299,12 +299,25 @@ select.error {
 [data-field="title"] label::after,
 [data-field="long_title"] label::after,
 .base-language label::after,
-.source-url label::after,
 .document-id label::after {
     content: " *";
     color: var(--color-error);
 }
 
+.source-url label::after,
+.source label::after {
+    content: " **";
+    color: var(--color-error);
+}
+.condition-message{
+    text-align: right;
+ margin-top: var(--spacing-sm);
+ font-size: 12px;
+}
+.condition-message:before{
+    content: "** ";
+    color: var(--color-error);
+}
 /* Visibility utilities */
 .form-content {
     display: none;

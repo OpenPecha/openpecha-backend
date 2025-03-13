@@ -103,7 +103,14 @@
         <div class="form-group source-url">
           <label>Source URL</label>
           <div class="input-wrapper">
-            <input type="url" placeholder="https://example.com" />
+            <input type="url" placeholder="https://example.com" id="sourceUrl"/>
+          </div>
+        </div>
+
+        <div class="form-group source">
+          <label>Source</label>
+          <div class="input-wrapper">
+            <input type="text" placeholder="Enter source" id="source"/>
           </div>
         </div>
 
@@ -208,10 +215,11 @@
         </div>
 
         <button type="button" id="createButton" class="create-button">
-          <span class="create-button-text">Submit</span>
+          <span class="create-button-text">Create</span>
           <div class="spinner"></div>
         </button>
       </form>
+      <div class="condition-message">One of them is required</div>
     </div>
 
     <script src="script.js"></script>
