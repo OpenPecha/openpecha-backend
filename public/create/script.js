@@ -9,6 +9,8 @@ class LocalizedForm {
         this.copyPechaIdButton = document.getElementById("copyPechaId");
         this.formContent = document.getElementById("formContent");
         this.formGroups = document.querySelectorAll(".form-group");
+        this.sourceUrl = document.getElementById("sourceUrl");
+        this.source = document.getElementById("source");
         this.addAltTitleButton = document.getElementById("addAltTitle");
         this.pechaOptionsContainer = document.getElementById(
             "pechaOptionsContainer"
@@ -47,6 +49,8 @@ class LocalizedForm {
             const altTitles = document.getElementById("alt-titles");
             altTitles.innerHTML = "";
         });
+        this.sourceUrl.addEventListener("input", this.handleSourceInput.bind(this));
+        this.source.addEventListener("input", this.handleSourceInput.bind(this));
         // Add Localization Buttons
         document.querySelectorAll(".add-localization").forEach((button) => {
             button.addEventListener("click", (e) => {
@@ -415,7 +419,8 @@ class LocalizedForm {
         if (selectedDate && selectedDate !== "No date selected") {
             metadata.date = selectedDate;
         }
-        metadata.source = document.querySelector('input[placeholder="https://example.com"]').value;
+        metadata.source_url = this.sourceUrl.value || null;
+        metadata.source = this.source.value || null;
 
         // Collect document type and pecha
         const selectedType = document.querySelector('input[name="documentType"]:checked');
@@ -431,18 +436,49 @@ class LocalizedForm {
 
     validateRequiredFields(metadata) {
         const errors = [];
-
+        function isValidURL(url) {
+            try {
+                new URL(url);
+                return true;
+            } catch (error) {
+                return false;
+            }
+        }
         // Check author in English
         if (!metadata.author) {
             errors.push('author');
             this.highlightError('author');
+            this.showToast("Author is required", "error");
+            return false;
         }
 
-        // Check source URL
-        if (!metadata.source) {
-            errors.push('source');
-            document.querySelector('input[placeholder="https://example.com"]')
-                .closest('.input-wrapper').classList.add('error');
+        // Check source URL and source
+        if (!metadata.source_url && !metadata.source) {
+            errors.push('source_url');
+            this.sourceUrl.closest('.input-wrapper').classList.add('error');
+            this.source.closest('.input-wrapper').classList.add('error');
+            this.showToast("Either Source URL or Source is required", "error");
+            return false
+        } else {
+            // Validate Source URL if provided
+            if (metadata.source_url && !isValidURL(metadata.source_url)) {
+                errors.push('source_url');
+                this.sourceUrl.closest('.input-wrapper').classList.add('error');
+                this.showToast("Invalid URL format", "error");
+                return false
+            } else {
+                this.sourceUrl.closest('.input-wrapper').classList.remove('error');
+            }
+        
+            // Validate Source if provided
+            if (metadata.source && typeof metadata.source !== "string") {
+                errors.push('source');
+                this.source.closest('.input-wrapper').classList.add('error');
+                this.showToast("Source must be a text string", "error");
+                return false
+            } else {
+                this.source.closest('.input-wrapper').classList.remove('error');
+            }
         }
 
         // Check title in English
@@ -450,26 +486,35 @@ class LocalizedForm {
             const fieldIndex = !metadata.title ? 0 : !metadata.title.bo ? 0 : 1;
             errors.push('title');
             this.highlightError('title',fieldIndex);
+            this.showToast("Title is required", "error");
+            return false;
         }
 
         // Check long title in English
         if (!metadata.long_title) {
             errors.push('long_title');
             this.highlightError('long_title');
+            this.showToast("Long title is required", "error");
+            return false;
         }
 
         // Check base language
         if (!metadata.language) {
             errors.push('language');
             this.baseLanguageSelect.classList.add('error');
+            this.showToast("Base language is required", "error");
+            return false;
         }
 
         if (!metadata.document_id) {
             errors.push('document_id');
             document.querySelector('input[placeholder="Google docs URL"]')
                 .closest('.input-wrapper').classList.add('error');
+            this.showToast("Document link is required", "error");
+            return false;
         }
-        return errors.length === 0;
+
+        return true;
     }
 
     highlightError(fieldName, fieldIndex=0) {
@@ -502,10 +547,8 @@ class LocalizedForm {
         try {
             this.clearErrors();
             const metadata = this.collectFormData();
-
-            if (!this.validateRequiredFields(metadata)) {
-                throw new Error('Please fill in all required fields.');
-            }
+            if (!this.validateRequiredFields(metadata)) 
+                return;
 
             if (!metadata.document_id) {
                 throw new Error('Invalid Google Docs link');
@@ -606,6 +649,15 @@ class LocalizedForm {
         parentNode.appendChild(spinner);
     }
 
+    handleSourceInput(event) {
+        if (event.target.value) {
+            if (event.target === this.sourceUrl) {
+                this.source.value = ""; 
+            } else {
+                this.sourceUrl.value = "";
+            }
+        }
+    }
     showToast(message, type) {
         const toastContainer = document.getElementById('toastContainer');
         const toast = document.createElement('div');
