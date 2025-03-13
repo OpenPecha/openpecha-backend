@@ -117,7 +117,7 @@ def publish(pecha_id: str):
     if not pecha_id:
         return jsonify({"error": "Missing Pecha Id"}), 400
     
-    if destination not in ["staging", "main"]:
+    if destination not in ["staging", "production"]:
         return jsonify({"error": "Invalid destination"}), 400
     
     try:
