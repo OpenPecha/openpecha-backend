@@ -212,11 +212,16 @@ class UpdateMetaData {
         this.selectedPecha = document.getElementById("selectedPecha");
         const publishTextId = this.selectedPecha.dataset.value;
         if (!publishTextId) {
-            this.showToast('Please select the published text', 'warning');
+            this.showToast('Please select the published text', 'error');
+            return false;
+        }
+        const publishDestination = document.querySelector('input[name="destination"]:checked')?.value;
+        if(!publishDestination) {
+            this.showToast('Please select the publish destination', 'error');
             return false;
         }
 
-        return { publishTextId };
+        return { publishTextId, publishDestination };
     }
 
     async handlePublish() {
@@ -226,9 +231,13 @@ class UpdateMetaData {
         this.setLoading(true);
 
         try {
-            const { publishTextId } = validatedData;
+            const { publishTextId, publishDestination } = validatedData;
             const response = await fetch(`${this.API_ENDPOINT}/pecha/${publishTextId}/publish`, {
-                method: 'POST'
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ destination: publishDestination })
             });
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
