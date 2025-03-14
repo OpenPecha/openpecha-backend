@@ -309,8 +309,7 @@ class LocalizedForm {
             "version_of": {
                 "and": [
                     { "field": "commentary_of", "operator": "==", "value": null },
-                    { "field": "version_of", "operator": "==", "value": null },
-                    { "field": "translation_of", "operator": "==", "value": null }
+                    { "field": "version_of", "operator": "==", "value": null } 
                 ]
             },
             "translation_of": {
