@@ -124,7 +124,7 @@ def publish(pecha_id: str):
         pecha = retrieve_pecha(pecha_id=pecha_id)
         logger.info("Successfully retrieved Pecha %s from storage", pecha_id)
         
-        destination_url = getattr(Destination_url, destination.upper(), None)
+        destination_url = getattr(Destination_url, destination.upper())
         logger.info("Destination URL: %s", destination_url)
         
         serialized = serialize(pecha=pecha)
