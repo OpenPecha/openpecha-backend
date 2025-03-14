@@ -226,7 +226,7 @@ class UpdateMetaData {
         const googleDocLink = this.elements.docsInput.value.trim();
 
         if (!publishTextId) {
-            this.showToast('Please select the published text', 'warning');
+            this.showToast('Please select the published text', 'error');
             return false;
         }
 
