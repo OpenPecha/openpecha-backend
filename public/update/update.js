@@ -158,7 +158,8 @@ class UpdateMetaData {
     }
 
     displayMetadata(metadata) {
-        const metadataHTML = Object.entries(metadata).map(([key, value]) => {
+        const reorderedMetadata = this.reorderMetadata(metadata);
+        const metadataHTML = Object.entries(reorderedMetadata).map(([key, value]) => {
             const formattedKey = key.replace(/_/g, ' ').toUpperCase();
             const formattedValue = this.formatMetadataValue(value);
             return `
@@ -176,6 +177,30 @@ class UpdateMetaData {
         `;
     }
 
+    reorderMetadata(metadata) {
+        const order = [
+            "author",
+            "date",
+            "source",
+            "presentation",
+            "usage_title",
+            "title",
+            "long_title",
+            "alt_titles",
+            "version_of",
+            "commentary_of",
+            "translation_of",
+            "document_id"
+        ];
+    
+        const reorderedMetadata = {};
+    
+        order.forEach((key) => {
+            reorderedMetadata[key] = metadata.hasOwnProperty(key) ? metadata[key] : null;
+        });
+    
+        return reorderedMetadata;
+    }
     async handlePechaSelect() {
         this.selectedPecha = document.getElementById("selectedPecha");
         const pechaId = this.selectedPecha.dataset.value;
