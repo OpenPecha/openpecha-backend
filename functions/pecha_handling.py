@@ -141,7 +141,7 @@ def process_pecha(
             doc_ref_metadata = db.collection("metadata").document(pecha.id)
             # doc_ref_alignment = db.collection("alignment").document(pecha.id)
 
-            logger.info("Saving metadata to DB: %s", json.dumps(metadata))
+            logger.info("Saving metadata to DB: %s", json.dumps(metadata, ensure_ascii=False))
             transaction.set(doc_ref_metadata, metadata)
             logger.info("Metadata saved to DB: %s", pecha.id)
 

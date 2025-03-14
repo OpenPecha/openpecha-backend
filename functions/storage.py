@@ -16,7 +16,7 @@ class Storage:
         self.bucket = storage.bucket()
 
     def store_pechaorg_json(self, pecha_id: str, json_dict: dict[str, Any]) -> str:
-        json_str = json.dumps(json_dict)
+        json_str = json.dumps(json_dict, ensure_ascii=False)
 
         blob = self.bucket.blob(Storage._pechaorg_json_path(pecha_id))
         blob.upload_from_string(json_str, content_type="application/json")
