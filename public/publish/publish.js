@@ -264,7 +264,10 @@ class UpdateMetaData {
                 },
                 body: JSON.stringify({ destination: publishDestination })
             });
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            if (!response.ok){
+                console.log(response)
+                throw new Error(`Unable to publish pecha. Please try again later.`);
+            }
 
             this.showToast('Pecha published successfully', 'success');
             this.elements.form.reset();

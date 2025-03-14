@@ -10,14 +10,26 @@
     <link rel="stylesheet" href="./publish.css" />
     <link rel="stylesheet" href="../toast_style.css" />
     <link rel="stylesheet" href="../custom/select/select.css" />
+    <link rel="stylesheet" href="../navbar.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
 </head>
 
 <body>
+    <nav class="navbar">
+      <div class="nav-container">
+        <a href="/" class="nav-logo">
+          <img src="../assets/logo.svg" alt="OpenPecha Logo" />
+          <span>Publish pecha</span>
+        </a>
+        <div class="nav-links">
+          <a href="/create/create" class="nav-link">Create</a>
+          <a href="/publish/publish" class="nav-link active">Publish</a>
+          <a href="/update/update" class="nav-link">Update</a>
+        </div>
+      </div>
+    </nav>
     <div id="toastContainer" role="alert" aria-live="polite"></div>
     <main>
-        <div class="heading">
-            <h1>Publish Pecha</h1>
-        </div>
         <form id="publishForm" novalidate>
             <div class="form-group">
                 <label for="pechaOptions">Pecha</label>

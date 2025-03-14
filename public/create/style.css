@@ -1,14 +1,15 @@
 :root {
     /* Colors */
-    --color-primary: #2196f3;
-    --color-primary-dark: #1976d2;
+    --color-primary: #4A90E2;
+    --color-primary-dark: #357ABD;
     --color-error: #dc3545;
-    --color-border: #ddd;
+    --color-border: #E1E8ED;
     --color-text: #333;
     --color-white: #fff;
-    --color-hover-bg: #f5f5f5;
-    --color-error-bg: #fff8f8;
+    --color-hover-bg: #F5F7FA;
+    --color-error-bg: #FFF3F3;
     --color-disabled: #ccc;
+    --background-color: #F5F7FA;
 
     /* Spacing */
     --spacing-xs: 4px;
@@ -16,24 +17,45 @@
     --spacing-md: 12px;
     --spacing-lg: 16px;
     --spacing-xl: 24px;
+    --form-spacing: 20px;
 
     /* Border radius */
-    --border-radius: 4px;
+    --border-radius: 8px;
 
     /* Common styles */
     --input-padding: var(--spacing-md);
     --border: 1px solid var(--color-border);
+    --box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+}
+
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
 }
 
 /* Base styles */
 body {
     font-family: Inter, -apple-system, system-ui, "Segoe UI", Helvetica, Arial, sans-serif;
-    max-width: 800px;
-    margin: 10px auto 20px;
+    margin: 0;
     padding: 20px;
     color: var(--color-text);
+    background-color: var(--background-color);
 }
 
+main {
+    min-height: calc(100vh - 80px);
+    padding: var(--form-spacing);
+}
+
+.container {
+    max-width: 800px;
+    margin: 0 auto;
+    padding: 30px;
+    background: var(--color-white);
+    border-radius: var(--border-radius);
+    box-shadow: var(--box-shadow);
+}
 
 
 /* Form elements */
@@ -45,6 +67,7 @@ body {
     display: block;
     font-weight: 500;
     margin-bottom: var(--spacing-sm);
+    color: var(--color-text);
 }
 
 /* Input styles */
@@ -267,7 +290,7 @@ select.error {
 .popup-container{
     display: none;
     position: fixed;
-    top: 20px;
+    bottom:20%;
     right: 20px;
     padding: 10px 8px;
     border: 1px solid var(--color-border);
