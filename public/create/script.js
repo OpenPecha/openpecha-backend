@@ -607,14 +607,16 @@ class LocalizedForm {
             console.log("response:::", response);
 
             if (!response.ok) {
-                const error = await response.text();
-                throw new Error(`Failed to create: ${error}`);
+                const json = await response.text();
+                console.log("json:::", json)
+                const text = JSON.parse(json);
+                throw new Error(`${text.error}`);
             }
 
             const jsonResponse = await response.json();
             await this.handleSuccessfulSubmission(jsonResponse);
             this.showPopup(`${jsonResponse.id} - ${jsonResponse.title}`);
-            this.showToast("File and metadata successfully submitted!", "success");
+            // this.showToast("File and metadata successfully submitted!", "success");
             // this.clearForm();
 
         } catch (error) {
