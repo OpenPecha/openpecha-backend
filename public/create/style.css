@@ -287,36 +287,76 @@ select.error {
 }
 
 /* style for pop up */
-.popup-container{
-    display: none;
+.popup-container {
     position: fixed;
-    bottom:20%;
+    top: 50%;
     right: 20px;
-    padding: 10px 8px;
-    border: 1px solid var(--color-border);
-    box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
-    border-radius: 5px;
     z-index: 1000;
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-20px);
+    transition: all 0.3s ease;
 }
 
-.popup-container .close-popup{
+.popup-container.show {
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+}
+
+.popup-content {
+    background-color: var(--color-text);
+    color: var(--color-white);
+    padding: var(--spacing-md) var(--spacing-lg);
+    border-radius: var(--border-radius);
+    box-shadow: var(--box-shadow);
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    min-width: 200px;
+}
+
+.close-popup {
     position: absolute;
-    right:0px;
-    top:0px;
-    transform: translate(50%, -50%);
+    top: 8px;
+    right: 8px;
     cursor: pointer;
-    font-size: 14px;
-    font-weight: 600;
-    color: var(--color-error);
+    color: var(--color-white);
+    opacity: 0.7;
+    transition: opacity 0.2s ease;
 }
+
+.close-popup:hover {
+    opacity: 1;
+}
+
+.popup-text {
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    padding-right: var(--spacing-xl);
+}
+
 #copyPechaId {
-    margin-left: 4px;
-    padding:0;
-    border:none;
-    color: var(--color-border);
-    background-color: transparent;
+    background: none;
+    border: none;
+    color: var(--color-white);
     cursor: pointer;
+    padding: var(--spacing-xs);
+    opacity: 0.7;
+    transition: opacity 0.2s ease;
 }
+
+#copyPechaId:hover {
+    opacity: 1;
+}
+
+#pechaIdText {
+    font-size: 14px;
+    word-break: break-all;
+}
+
 /* Required field indicators */
 [data-field="author"] label::after,
 [data-field="title"] label::after,
