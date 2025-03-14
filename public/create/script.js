@@ -84,7 +84,7 @@ class LocalizedForm {
             this.copyPechIdAndTitle();
         });
         this.closePopupButton.addEventListener("click", () => {
-            this.popupContainer.classList.remove("visible");
+            this.popupContainer.classList.remove("show");
         });
         // Publish Button
         this.createButton.addEventListener("click", () => {
@@ -613,8 +613,7 @@ class LocalizedForm {
 
             const jsonResponse = await response.json();
             await this.handleSuccessfulSubmission(jsonResponse);
-            this.popupContainer.classList.add("visible");
-            this.pechaIdText.textContent = `${jsonResponse.id} - ${jsonResponse.title}`;
+            this.showPopup(`${jsonResponse.id} - ${jsonResponse.title}`);
             this.showToast("File and metadata successfully submitted!", "success");
             // this.clearForm();
 
@@ -664,20 +663,20 @@ class LocalizedForm {
         }
     }
 
-    async copyPechIdAndTitle() {
-            navigator.clipboard.writeText(this.pechaIdText.textContent)
-                .then(() => {
-                    console.log("Text copied to clipboard:", this.pechaIdText.textContent);
-                    this.copyPechaIdButton.style.color = "#2196f3";
+    showPopup(text) {
+        this.pechaIdText.textContent = text;
+        this.popupContainer.classList.add("show");
+    }
 
-                    setTimeout(() => {
-                        this.copyPechaIdButton.style.color = "#ddd"; 
-                    }, 2000); 
-                })
-                .catch((err) => {
-                    console.error("Failed to copy text:", err);
-                    alert("Failed to copy text. Please try again.");
-                });
+    copyPechIdAndTitle() {
+        const text = this.pechaIdText.textContent;
+        navigator.clipboard.writeText(text).then(() => {
+            // Flash the copy button to indicate success
+            this.copyPechaIdButton.style.opacity = '1';
+            setTimeout(() => {
+                this.copyPechaIdButton.style.opacity = '0.7';
+            }, 200);
+        });
     }
 
     handleSpinner(parentNode, show) {
