@@ -104,25 +104,27 @@ class LocalizedForm {
                         baseLanguage,
                         true
                     );
+                } else if (group.dataset.field === "title") {
+                    localizationsDiv.innerHTML = ""; // Clear existing
+                    
+                    // Add mandatory localizations for title
+                    const requiredLangs = new Set([baseLanguage, "bo", "en"]);
+                    const uniqueLangs = Array.from(requiredLangs);
+                    
+                    uniqueLangs.forEach((lang, index) => {
+                        this.createLocalizationInput(
+                            localizationsDiv,
+                            lang,
+                            index === 0,
+                            true,
+                            true // isTitle parameter
+                        );
+                    });
                 }
-                
             });
-
     }
 
-    setCreatingState(creating) {
-        this.creating = creating;
-        this.createButton.disabled = creating;
-        this.createBtnText.textContent = creating ? 'Creating...' : 'Create';
-        this.creatingSpinner.style.display = creating ? 'inline-block' : 'none';
-
-        this.formGroups.forEach(group => {
-            group.classList.toggle('disabled', creating);
-        });
-        this.baseLanguageSelect.disabled = creating;
-    }
-
-    createLocalizationInput(container, language, isFirst = false) {
+    createLocalizationInput(container, language, isFirst = false, isRequired = false, isTitle = false) {
         const inputContainer = document.createElement("div");
         inputContainer.className = "input-container";
 
@@ -132,8 +134,7 @@ class LocalizedForm {
         const inputWrapper = document.createElement("div");
         inputWrapper.className = "input-wrapper";
 
-        const isTextarea =
-            container.closest(".form-group")?.dataset.field === "presentation";
+        const isTextarea = container.closest(".form-group")?.dataset.field === "presentation";
         let input;
 
         if (isTextarea) {
@@ -156,14 +157,17 @@ class LocalizedForm {
 
         if (isFirst) {
             langSelect.value = language;
-            langSelect.disabled = false;
+            langSelect.disabled = isTitle; // Only disable for title field
+        } else if (isTitle && isRequired) {
+            langSelect.value = language;
+            langSelect.disabled = true;
         }
 
         inputWrapper.appendChild(input);
         inputWrapper.appendChild(langSelect);
         inputGroup.appendChild(inputWrapper);
 
-        if (!isFirst) {
+        if (!isFirst && (!isTitle || !isRequired)) {
             const removeButton = document.createElement("button");
             removeButton.type = "button";
             removeButton.className = "remove-btn";
@@ -176,6 +180,18 @@ class LocalizedForm {
 
         inputContainer.appendChild(inputGroup);
         container.appendChild(inputContainer);
+    }
+
+    setCreatingState(creating) {
+        this.creating = creating;
+        this.createButton.disabled = creating;
+        this.createBtnText.textContent = creating ? 'Creating...' : 'Create';
+        this.creatingSpinner.style.display = creating ? 'inline-block' : 'none';
+
+        this.formGroups.forEach(group => {
+            group.classList.toggle('disabled', creating);
+        });
+        this.baseLanguageSelect.disabled = creating;
     }
 
     addLocalization(formGroup) {
@@ -435,7 +451,6 @@ class LocalizedForm {
     }
 
     validateRequiredFields(metadata) {
-        const errors = [];
         function isValidURL(url) {
             try {
                 new URL(url);
@@ -444,9 +459,9 @@ class LocalizedForm {
                 return false;
             }
         }
+
         // Check author in English
         if (!metadata.author) {
-            errors.push('author');
             this.highlightError('author');
             this.showToast("Author is required", "error");
             return false;
@@ -454,45 +469,77 @@ class LocalizedForm {
 
         // Check source URL and source
         if (!metadata.source_url && !metadata.source) {
-            errors.push('source_url');
             this.sourceUrl.closest('.input-wrapper').classList.add('error');
             this.source.closest('.input-wrapper').classList.add('error');
             this.showToast("Either Source URL or Source is required", "error");
-            return false
+            return false;
         } else {
             // Validate Source URL if provided
             if (metadata.source_url && !isValidURL(metadata.source_url)) {
-                errors.push('source_url');
                 this.sourceUrl.closest('.input-wrapper').classList.add('error');
                 this.showToast("Invalid URL format", "error");
-                return false
+                return false;
             } else {
                 this.sourceUrl.closest('.input-wrapper').classList.remove('error');
             }
         
             // Validate Source if provided
             if (metadata.source && typeof metadata.source !== "string") {
-                errors.push('source');
                 this.source.closest('.input-wrapper').classList.add('error');
                 this.showToast("Source must be a text string", "error");
-                return false
+                return false;
             } else {
                 this.source.closest('.input-wrapper').classList.remove('error');
             }
         }
 
-        // Check title in English
-        if (!metadata.title || !metadata.title.en || !metadata.title.bo) {
-            const fieldIndex = !metadata.title ? 0 : !metadata.title.bo ? 0 : 1;
-            errors.push('title');
-            this.highlightError('title',fieldIndex);
+        // Check title has all required languages
+        const baseLanguage = this.baseLanguageSelect.value;
+        if (!metadata.title) {
+            this.highlightError('title', 0);
             this.showToast("Title is required", "error");
             return false;
         }
 
+        // Get all required languages for title
+        const requiredLangs = new Set([baseLanguage, "bo", "en"]);
+        const missingLangs = [];
+
+        // Check each required language
+        for (const lang of requiredLangs) {
+            if (!metadata.title[lang]) {
+                missingLangs.push(lang);
+            }
+        }
+
+        if (missingLangs.length > 0) {
+            // Map language codes to their positions in the form
+            const langPositions = {};
+            const containers = document.querySelectorAll('.form-group[data-field="title"] .input-container');
+            containers.forEach((container, index) => {
+                const select = container.querySelector('select');
+                if (select) {
+                    langPositions[select.value] = index;
+                }
+            });
+
+            // Highlight the first missing language field
+            const firstMissing = missingLangs[0];
+            const index = langPositions[firstMissing] || 0;
+            this.highlightError('title', index);
+
+            // Show descriptive error message
+            const langNames = {
+                'bo': 'Tibetan',
+                'en': 'English',
+                [baseLanguage]: `base language (${baseLanguage})`
+            };
+            const missingNames = missingLangs.map(lang => langNames[lang] || lang);
+            this.showToast(`Title in ${missingNames.join(', ')} is required`, "error");
+            return false;
+        }
         // Check long title in English
         if (!metadata.long_title) {
-            errors.push('long_title');
             this.highlightError('long_title');
             this.showToast("Long title is required", "error");
             return false;
@@ -500,30 +547,27 @@ class LocalizedForm {
 
         // Check base language
         if (!metadata.language) {
-            errors.push('language');
             this.baseLanguageSelect.classList.add('error');
             this.showToast("Base language is required", "error");
             return false;
         }
 
         if (!metadata.document_id) {
-            errors.push('document_id');
-            document.querySelector('input[placeholder="Google docs URL"]')
-                .closest('.input-wrapper').classList.add('error');
-            this.showToast("Document link is required", "error");
+            document.querySelector('input[placeholder="Google docs URL"]').closest('.input-wrapper').classList.add('error');
+            this.showToast("Enter valid Google docs URL", "error");
             return false;
         }
 
         return true;
     }
 
-    highlightError(fieldName, fieldIndex=0) {
+    highlightError(fieldName, fieldIndex = 0) {
         const formGroup = document.querySelector(`.form-group[data-field="${fieldName}"]`);
         if (formGroup) {
-            const inputs = formGroup.querySelectorAll('.input-container')[fieldIndex];
-            // inputs.forEach(container => {
-                inputs.querySelector('.input-wrapper').classList.add('error');
-            // });
+            const containers = formGroup.querySelectorAll('.input-container');
+            if (containers[fieldIndex]) {
+                containers[fieldIndex].querySelector('.input-wrapper').classList.add('error');
+            }
         }
     }
 
@@ -549,10 +593,6 @@ class LocalizedForm {
             const metadata = this.collectFormData();
             if (!this.validateRequiredFields(metadata)) 
                 return;
-
-            if (!metadata.document_id) {
-                throw new Error('Invalid Google Docs link');
-            }
 
             this.setCreatingState(true);
             // Fetch document and prepare form data concurrently
