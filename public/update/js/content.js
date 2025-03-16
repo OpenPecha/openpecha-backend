@@ -10,8 +10,8 @@ class UpdateMetaData {
             spinner: document.querySelector('.spinner'),
             toastContainer: document.getElementById('toastContainer'),
             formGroups: document.querySelectorAll('.form-group'),
-            metadataContainer: document.querySelector('.metadata-container')
-
+            metadataContainer: document.querySelector('.metadata-container'),
+            updateFormContainer: document.getElementById('updateFormContainer')
         };
 
         this.isLoading = false;
@@ -19,7 +19,6 @@ class UpdateMetaData {
         this.setupEventListeners();
         this.fetchPechaOptions();
         this.showInitialMetadataState();
-
     }
 
     setupEventListeners() {
@@ -31,7 +30,7 @@ class UpdateMetaData {
         this.elements.form.addEventListener('submit', (e) => {
             e.preventDefault();
             if (!this.isLoading) {
-                this.handleUpdate();
+                this.handleSubmit(e);
             }
         });
     }
@@ -62,6 +61,7 @@ class UpdateMetaData {
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
             const pechas = await response.json();
+            console.log(":::::",pechas)
             this.updatePechaOptions(pechas);
         } catch (error) {
             console.error('Error loading pecha options:', error);
@@ -201,6 +201,7 @@ class UpdateMetaData {
     
         return reorderedMetadata;
     }
+
     async handlePechaSelect() {
         this.selectedPecha = document.getElementById("selectedPecha");
         const pechaId = this.selectedPecha.dataset.value;
@@ -220,6 +221,7 @@ class UpdateMetaData {
             this.showErrorState('Failed to load metadata. Please try again.');
         }
     }
+
     validateFields() {
         this.selectedPecha = document.getElementById("selectedPecha");
         const publishTextId = this.selectedPecha.dataset.value;
@@ -239,7 +241,7 @@ class UpdateMetaData {
         return { publishTextId, docId };
     }
 
-    async handleUpdate() {
+    async handleSubmit(e) {
         const validatedData = this.validateFields();
         if (!validatedData) return;
 
@@ -301,6 +303,7 @@ class UpdateMetaData {
     clearToasts() {
         this.elements.toastContainer.innerHTML = '';
     }
+
 }
 
 document.addEventListener('DOMContentLoaded', () => new UpdateMetaData());

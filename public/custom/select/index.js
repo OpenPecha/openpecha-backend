@@ -5,6 +5,7 @@ class CustomSearchableDropdown {
         this.wrapperId = elementId;
         this.createCustomDropdown();
         this.bindEvents();
+        console.log("CustomSearchableDropdown initialized", elementId);
     }
 
     createCustomDropdown() {
@@ -29,7 +30,11 @@ class CustomSearchableDropdown {
         // Create options list
         this.optionsList = document.createElement('ul');
         this.optionsList.classList.add('dropdown-options');
-
+        // Create a default option with null value
+        const defaultOption = document.createElement('li');
+        defaultOption.textContent = 'Select an option';
+        defaultOption.dataset.value = ""; // Set the value to null
+        this.optionsList.appendChild(defaultOption);
         // Populate options list
         this.options.forEach((option, index) => {
             if (option) {  
@@ -45,11 +50,9 @@ class CustomSearchableDropdown {
         this.dropdownOptionsContainer.appendChild(this.optionsList);
         this.dropdownWrapper.appendChild(this.dropdownTrigger);
         this.dropdownWrapper.appendChild(this.dropdownOptionsContainer);
-
         // Replace select element
         // this.selectElement?.parentNode.replaceChild(this.dropdownWrapper, this.selectElement);
         this.selectElementContainer.appendChild(this.dropdownWrapper);
-
         // Add search functionality
         this.searchInput.addEventListener('input', this.filterOptions.bind(this));
     }
