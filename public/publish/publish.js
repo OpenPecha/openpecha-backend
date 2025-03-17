@@ -262,7 +262,7 @@ class UpdateMetaData {
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ destination: publishDestination })
+                body: JSON.stringify({ destination: publishDestination, reserialize: true })
             });
             if (!response.ok){
                 console.log(response)
