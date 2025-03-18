@@ -85,14 +85,14 @@ def parse(docx_file: FileStorage, metadata: dict[str, Any], pecha_id: str | None
     )
 
 
-def serialize(pecha: Pecha) -> dict[str, Any]:
+def serialize(pecha: Pecha, reserialize: bool) -> dict[str, Any]:
     metadata = db_get_metadata(pecha_id=pecha.id)
 
     id_metadata_chain = get_id_metadata_chain(pecha_id=pecha.id, metadata=metadata)
     metadata_chain = [md for _, md in id_metadata_chain]
 
     storage = Storage()
-    if storage.pechaorg_json_exists(pecha_id=pecha.id):
+    if storage.pechaorg_json_exists(pecha_id=pecha.id) and not reserialize:
         pecha_json = storage.retrieve_pechaorg_json(pecha_id=pecha.id)
 
         logger.info("Serialized Pecha %s already exist, updating the json", pecha.id)
