@@ -47,17 +47,17 @@
                         </button>
                     </div>
 
-                    <div class="form-group">
+                    <div class="form-group" data-field="language">
                         <label>Language</label>
                         <select id="language" class="select-lang" >
                             <option value="">Select language</option>
                         </select>
                     </div>
 
-                    <div class="form-group source">
+                    <div class="form-group source" data-field="source">
                         <label>Source</label>
-                        <div class="input-wrapper">
-                            <input type="text" id="source" placeholder="https://example.com">
+                        <div class="input-wrapper" id="source">
+                            <input type="text" id="source-field" placeholder="https://example.com">
                         </div>
                     </div>
 
@@ -126,7 +126,7 @@
                         </div>
                     </div>
 
-                    <div class="form-group">
+                    <div class="form-group" data-field="document_id">
                         <label>Document</label>
                         <div class="input-wrapper">
                             <input type="text" id="document" placeholder="Enter document ID" required>

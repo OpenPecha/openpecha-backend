@@ -9,7 +9,7 @@ class MetadataManager {
             formGroups: document.querySelectorAll('.form-group'),
             documentField: document.getElementById('document'),
             language: document.getElementById('language'),
-            source: document.getElementById('source'),
+            source: document.getElementById('source-field'),
             altTitles: document.getElementById('alt-titles'),
             addAltTitle: document.getElementById('addAltTitle'),
             relationRadios: document.querySelectorAll('input[name="relation"]'),
@@ -265,6 +265,7 @@ class MetadataManager {
     }
 
     populateAlternateTitles(data) {
+        this.elements.altTitles.innerHTML = '';
         if (!data || data.length === 0) return;
         this.addAltTitles(data);
     }
@@ -453,7 +454,7 @@ class MetadataManager {
         const metadata = {
             document_id: document_id,
             language: this.elements.language.value.trim(),
-            source: this.elements.source.value.trim() || ""
+            source: this.elements.source.value.trim()
         };
         
         // Collect localized fields
@@ -522,7 +523,7 @@ class MetadataManager {
     }
 
     validateForm(formData) {
-        const required = ['author', 'document_id', 'title', 'long_title', 'language'];
+        const required = ['author', 'document_id', 'title', 'long_title', 'language', 'source'];
         const missing = required.filter(field => !formData[field]);
     
         // Check for missing localizations in title
@@ -541,7 +542,7 @@ class MetadataManager {
     
             // Highlight missing fields
             missing.forEach(field => {
-                if (field === 'document_id' || field === 'language' || field === 'author') {
+                if (field === 'document_id' || field === 'language' || field === 'author' || field === 'source') {
                     document.getElementById(field).classList.add('error');
                 } else {
                     const container = document.querySelector(`.form-group[data-field="${field}"]`);

@@ -277,6 +277,6 @@ select {
     width: 40px;
     height: 40px;
     margin: 0 auto 16px;
-    border: var(--spinner-border) solid #f3f3f3;
-    border-top: var(--spinner-border) solid var(--primary-color);
+    border: var(--spinner-border) solid var(--primary-color) ;
+    border-top: var(--spinner-border) solid #f3f3f3;
 }

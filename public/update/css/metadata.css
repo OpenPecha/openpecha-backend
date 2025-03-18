@@ -118,6 +118,17 @@ main {
     cursor: pointer;
 }
 
+/* Required field indicators */
+[data-field="author"] label::after,
+[data-field="source"] label::after,
+[data-field="title"] label::after,
+[data-field="long_title"] label::after,
+[data-field="document_id"] label::after,
+[data-field="language"] label::after {
+    content: " *";
+    color: var(--color-error);
+}
+
 .pecha-select-container {
     margin-bottom: var(--spacing-xl);
 }
