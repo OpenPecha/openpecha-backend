@@ -55,6 +55,9 @@ form {
 }
 
 .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
     margin-bottom: var(--form-spacing);
 }
 
@@ -76,10 +79,15 @@ select {
 .radio-group {
     display: flex;
     gap: 16px;
-    margin-bottom: 8px;
+    margin-left: 10px;
 }
 .radio-group label {
     font-weight: normal;
+    cursor: pointer;
+}
+
+.radio-group input[type="radio"] {
+    accent-color: var(--primary-color);
     cursor: pointer;
 }
 
