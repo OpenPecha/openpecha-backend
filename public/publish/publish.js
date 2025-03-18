@@ -256,8 +256,6 @@ class UpdateMetaData {
 
     async handlePublish() {
         const validatedData = this.validateFields();
-        console.log(validatedData);
-        return
         if (!validatedData) return;
 
         this.setLoading(true);
