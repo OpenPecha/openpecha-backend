@@ -3,7 +3,7 @@ class UpdateMetaData {
         this.elements = {
             form: document.getElementById('updateForm'),
             pechaOptionsContainer : document.getElementById('pechaOptionsContainer'),
-            pechaSelect: document.getElementById('pechaOptions'),
+            googleDocsContainer: document.getElementById('googleDocsContainer'),
             docsInput: document.getElementById('googleDocsInput'),
             updateButton: document.getElementById('updateButton'),
             buttonText: document.querySelector('.button-text'),
@@ -35,11 +35,11 @@ class UpdateMetaData {
         });
     }
 
-    setLoadingState(loading, isFetchingPecha = false) {
+    setLoadingState(loading) {
         this.isLoading = loading;
         this.elements.updateButton.disabled = loading;
-        this.elements.buttonText.textContent = loading && !isFetchingPecha ? 'Updating...' : 'Submit';
-        this.elements.spinner.style.display = loading && !isFetchingPecha ? 'inline-block' : 'none';
+        this.elements.buttonText.textContent = loading ? 'Updating...' : 'Submit';
+        this.elements.spinner.style.display = loading ? 'inline-block' : 'none';
 
         this.elements.formGroups.forEach(group => {
             group.classList.toggle('disabled', loading);
@@ -47,7 +47,8 @@ class UpdateMetaData {
     }
 
     async fetchPechaOptions() {
-        this.setLoadingState(true, true);
+        this.showSpinner(this.elements.pechaOptionsContainer, true);
+        this.hideInputs();
         try {
             const response = await fetch(`${this.API_ENDPOINT}/metadata/filter/`, {
                 method: 'POST',
@@ -65,14 +66,14 @@ class UpdateMetaData {
             this.updatePechaOptions(pechas);
         } catch (error) {
             console.error('Error loading pecha options:', error);
+            this.elements.pechaOptionsContainer.innerHTML="Unable to load pecha options. Please try again later.";
             this.showToast('Unable to load pecha options. Please try again later.', 'error');
         } finally {
-            this.setLoadingState(false);
+            this.showSpinner(this.elements.pechaOptionsContainer, false);
         }
     }
 
     updatePechaOptions(pechas) {
-        this.elements.pechaSelect.style.display = 'none';
         new CustomSearchableDropdown(this.elements.pechaOptionsContainer, pechas, "selectedPecha");
     }
 
@@ -207,6 +208,7 @@ class UpdateMetaData {
         const pechaId = this.selectedPecha.dataset.value;
 
         if (!pechaId) {
+            this.hideInputs();
             this.showInitialMetadataState();
             return;
         }
@@ -215,10 +217,12 @@ class UpdateMetaData {
             this.showLoadingState();
             const metadata = await this.fetchMetadata(pechaId);
             this.displayMetadata(metadata);
+            this.showInputs();
         } catch (error) {
             console.error('Error in handlePechaSelect:', error);
             this.showToast('Unable to fetch metadata. Please try again later.', 'error');
             this.showErrorState('Failed to load metadata. Please try again.');
+            this.hideInputs();
         }
     }
 
@@ -228,7 +232,7 @@ class UpdateMetaData {
         const googleDocLink = this.elements.docsInput.value.trim();
 
         if (!publishTextId) {
-            this.showToast('Please select the published text', 'error');
+            this.showToast('Please select the published text', 'warning');
             return false;
         }
 
@@ -258,6 +262,8 @@ class UpdateMetaData {
             await this.uploadDocument(publishTextId, blob, docId);
             this.showToast('Document updated successfully!', 'success');
             this.elements.form.reset();
+            this.showInitialMetadataState();
+            this.hideInputs();
         } catch (error) {
             console.error('Error during update:', error);
             this.showToast(`Error: ${error.message}`, 'error');
@@ -289,6 +295,16 @@ class UpdateMetaData {
         return match?.[1] || null;
     }
 
+    hideInputs() {
+        this.elements.googleDocsContainer.style.display = 'none';
+        // this.elements.updateButton.style.display = 'none';
+    }
+
+    showInputs() {
+        this.elements.googleDocsContainer.style.display = 'block';
+        // this.elements.updateButton.style.display = 'block';
+    }
+
     showToast(message, type) {
         this.clearToasts();
 
@@ -298,6 +314,21 @@ class UpdateMetaData {
 
         this.elements.toastContainer.appendChild(toast);
         setTimeout(() => toast.remove(), 3000);
+    }
+
+    showSpinner(parentNode, show) {
+        if (show) {
+            parentNode.innerHTML = '';
+            const spinner = document.createElement('div');
+            spinner.className = 'spinner';
+            spinner.style.display = 'inline-block';
+            parentNode.appendChild(spinner);
+        } else {
+            const spinner = parentNode.querySelector('.spinner');
+            if (spinner) {
+                spinner.remove();
+            }
+        }
     }
 
     clearToasts() {
