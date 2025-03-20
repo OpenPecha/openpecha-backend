@@ -35,11 +35,11 @@ class UpdateMetaData {
         });
     }
 
-    setLoadingState(loading, isFetchingPecha = false) {
+    setLoadingState(loading) {
         this.isLoading = loading;
         this.elements.updateButton.disabled = loading;
-        this.elements.buttonText.textContent = loading && !isFetchingPecha ? 'Updating...' : 'Submit';
-        this.elements.spinner.style.display = loading && !isFetchingPecha ? 'inline-block' : 'none';
+        this.elements.buttonText.textContent = loading ? 'Updating...' : 'Submit';
+        this.elements.spinner.style.display = loading ? 'inline-block' : 'none';
 
         this.elements.formGroups.forEach(group => {
             group.classList.toggle('disabled', loading);
@@ -262,6 +262,8 @@ class UpdateMetaData {
             await this.uploadDocument(publishTextId, blob, docId);
             this.showToast('Document updated successfully!', 'success');
             this.elements.form.reset();
+            this.showInitialMetadataState();
+            this.hideInputs();
         } catch (error) {
             console.error('Error during update:', error);
             this.showToast(`Error: ${error.message}`, 'error');

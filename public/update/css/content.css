@@ -17,28 +17,19 @@
     --color-hover-bg: #F5F7FA;
     --color-error-bg: #FFF3F3;
     --color-disabled: #ccc;
-    --background-color: #F5F7FA;
-    --placeholder-color: #999999;
-
-     /* Duplicated color variables (merged) */
-     --primary-color: #4A90E2;
-     --primary-hover: #357ABD;
-     --text-color: #333333;
-     --border-color: #E1E8ED;
-     --black: #000000;
-     --white: #FFFFFF;
-     --light-gray: #F5F5F5;
-     --medium-gray: #CCCCCC;
-     --error-color: #DC3545;
-     --error-bg: #FFF3F3;
-     
+    --color-background: #F5F7FA;
+    --color-placeholder: #999999;
+    --color-black: #000000;
+    --color-light-gray: #F5F5F5;
+    --color-medium-gray: #CCCCCC;
+    
     /* Spacing */
     --spacing-xs: 4px;
     --spacing-sm: 8px;
     --spacing-md: 12px;
     --spacing-lg: 16px;
     --spacing-xl: 24px;
-    --form-spacing: 20px;
+    --spacing-form: 20px;
 
     /* Layout */
     --border-radius: 8px;
@@ -57,12 +48,12 @@ body {
     margin: 0;
     padding: 20px;
     color: var(--color-text);
-    background-color: var(--background-color);
+    background-color: var(--color-background);
 }
 
 main {
     min-height: calc(100vh - 80px);
-    padding: var(--form-spacing);
+    padding: var(--spacing-form);
     max-width: 1200px;
     margin: 0 auto;
 }
@@ -197,8 +188,8 @@ select {
 .metadata-container {
     min-width: var(--container-width);
     width: fit-content;
-    margin: var(--form-spacing) auto;
-    background: var(--white);
+    margin: var(--spacing-form) auto;
+    background: var(--color-white);
     border-radius: 8px;
     box-shadow: var(--box-shadow);
     overflow: hidden;
@@ -212,25 +203,25 @@ select {
 }
 
 .metadata-placeholder {
-    color: var(--text-color);
-    background-color: var(--background-color);
+    color: var(--color-text);
+    background-color: var(--color-background);
     max-width: var(--container-width);
     margin: auto;
 }
 
 .metadata-error {
-    color: var(--error-color);
-    background-color: var(--error-bg);
+    color: var(--color-error);
+    background-color: var(--color-error-bg);
 }
 
 .metadata-content {
-    padding: var(--form-spacing);
+    padding: var(--spacing-form);
 }
 
 .metadata-item {
     padding: 16px;
     display: flex;
-    border-bottom: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--color-border);
 }
 
 .metadata-item:last-child {
@@ -251,7 +242,7 @@ select {
 }
 
 .language-tag {
-    color: var(--primary-color);
+    color: var(--color-primary);
     font-size: 0.85em;
     padding: 2px 6px;
     background-color: rgba(74, 144, 226, 0.1);
@@ -261,7 +252,7 @@ select {
 }
 
 .empty-value {
-    color: var(--placeholder-color);
+    color: var(--color-placeholder);
     font-style: italic;
 }
 
@@ -269,7 +260,6 @@ select {
 .spinner {
     width: 20px;
     height: 20px;
-    margin: 0 auto 16px;
     border: var(--spinner-border) solid var(--color-primary);
     border-top: var(--spinner-border) solid transparent;
     border-radius: 50%;
