@@ -13,6 +13,13 @@ metadata_bp = Blueprint("metadata", __name__)
 logger = logging.getLogger(__name__)
 
 
+@metadata_bp.after_request
+def add_no_cache_headers(response):
+    """Add headers to prevent response caching."""
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
 @metadata_bp.route("/<string:pecha_id>", methods=["GET"], strict_slashes=False)
 def get_metadata(pecha_id):
     try:

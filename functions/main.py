@@ -11,6 +11,7 @@ from flask import Flask, request
 def create_app(testing=False):
     app = Flask(__name__)
     app.config["TESTING"] = testing
+    app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 
     app.register_blueprint(pecha_bp, url_prefix="/pecha")
     app.register_blueprint(metadata_bp, url_prefix="/metadata")

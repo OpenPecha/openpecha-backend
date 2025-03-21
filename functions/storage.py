@@ -21,6 +21,7 @@ class Storage:
         blob = self.bucket.blob(Storage._pechaorg_json_path(pecha_id))
         blob.upload_from_string(json_str, content_type="application/json")
         blob.make_public()
+        blob.cache_control = "no-cache, no-store, must-revalidate"
         logger.info("Uploaded to storage: %s", blob.public_url)
 
         return blob.public_url
@@ -32,6 +33,7 @@ class Storage:
         blob = self.bucket.blob(Storage._pecha_opf_path(pecha_id=pecha.id))
         blob.upload_from_filename(zip_path)
         blob.make_public()
+        blob.cache_control = "no-cache, no-store, must-revalidate"
         logger.info("Uploaded to storage: %s", blob.public_url)
 
         return blob.public_url
@@ -40,6 +42,7 @@ class Storage:
         blob = self.bucket.blob(Storage._pecha_doc_path(pecha_id))
         blob.upload_from_file(doc)
         blob.make_public()
+        blob.cache_control = "no-cache, no-store, must-revalidate"
         logger.info("Uploaded to storage: %s", blob.public_url)
 
         return blob.public_url
@@ -90,6 +93,7 @@ class Storage:
 
     def _get_file(self, storage_path: str) -> bytes:
         blob = self.bucket.blob(storage_path)
+        blob.reload()
 
         if not blob.exists():
             raise FileNotFoundError(f"File not found in storage: {storage_path}")

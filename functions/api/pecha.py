@@ -15,6 +15,15 @@ pecha_bp = Blueprint("pecha", __name__)
 logger = logging.getLogger(__name__)
 
 
+@pecha_bp.after_request
+def add_no_cache_headers(response):
+    """Add headers to prevent response caching."""
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
+
+
 def get_duplicate_key(document_id: str):
     doc = next(
         db.collection("metadata").where("document_id", "==", document_id).limit(1).stream(),
@@ -70,18 +79,12 @@ def get_pecha(pecha_id: str):
         storage = Storage()
         opf_path = storage.retrieve_pecha_opf(pecha_id=pecha_id)
 
-        response = send_file(
+        return send_file(
             opf_path,
             mimetype="application/zip",
             as_attachment=True,
             download_name=f"{pecha_id}.zip",
         )
-
-        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-        response.headers["Pragma"] = "no-cache"
-        response.headers["Expires"] = "0"
-
-        return response
     except FileNotFoundError:
         return jsonify({"error": f"Pecha {pecha_id} not found"}), 404
     except Exception as e:
