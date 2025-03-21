@@ -296,7 +296,7 @@ select.error {
 /* style for pop up */
 .popup-container {
     position: fixed;
-    top: 50%;
+    top: 20%;
     right: 20px;
     z-index: 1000;
     opacity: 0;
