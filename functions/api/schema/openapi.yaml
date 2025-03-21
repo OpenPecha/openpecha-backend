@@ -449,7 +449,7 @@ paths:
         Returns a chain of metadata documents related to the specified pecha.
         Supports different traversal modes and relationship types.
       tags:
-        - Metadata
+        - Pecha
       parameters:
         - name: pecha_id
           in: path

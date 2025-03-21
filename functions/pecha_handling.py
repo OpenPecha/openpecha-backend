@@ -29,24 +29,26 @@ class Relationship(Enum):
     TRANSLATION = "translation_of"
 
 
-def db_get_metadata(pecha_id: str) -> dict[str, Any] | None:
+def db_get_metadata(pecha_id: str) -> dict[str, Any]:
     doc = db.collection("metadata").document(pecha_id).get()
-    return doc.to_dict() if doc.exists else None
+    if not doc.exists:
+        raise ValueError(f"Metadata not found for ID: {pecha_id}")
+    return doc.to_dict()
 
 
 def get_metadata_chain(
-    pecha_id: str,
+    pecha_id: str | None,
+    metadata: dict[str, Any] | None = None,
     traversal_mode: TraversalMode = TraversalMode.UPWARD,
     relationships: list[Relationship] | None = None,
-) -> list[tuple[str, dict[str, Any]]]:
+) -> list[tuple[str | None, dict[str, Any]]]:
 
     if relationships is None:
         relationships = list(Relationship)
 
-    metadata = db_get_metadata(pecha_id)
+    metadata = metadata if pecha_id is None else db_get_metadata(pecha_id)
     if not metadata:
-        logger.error("Metadata not found for ID: %s", pecha_id)
-        return []
+        raise ValueError(f"Metadata not found for ID: {pecha_id}")
 
     logger.info("Getting metadata chain for: id: %s, metadata: %s", pecha_id, metadata)
 
@@ -79,7 +81,8 @@ def get_metadata_chain(
             for doc in docs:
                 if doc.id not in processed:
                     metadata = doc.to_dict()
-                    chain.insert(0, (doc.id, metadata))  # Add to start to maintain order
+                    if metadata is not None:
+                        chain.insert(0, (doc.id, metadata))  # Add to start to maintain order
                     processed.add(doc.id)
                     to_process.append(doc.id)  # Add to queue for processing
 
@@ -105,14 +108,14 @@ def create_tmp() -> Path:
         return Path(temp.name)
 
 
-def parse(docx_file: FileStorage, pecha_id: str | None = None) -> Pecha:
+def parse(docx_file: FileStorage, metadata: dict[str, Any], pecha_id: str | None = None) -> Pecha:
     if not docx_file.filename:
         raise ValueError("docx_file has no filename")
 
     path = create_tmp()
     docx_file.save(path)
 
-    metadatas = [] if pecha_id is None else [md for _, md in get_metadata_chain(pecha_id=pecha_id)]
+    metadatas = [md for _, md in get_metadata_chain(pecha_id=pecha_id, metadata=metadata)]
 
     return DocxParser().parse(
         docx_file=path,
@@ -133,8 +136,8 @@ def serialize(pecha: Pecha, reserialize: bool) -> dict[str, Any]:
         return update_serialize_json(pecha=pecha, metadatas=metadatas, json=pecha_json)
 
     id_chain = [id for id, _ in metadata_chain]
-    logger.info("Pecha IDs: %s", ", ".join(id_chain))
-    pecha_chain = get_pecha_chain(pecha_ids=id_chain)
+    logger.info("Pecha IDs: %s", ", ".join(filter(None, id_chain)))
+    pecha_chain = get_pecha_chain(pecha_ids=[id for id in id_chain if id is not None])
 
     logger.info("Serialized Pecha %s doesn't exist, starting serialize", pecha.id)
     logger.info("Pechas: %s", [pecha.id for pecha in pecha_chain])
@@ -153,7 +156,7 @@ def process_pecha(
         - `("Error message", None)` if an error occurs.
     """
     try:
-        pecha = parse(docx_file=text, pecha_id=pecha_id)
+        pecha = parse(docx_file=text, pecha_id=pecha_id, metadata=metadata)
 
         logger.info("Pecha created: %s %s", pecha.id, pecha.pecha_path)
     except Exception as e:
