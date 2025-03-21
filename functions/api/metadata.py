@@ -1,16 +1,49 @@
 import logging
+from typing import Any
 
 from filter_model import AndFilter, Condition, FilterModel, OrFilter
 from firebase_config import db
 from flask import Blueprint, jsonify, request
 from google.cloud.firestore_v1.base_query import FieldFilter, Or
 from metadata_model import MetadataModel
-from pecha_handling import retrieve_pecha
+from pecha_handling import Relationship, TraversalMode, get_metadata_chain, retrieve_pecha
 from storage import Storage
 
 metadata_bp = Blueprint("metadata", __name__)
 
 logger = logging.getLogger(__name__)
+
+
+def extract_short_info(pecha_id: str, metadata: dict[str, Any]) -> dict[str, str]:
+    return {
+        "id": pecha_id,
+        "title": metadata.get("title", {}).get(metadata.get("language", "en"), ""),
+    }
+
+
+def format_metadata_chain(chain: list[tuple[str, dict[str, Any]]]) -> list[dict[str, str]]:
+    """Transform metadata chain into simplified format with references.
+
+    Args:
+        chain: List of (id, metadata) tuples from get_metadata_chain
+
+    Returns:
+        List of dicts with id, title and reference information
+    """
+    ref_fields = ["commentary_of", "version_of", "translation_of"]
+    formatted = []
+
+    for pecha_id, metadata in chain:
+        entry = {"id": pecha_id, "title": metadata.get("title", {}).get(metadata.get("language", "en"), "")}
+
+        for field in ref_fields:
+            if ref_id := metadata.get(field):
+                entry[field] = ref_id
+                break
+
+        formatted.append(entry)
+
+    return formatted
 
 
 @metadata_bp.after_request
@@ -20,6 +53,8 @@ def add_no_cache_headers(response):
     response.headers["Pragma"] = "no-cache"
     response.headers["Expires"] = "0"
     return response
+
+
 @metadata_bp.route("/<string:pecha_id>", methods=["GET"], strict_slashes=False)
 def get_metadata(pecha_id):
     try:
@@ -28,16 +63,47 @@ def get_metadata(pecha_id):
         if not doc.exists:
             return jsonify({"error": "Metadata not found"}), 404
 
-        response = jsonify(doc.to_dict())
-
-        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-        response.headers["Pragma"] = "no-cache"
-        response.headers["Expires"] = "0"
-
-        return response, 200
+        return jsonify(doc.to_dict()), 200
 
     except Exception as e:
         return jsonify({"error": f"Failed to retrieve metadata: {str(e)}"}), 500
+
+
+@metadata_bp.route("/<string:pecha_id>/related", methods=["GET"], strict_slashes=False)
+def get_related_metadata(pecha_id):
+    try:
+        traversal = request.args.get("traversal", "full_tree")
+        try:
+            traversal_mode = TraversalMode[traversal.upper()]
+        except KeyError:
+            return jsonify({"error": "Invalid traversal mode. Use 'upward' or 'full_tree'"}), 400
+
+        relationship_map = {
+            "commentary": Relationship.COMMENTARY,
+            "version": Relationship.VERSION,
+            "translation": Relationship.TRANSLATION,
+        }
+
+        rel_param = request.args.get("relationships", "")
+        try:
+            relationships = (
+                [relationship_map[r.strip().lower()] for r in rel_param.split(",") if r.strip()]
+                if rel_param
+                else list(Relationship)
+            )
+        except KeyError:
+            return jsonify({"error": "Invalid relationship type. Use 'commentary', 'version', or 'translation'"}), 400
+
+        related_metadata = get_metadata_chain(pecha_id, traversal_mode=traversal_mode, relationships=relationships)
+
+        if not related_metadata:
+            return jsonify({"error": "Metadata not found"}), 404
+
+        return jsonify(format_metadata_chain(related_metadata)), 200
+
+    except Exception as e:
+        logger.error("Failed to retrieve related metadata: %s", e)
+        return jsonify({"error": f"Failed to retrieve related metadata: {str(e)}"}), 500
 
 
 @metadata_bp.route("/<string:pecha_id>", methods=["PUT"], strict_slashes=False)
@@ -79,14 +145,7 @@ def put_metadata(pecha_id: str):
 @metadata_bp.route("/filter", methods=["POST"], strict_slashes=False)
 def filter_metadata():
     def extract_info(query):
-        """Extracts a list of Pecha IDs and titles based on document language."""
-        return [
-            {
-                "id": doc.id,
-                "title": (data := doc.to_dict()).get("title", {}).get(data.get("language", "en"), ""),
-            }
-            for doc in query.stream()
-        ]
+        return [extract_short_info(doc.id, doc.to_dict()) for doc in query.stream()]
 
     try:
         data = request.get_json(silent=True) or {}
