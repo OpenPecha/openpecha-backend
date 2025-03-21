@@ -137,7 +137,7 @@ def publish(pecha_id: str):
         Storage().store_pechaorg_json(pecha_id=pecha_id, json_dict=serialized)
         logger.info("Successfully saved Pecha %s to storage", pecha_id)
 
-        upload(text=serialized, destination_url=destination_url, overwrite=True)
+        upload(text=serialized, destination_url=destination_url)
 
         return jsonify({"message": "Pecha published successfully", "id": pecha_id}), 200
 
