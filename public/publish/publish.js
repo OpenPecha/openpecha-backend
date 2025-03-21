@@ -237,7 +237,7 @@ class UpdateMetaData {
         this.selectedPecha = document.getElementById("selectedPecha");
         const publishTextId = this.selectedPecha.dataset.value;
         if (!publishTextId) {
-            this.showToast('Please select the published text', 'error');
+            this.showToast('Please select the pecha OPF', 'error');
             return false;
         }
         const publishDestination = document.querySelector('input[name="destination"]:checked')?.value;
@@ -245,8 +245,13 @@ class UpdateMetaData {
             this.showToast('Please select the publish destination', 'error');
             return false;
         }
+        const reserialize = document.querySelector('input[name="reserialize"]:checked')?.value;
+        if(!reserialize) {
+            this.showToast('Please select the reserialize option', 'error');
+            return false;
+        }
 
-        return { publishTextId, publishDestination };
+        return { publishTextId, publishDestination, reserialize: reserialize === 'true' };
     }
 
     async handlePublish() {
@@ -256,13 +261,13 @@ class UpdateMetaData {
         this.setLoading(true);
 
         try {
-            const { publishTextId, publishDestination } = validatedData;
+            const { publishTextId, publishDestination, reserialize } = validatedData;
             const response = await fetch(`${this.API_ENDPOINT}/pecha/${publishTextId}/publish`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ destination: publishDestination, reserialize: true })
+                body: JSON.stringify({ destination: publishDestination, reserialize })
             });
             if (!response.ok){
                 console.log(response)

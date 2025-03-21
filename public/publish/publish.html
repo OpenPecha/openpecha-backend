@@ -42,6 +42,7 @@
                 </div>
             </div>
             <div class="form-group">
+                <div class="destination-container">
                 <label for="destination">Publish to</label>
                 <div class="radio-group">
                     <label for="staging">
@@ -53,7 +54,21 @@
                         Production
                     </label>
                 </div>
-            </div>
+                </div>
+                <div class="reserialize-container">
+                <label for="reserialize">Reserialize</label>
+                <div class="radio-group">
+                    <label for="reserializeYes">
+                        <input type="radio" id="reserializeYes" name="reserialize" value="true" checked>
+                        Yes
+                    </label>
+                    <label for="reserializeNo">
+                        <input type="radio" id="reserializeNo" name="reserialize" value="false">
+                        No
+                    </label>
+                </div>
+                </div>
+                </div>
             <button type="submit" class="publish-button" id="publishButton">
                 Publish
             </button>

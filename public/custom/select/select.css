@@ -81,7 +81,7 @@
 }
 
 .dropdown-options li:hover {
-    background-color: var(--primary-color);
+    background-color: var(--color-primary);
 }
 
 .hidden {

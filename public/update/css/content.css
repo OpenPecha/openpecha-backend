@@ -1,3 +1,11 @@
+/* CSS Reset */
+* {
+    box-sizing: border-box;
+    margin: 0;
+    padding: 0;
+}
+
+/* Variables */
 :root {
     /* Colors */
     --color-primary: #4A90E2;
@@ -9,42 +17,43 @@
     --color-hover-bg: #F5F7FA;
     --color-error-bg: #FFF3F3;
     --color-disabled: #ccc;
-    --background-color: #F5F7FA;
-
+    --color-background: #F5F7FA;
+    --color-placeholder: #999999;
+    --color-black: #000000;
+    --color-light-gray: #F5F5F5;
+    --color-medium-gray: #CCCCCC;
+    
     /* Spacing */
     --spacing-xs: 4px;
     --spacing-sm: 8px;
     --spacing-md: 12px;
     --spacing-lg: 16px;
     --spacing-xl: 24px;
-    --form-spacing: 20px;
+    --spacing-form: 20px;
 
-    /* Border radius */
+    /* Layout */
     --border-radius: 8px;
+    --container-width: 600px;
 
     /* Common styles */
     --input-padding: var(--spacing-md);
     --border: 1px solid var(--color-border);
     --box-shadow: 0 2px 10px rgba(0, 0, 0, 0.1);
+    --spinner-border: 2px;
 }
 
-* {
-    box-sizing: border-box;
-    margin: 0;
-    padding: 0;
-}
-
+/* Base Styles */
 body {
     font-family: Inter, -apple-system, system-ui, "Segoe UI", Helvetica, Arial, sans-serif;
     margin: 0;
     padding: 20px;
     color: var(--color-text);
-    background-color: var(--background-color);
+    background-color: var(--color-background);
 }
 
 main {
     min-height: calc(100vh - 80px);
-    padding: var(--form-spacing);
+    padding: var(--spacing-form);
     max-width: 1200px;
     margin: 0 auto;
 }
@@ -89,6 +98,29 @@ main {
     margin-top: auto;
 }
 
+/* Buttons */
+.back-button {
+    position: absolute;
+    top: 5px;
+    right: 5px;
+    z-index: 1000;
+    display: flex;
+    align-items: center;
+    gap: var(--spacing-md);
+    margin-bottom: var(--spacing-xl);
+}
+
+.back-button a {
+    color: var(--color-text);
+    margin-bottom: var(--spacing-md);
+    text-decoration: none;
+    transition: color 0.3s ease;
+}
+
+.back-button a:hover {
+    color: var(--color-primary);
+}
+
 .action-button {
     background: var(--color-primary);
     color: var(--color-white);
@@ -105,45 +137,6 @@ main {
     background: var(--color-primary-dark);
 }
 
-/* Form Container */
-.form-container {
-    background: var(--color-white);
-    border-radius: var(--border-radius);
-    box-shadow: var(--box-shadow);
-    padding: var(--spacing-xl);
-    max-width: 600px;
-    margin: 0 auto;
-}
-
-/* .form-container.hidden {
-    display: none;
-} */
-
-/* Form Elements */
-.form-group {
-    margin-bottom: var(--spacing-xl);
-}
-
-.form-group label {
-    display: block;
-    font-weight: 500;
-    margin-bottom: var(--spacing-sm);
-    color: var(--color-text);
-}
-
-
-input,
-select {
-    padding: var(--input-padding);
-    border: var(--border);
-    border-radius: var(--border-radius);
-    outline: none;
-    font-size: 16px;
-    background-color: var(--color-white);
-    width: 100%;
-}
-
-/* Submit Button */
 .submit-button {
     display: flex;
     align-items: center;
@@ -169,20 +162,42 @@ select {
     cursor: not-allowed;
 }
 
-/* Spinner */
-.spinner {
-    width: 20px;
-    height: 20px;
-    border: 2px solid var(--color-white);
-    border-top: 2px solid transparent;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-    display: none;
+/* Form Elements */
+.form-container {
+    position: relative;
+    background: var(--color-white);
+    border-radius: var(--border-radius);
+    box-shadow: var(--box-shadow);
+    padding: var(--spacing-xl);
+    max-width: 600px;
+    margin: 0 auto;
 }
 
-@keyframes spin {
-    0% { transform: rotate(0deg); }
-    100% { transform: rotate(360deg); }
+/* Commented out code
+.form-container.hidden {
+    display: none;
+} */
+
+.form-group {
+    margin-bottom: var(--spacing-xl);
+}
+
+.form-group label {
+    display: block;
+    font-weight: 500;
+    margin-bottom: var(--spacing-sm);
+    color: var(--color-text);
+}
+
+input,
+select {
+    padding: var(--input-padding);
+    border: var(--border);
+    border-radius: var(--border-radius);
+    outline: none;
+    font-size: 16px;
+    background-color: var(--color-white);
+    width: 100%;
 }
 
 .form-group.disabled label,
@@ -192,18 +207,17 @@ select {
     pointer-events: none;
 }
 
-/* Metadata container */
+/* Metadata Components */
 .metadata-container {
     min-width: var(--container-width);
     width: fit-content;
-    margin: var(--form-spacing) auto;
-    background: var(--white);
+    margin: var(--spacing-form) auto;
+    background: var(--color-white);
     border-radius: 8px;
     box-shadow: var(--box-shadow);
     overflow: hidden;
 }
 
-/* States for metadata */
 .metadata-placeholder,
 .metadata-loading,
 .metadata-error {
@@ -212,26 +226,25 @@ select {
 }
 
 .metadata-placeholder {
-    color: var(--text-color);
-    background-color: var(--background-color);
+    color: var(--color-text);
+    background-color: var(--color-background);
     max-width: var(--container-width);
     margin: auto;
 }
 
 .metadata-error {
-    color: var(--error-color);
-    background-color: var(--error-bg);
+    color: var(--color-error);
+    background-color: var(--color-error-bg);
 }
 
-/* Content layout */
 .metadata-content {
-    padding: var(--form-spacing);
+    padding: var(--spacing-form);
 }
 
 .metadata-item {
     padding: 16px;
     display: flex;
-    border-bottom: 1px solid var(--border-color);
+    border-bottom: 1px solid var(--color-border);
 }
 
 .metadata-item:last-child {
@@ -252,7 +265,7 @@ select {
 }
 
 .language-tag {
-    color: var(--primary-color);
+    color: var(--color-primary);
     font-size: 0.85em;
     padding: 2px 6px;
     background-color: rgba(74, 144, 226, 0.1);
@@ -262,11 +275,25 @@ select {
 }
 
 .empty-value {
-    color: var(--placeholder-color);
+    color: var(--color-placeholder);
     font-style: italic;
 }
 
-/* Spinners */
+/* Spinners and Animations */
+.spinner {
+    width: 20px;
+    height: 20px;
+    border: var(--spinner-border) solid var(--color-primary);
+    border-top: var(--spinner-border) solid transparent;
+    border-radius: 50%;
+    animation: spin 1s linear infinite;
+    display: none;
+}
+
+#pechaOptionsContainer .spinner {
+    margin-left: var(--spacing-sm);
+}
+
 .loading-spinner,
 .button-spinner {
     border-radius: 50%;
@@ -277,6 +304,11 @@ select {
     width: 40px;
     height: 40px;
     margin: 0 auto 16px;
-    border: var(--spinner-border) solid var(--primary-color) ;
-    border-top: var(--spinner-border) solid #f3f3f3;
+    border: var(--spinner-border) solid var(--color-primary);
+    border-top: var(--spinner-border) solid transparent;
+}
+
+@keyframes spin {
+    0% { transform: rotate(0deg); }
+    100% { transform: rotate(360deg); }
 }
