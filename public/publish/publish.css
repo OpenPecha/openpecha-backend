@@ -20,10 +20,12 @@
 
 *{
     box-sizing: border-box;
+    margin: 0;
+    padding: 0;
 }
 /* Base styles */
 body {
-    font-family: 'Arial', sans-serif;
+    font-family: Inter, -apple-system, system-ui, "Segoe UI", Helvetica, Arial, sans-serif;
     margin: 0;
     padding: var(--form-spacing);
     background-color: var(--background-color);
@@ -53,6 +55,9 @@ form {
 }
 
 .form-group {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
     margin-bottom: var(--form-spacing);
 }
 
@@ -69,6 +74,21 @@ select {
     border-radius: 4px;
     font-size: 16px;
     transition: border-color 0.3s ease;
+}
+
+.radio-group {
+    display: flex;
+    gap: 16px;
+    margin-left: 10px;
+}
+.radio-group label {
+    font-weight: normal;
+    cursor: pointer;
+}
+
+.radio-group input[type="radio"] {
+    accent-color: var(--primary-color);
+    cursor: pointer;
 }
 
 /* Button styles */
@@ -182,8 +202,8 @@ select {
     width: 40px;
     height: 40px;
     margin: 0 auto 16px;
-    border: var(--spinner-border) solid #f3f3f3;
-    border-top: var(--spinner-border) solid var(--primary-color);
+    border: var(--spinner-border) solid var(--primary-color);
+    border-top: var(--spinner-border) solid #f3f3f3;
 }
 
 .button-spinner {

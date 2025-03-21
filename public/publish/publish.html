@@ -1,35 +1,79 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Update pecha interface" />
-    <title>Update Pecha</title>
+    <meta name="description" content="Publish pecha interface" />
+    <link rel="shortcut icon" href="../assets/favicon.ico" type="image/x-icon">
+    <title>Publish Pecha</title>
     <link rel="stylesheet" href="./publish.css" />
-    <link rel="stylesheet" href="../toast_style.css"/>
-    <link rel="stylesheet" href="../custom/select/select.css"/>
+    <link rel="stylesheet" href="../toast_style.css" />
+    <link rel="stylesheet" href="../custom/select/select.css" />
+    <link rel="stylesheet" href="../navbar.css" />
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
 </head>
+
 <body>
+    <nav class="navbar">
+      <div class="nav-container">
+        <a href="/" class="nav-logo">
+          <img src="../assets/logo.svg" alt="OpenPecha Logo" />
+          <span>Publish pecha</span>
+        </a>
+        <div class="nav-links">
+          <a href="/create/create" class="nav-link">Create</a>
+          <a href="/publish/publish" class="nav-link active">Publish</a>
+          <a href="/update/" class="nav-link">Update</a>
+        </div>
+      </div>
+    </nav>
     <div id="toastContainer" role="alert" aria-live="polite"></div>
     <main>
-        <div class="heading">
-            <h1>Publish Pecha</h1>
-        </div>
         <form id="publishForm" novalidate>
             <div class="form-group">
-                <label for="pechaOptions">Published Pecha</label>
+                <label for="pechaOptions">Pecha</label>
                 <div id="pechaOptionsContainer">
+                    <!-- bellow selection is replace by cutome selector and same applied in js -->
                     <select id="pechaOptions" required>
                         <option value="">Select pecha</option>
                     </select>
                 </div>
             </div>
+            <div class="form-group">
+                <div class="destination-container">
+                <label for="destination">Publish to</label>
+                <div class="radio-group">
+                    <label for="staging">
+                        <input type="radio" id="staging" name="destination" value="staging" checked>
+                        Staging
+                    </label>
+                    <label for="production">
+                        <input type="radio" id="production" name="destination" value="production">
+                        Production
+                    </label>
+                </div>
+                </div>
+                <div class="reserialize-container">
+                <label for="reserialize">Reserialize</label>
+                <div class="radio-group">
+                    <label for="reserializeYes">
+                        <input type="radio" id="reserializeYes" name="reserialize" value="true" checked>
+                        Yes
+                    </label>
+                    <label for="reserializeNo">
+                        <input type="radio" id="reserializeNo" name="reserialize" value="false">
+                        No
+                    </label>
+                </div>
+                </div>
+                </div>
             <button type="submit" class="publish-button" id="publishButton">
                 Publish
             </button>
         </form>
         <div class="metadata-container">
-            
+
         </div>
     </main>
 
@@ -37,17 +81,8 @@
     <script src="./publish.js"></script>
     <script src="../custom/select/index.js"></script>
     <script src="../google_drive.js"></script>
-    <script 
-        src="https://apis.google.com/js/api.js"
-        onload="gapiLoaded()"
-        async 
-        defer
-    ></script>
-    <script 
-        src="https://accounts.google.com/gsi/client"
-        onload="gisLoaded()"
-        async 
-        defer
-    ></script>
+    <script src="https://apis.google.com/js/api.js" onload="gapiLoaded()" async defer></script>
+    <script src="https://accounts.google.com/gsi/client" onload="gisLoaded()" async defer></script>
 </body>
+
 </html>

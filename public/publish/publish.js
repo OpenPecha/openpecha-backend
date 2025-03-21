@@ -169,7 +169,8 @@ class UpdateMetaData {
     }
 
     displayMetadata(metadata) {
-        const metadataHTML = Object.entries(metadata).map(([key, value]) => {
+        const reorderedMetadata = this.reorderMetadata(metadata);
+        const metadataHTML = Object.entries(reorderedMetadata).map(([key, value]) => {
             const formattedKey = key.replace(/_/g, ' ').toUpperCase();
             const formattedValue = this.formatMetadataValue(value);
             return `
@@ -186,7 +187,31 @@ class UpdateMetaData {
             </div>
         `;
     }
-
+    reorderMetadata(metadata) {
+        const order = [
+            "author",
+            "date",
+            "source",
+            "presentation",
+            "usage_title",
+            "title",
+            "long_title",
+            "alt_titles",
+            "version_of",
+            "commentary_of",
+            "translation_of",
+            "document_id"
+        ];
+    
+        const reorderedMetadata = {};
+    
+        order.forEach((key) => {
+            reorderedMetadata[key] = metadata.hasOwnProperty(key) ? metadata[key] : null;
+        });
+    
+        return reorderedMetadata;
+    }
+    
     async handlePechaSelect() {
         this.selectedPecha = document.getElementById("selectedPecha");
         const pechaId = this.selectedPecha.dataset.value;
@@ -212,11 +237,21 @@ class UpdateMetaData {
         this.selectedPecha = document.getElementById("selectedPecha");
         const publishTextId = this.selectedPecha.dataset.value;
         if (!publishTextId) {
-            this.showToast('Please select the published text', 'warning');
+            this.showToast('Please select the pecha OPF', 'error');
+            return false;
+        }
+        const publishDestination = document.querySelector('input[name="destination"]:checked')?.value;
+        if(!publishDestination) {
+            this.showToast('Please select the publish destination', 'error');
+            return false;
+        }
+        const reserialize = document.querySelector('input[name="reserialize"]:checked')?.value;
+        if(!reserialize) {
+            this.showToast('Please select the reserialize option', 'error');
             return false;
         }
 
-        return { publishTextId };
+        return { publishTextId, publishDestination, reserialize: reserialize === 'true' };
     }
 
     async handlePublish() {
@@ -226,11 +261,18 @@ class UpdateMetaData {
         this.setLoading(true);
 
         try {
-            const { publishTextId } = validatedData;
+            const { publishTextId, publishDestination, reserialize } = validatedData;
             const response = await fetch(`${this.API_ENDPOINT}/pecha/${publishTextId}/publish`, {
-                method: 'POST'
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ destination: publishDestination, reserialize })
             });
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+            if (!response.ok){
+                console.log(response)
+                throw new Error(`Unable to publish pecha. Please try again later.`);
+            }
 
             this.showToast('Pecha published successfully', 'success');
             this.elements.form.reset();

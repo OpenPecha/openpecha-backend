@@ -222,6 +222,17 @@ paths:
           schema:
             type: string
           description: The ID of the Pecha to be published.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                destination:
+                  type: string
+                  enum: [staging, production]
+                  description: The destination to publish the Pecha to.
       responses:
         "200":
           description: Pecha published successfully.

@@ -3,15 +3,15 @@ class UpdateMetaData {
         this.elements = {
             form: document.getElementById('updateForm'),
             pechaOptionsContainer : document.getElementById('pechaOptionsContainer'),
-            pechaSelect: document.getElementById('pechaOptions'),
+            googleDocsContainer: document.getElementById('googleDocsContainer'),
             docsInput: document.getElementById('googleDocsInput'),
             updateButton: document.getElementById('updateButton'),
             buttonText: document.querySelector('.button-text'),
             spinner: document.querySelector('.spinner'),
             toastContainer: document.getElementById('toastContainer'),
             formGroups: document.querySelectorAll('.form-group'),
-            metadataContainer: document.querySelector('.metadata-container')
-
+            metadataContainer: document.querySelector('.metadata-container'),
+            updateFormContainer: document.getElementById('updateFormContainer')
         };
 
         this.isLoading = false;
@@ -19,7 +19,6 @@ class UpdateMetaData {
         this.setupEventListeners();
         this.fetchPechaOptions();
         this.showInitialMetadataState();
-
     }
 
     setupEventListeners() {
@@ -31,16 +30,16 @@ class UpdateMetaData {
         this.elements.form.addEventListener('submit', (e) => {
             e.preventDefault();
             if (!this.isLoading) {
-                this.handleUpdate();
+                this.handleSubmit(e);
             }
         });
     }
 
-    setLoadingState(loading, isFetchingPecha = false) {
+    setLoadingState(loading) {
         this.isLoading = loading;
         this.elements.updateButton.disabled = loading;
-        this.elements.buttonText.textContent = loading && !isFetchingPecha ? 'Updating...' : 'Submit';
-        this.elements.spinner.style.display = loading && !isFetchingPecha ? 'inline-block' : 'none';
+        this.elements.buttonText.textContent = loading ? 'Updating...' : 'Submit';
+        this.elements.spinner.style.display = loading ? 'inline-block' : 'none';
 
         this.elements.formGroups.forEach(group => {
             group.classList.toggle('disabled', loading);
@@ -48,7 +47,8 @@ class UpdateMetaData {
     }
 
     async fetchPechaOptions() {
-        this.setLoadingState(true, true);
+        this.showSpinner(this.elements.pechaOptionsContainer, true);
+        this.hideInputs();
         try {
             const response = await fetch(`${this.API_ENDPOINT}/metadata/filter/`, {
                 method: 'POST',
@@ -62,17 +62,18 @@ class UpdateMetaData {
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
             const pechas = await response.json();
+            console.log(":::::",pechas)
             this.updatePechaOptions(pechas);
         } catch (error) {
             console.error('Error loading pecha options:', error);
+            this.elements.pechaOptionsContainer.innerHTML="Unable to load pecha options. Please try again later.";
             this.showToast('Unable to load pecha options. Please try again later.', 'error');
         } finally {
-            this.setLoadingState(false);
+            this.showSpinner(this.elements.pechaOptionsContainer, false);
         }
     }
 
     updatePechaOptions(pechas) {
-        this.elements.pechaSelect.style.display = 'none';
         new CustomSearchableDropdown(this.elements.pechaOptionsContainer, pechas, "selectedPecha");
     }
 
@@ -158,7 +159,8 @@ class UpdateMetaData {
     }
 
     displayMetadata(metadata) {
-        const metadataHTML = Object.entries(metadata).map(([key, value]) => {
+        const reorderedMetadata = this.reorderMetadata(metadata);
+        const metadataHTML = Object.entries(reorderedMetadata).map(([key, value]) => {
             const formattedKey = key.replace(/_/g, ' ').toUpperCase();
             const formattedValue = this.formatMetadataValue(value);
             return `
@@ -176,11 +178,37 @@ class UpdateMetaData {
         `;
     }
 
+    reorderMetadata(metadata) {
+        const order = [
+            "author",
+            "date",
+            "source",
+            "presentation",
+            "usage_title",
+            "title",
+            "long_title",
+            "alt_titles",
+            "version_of",
+            "commentary_of",
+            "translation_of",
+            "document_id"
+        ];
+    
+        const reorderedMetadata = {};
+    
+        order.forEach((key) => {
+            reorderedMetadata[key] = metadata.hasOwnProperty(key) ? metadata[key] : null;
+        });
+    
+        return reorderedMetadata;
+    }
+
     async handlePechaSelect() {
         this.selectedPecha = document.getElementById("selectedPecha");
         const pechaId = this.selectedPecha.dataset.value;
 
         if (!pechaId) {
+            this.hideInputs();
             this.showInitialMetadataState();
             return;
         }
@@ -189,12 +217,15 @@ class UpdateMetaData {
             this.showLoadingState();
             const metadata = await this.fetchMetadata(pechaId);
             this.displayMetadata(metadata);
+            this.showInputs();
         } catch (error) {
             console.error('Error in handlePechaSelect:', error);
             this.showToast('Unable to fetch metadata. Please try again later.', 'error');
             this.showErrorState('Failed to load metadata. Please try again.');
+            this.hideInputs();
         }
     }
+
     validateFields() {
         this.selectedPecha = document.getElementById("selectedPecha");
         const publishTextId = this.selectedPecha.dataset.value;
@@ -214,7 +245,7 @@ class UpdateMetaData {
         return { publishTextId, docId };
     }
 
-    async handleUpdate() {
+    async handleSubmit(e) {
         const validatedData = this.validateFields();
         if (!validatedData) return;
 
@@ -231,6 +262,8 @@ class UpdateMetaData {
             await this.uploadDocument(publishTextId, blob, docId);
             this.showToast('Document updated successfully!', 'success');
             this.elements.form.reset();
+            this.showInitialMetadataState();
+            this.hideInputs();
         } catch (error) {
             console.error('Error during update:', error);
             this.showToast(`Error: ${error.message}`, 'error');
@@ -262,6 +295,16 @@ class UpdateMetaData {
         return match?.[1] || null;
     }
 
+    hideInputs() {
+        this.elements.googleDocsContainer.style.display = 'none';
+        // this.elements.updateButton.style.display = 'none';
+    }
+
+    showInputs() {
+        this.elements.googleDocsContainer.style.display = 'block';
+        // this.elements.updateButton.style.display = 'block';
+    }
+
     showToast(message, type) {
         this.clearToasts();
 
@@ -273,9 +316,25 @@ class UpdateMetaData {
         setTimeout(() => toast.remove(), 3000);
     }
 
+    showSpinner(parentNode, show) {
+        if (show) {
+            parentNode.innerHTML = '';
+            const spinner = document.createElement('div');
+            spinner.className = 'spinner';
+            spinner.style.display = 'inline-block';
+            parentNode.appendChild(spinner);
+        } else {
+            const spinner = parentNode.querySelector('.spinner');
+            if (spinner) {
+                spinner.remove();
+            }
+        }
+    }
+
     clearToasts() {
         this.elements.toastContainer.innerHTML = '';
     }
+
 }
 
 document.addEventListener('DOMContentLoaded', () => new UpdateMetaData());

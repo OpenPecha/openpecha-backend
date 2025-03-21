@@ -111,20 +111,30 @@ def delete_pecha(pecha_id: str):
 
 @pecha_bp.route("/<string:pecha_id>/publish", methods=["POST"], strict_slashes=False)
 def publish(pecha_id: str):
-    try:
-        if not pecha_id:
-            return jsonify({"error": "Missing Pecha Id"}), 400
+    data = request.get_json()
+    destination = data.get("destination", "staging")
+    reserialize = data.get("reserialize", False)
 
+    if not pecha_id:
+        return jsonify({"error": "Missing Pecha Id"}), 400
+
+    if destination not in ["staging", "production"]:
+        return jsonify({"error": "Invalid destination"}), 400
+
+    try:
         pecha = retrieve_pecha(pecha_id=pecha_id)
         logger.info("Successfully retrieved Pecha %s from storage", pecha_id)
 
-        serialized = serialize(pecha=pecha)
+        destination_url = getattr(Destination_url, destination.upper())
+        logger.info("Destination URL: %s", destination_url)
+
+        serialized = serialize(pecha=pecha, reserialize=reserialize)
         logger.info("Successfully serialized Pecha %s", pecha_id)
 
         Storage().store_pechaorg_json(pecha_id=pecha_id, json_dict=serialized)
         logger.info("Successfully saved Pecha %s to storage", pecha_id)
 
-        upload(text=serialized, destination_url=Destination_url.STAGING, overwrite=True)
+        upload(text=serialized, destination_url=destination_url, overwrite=True)
 
         return jsonify({"message": "Pecha published successfully", "id": pecha_id}), 200
 
