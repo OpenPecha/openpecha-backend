@@ -37,11 +37,11 @@ def db_get_metadata(pecha_id: str) -> dict[str, Any]:
 
 
 def get_metadata_chain(
-    pecha_id: str | None,
+    pecha_id: str,
     metadata: dict[str, Any] | None = None,
     traversal_mode: TraversalMode = TraversalMode.UPWARD,
     relationships: list[Relationship] | None = None,
-) -> list[tuple[str | None, dict[str, Any]]]:
+) -> list[tuple[str, dict[str, Any]]]:
 
     if relationships is None:
         relationships = list(Relationship)
@@ -115,6 +115,9 @@ def parse(docx_file: FileStorage, metadata: dict[str, Any], pecha_id: str | None
     path = create_tmp()
     docx_file.save(path)
 
+    if pecha_id is None:
+        pecha_id = ""  # This is OK, becuase the pecha IDs will be ignored anyhow
+
     metadatas = [md for _, md in get_metadata_chain(pecha_id=pecha_id, metadata=metadata)]
 
     return DocxParser().parse(
@@ -136,8 +139,8 @@ def serialize(pecha: Pecha, reserialize: bool) -> dict[str, Any]:
         return update_serialize_json(pecha=pecha, metadatas=metadatas, json=pecha_json)
 
     id_chain = [id for id, _ in metadata_chain]
-    logger.info("Pecha IDs: %s", ", ".join(filter(None, id_chain)))
-    pecha_chain = get_pecha_chain(pecha_ids=[id for id in id_chain if id is not None])
+    logger.info("Pecha IDs: %s", ", ".join(id_chain))
+    pecha_chain = get_pecha_chain(pecha_ids=id_chain)
 
     logger.info("Serialized Pecha %s doesn't exist, starting serialize", pecha.id)
     logger.info("Pechas: %s", [pecha.id for pecha in pecha_chain])

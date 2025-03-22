@@ -761,3 +761,169 @@ paths:
                     type: string
                     examples:
                       - "Failed to update Pecha: Internal error"
+  /categories:
+    get:
+      summary: Get category tree
+      description: Returns all categories in a hierarchical tree structure
+      operationId: getCategories
+      tags:
+        - Pecha
+      responses:
+        '200':
+          description: Category tree retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - categories
+                properties:
+                  categories:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - id
+                        - name
+                      properties:
+                        id:
+                          type: string
+                        name:
+                          type: object
+                          additionalProperties:
+                            type: string
+                        description:
+                          type: object
+                          additionalProperties:
+                            type: string
+                        short_description:
+                          type: object
+                          additionalProperties:
+                            type: string
+                        subcategories:
+                          type: array
+                          items:
+                            type: object
+              examples:
+                success:
+                  summary: Category tree with nested subcategories
+                  value:
+                    categories:
+                      - id: madhyamaka
+                        name:
+                          en: "Madhyamaka"
+                          bo: "དབུ་མ།"
+                        description:
+                          en: "Madhyamaka treatises"
+                          bo: "དབུ་མའི་གཞུང་སྣ་ཚོགས།"
+                        short_description:
+                          en: ""
+                          bo: ""
+                        subcategories:
+                          - id: prasangika
+                            name:
+                              en: "Prasangika"
+                              bo: "ཐལ་འགྱུར་བ།"
+                            description:
+                              en: "Prasangika treatises"
+                              bo: "ཐལ་འགྱུར་པའི་གཞུང་སྣ་ཚོགས།"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - error
+                properties:
+                  error:
+                    type: string
+              examples:
+                error:
+                  summary: Failed to retrieve categories
+                  value:
+                    error: "Failed to retrieve categories: <error reason>"
+
+    post:
+      summary: Upload categories
+      description: Upload a YAML file containing category definitions
+      operationId: uploadCategories
+      tags:
+        - Pecha
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  description: YAML file containing category definitions
+      responses:
+        '201':
+          description: Categories uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - message
+                  - count
+                properties:
+                  message:
+                    type: string
+                  count:
+                    type: integer
+              examples:
+                success:
+                  summary: Categories uploaded successfully
+                  value:
+                    message: "Categories uploaded successfully"
+                    count: 3
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - error
+                properties:
+                  error:
+                    type: string
+              examples:
+                noFile:
+                  summary: No file provided
+                  value:
+                    error: "No file provided"
+                invalidFormat:
+                  summary: Invalid file format
+                  value:
+                    error: "Invalid file format. Please upload a YAML file"
+                invalidYaml:
+                  summary: Invalid YAML format
+                  value:
+                    error: "Invalid YAML format"
+                invalidStructure:
+                  summary: Invalid category structure
+                  value:
+                    error: "Invalid category structure"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - error
+                properties:
+                  error:
+                    type: string
+              examples:
+                error:
+                  summary: Processing failed
+                  value:
+                    error: "Failed to process categories: Database error"

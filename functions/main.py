@@ -1,4 +1,5 @@
 from api.api import api_bp
+from api.category import categories_bp
 from api.languages import languages_bp
 from api.metadata import metadata_bp
 from api.pecha import pecha_bp
@@ -19,6 +20,7 @@ def create_app(testing=False):
     app.register_blueprint(schema_bp, url_prefix="/schema")
     app.register_blueprint(api_bp, url_prefix="/api")
     app.register_blueprint(text_bp, url_prefix="/text")
+    app.register_blueprint(categories_bp, url_prefix="/categories")
 
     @app.after_request
     def log_response(response):

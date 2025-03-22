@@ -21,7 +21,7 @@ def extract_short_info(pecha_id: str, metadata: dict[str, Any]) -> dict[str, str
     }
 
 
-def format_metadata_chain(chain: list[tuple[str | None, dict[str, Any]]]) -> list[dict[str, str]]:
+def format_metadata_chain(chain: list[tuple[str, dict[str, Any]]]) -> list[dict[str, str]]:
     """Transform metadata chain into simplified format with references.
 
     Args:
