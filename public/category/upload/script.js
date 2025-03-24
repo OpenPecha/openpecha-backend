@@ -1,96 +1,110 @@
-document.addEventListener('DOMContentLoaded', function() {
-    // DOM elements
-    const uploadArea = document.getElementById('upload-area');
-    const fileInput = document.getElementById('file-input');
-    const browseButton = document.getElementById('browse-button');
-    const fileInfo = document.getElementById('file-info');
-    const previewContent = document.getElementById('preview-content');
-    const detailsContent = document.getElementById('details-content');
-    const clearButton = document.getElementById('clear-button');
-    const uploadButton = document.getElementById('upload-button');
-    const toast = document.getElementById('toast');
-    
-    let selectedFile = null;
-
-    // Event listeners for drag and drop
-    uploadArea.addEventListener('dragover', function(e) {
-        e.preventDefault();
-        uploadArea.classList.add('dragover');
-    });
-
-    uploadArea.addEventListener('dragleave', function(e) {
-        e.preventDefault();
-        uploadArea.classList.remove('dragover');
-    });
-
-    uploadArea.addEventListener('drop', function(e) {
-        e.preventDefault();
-        uploadArea.classList.remove('dragover');
+class YamlUploadHandler {
+    constructor() {
+        this.API_ENDPOINT = 'https://api-aq25662yyq-uc.a.run.app/categories';
+        this.FILE_SIZE_UNITS = ['Bytes', 'KB', 'MB', 'GB'];
+        this.TOAST_DURATION = 3000;
+        this.selectedFile = null;
         
-        const files = e.dataTransfer.files;
-        handleFiles(files);
-    });
-
-    // Click events
-    uploadArea.addEventListener('click', function() {
-        fileInput.click();
-    });
-
-    browseButton.addEventListener('click', function(e) {
-        e.stopPropagation();
-        fileInput.click();
-    });
-
-    fileInput.addEventListener('change', function() {
-        handleFiles(this.files);
-    });
-
-    clearButton.addEventListener('click', clearSelection);
+        // Cache DOM elements
+        this.elements = {
+            uploadArea: document.getElementById('upload-area'),
+            fileInput: document.getElementById('file-input'),
+            browseButton: document.getElementById('browse-button'),
+            fileInfo: document.getElementById('file-info'),
+            previewContent: document.getElementById('preview-content'),
+            detailsContent: document.getElementById('details-content'),
+            clearButton: document.getElementById('clear-button'),
+            uploadButton: document.getElementById('upload-button'),
+            toast: document.getElementById('toast')
+        };
+        
+        this.setupEventListeners();
+    }
     
-    uploadButton.addEventListener('click', uploadFile);
-
-    // Function to handle selected files
-    function handleFiles(files) {
-        if (files.length === 0) return;
+    setupEventListeners() {
+        // Drag and drop handlers with bound context
+        this.elements.uploadArea.addEventListener('dragover', this.handleDragOver.bind(this));
+        this.elements.uploadArea.addEventListener('dragleave', this.handleDragLeave.bind(this));
+        this.elements.uploadArea.addEventListener('drop', this.handleDrop.bind(this));
+        
+        // Click handlers
+        this.elements.uploadArea.addEventListener('click', () => this.elements.fileInput.click());
+        this.elements.browseButton.addEventListener('click', (e) => {
+            e.stopPropagation();
+            this.elements.fileInput.click();
+        });
+        
+        // File selection and actions
+        this.elements.fileInput.addEventListener('change', () => this.handleFiles(this.elements.fileInput.files));
+        this.elements.clearButton.addEventListener('click', this.clearSelection.bind(this));
+        this.elements.uploadButton.addEventListener('click', this.uploadFile.bind(this));
+    }
+    
+    handleDragOver(e) {
+        e.preventDefault();
+        this.elements.uploadArea.classList.add('dragover');
+    }
+    
+    handleDragLeave(e) {
+        e.preventDefault();
+        this.elements.uploadArea.classList.remove('dragover');
+    }
+    
+    handleDrop(e) {
+        e.preventDefault();
+        this.elements.uploadArea.classList.remove('dragover');
+        this.handleFiles(e.dataTransfer.files);
+    }
+    
+    handleFiles(files) {
+        if (!files.length) return;
         
         const file = files[0];
         
-        // Check if the file is a YAML file
-        if (!file.name.match(/\.(yaml|yml)$/i)) {
-            showToast('Please select a YAML file (.yaml or .yml)', 'error');
-            uploadArea.classList.add('error');
-            setTimeout(() => {
-                uploadArea.classList.remove('error');
-            }, 3000);
+        // Validate file type
+        if (!this.isYamlFile(file.name)) {
+            this.showToast('Please select a YAML file (.yaml or .yml)', 'error');
+            this.showUploadError();
             return;
         }
-
-        selectedFile = file;
-        uploadButton.disabled = false;
         
-        // Display file information
-        fileInfo.style.display = 'grid';
-        displayFileDetails(file);
+        this.selectedFile = file;
+        this.elements.uploadButton.disabled = false;
         
-        // Read and display file content
+        // Update UI with file details
+        this.elements.fileInfo.style.display = 'grid';
+        this.displayFileDetails(file);
+        
+        // Preview file content
+        this.readFileContent(file);
+    }
+    
+    isYamlFile(filename) {
+        return /\.(yaml|yml)$/i.test(filename);
+    }
+    
+    showUploadError() {
+        this.elements.uploadArea.classList.add('error');
+        setTimeout(() => this.elements.uploadArea.classList.remove('error'), this.TOAST_DURATION);
+    }
+    
+    readFileContent(file) {
         const reader = new FileReader();
-        reader.onload = function(e) {
-            const content = e.target.result;
-            previewContent.textContent = content;
-        };
+        reader.onload = e => this.elements.previewContent.textContent = e.target.result;
         reader.readAsText(file);
     }
-
-    // Function to display file details
-    function displayFileDetails(file) {
-        detailsContent.innerHTML = '';
+    
+    displayFileDetails(file) {
+        this.elements.detailsContent.innerHTML = '';
         
         const details = [
             { label: 'File Name', value: file.name },
             { label: 'File Type', value: file.type || 'text/yaml' },
-            { label: 'File Size', value: formatFileSize(file.size) },
+            { label: 'File Size', value: this.formatFileSize(file.size) },
             { label: 'Last Modified', value: new Date(file.lastModified).toLocaleString() }
         ];
+        
+        const fragment = document.createDocumentFragment();
         
         details.forEach(detail => {
             const labelElement = document.createElement('div');
@@ -101,50 +115,65 @@ document.addEventListener('DOMContentLoaded', function() {
             valueElement.className = 'value';
             valueElement.textContent = detail.value;
             
-            detailsContent.appendChild(labelElement);
-            detailsContent.appendChild(valueElement);
+            fragment.appendChild(labelElement);
+            fragment.appendChild(valueElement);
         });
+        
+        this.elements.detailsContent.appendChild(fragment);
     }
-
-    // Function to format file size
-    function formatFileSize(bytes) {
+    
+    formatFileSize(bytes) {
         if (bytes === 0) return '0 Bytes';
         
         const k = 1024;
-        const sizes = ['Bytes', 'KB', 'MB', 'GB'];
         const i = Math.floor(Math.log(bytes) / Math.log(k));
         
-        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+        return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + this.FILE_SIZE_UNITS[i];
     }
-
-    // Function to clear selection
-    function clearSelection() {
-        selectedFile = null;
-        fileInput.value = '';
-        fileInfo.style.display = 'none';
-        previewContent.textContent = '';
-        detailsContent.innerHTML = '';
-        uploadButton.disabled = true;
+    
+    clearSelection() {
+        this.selectedFile = null;
+        this.elements.fileInput.value = '';
+        this.elements.fileInfo.style.display = 'none';
+        this.elements.previewContent.textContent = '';
+        this.elements.detailsContent.innerHTML = '';
+        this.elements.uploadButton.disabled = true;
     }
-
-    // Function to upload file (simulated)
-    function uploadFile() {
-        if (!selectedFile) return;
+    
+    uploadFile() {
+        if (!this.selectedFile) return;
         
-        // Simulate upload process
-        uploadButton.disabled = true;
-        uploadButton.textContent = 'Uploading...';
-        
-        // Simulate API call with timeout
-        setTimeout(() => {
-            uploadButton.textContent = 'Upload';
-            showToast('File uploaded successfully!');
-            clearSelection();
-        }, 2000);
+        const formData = new FormData();
+        formData.append('file', this.selectedFile);
+        this.elements.uploadButton.disabled = true;
+        this.elements.uploadButton.textContent = 'Uploading...';
+        fetch(this.API_ENDPOINT, {
+            method: 'POST',
+            body: formData
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log(data);
+            this.showToast('File uploaded successfully!');
+            this.clearSelection();
+        })
+        .catch(error => {
+            this.showToast('Upload failed!', 'error');
+            console.error('Error:', error);
+        })
+        .finally(() => {
+            this.elements.uploadButton.disabled = false;
+            this.elements.uploadButton.textContent = 'Upload';
+        });
     }
-
-    // Function to show toast notification
-    function showToast(message, type = 'success') {
+    
+    showToast(message, type = 'success') {
+        const toast = this.elements.toast;
         toast.textContent = message;
         toast.className = 'toast show';
         
@@ -152,8 +181,11 @@ document.addEventListener('DOMContentLoaded', function() {
             toast.classList.add('error');
         }
         
-        setTimeout(() => {
-            toast.classList.remove('show');
-        }, 3000);
+        setTimeout(() => toast.classList.remove('show'), this.TOAST_DURATION);
     }
+}
+
+document.addEventListener('DOMContentLoaded', function() {
+    // Initialize the upload handler
+    new YamlUploadHandler();
 });
