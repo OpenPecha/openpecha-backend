@@ -1,15 +1,31 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-    <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <meta name="description" content="Update pecha interface" />
+    <meta charset="UTF-UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Update pecha interface">
+    <link rel="shortcut icon" href="../../assets/favicon.ico" type="image/x-icon">
     <title>Update Pecha</title>
-    <link rel="stylesheet" href="./category.css" />
-    <link rel="stylesheet" href="../toast_style.css"/>
-    <link rel="stylesheet" href="../custom/select/select.css"/>
+    <link rel="stylesheet" href="./category.css">
+    <link rel="stylesheet" href="../../toast_style.css">
+    <link rel="stylesheet" href="../../navbar.css">
+    <link rel="stylesheet" href="../../custom/select/select.css">
 </head>
 <body>
+    <nav class="navbar">
+        <div class="nav-container">
+          <a href="/" class="nav-logo">
+            <img src="../../assets/logo.svg" alt="OpenPecha Logo" />
+            <span>Update pecha</span>
+          </a>
+          <div class="nav-links">
+            <a href="/create/create" class="nav-link">Create</a>
+            <a href="/publish/publish" class="nav-link">Publish</a>
+            <a href="/update/" class="nav-link">Update</a>
+            <a href="/category/" class="nav-link active">Category</a>
+          </div>
+        </div>
+      </nav>
     <div id="toastContainer" role="alert" aria-live="polite"></div>
     <main>
         <form id="publishForm" novalidate>
@@ -86,8 +102,8 @@
 
         <!-- Scripts -->
         <script src="./category_new.js"></script>
-        <script src="../custom/select/index.js"></script>
-        <script src="../google_drive.js"></script>
+        <script src="../../custom/select/index.js"></script>
+        <script src="../../google_drive.js"></script>
         <script 
             src="https://apis.google.com/js/api.js"
             onload="gapiLoaded()"

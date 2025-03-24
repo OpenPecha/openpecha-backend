@@ -24,7 +24,7 @@
 
 /* Base styles */
 body {
-    font-family: 'Arial', sans-serif;
+    font-family: Inter, -apple-system, system-ui, "Segoe UI", Helvetica, Arial, sans-serif;
     margin: 0;
     padding: var(--form-spacing);
     background-color: var(--background-color);
