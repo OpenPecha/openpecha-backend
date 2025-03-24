@@ -50,7 +50,7 @@ def process_categories(
 
 
 @categories_bp.route("/", methods=["POST"], strict_slashes=False)
-def upload_category():
+def upload_categories():
     try:
         if "file" not in request.files:
             return jsonify({"error": "No file provided"}), 400
@@ -68,7 +68,6 @@ def upload_category():
         if not isinstance(content, dict) or "categories" not in content:
             return jsonify({"error": "Invalid category structure"}), 400
 
-        # Process and store categories
         categories = list(process_categories(content["categories"]))
         logger.info("Processed %d categories", len(categories))
 
@@ -96,7 +95,6 @@ def build_category_tree() -> list[dict[str, Any]]:
 
 @categories_bp.route("/", methods=["GET"], strict_slashes=False)
 def get_categories():
-    """Get all categories in a tree structure."""
     try:
         categories = build_category_tree()
         return jsonify({"categories": categories}), 200
