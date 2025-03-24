@@ -7,6 +7,15 @@ from metadata_model import MetadataModel
 schema_bp = Blueprint("schema", __name__)
 
 
+@schema_bp.after_request
+def add_no_cache_headers(response):
+    """Add headers to prevent response caching."""
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    response.headers["Pragma"] = "no-cache"
+    response.headers["Expires"] = "0"
+    return response
+
+
 @schema_bp.route("/metadata", methods=["GET"])
 def get_metadata_schema():
     return jsonify(MetadataModel.model_json_schema()), 200

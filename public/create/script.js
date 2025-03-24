@@ -604,7 +604,6 @@ class LocalizedForm {
             const formData = await this.prepareFormData(blob, metadata);
 
             const response = await this.submitFormData(formData);
-            console.log("response:::", response);
 
             if (!response.ok) {
                 const json = await response.text();
@@ -614,9 +613,8 @@ class LocalizedForm {
             }
 
             const jsonResponse = await response.json();
-            await this.handleSuccessfulSubmission(jsonResponse);
             this.showPopup(`${jsonResponse.id} - ${jsonResponse.title}`);
-            // this.showToast("File and metadata successfully submitted!", "success");
+            this.showToast("File and metadata successfully submitted!", "success");
             // this.clearForm();
 
         } catch (error) {
@@ -640,29 +638,6 @@ class LocalizedForm {
             method: "POST",
             body: formData
         });
-    }
-
-    async handleSuccessfulSubmission(jsonResponse) {
-        const { pecha_id, data: serializedData } = jsonResponse;
-
-        const blob = new Blob([JSON.stringify(serializedData, null)], {
-            type: "application/json"
-        });
-
-        await this.downloadFile(blob, `${pecha_id}.json`);
-    }
-
-    async downloadFile(blob, filename) {
-        const downloadUrl = URL.createObjectURL(blob);
-        try {
-            const a = document.createElement("a");
-            a.href = downloadUrl;
-            a.download = filename;
-            document.body.appendChild(a);
-            a.click();
-        } finally {
-            URL.revokeObjectURL(downloadUrl);
-        }
     }
 
     showPopup(text) {
@@ -702,7 +677,7 @@ class LocalizedForm {
         const toastContainer = document.getElementById('toastContainer');
         const toast = document.createElement('div');
         toast.className = `toast ${type}`;
-        toast.textContent = message;
+        toast.innerHTML = `${this.getToastIcon(type)} ${message}`;
         toastContainer.appendChild(toast);
 
         // Auto-close the toast after 3 seconds
@@ -716,6 +691,17 @@ class LocalizedForm {
         toastContainer.innerHTML = '';
     }
 
+    getToastIcon(type) {
+        switch (type) {
+            case 'success':
+                return '<i class="fas fa-check-circle"></i>';
+            case 'error':
+                return '<i class="fas fa-exclamation-circle"></i>';
+            default:
+                return '<i class="fas fa-info-circle"></i>';
+        }
+    }
+    
     clearForm() {
         const currentLanguage = this.baseLanguageSelect.value;
 

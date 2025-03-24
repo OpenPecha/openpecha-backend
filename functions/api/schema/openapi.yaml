@@ -233,6 +233,10 @@ paths:
                   type: string
                   enum: [staging, production]
                   description: The destination to publish the Pecha to.
+                reserialize:
+                  type: boolean
+                  default: false
+                  description: Whether to re-serialize the Pecha before publishing.
       responses:
         "200":
           description: Pecha published successfully.
@@ -438,6 +442,113 @@ paths:
                     type: string
                     examples:
                       - "Failed to update metadata: {error details}"
+  /metadata/{pecha_id}/related:
+    get:
+      summary: Get related metadata chain
+      description: |
+        Returns a chain of metadata documents related to the specified pecha.
+        Supports different traversal modes and relationship types.
+      tags:
+        - Pecha
+      parameters:
+        - name: pecha_id
+          in: path
+          required: true
+          schema:
+            type: string
+            pattern: ^I[A-F0-9]{8}$
+          description: ID of the pecha to get related metadata for
+        - name: traversal
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [upward, full_tree]
+            default: full_tree
+          description: |
+            Traversal mode for finding related metadata:
+            * upward - Only traverse up the reference chain
+            * full_tree - Get the complete tree of related metadata
+        - name: relationships
+          in: query
+          required: false
+          schema:
+            type: string
+            pattern: ^(commentary|version|translation)(,(commentary|version|translation))*$
+          description: |
+            Comma-separated list of relationship types to consider.
+            If not provided, all relationship types are used.
+            Example: "commentary,version"
+      responses:
+        "200":
+          description: List of related metadata found successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required:
+                    - id
+                    - title
+                  properties:
+                    id:
+                      type: string
+                      pattern: ^I[A-F0-9]{8}$
+                    title:
+                      type: string
+                    commentary_of:
+                      type: string
+                      pattern: ^I[A-F0-9]{8}$
+                    version_of:
+                      type: string
+                      pattern: ^I[A-F0-9]{8}$
+                    translation_of:
+                      type: string
+                      pattern: ^I[A-F0-9]{8}$
+                examples:
+                  - id: IBA00803F
+                    title: Root Text
+                    version_of: IBA008040
+        "400":
+          description: Invalid parameters provided
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - error
+                properties:
+                  error:
+                    type: string
+                    examples:
+                      - "Invalid traversal mode. Use 'upward' or 'full_tree'"
+        "404":
+          description: Metadata not found
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - error
+                properties:
+                  error:
+                    type: string
+                    examples:
+                      - "Metadata not found"
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - error
+                properties:
+                  error:
+                    type: string
+                    examples: 
+                    - "Failed to retrieve related metadata: <error details>"
   /metadata/filter:
     post:
       summary: Filter metadata
@@ -650,3 +761,169 @@ paths:
                     type: string
                     examples:
                       - "Failed to update Pecha: Internal error"
+  /categories:
+    get:
+      summary: Get category tree
+      description: Returns all categories in a hierarchical tree structure
+      operationId: getCategories
+      tags:
+        - Pecha
+      responses:
+        '200':
+          description: Category tree retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - categories
+                properties:
+                  categories:
+                    type: array
+                    items:
+                      type: object
+                      required:
+                        - id
+                        - name
+                      properties:
+                        id:
+                          type: string
+                        name:
+                          type: object
+                          additionalProperties:
+                            type: string
+                        description:
+                          type: object
+                          additionalProperties:
+                            type: string
+                        short_description:
+                          type: object
+                          additionalProperties:
+                            type: string
+                        subcategories:
+                          type: array
+                          items:
+                            type: object
+              examples:
+                success:
+                  summary: Category tree with nested subcategories
+                  value:
+                    categories:
+                      - id: madhyamaka
+                        name:
+                          en: "Madhyamaka"
+                          bo: "དབུ་མ།"
+                        description:
+                          en: "Madhyamaka treatises"
+                          bo: "དབུ་མའི་གཞུང་སྣ་ཚོགས།"
+                        short_description:
+                          en: ""
+                          bo: ""
+                        subcategories:
+                          - id: prasangika
+                            name:
+                              en: "Prasangika"
+                              bo: "ཐལ་འགྱུར་བ།"
+                            description:
+                              en: "Prasangika treatises"
+                              bo: "ཐལ་འགྱུར་པའི་གཞུང་སྣ་ཚོགས།"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - error
+                properties:
+                  error:
+                    type: string
+              examples:
+                error:
+                  summary: Failed to retrieve categories
+                  value:
+                    error: "Failed to retrieve categories: <error reason>"
+
+    post:
+      summary: Upload categories
+      description: Upload a YAML file containing category definitions
+      operationId: uploadCategories
+      tags:
+        - Pecha
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  description: YAML file containing category definitions
+      responses:
+        '201':
+          description: Categories uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - message
+                  - count
+                properties:
+                  message:
+                    type: string
+                  count:
+                    type: integer
+              examples:
+                success:
+                  summary: Categories uploaded successfully
+                  value:
+                    message: "Categories uploaded successfully"
+                    count: 3
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - error
+                properties:
+                  error:
+                    type: string
+              examples:
+                noFile:
+                  summary: No file provided
+                  value:
+                    error: "No file provided"
+                invalidFormat:
+                  summary: Invalid file format
+                  value:
+                    error: "Invalid file format. Please upload a YAML file"
+                invalidYaml:
+                  summary: Invalid YAML format
+                  value:
+                    error: "Invalid YAML format"
+                invalidStructure:
+                  summary: Invalid category structure
+                  value:
+                    error: "Invalid category structure"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - error
+                properties:
+                  error:
+                    type: string
+              examples:
+                error:
+                  summary: Processing failed
+                  value:
+                    error: "Failed to process categories: Database error"

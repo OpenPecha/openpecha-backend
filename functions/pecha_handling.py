@@ -2,10 +2,12 @@ import json
 import logging
 import tempfile
 import zipfile
+from enum import Enum, auto
 from pathlib import Path
 from typing import Any
 
 from firebase_config import db
+from google.cloud.firestore_v1.base_query import FieldFilter, Or
 from openpecha.pecha import Pecha
 from openpecha.pecha.parsers.docx import DocxParser
 from openpecha.pecha.serializers.pecha_db import Serializer
@@ -16,40 +18,75 @@ from werkzeug.datastructures import FileStorage
 logger = logging.getLogger(__name__)
 
 
+class TraversalMode(Enum):
+    UPWARD = auto()
+    FULL_TREE = auto()
+
+
+class Relationship(Enum):
+    COMMENTARY = "commentary_of"
+    VERSION = "version_of"
+    TRANSLATION = "translation_of"
+
+
 def db_get_metadata(pecha_id: str) -> dict[str, Any]:
-    return db.collection("metadata").document(pecha_id).get().to_dict()
+    doc = db.collection("metadata").document(pecha_id).get()
+    if not doc.exists:
+        raise ValueError(f"Metadata not found for ID: {pecha_id}")
+    return doc.to_dict()
 
 
-def get_metadata_chain(metadata: dict[str, Any]) -> list[dict[str, Any]]:
-    chain = [metadata]
-    while (next_id := next(filter(metadata.get, ("commentary_of", "version_of", "translation_of")), None)) and (
-        metadata := db_get_metadata(next_id)
-    ):
-        chain.append(metadata)
+def get_metadata_chain(
+    pecha_id: str,
+    metadata: dict[str, Any] | None = None,
+    traversal_mode: TraversalMode = TraversalMode.UPWARD,
+    relationships: list[Relationship] | None = None,
+) -> list[tuple[str, dict[str, Any]]]:
 
-    return chain
+    if relationships is None:
+        relationships = list(Relationship)
 
+    metadata = metadata if pecha_id is None else db_get_metadata(pecha_id)
+    if not metadata:
+        raise ValueError(f"Metadata not found for ID: {pecha_id}")
 
-def get_id_metadata_chain(pecha_id: str, metadata: dict[str, Any]) -> list[tuple[str, dict[str, Any]]]:
+    logger.info("Getting metadata chain for: id: %s, metadata: %s", pecha_id, metadata)
+
+    ref_fields = [r.value for r in relationships]
     chain = [(pecha_id, metadata)]
 
-    logger.info("Starting metadata chain traversal from Pecha ID: %s", pecha_id)
+    logger.info("Following forward references")
+    current = metadata
+    while next_id := next((current.get(field) for field in ref_fields if current.get(field)), None):
+        if next_metadata := db_get_metadata(next_id):
+            chain.append((next_id, next_metadata))
+            current = next_metadata
 
-    next_id = metadata.get("commentary_of") or metadata.get("version_of") or metadata.get("translation_of")
+    if traversal_mode is TraversalMode.FULL_TREE:
+        root_id = chain[-1][0]
+        logger.info("Starting collection of all related pechas from root: %s", root_id)
+        to_process = [root_id]  # Queue of IDs to process
+        processed = {root_id}  # Track processed IDs to avoid cycles
 
-    while next_id:
-        metadata = db_get_metadata(next_id)
+        while to_process:
+            current_id = to_process.pop(0)  # Get next ID to process
 
-        if not metadata:
-            raise ValueError(f"Metadata for ID {next_id} not found.")
+            # Find all metadata that reference current_id
+            docs = (
+                db.collection("metadata")
+                .where(filter=Or([FieldFilter(f, "==", current_id) for f in ref_fields]))
+                .stream()
+            )
 
-        logger.info("Traversing to Pecha ID: %s", next_id)
-        chain.append((next_id, metadata))
+            for doc in docs:
+                if doc.id not in processed:
+                    metadata = doc.to_dict()
+                    if metadata is not None:
+                        chain.insert(0, (doc.id, metadata))  # Add to start to maintain order
+                    processed.add(doc.id)
+                    to_process.append(doc.id)  # Add to queue for processing
 
-        next_id = metadata.get("commentary_of") or metadata.get("version_of") or metadata.get("translation_of")
-
-    logger.info("Metadata Chain: %s", [(pecha_id, metadata) for pecha_id, metadata in chain])
-
+    logger.info("Metadata chain: %s", chain)
     return chain
 
 
@@ -78,34 +115,37 @@ def parse(docx_file: FileStorage, metadata: dict[str, Any], pecha_id: str | None
     path = create_tmp()
     docx_file.save(path)
 
+    if pecha_id is None:
+        pecha_id = ""  # This is OK, becuase the pecha IDs will be ignored anyhow
+
+    metadatas = [md for _, md in get_metadata_chain(pecha_id=pecha_id, metadata=metadata)]
+
     return DocxParser().parse(
         docx_file=path,
-        metadatas=get_metadata_chain(metadata=metadata),
+        metadatas=metadatas,
         pecha_id=pecha_id,
     )
 
 
 def serialize(pecha: Pecha, reserialize: bool) -> dict[str, Any]:
-    metadata = db_get_metadata(pecha_id=pecha.id)
-
-    id_metadata_chain = get_id_metadata_chain(pecha_id=pecha.id, metadata=metadata)
-    metadata_chain = [md for _, md in id_metadata_chain]
+    metadata_chain = get_metadata_chain(pecha_id=pecha.id)
+    metadatas = [md for _, md in metadata_chain]
 
     storage = Storage()
     if storage.pechaorg_json_exists(pecha_id=pecha.id) and not reserialize:
         pecha_json = storage.retrieve_pechaorg_json(pecha_id=pecha.id)
 
         logger.info("Serialized Pecha %s already exist, updating the json", pecha.id)
-        return update_serialize_json(pecha=pecha, metadatas=metadata_chain, json=pecha_json)
+        return update_serialize_json(pecha=pecha, metadatas=metadatas, json=pecha_json)
 
-    id_chain = [id for id, _ in id_metadata_chain]
+    id_chain = [id for id, _ in metadata_chain]
     logger.info("Pecha IDs: %s", ", ".join(id_chain))
     pecha_chain = get_pecha_chain(pecha_ids=id_chain)
 
     logger.info("Serialized Pecha %s doesn't exist, starting serialize", pecha.id)
     logger.info("Pechas: %s", [pecha.id for pecha in pecha_chain])
 
-    return Serializer().serialize(pechas=pecha_chain, metadatas=metadata_chain)
+    return Serializer().serialize(pechas=pecha_chain, metadatas=metadatas)
 
 
 def process_pecha(
@@ -119,7 +159,7 @@ def process_pecha(
         - `("Error message", None)` if an error occurs.
     """
     try:
-        pecha = parse(docx_file=text, metadata=metadata, pecha_id=pecha_id)
+        pecha = parse(docx_file=text, pecha_id=pecha_id, metadata=metadata)
 
         logger.info("Pecha created: %s %s", pecha.id, pecha.pecha_path)
     except Exception as e:

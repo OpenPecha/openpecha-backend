@@ -1,4 +1,5 @@
 from api.api import api_bp
+from api.category import categories_bp
 from api.languages import languages_bp
 from api.metadata import metadata_bp
 from api.pecha import pecha_bp
@@ -11,6 +12,7 @@ from flask import Flask, request
 def create_app(testing=False):
     app = Flask(__name__)
     app.config["TESTING"] = testing
+    app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
 
     app.register_blueprint(pecha_bp, url_prefix="/pecha")
     app.register_blueprint(metadata_bp, url_prefix="/metadata")
@@ -18,6 +20,7 @@ def create_app(testing=False):
     app.register_blueprint(schema_bp, url_prefix="/schema")
     app.register_blueprint(api_bp, url_prefix="/api")
     app.register_blueprint(text_bp, url_prefix="/text")
+    app.register_blueprint(categories_bp, url_prefix="/categories")
 
     @app.after_request
     def log_response(response):
@@ -58,6 +61,7 @@ def create_app(testing=False):
         "GITHUB_ORG_NAME",
         "PECHA_API_KEY",
     ],
+    memory=options.MemoryOption.MB_512,
 )
 def api(req: https_fn.Request) -> https_fn.Response:
     app = create_app()
