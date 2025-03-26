@@ -322,7 +322,7 @@ paths:
       summary: Retrieve metadata by Pecha ID
       description: Fetch metadata associated with the given Pecha
       tags:
-        - Pecha
+        - Metadata
       parameters:
         - name: pecha_id
           in: path
@@ -363,7 +363,7 @@ paths:
       summary: Overwrite metadata by ID
       description: Overwrites metadata for a given Pecha ID in DB. The metadata must be valid.
       tags:
-        - Pecha
+        - Metadata
       parameters:
         - name: pecha_id
           in: path
@@ -442,6 +442,118 @@ paths:
                     type: string
                     examples:
                       - "Failed to update metadata: {error details}"
+  /metadata/{pecha_id}/category:
+    put:
+      summary: Set category for a Pecha
+      description: Assigns a category to a Pecha's metadata
+      operationId: setCategory
+      tags:
+        - Category
+      parameters:
+        - name: pecha_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the Pecha to update
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - category_id
+              properties:
+                category_id:
+                  type: string
+                  description: ID of the category to assign
+            examples:
+              valid:
+                summary: Valid category assignment
+                value:
+                  category_id: "madhyamaka"
+              empty:
+                summary: Missing category ID
+                value:
+                  category_id: ""
+      responses:
+        '200':
+          description: Category successfully updated
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - message
+                  - id
+                properties:
+                  message:
+                    type: string
+                  id:
+                    type: string
+              examples:
+                success:
+                  summary: Category updated successfully
+                  value:
+                    message: "Category updated successfully"
+                    id: "I857977C3"
+        '400':
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - error
+                properties:
+                  error:
+                    type: string
+              examples:
+                missingPechaId:
+                  summary: Missing Pecha ID
+                  value:
+                    error: "Missing Pecha ID"
+                missingCategoryId:
+                  summary: Missing category ID
+                  value:
+                    error: "Missing category ID"
+        '404':
+          description: Not found
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - error
+                properties:
+                  error:
+                    type: string
+              examples:
+                categoryNotFound:
+                  summary: Category not found
+                  value:
+                    error: "Category 'madhyamaka' not found"
+                metadataNotFound:
+                  summary: Metadata not found
+                  value:
+                    error: "Metadata with ID 'I857977C3' not found"
+        '500':
+          description: Server error
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - error
+                properties:
+                  error:
+                    type: string
+              examples:
+                error:
+                  summary: Update failed
+                  value:
+                    error: "Failed to update category: Database error"
   /metadata/{pecha_id}/related:
     get:
       summary: Get related metadata chain
@@ -449,7 +561,7 @@ paths:
         Returns a chain of metadata documents related to the specified pecha.
         Supports different traversal modes and relationship types.
       tags:
-        - Pecha
+        - Metadata
       parameters:
         - name: pecha_id
           in: path
@@ -560,7 +672,7 @@ paths:
         3. **OR Query** - Return results that match **any** given conditions.
         4. **No Filters** - If the request body is empty, all Pechas are returned.  
       tags:
-        - Pecha
+        - Metadata
       requestBody:
         required: false
         content:
@@ -767,7 +879,7 @@ paths:
       description: Returns all categories in a hierarchical tree structure
       operationId: getCategories
       tags:
-        - Pecha
+        - Category
       responses:
         '200':
           description: Category tree retrieved successfully
@@ -849,7 +961,7 @@ paths:
       description: Upload a YAML file containing category definitions
       operationId: uploadCategories
       tags:
-        - Pecha
+        - Category
       requestBody:
         required: true
         content:

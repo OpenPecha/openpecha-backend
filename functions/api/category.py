@@ -30,7 +30,6 @@ def process_categories(
             raise ValueError("Category ID is required")
 
         category_data = {
-            "id": category_id,
             "name": category.get("name", {}),
             "description": category.get("description", {}),
             "short_description": category.get("short_description", {}),
@@ -78,17 +77,19 @@ def upload_categories():
         return jsonify({"error": f"Failed to process categories: {str(e)}"}), 500
 
 
-def build_category_tree() -> list[dict[str, Any]]:
+def build_category_tree() -> dict[str, dict[str, Any]]:
     """Build a tree structure of categories from Firestore documents."""
-    categories = {doc.id: {**doc.to_dict(), "subcategories": []} for doc in db.collection("category").stream()}
+    categories = {
+        doc.id: {"id": doc.id, **doc.to_dict(), "subcategories": {}} for doc in db.collection("category").stream()
+    }
 
-    root_categories = []
-    for _, category in categories.items():
+    root_categories = {}
+    for cat_id, category in categories.items():
         parent_id = category.pop("parent", None)
         if parent_id:
-            categories[parent_id]["subcategories"].append(category)
+            categories[parent_id]["subcategories"][cat_id] = category
         else:
-            root_categories.append(category)
+            root_categories[cat_id] = category
 
     return root_categories
 

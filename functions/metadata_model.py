@@ -97,6 +97,10 @@ class MetadataModel(BaseModel):
         },
     )
 
+    @property
+    def parent(self) -> str | None:
+        return self.commentary_of or self.version_of or self.translation_of
+    
     @field_serializer("source_url")
     def serialize_url(self, source_url: AnyUrl):
         return str(source_url)

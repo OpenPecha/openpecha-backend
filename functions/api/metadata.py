@@ -109,6 +109,9 @@ def get_related_metadata(pecha_id):
 @metadata_bp.route("/<string:pecha_id>", methods=["PUT"], strict_slashes=False)
 def put_metadata(pecha_id: str):
     try:
+        if not pecha_id:
+            return jsonify({"error": "Missing Pecha ID"}), 400
+
         data = request.get_json()
         metadata_json = data.get("metadata")
 
@@ -131,6 +134,9 @@ def put_metadata(pecha_id: str):
         if not doc.exists:
             return jsonify({"error": f"Metadata with ID '{pecha_id}' not found"}), 404
 
+        if doc.to_dict().get("document_id") != metadata.document_id:
+            return jsonify({"error": f"Document ID '{metadata.document_id}' does not match the existing metadata"}), 400
+
         doc_ref.set(metadata.model_dump())
 
         return (
@@ -140,6 +146,38 @@ def put_metadata(pecha_id: str):
 
     except Exception as e:
         return jsonify({"error": f"Failed to update metadata: {str(e)}"}), 500
+
+
+@metadata_bp.route("/<string:pecha_id>/category", methods=["PUT"], strict_slashes=False)
+def set_category(pecha_id: str):
+    try:
+        if not pecha_id:
+            return jsonify({"error": "Missing Pecha ID"}), 400
+
+        data = request.get_json()
+        category_id = data.get("category_id")
+
+        if not category_id:
+            return jsonify({"error": "Missing category ID"}), 400
+
+        if not db.collection("category").document(category_id).get().exists:
+            return jsonify({"error": f"Category '{category_id}' not found"}), 404
+
+        doc_ref = db.collection("metadata").document(pecha_id)
+        doc = doc_ref.get()
+
+        if not doc.exists:
+            return jsonify({"error": f"Metadata with ID '{pecha_id}' not found"}), 404
+
+        doc_ref.update({"category": category_id})
+
+        return (
+            jsonify({"message": "Category updated successfully", "id": pecha_id}),
+            200,
+        )
+
+    except Exception as e:
+        return jsonify({"error": f"Failed to update category: {str(e)}"}), 500
 
 
 @metadata_bp.route("/filter", methods=["POST"], strict_slashes=False)
