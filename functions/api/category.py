@@ -48,7 +48,7 @@ def process_categories(
             yield from process_categories(category["subcategories"], category_id)
 
 
-@categories_bp.route("/", methods=["POST"], strict_slashes=False)
+@categories_bp.route("/", methods=["PUT"], strict_slashes=False)
 def upload_categories():
     try:
         if "file" not in request.files:
@@ -79,9 +79,7 @@ def upload_categories():
 
 def build_category_tree() -> dict[str, dict[str, Any]]:
     """Build a tree structure of categories from Firestore documents."""
-    categories = {
-        doc.id: {"id": doc.id, **doc.to_dict(), "subcategories": {}} for doc in db.collection("category").stream()
-    }
+    categories = {doc.id: {**doc.to_dict(), "subcategories": {}} for doc in db.collection("category").stream()}
 
     root_categories = {}
     for cat_id, category in categories.items():

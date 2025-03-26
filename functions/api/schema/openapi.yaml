@@ -956,7 +956,7 @@ paths:
                   value:
                     error: "Failed to retrieve categories: <error reason>"
 
-    post:
+    put:
       summary: Upload categories
       description: Upload a YAML file containing category definitions
       operationId: uploadCategories
