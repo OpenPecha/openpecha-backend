@@ -71,6 +71,10 @@ class MetadataModel(BaseModel):
         pattern="^I[A-F0-9]{8}$",
     )
     language: str = Field(..., pattern="^[a-z]{2}(-[A-Z]{2})?$")
+    category: str | None = Field(
+        None,
+        description="An optional string describing the category of this Pecha",
+    )
 
     model_config = ConfigDict(
         extra="forbid",
