@@ -10,6 +10,8 @@
     <link rel="stylesheet" href="../../toast_style.css">
     <link rel="stylesheet" href="../../navbar.css">
     <link rel="stylesheet" href="../../custom/select/select.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
 </head>
 <body>
     <nav class="navbar">
@@ -51,58 +53,69 @@
         <!-- Category Tree Structure -->
         <div class="tree-container">
             <div class="tree-header">
-                <button id="addCategory" class="btn btn-primary">Add Category</button>
                 <button id="languageToggle" class="btn btn-secondary">
-                    Language: <span class="lang-text">EN</span>
+                    Language: <span class="lang-text">en</span>
                 </button>
             </div>
-            <div id="categoryTree"></div>
-        </div>
-
-        <!-- Category Modal -->
-        <div id="categoryModal" class="modal">
-            <div class="modal-content">
-                <div class="modal-header">
-                    <h2>Add New Category</h2>
+            <div class="category-container">
+                <div class="category-tree">
+                    <div class="selected-category">Select Category</div>
+                    <div id="categoryTree">
+                    </div>
+                    <button id="addCategory" class="btn btn-primary">Add To Category</button>
                 </div>
-                <div class="modal-body">
-                    <form id="categoryForm">
-                        <div class="form-field">
-                            <label for="titleBo">Title (BO)*</label>
-                            <input type="text" id="titleBo" required>
-                        </div>
-                        <div class="form-field">
-                            <label for="titleEn">Title (EN)*</label>
-                            <input type="text" id="titleEn" required>
-                        </div>
-                        <div class="form-field">
-                            <label for="descBo">Description (BO)</label>
-                            <textarea id="descBo"></textarea>
-                        </div>
-                        <div class="form-field">
-                            <label for="descEn">Description (EN)</label>
-                            <textarea id="descEn" disabled></textarea>
-                        </div>
-                        <div class="form-field">
-                            <label for="shortdescBo">Short Description (BO)</label>
-                            <textarea id="shortdescBo"></textarea>
-                        </div>
-                        <div class="form-field">
-                            <label for="shortDescEn">Short Description (EN)</label>
-                            <textarea id="shortDescEn" disabled></textarea>
-                        </div>
-                        <div class="modal-footer">
-                            <button type="button" id="cancelCategory" class="btn btn-secondary">Cancel</button>
-                            <button type="submit" class="btn btn-primary">Add Category</button>
-                        </div>
-                    </form>
+            <div id="categoryModal" class="modal">
+                <div class="modal-content">
+                    <div class="modal-body">
+                        <form id="categoryForm">
+                            <div class="form-field">
+                                <label for="selectedPecha">Select Parent Category</label>
+                                <div class="category-selector" id="categorySelector">
+                                </div>
+                            </div>
+                            
+                            <div class="form-field">
+                                <label for="titleEn">Title (en)</label>
+                                <div class="input-group" id="titleEnContainer">
+                                    <input type="text" id="titleEn" required disabled>
+                                </div>
+                            </div>
+                            <div class="form-field">
+                                <label for="titleBo">Title (bo)</label>
+                                <div class="input-group" id="titleBoContainer">
+                                    <input type="text" id="titleBo" required disabled>
+                                </div>
+                            </div>
+                            <div class="form-field">
+                                <label for="descBo">Description (bo)</label>
+                                <textarea id="descBo" disabled></textarea>
+                            </div>
+                            <div class="form-field">
+                                <label for="descEn">Description (en)</label>
+                                <textarea id="descEn" disabled></textarea>
+                            </div>
+                            <div class="form-field">
+                                <label for="shortdescBo">Short description (bo)</label>
+                                <textarea id="shortdescBo" disabled></textarea>
+                            </div>
+                            <div class="form-field">
+                                <label for="shortDescEn">Short description (en)</label>
+                                <textarea id="shortDescEn" disabled></textarea>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" id="cancelCategory" class="btn btn-secondary">Cancel</button>
+                                <button type="submit" class="btn btn-primary">Show Category</button>
+                            </div>
+                        </form>
+                    </div>
                 </div>
+            </div>
             </div>
         </div>
 
         <!-- Scripts -->
         <script src="./category_new.js"></script>
-        <script src="../../custom/select/index.js"></script>
+        <script defer src="../../custom/select/index.js"></script>
         <script src="../../google_drive.js"></script>
         <script 
             src="https://apis.google.com/js/api.js"

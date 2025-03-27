@@ -1,6 +1,7 @@
 // Category Node Data Structure
 class CategoryNode {
-    constructor(titleEn, titleBo, descEn = '', descBo = '', shortDescEn = '', shortdescBo = '') {
+    constructor(id, titleEn, titleBo, descEn = '', descBo = '', shortDescEn = '', shortdescBo = '') {
+        this.id = id;
         this.titleEn = titleEn;
         this.titleBo = titleBo;
         this.descEn = descEn;
@@ -21,10 +22,28 @@ class CategoryNode {
 class CategoryTreeUI {
     constructor() {
         console.log('CategoryTreeUI: Initializing...');
+        this.elements = {
+            cancelBtn: document.getElementById('cancelCategory'),
+            categoryForm: document.getElementById('categoryForm'),
+            categorySelector: document.getElementById('categorySelector'),
+            langToggle: document.getElementById('languageToggle'),
+            titleBoContainer: document.getElementById('titleBoContainer'),
+            titleEnContainer: document.getElementById('titleEnContainer'),
+            descBo: document.getElementById('descBo'),
+            descEn: document.getElementById('descEn'),
+            shortdescBo: document.getElementById('shortdescBo'),
+            shortDescEn: document.getElementById('shortDescEn'),
+            toastContainer: document.getElementById('toastContainer')
+        };
+        this.API_ENDPOINT = 'https://api-aq25662yyq-uc.a.run.app/';
         this.root = null;
         this.currentLanguage = 'en';
+        this.selectedRoot = null;
         this.selectedNode = null;
+        this.categories = [];
+        this.options = [];
         this.bindEventListeners();
+        this.fetchCategories();
     }
 
     bindEventListeners() {
@@ -47,19 +66,17 @@ class CategoryTreeUI {
 
         // Add event listeners with error handling
         if (addBtn) {
-            console.log('CategoryTreeUI: Found Add Category button');
             addBtn.addEventListener('click', () => {
-                console.log('CategoryTreeUI: Add button clicked');
-                this.showModal();
+                this.assignCategory();
             });
-        } else {
-            console.error('CategoryTreeUI: Add Category button not found');
         }
 
         if (cancelBtn) {
             cancelBtn.addEventListener('click', () => {
-                console.log('CategoryTreeUI: Cancel button clicked');
-                this.hideModal();
+                this.selectedNode = null;
+                const container = document.getElementById('categoryTree');
+                container.innerHTML = '';   
+                categoryForm.reset();
             });
         }
 
@@ -71,96 +88,112 @@ class CategoryTreeUI {
             langToggle.addEventListener('click', () => this.toggleLanguage());
         }
 
-        this.initFormValidation();
+        if (this.elements.categorySelector) {
+            this.elements.categorySelector.addEventListener('customDropdownChange', () => {
+                this.handleCategorySelect();
+            });
+        }
     }
 
-    initFormValidation() {
-        const descBo = document.getElementById('descBo');
-        const descEn = document.getElementById('descEn');
-        const shortdescBo = document.getElementById('shortdescBo');
-        const shortDescEn = document.getElementById('shortDescEn');
-
-        if (!descBo || !descEn || !shortdescBo || !shortDescEn) {
-            console.error('CategoryTreeUI: Form elements not found');
-            return;
-        }
-
-        // Validate Tibetan description requirements
-        descBo.addEventListener('input', () => {
-            if (descBo.value.trim() === '') {
-                descEn.value = '';
-                descEn.disabled = true;
-            } else {
-                descEn.disabled = false;
+    fetchCategories() {
+        console.log('CategoryTreeUI: Fetching categories...');
+        fetch(this.API_ENDPOINT + 'categories', {
+            method: 'GET',
+            headers: {
+                'Content-Type': 'application/json'
             }
-        });
-
-        shortdescBo.addEventListener('input', () => {
-            if (shortdescBo.value.trim() === '') {
-                shortDescEn.value = '';
-                shortDescEn.disabled = true;
-            } else {
-                shortDescEn.disabled = false;
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
             }
+            return response.json();
+        })
+        .then(data => {
+            console.log('CategoryTreeUI: Categories fetched successfully');
+            console.log("categories :: ",data)
+            this.categories = data;
+            this.options = this.extractCategoryNames(data, this.currentLanguage);
+            this.elements.categorySelector.innerHTML = '';
+            new CustomSearchableDropdown(this.elements.categorySelector, this.options, 'selectedCategory');
+        })
+        .catch(error => {
+            console.error('CategoryTreeUI: Error fetching categories', error);
         });
     }
 
-    showModal() {
-        console.log('CategoryTreeUI: Showing modal');
-        const modal = document.getElementById('categoryModal');
-        if (!modal) {
-            console.error('CategoryTreeUI: Modal not found');
-            return;
-        }
+    extractCategoryNames(data, lang) {
+        return data.categories.map(category => ({
+            id: category.id,
+            name: category.name[lang] || category.id // Fallback to id if name is missing
+        }));
+    }
 
-        modal.style.display = 'block';
-        // Add show class after a brief delay to trigger animation
-        setTimeout(() => modal.classList.add('show'), 10);
-        
+    handleCategorySelect() {
+        const selectedRoot = document.getElementById('selectedCategory').dataset.value;
+        console.log(":::",selectedRoot)
+        this.selectedRoot = this.categories.categories.find(category => category.id === selectedRoot);
+        console.log(":::",this.selectedRoot)
+        this.displayCategory(this.selectedRoot);
+    }
+
+    displayCategory(category) {
         const form = document.getElementById('categoryForm');
-        if (form) form.reset();
-
+        if (!form) {
+            console.error('CategoryTreeUI: Form not found');
+            return;
+        }
+        
+        // Reset form
+        form.reset();
+        
+        // Fill form fields
+        const titleEn = document.getElementById('titleEn');
+        const titleBo = document.getElementById('titleBo');
         const descEn = document.getElementById('descEn');
         const shortDescEn = document.getElementById('shortDescEn');
+        const descBo = document.getElementById('descBo');
+        const shortDescBo = document.getElementById('shortDescBo');
         
-        if (descEn) descEn.disabled = true;
-        if (shortDescEn) shortDescEn.disabled = true;
-    }
-
-    hideModal() {
-        const modal = document.getElementById('categoryModal');
-        if (!modal) return;
-
-        // Remove show class first to trigger animation
-        modal.classList.remove('show');
-        // Hide modal after animation completes
-        setTimeout(() => {
-            modal.style.display = 'none';
-        }, 300);
+        if (titleEn) titleEn.value = category.name?.en || '';
+        if (titleBo) titleBo.value = category.name?.bo || '';
+        if (descEn) descEn.value = category.description?.en || '';
+        if (shortDescEn) shortDescEn.value = category.short_description?.en || '';
+        if (descBo) descBo.value = category.description?.bo || '';
+        if (shortDescBo) shortDescBo.value = category.short_description?.bo || '';
     }
 
     handleFormSubmit(e) {
         e.preventDefault();
-
-        const titleEn = document.getElementById('titleEn')?.value.trim();
-        const titleBo = document.getElementById('titleBo')?.value.trim();
-        const descEn = document.getElementById('descEn')?.value.trim();
-        const descBo = document.getElementById('descBo')?.value.trim();
-        const shortDescEn = document.getElementById('shortDescEn')?.value.trim();
-        const shortdescBo = document.getElementById('shortdescBo')?.value.trim();
-
-        if (!titleEn || !titleBo) {
-            alert('Both English and Tibetan titles are required');
+        if(!this.selectedRoot) {
+            this.showToast('Please select a category first', 'error');
             return;
         }
-
-        if ((descEn && !descBo) || (shortDescEn && !shortdescBo)) {
-            alert('English descriptions can only exist if Tibetan descriptions are provided');
-            return;
-        }
-
-        const newNode = new CategoryNode(titleEn, titleBo, descEn, descBo, shortDescEn, shortdescBo);
-
+        this.root = null;
+        const createNode = (categoryData) => {
+            console.log("categoryData",categoryData)
+            const node = new CategoryNode(
+                categoryData.id,
+                categoryData.name?.en,
+                categoryData.name?.bo,
+                categoryData.description?.en,
+                categoryData.description?.bo,
+                categoryData.short_description?.en,
+                categoryData.short_description?.bo
+            );
+    
+            // Recursively process subcategories
+            if (categoryData.subcategories) {
+                Object.values(categoryData.subcategories).forEach(subcategory => {
+                    const childNode = createNode(subcategory);
+                    node.addChild(childNode);
+                });
+            }
+            return node;
+        };
+    
+        const newNode = createNode(this.selectedRoot);
+    
         if (!this.root) {
             this.root = newNode;
         } else if (this.selectedNode) {
@@ -169,17 +202,59 @@ class CategoryTreeUI {
             alert('Please select a parent node first');
             return;
         }
-
-        this.hideModal();
+    
         this.renderTree();
+    }
+    
+    assignCategory() {
+        if(!this.selectedNode) {
+            this.showToast('Please select a category first', 'error');
+            return;
+        }
+        console.log("selected node ",this.selectedNode.id)
+        const selectedPecha = document.getElementById('selectedPecha');
+        if (!selectedPecha) {
+            alert("Please select a pecha first");
+            return;
+        }   
+        fetch(`${this.API_ENDPOINT}/metadata/${selectedPecha.dataset.value}/category`, {
+            method: 'PUT',
+            headers: {
+                'accept': 'application/json',
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({ category_id: this.selectedNode.id })
+        })
+        .then(response => {
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            return response.json();
+        })
+        .then(data => {
+            console.log('Category assigned successfully:', data);
+            document.querySelectorAll('.node-content').forEach(el => {
+                el.classList.remove('selected');
+                el.style.transform = '';
+            });
+            this.selectedNode = null;
+            this.renderTree();
+            this.showToast('Category assigned successfully', 'success');
+        })
+        .catch(error => {
+            console.error('Error assigning category:', error);
+        });
     }
 
     toggleLanguage() {
-        this.currentLanguage = this.currentLanguage === 'en' ? 'ti' : 'en';
+        this.currentLanguage = this.currentLanguage === 'en' ? 'bo' : 'en';
         const langText = document.querySelector('.lang-text');
         if (langText) {
-            langText.textContent = this.currentLanguage.toUpperCase();
+            langText.textContent = this.currentLanguage;
         }
+        this.options = this.extractCategoryNames(this.categories, this.currentLanguage);
+        this.elements.categorySelector.innerHTML = '';
+        new CustomSearchableDropdown(this.elements.categorySelector, this.options, 'selectedCategory');
         this.renderTree();
     }
 
@@ -285,6 +360,28 @@ class CategoryTreeUI {
             container.appendChild(this.createNodeElement(this.root));
         }
     }
+
+    showToast(message, type = 'info') {
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.innerHTML = `${this.getToastIcon(type)} ${message}`;
+        this.elements.toastContainer.appendChild(toast);
+
+        setTimeout(() => {
+            toast.remove();
+        }, 3000);
+    }
+
+    getToastIcon(type) {
+        switch (type) {
+            case 'success':
+                return '<i class="fas fa-check-circle"></i>';
+            case 'error':
+                return '<i class="fas fa-exclamation-circle"></i>';
+            default:
+                return '<i class="fas fa-info-circle"></i>';
+        }
+    }
 }
 
 // Metadata Management
@@ -299,7 +396,8 @@ class UpdateMetaData {
             metadataContainer: document.querySelector('.metadata-container'),
             metadataContent: document.querySelector('.metadata-content'),
             metadataHeader: document.querySelector('.metadata-header'),
-            toggleIcon: document.querySelector('.toggle-icon')
+            toggleIcon: document.querySelector('.toggle-icon'),
+            treeContainer: document.querySelector('.tree-container')
         };
 
         this.API_ENDPOINT = 'https://api-aq25662yyq-uc.a.run.app';
@@ -382,11 +480,12 @@ class UpdateMetaData {
 
     async handlePechaSelect() {
         const selectedPecha = document.getElementById("selectedPecha");
-        if (!selectedPecha) return;
+        if (!selectedPecha) return
 
         const pechaId = selectedPecha.dataset.value;
         if (!pechaId) {
             this.showInitialMetadataState();
+            this.showTreeState(false);  
             return;
         }
 
@@ -394,6 +493,7 @@ class UpdateMetaData {
             this.showLoadingState();
             const metadata = await this.fetchMetadata(pechaId);
             this.displayMetadata(metadata);
+            this.showTreeState(true);
         } catch (error) {
             console.error('Error in handlePechaSelect:', error);
             this.showToast('Unable to fetch metadata. Please try again later.', 'error');
@@ -496,6 +596,11 @@ class UpdateMetaData {
         }).join('');
 
         this.elements.metadataContent.innerHTML = metadataHTML;
+    }
+
+    showTreeState(show = true) {
+        if (!this.elements.treeContainer) return;
+        this.elements.treeContainer.style.display = show ? 'block' : 'none';
     }
 
     toggleMetadata() {

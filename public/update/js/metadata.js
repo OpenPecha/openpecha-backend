@@ -17,7 +17,6 @@ class MetadataManager {
             updateButton: document.querySelector('.create-button'),
             buttonText: document.querySelector('.create-button span'),
             spinner: document.querySelector('.spinner'),
-            toastContainer: document.getElementById('toastContainer'),
             updateFormContainer: document.getElementById('updateFormContainer')
         };
         this.languageOptions = [];
