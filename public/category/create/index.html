@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="description" content="Update pecha interface">
+    <link rel="shortcut icon" href="../../assets/favicon.ico" type="image/x-icon">
+    <title>Update Pecha</title>
+    <link rel="stylesheet" href="./category.css">
+    <link rel="stylesheet" href="../../toast_style.css">
+    <link rel="stylesheet" href="../../navbar.css">
+    <link rel="stylesheet" href="../../custom/select/select.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+          <a href="/" class="nav-logo">
+            <img src="../../assets/logo.svg" alt="OpenPecha Logo" />
+            <span>Update pecha</span>
+          </a>
+          <div class="nav-links">
+            <a href="/create/create" class="nav-link">Create</a>
+            <a href="/publish/publish" class="nav-link">Publish</a>
+            <a href="/update/" class="nav-link">Update</a>
+            <a href="/category/" class="nav-link active">Category</a>
+          </div>
+        </div>
+      </nav>
+    <div id="toastContainer" role="alert" aria-live="polite"></div>
+    <main>
+        <form id="publishForm" novalidate>
+            <div class="form-group">
+                <label for="pechaOptions">Select a pecha</label>
+                <div id="pechaOptionsContainer">
+                    <select id="pechaOptions" required>
+                        <option value="">Select pecha</option>
+                    </select>
+                </div>
+            </div>
+        </form>
+        <div class="metadata-container">
+            <div class="metadata-header">
+                <h2>Metadata</h2>
+                <span class="toggle-icon">▼</span>
+            </div>
+            <div class="metadata-content">
+                <!-- Content will be dynamically inserted here -->
+            </div>
+        </div>
+
+        <!-- Category Tree Structure -->
+        <div class="tree-container">
+            <div class="tree-header">
+                <button id="languageToggle" class="btn btn-secondary">
+                    Language: <span class="lang-text">en</span>
+                </button>
+            </div>
+            <div class="category-container">
+                <div class="category-tree">
+                    <div class="selected-category">Select Category</div>
+                    <div id="categoryTree">
+                    </div>
+                    <button id="addCategory" class="btn btn-primary">Add To Category</button>
+                </div>
+            <div id="categoryModal" class="modal">
+                <div class="modal-content">
+                    <div class="modal-body">
+                        <form id="categoryForm">
+                            <div class="form-field">
+                                <label for="selectedPecha">Select Parent Category</label>
+                                <div class="category-selector" id="categorySelector">
+                                </div>
+                            </div>
+                            
+                            <div class="form-field">
+                                <label for="titleEn">Title (en)</label>
+                                <div class="input-group" id="titleEnContainer">
+                                    <input type="text" id="titleEn" required disabled>
+                                </div>
+                            </div>
+                            <div class="form-field">
+                                <label for="titleBo">Title (bo)</label>
+                                <div class="input-group" id="titleBoContainer">
+                                    <input type="text" id="titleBo" required disabled>
+                                </div>
+                            </div>
+                            <div class="form-field">
+                                <label for="descBo">Description (bo)</label>
+                                <textarea id="descBo" disabled></textarea>
+                            </div>
+                            <div class="form-field">
+                                <label for="descEn">Description (en)</label>
+                                <textarea id="descEn" disabled></textarea>
+                            </div>
+                            <div class="form-field">
+                                <label for="shortdescBo">Short description (bo)</label>
+                                <textarea id="shortdescBo" disabled></textarea>
+                            </div>
+                            <div class="form-field">
+                                <label for="shortDescEn">Short description (en)</label>
+                                <textarea id="shortDescEn" disabled></textarea>
+                            </div>
+                            <div class="modal-footer">
+                                <button type="button" id="cancelCategory" class="btn btn-secondary">Cancel</button>
+                                <button type="submit" class="btn btn-primary">Show Category</button>
+                            </div>
+                        </form>
+                    </div>
+                </div>
+            </div>
+            </div>
+        </div>
+
+        <!-- Scripts -->
+        <script src="./category_new.js"></script>
+        <script defer src="../../custom/select/index.js"></script>
+        <script src="../../google_drive.js"></script>
+        <script 
+            src="https://apis.google.com/js/api.js"
+            onload="gapiLoaded()"
+            async 
+            defer
+        ></script>
+        <script 
+            src="https://accounts.google.com/gsi/client"
+            onload="gisLoaded()"
+            async 
+            defer
+        ></script>
+    </main>
+</body>
+</html>

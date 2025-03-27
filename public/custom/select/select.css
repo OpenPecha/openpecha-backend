@@ -55,6 +55,8 @@
     overflow-y: auto;
     border: 1px solid #ccc;
     border-top: none;
+    border-top-left-radius: var(--border-radius);
+    border-top-right-radius: var(--border-radius);
     background: white;
     padding-bottom: 10px;
     z-index: 1000;
@@ -64,8 +66,8 @@
 .dropdown-search-input {
     width: 100%;
     padding: 10px;
-    border: none;
-    outline: none;
+    border: none !important;
+    outline: none !important;
     border-bottom: 1px solid var(--border-color) !important;
 }
 
