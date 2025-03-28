@@ -8,6 +8,7 @@ from typing import Any
 
 from firebase_config import db
 from google.cloud.firestore_v1.base_query import FieldFilter, Or
+from metadata_model import MetadataModel
 from openpecha.pecha import Pecha
 from openpecha.pecha.parsers.docx import DocxParser
 from openpecha.pecha.serializers.pecha_db import Serializer
@@ -27,6 +28,24 @@ class Relationship(Enum):
     COMMENTARY = "commentary_of"
     VERSION = "version_of"
     TRANSLATION = "translation_of"
+
+
+def validate_relationship(metadata: MetadataModel, parent: MetadataModel, relationship: Relationship) -> bool:
+    if parent is None:
+        return True
+
+    if metadata is None:
+        return False
+
+    match relationship:
+        case Relationship.COMMENTARY:
+            return parent.language == metadata.language
+        case Relationship.VERSION:
+            return parent.language == metadata.language
+        case Relationship.TRANSLATION:
+            return parent.language != metadata.language
+        case _:
+            return False
 
 
 def db_get_metadata(pecha_id: str) -> dict[str, Any]:
