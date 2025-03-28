@@ -1,4 +1,4 @@
-from typing import Annotated, Mapping, Sequence
+from typing import Annotated, Mapping, Sequence, Any
 
 from pydantic import AnyUrl, BaseModel, ConfigDict, Field, RootModel, field_serializer, model_validator
 
@@ -74,6 +74,10 @@ class MetadataModel(BaseModel):
     category: str | None = Field(
         None,
         description="An optional string describing the category of this Pecha",
+    )
+    bdrc: dict[str, Any] | None = Field(
+        None,
+        description="An optional dictionary containing BDRC-specific metadata",
     )
 
     model_config = ConfigDict(

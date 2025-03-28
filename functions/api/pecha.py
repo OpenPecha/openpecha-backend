@@ -35,13 +35,13 @@ def get_duplicate_key(document_id: str):
 @pecha_bp.route("/", methods=["POST"], strict_slashes=False)
 def post_pecha():
     text = request.files.get("text")
+    data = request.files.get("data")
 
-    if not text:
-        return jsonify({"error": "Missing text"}), 400
+    if not text and not data:
+        return jsonify({"error": "Either text or data is required"}), 400
 
-    is_valid, error_message = validate_file(text)
-    if not is_valid:
-        return jsonify({"error": f"Text file: {error_message}"}), 400
+    if text and data:
+        return jsonify({"error": "Both text and data cannot be uploaded together"}), 400
 
     metadata_json = request.form.get("metadata")
     if not metadata_json:
@@ -50,7 +50,6 @@ def post_pecha():
     metadata_dict = json.loads(metadata_json)
     metadata = MetadataModel.model_validate(metadata_dict)
 
-    logger.info("Uploaded text file: %s", text.filename)
     logger.info("Metadata: %s", metadata)
 
     if not isinstance(metadata.document_id, str):
@@ -64,13 +63,22 @@ def post_pecha():
             400,
         )
 
-    error_message, pecha_id = process_pecha(text=text, metadata=metadata.model_dump())
-    if error_message:
-        return jsonify({"error": error_message}), 500
+    if text:
+        is_valid, error_message = validate_file(text)
+        if not is_valid:
+            return jsonify({"error": f"Text file: {error_message}"}), 400
 
-    title = metadata.title[metadata.language] or metadata.title["en"]
+        logger.info("Uploaded text file: %s", text.filename)
 
-    return jsonify({"message": "Text created successfully", "id": pecha_id, "title": title}), 200
+        error_message, pecha_id = process_pecha(text=text, metadata=metadata.model_dump())
+        if error_message:
+            return jsonify({"error": error_message}), 500
+
+        title = metadata.title[metadata.language] or metadata.title["en"]
+
+        return jsonify({"message": "Text created successfully", "id": pecha_id, "title": title}), 200
+
+    return jsonify({"error": "Data upload is not supported yet"}), 501
 
 
 @pecha_bp.route("/<string:pecha_id>", methods=["GET"], strict_slashes=False)
