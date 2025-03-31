@@ -11,6 +11,7 @@ class UpdateMetaData {
 
         this.API_ENDPOINT = 'https://api-aq25662yyq-uc.a.run.app';
         this.isLoading = false;
+        this.metadata = null;
         this.fetchPechaOptions();
         this.setupEventListeners();
         this.showInitialMetadataState();
@@ -102,6 +103,8 @@ class UpdateMetaData {
             }
 
             const metadata = await response.json();
+            console.log("metata ",metadata)
+            this.metadata = metadata;
             return metadata;
         } catch (error) {
             console.error('Error fetching metadata:', error);
@@ -190,6 +193,7 @@ class UpdateMetaData {
     reorderMetadata(metadata) {
         const order = [
             "author",
+            "category",
             "date",
             "source",
             "presentation",
@@ -234,6 +238,10 @@ class UpdateMetaData {
 
 
     validateFields() {
+        if (!this.metadata.category) {
+            this.showToast('This pecha does not have category', 'error');
+            return false;
+        }
         this.selectedPecha = document.getElementById("selectedPecha");
         const publishTextId = this.selectedPecha.dataset.value;
         if (!publishTextId) {
@@ -290,10 +298,21 @@ class UpdateMetaData {
 
         const toast = document.createElement('div');
         toast.className = `toast ${type}`;
-        toast.textContent = message;
+        toast.innerHTML = `${this.getToastIcon(type)} ${message}`;
 
         this.elements.toastContainer.appendChild(toast);
         setTimeout(() => toast.remove(), 3000);
+    }
+
+    getToastIcon(type) {
+        switch (type) {
+            case 'success':
+                return '<i class="fas fa-check-circle"></i>';
+            case 'error':
+                return '<i class="fas fa-exclamation-circle"></i>';
+            default:
+                return '<i class="fas fa-info-circle"></i>';
+        }
     }
 
     clearToasts() {

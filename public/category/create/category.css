@@ -245,9 +245,8 @@ select:disabled {
     border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     border:1px solid var(--border-color);
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
+    display: flex;
+    flex-direction: column;
 }
 
 .category-header {
@@ -310,7 +309,7 @@ select:disabled {
 }
 .selected-category{
     width: 100%;
-    padding: 10px 15px;
+    padding: 10px 0;
     font-weight: 500;
     border-bottom: 1px solid var(--border-color);
 }
