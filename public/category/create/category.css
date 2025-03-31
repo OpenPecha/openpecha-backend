@@ -308,6 +308,7 @@ select:disabled {
     border-bottom: 1px solid var(--border-color);
 }
 .selected-category{
+    display: none;
     width: 100%;
     padding: 10px 0;
     font-weight: 500;
@@ -499,6 +500,10 @@ select:disabled {
     background: var(--primary-hover);
 }
 
+#addCategory{
+ display: none;
+ align-self: flex-end;
+}
 .btn-secondary {
     background: var(--light-gray);
     color: var(--text-color);

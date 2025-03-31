@@ -161,6 +161,8 @@ class CategoryTreeUI {
         if(!this.selectedRoot) {
             const container = document.getElementById('categoryTree');
             container.innerHTML = '';
+            const addBtn = document.getElementById('addCategory');
+            addBtn.style.display = 'none';
             return;
         }
         this.root = null;
@@ -193,9 +195,11 @@ class CategoryTreeUI {
         } else if (this.selectedNode) {
             this.selectedNode.addChild(newNode);
         } else {
-            alert('Please select a parent node first');
+            alert('Please select a parent category first');
             return;
         }
+        const label = document.querySelector('.selected-category');
+        label.style.display = 'block';
     
         this.renderTree();
     }
@@ -232,6 +236,8 @@ class CategoryTreeUI {
                 el.style.transform = '';
             });
             this.selectedNode = null;
+            const addBtn = document.getElementById('addCategory');
+            addBtn.style.display = 'none';
             this.renderTree();
             this.showToast('Category assigned successfully', 'success');
         })
@@ -248,6 +254,8 @@ class CategoryTreeUI {
         }
         this.options = this.extractCategoryNames(this.categories, this.currentLanguage);
         this.elements.categorySelector.innerHTML = '';
+        const addBtn = document.getElementById('addCategory');
+        addBtn.style.display = 'none';
         new CustomSearchableDropdown(this.elements.categorySelector, this.options, 'selectedCategory');
         this.renderTree();
     }
@@ -319,6 +327,9 @@ class CategoryTreeUI {
             contentDiv.classList.add('selected');
             contentDiv.style.transform = 'translateX(5px)';
             
+            // show add button
+            const addBtn = document.getElementById('addCategory');
+            addBtn.style.display = 'block';
             // Add ripple effect
             const ripple = document.createElement('div');
             ripple.className = 'ripple';
