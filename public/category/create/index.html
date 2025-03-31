@@ -58,58 +58,17 @@
                 </button>
             </div>
             <div class="category-container">
+                <div class="form-field">
+                    <label for="selectedPecha">Select Parent Category</label>
+                    <div class="category-selector" id="categorySelector">
+                    </div>
+                </div>
                 <div class="category-tree">
-                    <div class="selected-category">Select Category</div>
+                    <div class="selected-category">Select Destination Category</div>
                     <div id="categoryTree">
                     </div>
                     <button id="addCategory" class="btn btn-primary">Add To Category</button>
                 </div>
-            <div id="categoryModal" class="modal">
-                <div class="modal-content">
-                    <div class="modal-body">
-                        <form id="categoryForm">
-                            <div class="form-field">
-                                <label for="selectedPecha">Select Parent Category</label>
-                                <div class="category-selector" id="categorySelector">
-                                </div>
-                            </div>
-                            
-                            <div class="form-field">
-                                <label for="titleEn">Title (en)</label>
-                                <div class="input-group" id="titleEnContainer">
-                                    <input type="text" id="titleEn" required disabled>
-                                </div>
-                            </div>
-                            <div class="form-field">
-                                <label for="titleBo">Title (bo)</label>
-                                <div class="input-group" id="titleBoContainer">
-                                    <input type="text" id="titleBo" required disabled>
-                                </div>
-                            </div>
-                            <div class="form-field">
-                                <label for="descBo">Description (bo)</label>
-                                <textarea id="descBo" disabled></textarea>
-                            </div>
-                            <div class="form-field">
-                                <label for="descEn">Description (en)</label>
-                                <textarea id="descEn" disabled></textarea>
-                            </div>
-                            <div class="form-field">
-                                <label for="shortdescBo">Short description (bo)</label>
-                                <textarea id="shortdescBo" disabled></textarea>
-                            </div>
-                            <div class="form-field">
-                                <label for="shortDescEn">Short description (en)</label>
-                                <textarea id="shortDescEn" disabled></textarea>
-                            </div>
-                            <div class="modal-footer">
-                                <button type="button" id="cancelCategory" class="btn btn-secondary">Cancel</button>
-                                <button type="submit" class="btn btn-primary">Show Category</button>
-                            </div>
-                        </form>
-                    </div>
-                </div>
-            </div>
             </div>
         </div>
 

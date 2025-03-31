@@ -23,16 +23,8 @@ class CategoryTreeUI {
     constructor() {
         console.log('CategoryTreeUI: Initializing...');
         this.elements = {
-            cancelBtn: document.getElementById('cancelCategory'),
-            categoryForm: document.getElementById('categoryForm'),
             categorySelector: document.getElementById('categorySelector'),
             langToggle: document.getElementById('languageToggle'),
-            titleBoContainer: document.getElementById('titleBoContainer'),
-            titleEnContainer: document.getElementById('titleEnContainer'),
-            descBo: document.getElementById('descBo'),
-            descEn: document.getElementById('descEn'),
-            shortdescBo: document.getElementById('shortdescBo'),
-            shortDescEn: document.getElementById('shortDescEn'),
             toastContainer: document.getElementById('toastContainer')
         };
         this.API_ENDPOINT = 'https://api-aq25662yyq-uc.a.run.app/';
@@ -133,8 +125,9 @@ class CategoryTreeUI {
         const selectedRoot = document.getElementById('selectedCategory').dataset.value;
         console.log(":::",selectedRoot)
         this.selectedRoot = this.categories.categories.find(category => category.id === selectedRoot);
-        console.log(":::",this.selectedRoot)
-        this.displayCategory(this.selectedRoot);
+        // console.log(":::",this.selectedRoot)
+        // this.displayCategory(this.selectedRoot);
+        this.handleFormSubmit();
     }
 
     displayCategory(category) {
@@ -164,9 +157,10 @@ class CategoryTreeUI {
     }
 
     handleFormSubmit(e) {
-        e.preventDefault();
+        // e.preventDefault();
         if(!this.selectedRoot) {
-            this.showToast('Please select a category first', 'error');
+            const container = document.getElementById('categoryTree');
+            container.innerHTML = '';
             return;
         }
         this.root = null;
@@ -208,7 +202,7 @@ class CategoryTreeUI {
     
     assignCategory() {
         if(!this.selectedNode) {
-            this.showToast('Please select a category first', 'error');
+            this.showToast('Please select the destination category first', 'error');
             return;
         }
         console.log("selected node ",this.selectedNode.id)
