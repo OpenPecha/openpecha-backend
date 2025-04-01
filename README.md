@@ -49,19 +49,34 @@ http://localhost:5000
 
 ## Deploying backend
 Once your functions are working locally, deploy them to Firebase:
+### Dev (default)
 ```
 firebase deploy --only functions
+```
+### Production
+```
+firebase deploy --only functions --project prod
 ```
 
 ## Deploying frontend
 When you’re ready to publish changes:
+### Dev (default)
 ```
 firebase deploy --only hosting
 ```
 The website will be available at:
 ```
+https://pecha-backend-dev.web.app
+```
+### Production
+```
+firebase deploy --only hosting --project prod
+```
+The website will be available at:
+```
 https://pecha-backend.web.app
 ```
+
 ## Documentation
 Available at: https://pecha-backend.web.app/api
 
