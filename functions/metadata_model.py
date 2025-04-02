@@ -73,7 +73,7 @@ class MetadataModel(BaseModel):
     language: str = Field(..., pattern="^[a-z]{2}(-[A-Z]{2})?$")
     category: str | None = Field(
         None,
-        description="An optional string describing the category of this Pecha",
+        description="An optional ID of the category of this Pecha",
     )
 
     model_config = ConfigDict(
@@ -104,7 +104,7 @@ class MetadataModel(BaseModel):
     @property
     def parent(self) -> str | None:
         return self.commentary_of or self.version_of or self.translation_of
-    
+
     @field_serializer("source_url")
     def serialize_url(self, source_url: AnyUrl):
         return str(source_url)

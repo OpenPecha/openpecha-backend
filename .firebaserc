@@ -1,5 +1,9 @@
 {
   "projects": {
-    "default": "pecha-backend"
-  }
+    "default": "pecha-backend-dev",
+    "prod": "pecha-backend",
+    "dev": "pecha-backend-dev"
+  },
+  "targets": {},
+  "etags": {}
 }

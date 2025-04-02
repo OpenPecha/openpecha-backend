@@ -55,10 +55,6 @@ def create_app(testing=False):
     ),
     max_instances=1,
     secrets=[
-        "GITHUB_TOKEN",
-        "GITHUB_USERNAME",
-        "GITHUB_EMAIL",
-        "GITHUB_ORG_NAME",
         "PECHA_API_KEY",
     ],
     memory=options.MemoryOption.MB_512,

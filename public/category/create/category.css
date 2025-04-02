@@ -245,9 +245,8 @@ select:disabled {
     border-radius: 8px;
     box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
     border:1px solid var(--border-color);
-    display: grid;
-    grid-template-columns: 1fr 1fr;
-    gap: 20px;
+    display: flex;
+    flex-direction: column;
 }
 
 .category-header {
@@ -309,8 +308,9 @@ select:disabled {
     border-bottom: 1px solid var(--border-color);
 }
 .selected-category{
+    display: none;
     width: 100%;
-    padding: 10px 15px;
+    padding: 10px 0;
     font-weight: 500;
     border-bottom: 1px solid var(--border-color);
 }
@@ -318,6 +318,7 @@ select:disabled {
 .tree-node {
     position: relative;
     margin: 15px 0;
+    z-index: 1;
 }
 
 .node-content {
@@ -331,6 +332,7 @@ select:disabled {
     transition: all 0.3s ease;
     position: relative;
     min-width: 150px;
+    z-index: 1;
 }
 
 .node-content:hover {
@@ -351,6 +353,7 @@ select:disabled {
     margin-left: 30px;
     padding-left: 20px;
     border-left: 2px solid var(--primary-color);
+    z-index: 1;
 }
 
 .tree-node::before {
@@ -397,7 +400,7 @@ select:disabled {
     border: 1px solid var(--border-color);
     border-radius: 6px;
     box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
-    z-index: 1000;
+    z-index: 2;
     opacity: 0;
     transition: opacity 0.3s ease, transform 0.3s ease;
 }
@@ -500,6 +503,10 @@ select:disabled {
     background: var(--primary-hover);
 }
 
+#addCategory{
+ display: none;
+ align-self: flex-end;
+}
 .btn-secondary {
     background: var(--light-gray);
     color: var(--text-color);
@@ -548,9 +555,7 @@ select:disabled {
 }
 
 .popup-section {
-    margin-top: 12px;
     padding-top: 12px;
-    border-top: 1px solid var(--border-color);
 }
 
 .popup-section h5 {

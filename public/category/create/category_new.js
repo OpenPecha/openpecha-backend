@@ -23,16 +23,8 @@ class CategoryTreeUI {
     constructor() {
         console.log('CategoryTreeUI: Initializing...');
         this.elements = {
-            cancelBtn: document.getElementById('cancelCategory'),
-            categoryForm: document.getElementById('categoryForm'),
             categorySelector: document.getElementById('categorySelector'),
             langToggle: document.getElementById('languageToggle'),
-            titleBoContainer: document.getElementById('titleBoContainer'),
-            titleEnContainer: document.getElementById('titleEnContainer'),
-            descBo: document.getElementById('descBo'),
-            descEn: document.getElementById('descEn'),
-            shortdescBo: document.getElementById('shortdescBo'),
-            shortDescEn: document.getElementById('shortDescEn'),
             toastContainer: document.getElementById('toastContainer')
         };
         this.API_ENDPOINT = 'https://api-aq25662yyq-uc.a.run.app/';
@@ -62,7 +54,6 @@ class CategoryTreeUI {
         const addBtn = document.getElementById('addCategory');
         const cancelBtn = document.getElementById('cancelCategory');
         const categoryForm = document.getElementById('categoryForm');
-        const langToggle = document.getElementById('languageToggle');
 
         // Add event listeners with error handling
         if (addBtn) {
@@ -82,10 +73,6 @@ class CategoryTreeUI {
 
         if (categoryForm) {
             categoryForm.addEventListener('submit', (e) => this.handleFormSubmit(e));
-        }
-
-        if (langToggle) {
-            langToggle.addEventListener('click', () => this.toggleLanguage());
         }
 
         if (this.elements.categorySelector) {
@@ -111,9 +98,8 @@ class CategoryTreeUI {
         })
         .then(data => {
             console.log('CategoryTreeUI: Categories fetched successfully');
-            console.log("categories :: ",data)
             this.categories = data;
-            this.options = this.extractCategoryNames(data, this.currentLanguage);
+            this.options = this.extractCategoryNames(data);
             this.elements.categorySelector.innerHTML = '';
             new CustomSearchableDropdown(this.elements.categorySelector, this.options, 'selectedCategory');
         })
@@ -122,10 +108,10 @@ class CategoryTreeUI {
         });
     }
 
-    extractCategoryNames(data, lang) {
+    extractCategoryNames(data) {
         return data.categories.map(category => ({
             id: category.id,
-            name: category.name[lang] || category.id // Fallback to id if name is missing
+            name: `${category.name["bo"]} (${category.name["en"]})` 
         }));
     }
 
@@ -133,8 +119,9 @@ class CategoryTreeUI {
         const selectedRoot = document.getElementById('selectedCategory').dataset.value;
         console.log(":::",selectedRoot)
         this.selectedRoot = this.categories.categories.find(category => category.id === selectedRoot);
-        console.log(":::",this.selectedRoot)
-        this.displayCategory(this.selectedRoot);
+        // console.log(":::",this.selectedRoot)
+        // this.displayCategory(this.selectedRoot);
+        this.handleFormSubmit();
     }
 
     displayCategory(category) {
@@ -164,9 +151,12 @@ class CategoryTreeUI {
     }
 
     handleFormSubmit(e) {
-        e.preventDefault();
+        // e.preventDefault();
         if(!this.selectedRoot) {
-            this.showToast('Please select a category first', 'error');
+            const container = document.getElementById('categoryTree');
+            container.innerHTML = '';
+            const addBtn = document.getElementById('addCategory');
+            addBtn.style.display = 'none';
             return;
         }
         this.root = null;
@@ -199,16 +189,18 @@ class CategoryTreeUI {
         } else if (this.selectedNode) {
             this.selectedNode.addChild(newNode);
         } else {
-            alert('Please select a parent node first');
+            alert('Please select a parent category first');
             return;
         }
+        const label = document.querySelector('.selected-category');
+        label.style.display = 'block';
     
         this.renderTree();
     }
     
     assignCategory() {
         if(!this.selectedNode) {
-            this.showToast('Please select a category first', 'error');
+            this.showToast('Please select the destination category first', 'error');
             return;
         }
         console.log("selected node ",this.selectedNode.id)
@@ -238,6 +230,8 @@ class CategoryTreeUI {
                 el.style.transform = '';
             });
             this.selectedNode = null;
+            const addBtn = document.getElementById('addCategory');
+            addBtn.style.display = 'none';
             this.renderTree();
             this.showToast('Category assigned successfully', 'success');
         })
@@ -246,19 +240,8 @@ class CategoryTreeUI {
         });
     }
 
-    toggleLanguage() {
-        this.currentLanguage = this.currentLanguage === 'en' ? 'bo' : 'en';
-        const langText = document.querySelector('.lang-text');
-        if (langText) {
-            langText.textContent = this.currentLanguage;
-        }
-        this.options = this.extractCategoryNames(this.categories, this.currentLanguage);
-        this.elements.categorySelector.innerHTML = '';
-        new CustomSearchableDropdown(this.elements.categorySelector, this.options, 'selectedCategory');
-        this.renderTree();
-    }
-
     createNodeElement(node) {
+        console.log("node",node)
         const nodeDiv = document.createElement('div');
         nodeDiv.className = 'tree-node';
 
@@ -267,24 +250,13 @@ class CategoryTreeUI {
         
         // Add node title with language-specific class
         const titleSpan = document.createElement('span');
-        titleSpan.className = `node-title ${this.currentLanguage}`;
-        titleSpan.textContent = this.currentLanguage === 'en' ? node.titleEn : node.titleBo;
+        titleSpan.className = `node-title`;
+        titleSpan.textContent = `${node.titleBo} (${node.titleEn})`;
         contentDiv.appendChild(titleSpan);
 
         // Create popup with improved structure
         const popup = document.createElement('div');
         popup.className = 'node-popup';
-        
-        const title = document.createElement('h4');
-        title.innerHTML = `
-            <div class="popup-title">
-                <span class="label">Tibetan:</span> ${node.titleBo}
-            </div>
-            <div class="popup-title">
-                <span class="label">English:</span> ${node.titleEn}
-            </div>
-        `;
-        popup.appendChild(title);
 
         if (node.descBo || node.descEn) {
             const desc = document.createElement('div');
@@ -308,7 +280,9 @@ class CategoryTreeUI {
             popup.appendChild(shortDesc);
         }
 
-        contentDiv.appendChild(popup);
+        if (node.descBo || node.descEn || node.shortdescBo || node.shortDescEn) {
+            contentDiv.appendChild(popup);
+        }
 
         // Add click handler with visual feedback
         contentDiv.addEventListener('click', (e) => {
@@ -325,6 +299,9 @@ class CategoryTreeUI {
             contentDiv.classList.add('selected');
             contentDiv.style.transform = 'translateX(5px)';
             
+            // show add button
+            const addBtn = document.getElementById('addCategory');
+            addBtn.style.display = 'block';
             // Add ripple effect
             const ripple = document.createElement('div');
             ripple.className = 'ripple';
