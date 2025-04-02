@@ -14,7 +14,10 @@
     <link rel="stylesheet" href="../navbar.css" />
     <link rel="stylesheet" href="style.css" />
     <link rel="stylesheet" href="../toast_style.css" />
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+    />
   </head>
   <body>
     <nav class="navbar">
@@ -39,9 +42,19 @@
         <form id="annotationForm">
           <div class="form-group">
             <label for="pecha">Pecha</label>
-            <select id="pecha" name="pecha">
-              <option value="">Select Pecha</option>
-            </select>
+            <div class="select-search-container">
+              <select id="pecha" name="pecha">
+                <option value="">Select Pecha</option>
+              </select>
+              <div class="search-overlay">
+                <input
+                  type="text"
+                  class="search-input"
+                  placeholder="Search pechas..."
+                />
+                <div class="search-results"></div>
+              </div>
+            </div>
           </div>
 
           <div class="form-group">
@@ -56,9 +69,19 @@
 
           <div class="form-group conditional-field" id="pechaField">
             <label for="pechaDropdown">Select Pecha</label>
-            <select id="pechaDropdown" name="pechaDropdown">
-              <option value="">Select Pecha</option>
-            </select>
+            <div class="select-search-container">
+              <select id="pechaDropdown" name="pechaDropdown">
+                <option value="">Select Pecha</option>
+              </select>
+              <div class="search-overlay">
+                <input
+                  type="text"
+                  class="search-input"
+                  placeholder="Search pechas..."
+                />
+                <div class="search-results"></div>
+              </div>
+            </div>
           </div>
 
           <div class="form-group conditional-field" id="segmentationField">

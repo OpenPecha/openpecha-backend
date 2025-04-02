@@ -211,3 +211,88 @@ body {
         padding: 1.5rem;
     }
 }
+
+/* Search select functionality */
+.select-search-container {
+  position: relative;
+  width: 100%;
+}
+
+.select-search-container select {
+  width: 100%;
+  appearance: none;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+  background-repeat: no-repeat;
+  background-position: right 1rem center;
+  background-size: 1em;
+}
+
+.search-overlay {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  width: 100%;
+  display: none;
+  z-index: 100;
+  background-color: white;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.search-overlay.active {
+  display: block;
+}
+
+.search-input {
+  width: 100%;
+  padding: 8px;
+  border: 1px solid #ddd;
+  border-bottom: none;
+  box-sizing: border-box;
+}
+
+.search-results {
+  max-height: 200px;
+  overflow-y: auto;
+  background: white;
+  border: 1px solid #ddd;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.search-item {
+  padding: 8px 12px;
+  cursor: pointer;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.search-item:hover {
+  background-color: #f0f0f0;
+}
+
+.search-item.selected {
+  background-color: #e0e0e0;
+}
+
+/* Ensure the select is still clickable */
+.select-search-container select:focus + .search-overlay {
+  display: block;
+}
+
+/* Prevent native dropdown from appearing in Firefox */
+.select-search-container select:-moz-focusring {
+    color: transparent;
+    text-shadow: 0 0 0 #000;
+}
+
+/* Prevent focus outline on select in Firefox */
+.select-search-container select::-moz-focus-inner {
+    border: 0;
+}
+
+/* Hide dropdown arrow in IE10+ */
+.select-search-container select::-ms-expand {
+    display: none;
+}

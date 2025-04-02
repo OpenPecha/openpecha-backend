@@ -10,21 +10,142 @@ class AnnotationForm {
         this.googleDocsUrl = document.getElementById('googleDocsUrl');
         this.toastContainer = document.getElementById('toastContainer');
 
+        // Search-related elements
+        this.searchContainers = document.querySelectorAll('.select-search-container');
+
         this.metadata = null;
         // Bind methods to maintain 'this' context
         this.handleSubmit = this.handleSubmit.bind(this);
         this.handleAnnotationChange = this.handleAnnotationChange.bind(this);
         this.initializeForm = this.initializeForm.bind(this);
+        this.initializeSearchUI = this.initializeSearchUI.bind(this);
 
         // Initialize event listeners
         this.setupEventListeners();
         this.initializeForm();
+        this.initializeSearchUI();
     }
 
     setupEventListeners() {
         this.form.addEventListener('submit', this.handleSubmit);
         this.pechaSelect.addEventListener('change', (e) => this.fetchMetadata(e.target.value));
         this.annotationSelect.addEventListener('change', this.handleAnnotationChange);
+    }
+
+    // New method to initialize search functionality
+    initializeSearchUI() {
+        this.searchContainers.forEach(container => {
+            const select = container.querySelector('select');
+            const searchOverlay = container.querySelector('.search-overlay');
+            const searchInput = container.querySelector('.search-input');
+            const searchResults = container.querySelector('.search-results');
+
+            // Prevent the native dropdown from showing
+            select.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                searchOverlay.classList.toggle('active');
+                if (searchOverlay.classList.contains('active')) {
+                    searchInput.focus();
+                    this.populateSearchResults(select, searchResults, searchInput.value);
+                }
+            });
+
+            // Close search overlay when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!container.contains(e.target)) {
+                    searchOverlay.classList.remove('active');
+                }
+            });
+
+            // Search functionality
+            searchInput.addEventListener('input', () => {
+                this.populateSearchResults(select, searchResults, searchInput.value);
+            });
+
+            // Select an option from search results
+            searchResults.addEventListener('click', (e) => {
+                if (e.target.classList.contains('search-item')) {
+                    const value = e.target.dataset.value;
+                    select.value = value;
+
+                    // Trigger change event
+                    const changeEvent = new Event('change', { bubbles: true });
+                    select.dispatchEvent(changeEvent);
+
+                    searchOverlay.classList.remove('active');
+                }
+            });
+
+            // Handle keyboard navigation
+            searchInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    searchOverlay.classList.remove('active');
+                } else if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    this.navigateSearchResults(searchResults, 'down');
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    this.navigateSearchResults(searchResults, 'up');
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const selectedItem = searchResults.querySelector('.search-item.selected');
+                    if (selectedItem) {
+                        const value = selectedItem.dataset.value;
+                        select.value = value;
+
+                        // Trigger change event
+                        const changeEvent = new Event('change', { bubbles: true });
+                        select.dispatchEvent(changeEvent);
+
+                        searchOverlay.classList.remove('active');
+                    }
+                }
+            });
+        });
+    }
+
+    // Helper method to populate search results
+    populateSearchResults(select, resultsContainer, searchTerm) {
+        resultsContainer.innerHTML = '';
+        searchTerm = searchTerm.toLowerCase();
+
+        Array.from(select.options).forEach(option => {
+            if (option.value && (searchTerm === '' || option.text.toLowerCase().includes(searchTerm))) {
+                const item = document.createElement('div');
+                item.className = 'search-item';
+                item.textContent = option.text;
+                item.dataset.value = option.value;
+
+                if (option.value === select.value) {
+                    item.classList.add('selected');
+                }
+
+                resultsContainer.appendChild(item);
+            }
+        });
+    }
+
+    // Helper method for keyboard navigation in search results
+    navigateSearchResults(resultsContainer, direction) {
+        const items = resultsContainer.querySelectorAll('.search-item');
+        if (items.length === 0) return;
+
+        const selectedItem = resultsContainer.querySelector('.search-item.selected');
+        let nextIndex = 0;
+
+        if (selectedItem) {
+            const currentIndex = Array.from(items).indexOf(selectedItem);
+            selectedItem.classList.remove('selected');
+
+            if (direction === 'down') {
+                nextIndex = (currentIndex + 1) % items.length;
+            } else {
+                nextIndex = (currentIndex - 1 + items.length) % items.length;
+            }
+        }
+
+        items[nextIndex].classList.add('selected');
+        items[nextIndex].scrollIntoView({ block: 'nearest' });
     }
 
     async toggleConditionalFields() {
@@ -123,6 +244,14 @@ class AnnotationForm {
     }
 
     populatePechaDropdowns(pechas) {
+        // Clear existing options first (keep only the default one)
+        while (this.pechaSelect.options.length > 1) {
+            this.pechaSelect.remove(1);
+        }
+        while (this.pechaDropdown.options.length > 1) {
+            this.pechaDropdown.remove(1);
+        }
+
         pechas.forEach(pecha => {
             const option = new Option(`${pecha.id} - ${pecha.title}`, pecha.id);
             this.pechaSelect.add(option.cloneNode(true));
@@ -176,7 +305,7 @@ class AnnotationForm {
             this.showToast('Segmentation Title is required', 'error');
             return false;
         }
-        
+
         if (!data.googleDocsUrl) {
             this.highlightError(this.googleDocsUrl);
             this.showToast('Google Docs URL is required', 'error');
@@ -220,8 +349,6 @@ class AnnotationForm {
             console.error('Error submitting form:', error);
         }
     }
-
-
 
     showToast(message, type = 'info') {
         const toast = document.createElement('div');
