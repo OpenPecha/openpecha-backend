@@ -70,7 +70,6 @@ def get_metadata_chain(
 
     if pecha_id is None:
         logger.info("Pecha ID not provided, using metadata")
-        pecha_id = ""  # Pecha ID will be ignored anyhow
     else:
         logger.info("Pecha ID provided: %s getting metadata from DB", pecha_id)
         metadata = db_get_metadata(pecha_id)
@@ -81,7 +80,7 @@ def get_metadata_chain(
     logger.info("Getting metadata chain for: id: %s, metadata: %s", pecha_id, metadata)
 
     ref_fields = [r.value for r in relationships]
-    chain = [(pecha_id, metadata)]
+    chain = [(pecha_id or "", metadata)]
 
     logger.info("Following forward references")
     current = metadata
