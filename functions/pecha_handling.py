@@ -56,16 +56,25 @@ def db_get_metadata(pecha_id: str) -> dict[str, Any]:
 
 
 def get_metadata_chain(
-    pecha_id: str,
+    pecha_id: str | None = None,
     metadata: dict[str, Any] | None = None,
     traversal_mode: TraversalMode = TraversalMode.UPWARD,
     relationships: list[Relationship] | None = None,
 ) -> list[tuple[str, dict[str, Any]]]:
 
+    if metadata is None and pecha_id is None:
+        raise ValueError("Either metadata or pecha_id must be provided")
+
     if relationships is None:
         relationships = list(Relationship)
 
-    metadata = metadata if pecha_id is None else db_get_metadata(pecha_id)
+    if pecha_id is None:
+        logger.info("Pecha ID not provided, using metadata")
+        pecha_id = ""  # Pecha ID will be ignored anyhow
+    else:
+        logger.info("Pecha ID provided: %s getting metadata from DB", pecha_id)
+        metadata = db_get_metadata(pecha_id)
+
     if not metadata:
         raise ValueError(f"Metadata not found for ID: {pecha_id}")
 
@@ -133,9 +142,6 @@ def parse(docx_file: FileStorage, metadata: dict[str, Any], pecha_id: str | None
 
     path = create_tmp()
     docx_file.save(path)
-
-    if pecha_id is None:
-        pecha_id = ""  # This is OK, becuase the pecha IDs will be ignored anyhow
 
     metadatas = [md for _, md in get_metadata_chain(pecha_id=pecha_id, metadata=metadata)]
 
