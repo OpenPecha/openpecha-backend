@@ -148,10 +148,11 @@ class YamlUploadHandler {
         this.elements.uploadButton.disabled = true;
         this.elements.uploadButton.textContent = 'Uploading...';
         fetch(this.API_ENDPOINT, {
-            method: 'POST',
+            method: 'PUT',
             body: formData
         })
         .then(response => {
+            console.log("Response :: ",response);
             if (!response.ok) {
                 throw new Error('Network response was not ok');
             }
