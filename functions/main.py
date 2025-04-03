@@ -5,8 +5,10 @@ from api.metadata import metadata_bp
 from api.pecha import pecha_bp
 from api.schema import schema_bp
 from api.text import text_bp
+from exceptions import OpenPechaException
 from firebase_functions import https_fn, options
-from flask import Flask, request
+from flask import Flask, jsonify, request
+from pydantic import ValidationError
 
 
 def create_app(testing=False):
@@ -21,6 +23,16 @@ def create_app(testing=False):
     app.register_blueprint(api_bp, url_prefix="/api")
     app.register_blueprint(text_bp, url_prefix="/text")
     app.register_blueprint(categories_bp, url_prefix="/categories")
+
+    @app.errorhandler(Exception)
+    def handle_exception(e):
+        if isinstance(e, ValidationError):
+            return jsonify({"error": "Validation error", "details": e.errors()}), 400
+        if isinstance(e, OpenPechaException):
+            return jsonify(e.to_dict()), e.status_code
+
+        error = OpenPechaException(str(e))
+        return jsonify(error.to_dict()), error.status_code
 
     @app.after_request
     def log_response(response):
