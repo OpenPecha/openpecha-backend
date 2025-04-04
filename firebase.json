@@ -10,6 +10,9 @@
         "firebase-debug.*.log",
         "*.local"
       ],
+      "include": [
+        "api/schema/openapi.yaml"
+      ],
       "predeploy": "./predeploy.sh"
     }
   ],
