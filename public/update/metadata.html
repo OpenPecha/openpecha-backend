@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="shortcut icon" href="../assets/favicon.ico" type="image/x-icon">
+    <title>Update Pecha Metadata</title>
+    <link rel="stylesheet" href="./css/metadata.css">
+    <link rel="stylesheet" href="../toast_style.css">
+    <link rel="stylesheet" href="../custom/calendar/calendar_style.css">
+    <link rel="stylesheet" href="../custom/select/select.css">
+    <link rel="stylesheet" href="../navbar.css">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <a href="/" class="nav-logo">
+                <img src="../assets/logo.svg" alt="OpenPecha Logo">
+                <span>Update Metadata</span>
+            </a>
+            <div class="nav-links">
+                <a href="/create/create" class="nav-link">Create</a>
+                <a href="/publish/publish" class="nav-link">Publish</a>
+                <a href="/update/" class="nav-link active">Update</a>
+                <a href="/category/" class="nav-link">Category</a>
+            </div>
+        </div>
+    </nav>
+
+    <div id="toastContainer"></div>
+    <main>
+        <div class="container">
+            <div class="back-button">
+                <a href="/update/">
+                    <i class="fa-solid fa-arrow-left"></i>
+                </a>
+            </div>
+            <div class="pecha-select-container">
+                <label for="pechaOptions">Select Pecha:</label>
+                <div id="pechaOptionsContainer">
+                </div>
+            </div>
+
+            <div id="formContent" class="form-content disabled">
+                <form id="metadata-form">
+                    <div class="form-group" data-field="author">
+                        <label>Author</label>
+                        <div class="localizations"></div>
+                        <button type="button" class="add-localization">
+                            <i class="fas fa-plus-circle"></i>
+                            Add Author
+                        </button>
+                    </div>
+
+                    <div class="form-group" data-field="language">
+                        <label>Language</label>
+                        <select id="language" class="select-lang" >
+                            <option value="">Select language</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group source" data-field="source">
+                        <label>Source</label>
+                        <div class="input-wrapper" id="source">
+                            <input type="text" id="source-field" placeholder="https://example.com">
+                        </div>
+                    </div>
+
+                    <div class="form-group" data-field="presentation">
+                        <label>Presentation</label>
+                        <div class="localizations"></div>
+                        <button type="button" class="add-localization">
+                          <i class="fas fa-plus-circle"></i>
+                          Add Presentation
+                        </button>
+                      </div>
+
+                    <div class="form-group" data-field="title">
+                        <label>Title</label>
+                        <div class="localizations"></div>
+                        <button type="button" class="add-localization">
+                            <i class="fas fa-plus-circle"></i>
+                            Add Title
+                        </button>
+                    </div>
+
+                    <div class="form-group" data-field="long_title">
+                        <label>Long Title</label>
+                        <div class="localizations"></div>
+                        <button type="button" class="add-localization">
+                            <i class="fas fa-plus-circle"></i>
+                            Add Long Title
+                        </button>
+                    </div>
+
+                    <div class="form-group" data-field="usage_title">
+                        <label>Usage Title</label>
+                        <div class="localizations"></div>
+                        <button type="button" class="add-localization">
+                            <i class="fas fa-plus-circle"></i>
+                            Add Usage Title
+                        </button>
+                    </div>
+
+                    <div class="form-group">
+                        <label>Alternate Titles</label>
+                        <div class="alt-titles" id="alt-titles"></div>
+                        <button type="button" class="add-alt-localization" id="addAltTitle">
+                          <i class="fas fa-plus-circle"></i>
+                          Add alternate title
+                        </button>
+                      </div>
+
+                    <div class="form-group">
+                        <label>Relation</label>
+                        <div class="radio-group">
+                            <label class="radio-option">
+                                <input type="radio" name="relation" value="version_of">
+                                Version of
+                            </label>
+                            <label class="radio-option">
+                                <input type="radio" name="relation" value="commentary_of">
+                                Commentary of
+                            </label>
+                            <label class="radio-option">
+                                <input type="radio" name="relation" value="translation_of">
+                                Translation of
+                            </label>
+                        </div>
+                        <div id="relatedPechaContainer">
+                        </div>
+                    </div>
+
+                    <div class="form-group" data-field="document_id">
+                        <label>Document</label>
+                        <div class="input-wrapper">
+                            <input type="text" id="document" placeholder="Enter document ID" required>
+                        </div>
+                    </div>
+
+                    <div class="form-actions">
+                        <button type="submit" class="create-button">
+                            <span>Update Metadata</span>
+                            <div class="spinner"></div>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </main>
+
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="../custom/select/index.js"></script>
+    <script src="./js/metadata.js"></script>
+</body>
+</html>
