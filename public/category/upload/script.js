@@ -1,6 +1,5 @@
 class YamlUploadHandler {
     constructor() {
-        this.API_ENDPOINT = 'https://api-aq25662yyq-uc.a.run.app/categories';
         this.FILE_SIZE_UNITS = ['Bytes', 'KB', 'MB', 'GB'];
         this.TOAST_DURATION = 3000;
         this.selectedFile = null;
@@ -18,7 +17,35 @@ class YamlUploadHandler {
             toast: document.getElementById('toast')
         };
         
-        this.setupEventListeners();
+        this.initialize();
+    }
+    
+    async initialize() {
+        try {
+            await this.loadConfig();
+            this.setupEventListeners();
+        } catch (error) {
+            console.error('Initialization error:', error);
+            this.showToast('Failed to initialize. Please refresh the page.', 'error');
+        }
+    }
+    
+    async loadConfig() {
+        try {
+            const response = await fetch('/config.json');
+            if (!response.ok) {
+                throw new Error(`Failed to load config: ${response.status} ${response.statusText}`);
+            }
+            const config = await response.json();
+            if (!config.apiEndpoint) {
+                throw new Error('API endpoint not found in configuration');
+            }
+            this.API_ENDPOINT = config.apiEndpoint.replace(/\/$/, ''); // Remove trailing slash if present
+        } catch (error) {
+            console.error('Config loading error:', error);
+            this.showToast('Error loading configuration. Please refresh the page.', 'error');
+            throw error;
+        }
     }
     
     setupEventListeners() {
@@ -147,7 +174,7 @@ class YamlUploadHandler {
         formData.append('file', this.selectedFile);
         this.elements.uploadButton.disabled = true;
         this.elements.uploadButton.textContent = 'Uploading...';
-        fetch(this.API_ENDPOINT, {
+        fetch(`${this.API_ENDPOINT}/categories`, {
             method: 'PUT',
             body: formData
         })

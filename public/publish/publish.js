@@ -9,14 +9,41 @@ class UpdateMetaData {
             metadataContainer: document.querySelector('.metadata-container')
         };
 
-        this.API_ENDPOINT = 'https://api-aq25662yyq-uc.a.run.app';
         this.isLoading = false;
         this.metadata = null;
-        this.fetchPechaOptions();
-        this.setupEventListeners();
-        this.showInitialMetadataState();
+        this.initialize();
     }
     
+    async initialize() {
+        try {
+            await this.loadConfig();
+            await this.fetchPechaOptions();
+            this.setupEventListeners();
+            this.showInitialMetadataState();
+        } catch (error) {
+            console.error('Initialization error:', error);
+            this.showToast('Failed to initialize the application. Please refresh the page.', 'error');
+        }
+    }
+
+    async loadConfig() {
+        try {
+            const response = await fetch('/config.json');
+            if (!response.ok) {
+                throw new Error(`Failed to load config: ${response.status} ${response.statusText}`);
+            }
+            const config = await response.json();
+            if (!config.apiEndpoint) {
+                throw new Error('API endpoint not found in configuration');
+            }
+            this.API_ENDPOINT = config.apiEndpoint.replace(/\/$/, ''); // Remove trailing slash if present
+        } catch (error) {
+            console.error('Config loading error:', error);
+            this.showToast('Error loading configuration. Please refresh the page.', 'error');
+            throw error; // Re-throw to handle in initialize()
+        }
+    }
+
     setupEventListeners() {
 
         // Listen for changes on the custom dropdown
@@ -59,7 +86,7 @@ class UpdateMetaData {
 
     async fetchPechaOptions() {
         this.showSelectLoading(true);
-
+        console.log(this.API_ENDPOINT);
         try {
             const response = await fetch(`${this.API_ENDPOINT}/metadata/filter/`, {
                 method: 'POST',
