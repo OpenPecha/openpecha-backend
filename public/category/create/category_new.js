@@ -27,15 +27,35 @@ class CategoryTreeUI {
             langToggle: document.getElementById('languageToggle'),
             toastContainer: document.getElementById('toastContainer')
         };
-        this.API_ENDPOINT = 'https://api-aq25662yyq-uc.a.run.app/';
+        this.API_ENDPOINT = '';
         this.root = null;
         this.currentLanguage = 'en';
         this.selectedRoot = null;
         this.selectedNode = null;
         this.categories = [];
         this.options = [];
-        this.bindEventListeners();
-        this.fetchCategories();
+        this.loadConfig().then(() => {
+            this.bindEventListeners();
+            this.fetchCategories();
+        });
+    }
+
+    async loadConfig() {
+        try {
+            const response = await fetch('/config.json');
+            if (!response.ok) {
+                throw new Error(`Failed to load config: ${response.status} ${response.statusText}`);
+            }
+            const config = await response.json();
+            if (!config.apiEndpoint) {
+                throw new Error('API endpoint not found in configuration');
+            }
+            this.API_ENDPOINT = config.apiEndpoint.replace(/\/$/, ''); // Remove trailing slash if present
+        } catch (error) {
+            console.error('Config loading error:', error);
+            this.showToast('Error loading configuration. Please refresh the page.', 'error');
+            throw error;
+        }
     }
 
     bindEventListeners() {
@@ -84,7 +104,7 @@ class CategoryTreeUI {
 
     fetchCategories() {
         console.log('CategoryTreeUI: Fetching categories...');
-        fetch(this.API_ENDPOINT + 'categories', {
+        fetch(`${this.API_ENDPOINT}/categories`, {
             method: 'GET',
             headers: {
                 'Content-Type': 'application/json'
@@ -365,6 +385,23 @@ class CategoryTreeUI {
 class UpdateMetaData {
     constructor() {
         console.log('UpdateMetaData: Initializing...');
+        this.initialize();
+    }
+
+    async initialize() {
+        try {
+            this.setupElements();
+            await this.loadConfig();
+            await this.fetchPechaOptions();
+            this.setupEventListeners();
+            this.showInitialMetadataState();
+        } catch (error) {
+            console.error('Initialization error:', error);
+            this.showToast('Failed to initialize. Please refresh the page.', 'error');
+        }
+    }
+
+    setupElements() {
         this.elements = {
             form: document.getElementById('publishForm'),
             pechaOptionsContainer: document.getElementById('pechaOptionsContainer'),
@@ -376,15 +413,26 @@ class UpdateMetaData {
             toggleIcon: document.querySelector('.toggle-icon'),
             treeContainer: document.querySelector('.tree-container')
         };
-
-        this.API_ENDPOINT = 'https://api-aq25662yyq-uc.a.run.app';
         this.isLoading = false;
         this.isCollapsed = false;
-        
-        // Initialize components
-        this.setupEventListeners();
-        this.showInitialMetadataState();
-        this.fetchPechaOptions();
+    }
+
+    async loadConfig() {
+        try {
+            const response = await fetch('/config.json');
+            if (!response.ok) {
+                throw new Error(`Failed to load config: ${response.status} ${response.statusText}`);
+            }
+            const config = await response.json();
+            if (!config.apiEndpoint) {
+                throw new Error('API endpoint not found in configuration');
+            }
+            this.API_ENDPOINT = config.apiEndpoint.replace(/\/$/, ''); // Remove trailing slash if present
+        } catch (error) {
+            console.error('Config loading error:', error);
+            this.showToast('Error loading configuration. Please refresh the page.', 'error');
+            throw error;
+        }
     }
 
     setupEventListeners() {

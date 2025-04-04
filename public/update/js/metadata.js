@@ -1,34 +1,58 @@
 class MetadataManager {
     constructor() {
-        this.API_ENDPOINT = 'https://api-aq25662yyq-uc.a.run.app';
-        this.elements = {
-            pechaOptionsContainer: document.getElementById('pechaOptionsContainer'),
-            toastContainer: document.getElementById('toastContainer'),
-            formContent: document.getElementById('formContent'),
-            metadataForm: document.getElementById('metadata-form'),
-            formGroups: document.querySelectorAll('.form-group'),
-            documentField: document.getElementById('document'),
-            language: document.getElementById('language'),
-            source: document.getElementById('source-field'),
-            altTitles: document.getElementById('alt-titles'),
-            addAltTitle: document.getElementById('addAltTitle'),
-            relationRadios: document.querySelectorAll('input[name="relation"]'),
-            relatedPechaContainer: document.getElementById('relatedPechaContainer'),
-            updateButton: document.querySelector('.create-button'),
-            buttonText: document.querySelector('.create-button span'),
-            spinner: document.querySelector('.spinner'),
-            updateFormContainer: document.getElementById('updateFormContainer')
-        };
-        this.languageOptions = [];
-        this.selectedPechaId = null;
-
+        this.isLoading = false;
         this.initialize();
     }
 
     async initialize() {
-        await this.fetchPechaOptions();
-        this.fetchLanguages();
-        this.setupEventListeners();
+        try {
+            await this.loadConfig();
+            this.elements = {
+                pechaOptionsContainer: document.getElementById('pechaOptionsContainer'),
+                toastContainer: document.getElementById('toastContainer'),
+                formContent: document.getElementById('formContent'),
+                metadataForm: document.getElementById('metadata-form'),
+                formGroups: document.querySelectorAll('.form-group'),
+                documentField: document.getElementById('document'),
+                language: document.getElementById('language'),
+                source: document.getElementById('source-field'),
+                altTitles: document.getElementById('alt-titles'),
+                addAltTitle: document.getElementById('addAltTitle'),
+                relationRadios: document.querySelectorAll('input[name="relation"]'),
+                relatedPechaContainer: document.getElementById('relatedPechaContainer'),
+                updateButton: document.querySelector('.create-button'),
+                buttonText: document.querySelector('.create-button span'),
+                spinner: document.querySelector('.spinner'),
+                updateFormContainer: document.getElementById('updateFormContainer')
+            };
+            this.languageOptions = [];
+            this.selectedPechaId = null;
+
+            await this.fetchLanguages();
+            await this.fetchPechaOptions();
+            this.setupEventListeners();
+        } catch (error) {
+            console.error('Initialization error:', error);
+            this.showToast('Failed to initialize. Please refresh the page.', 'error');
+        }
+    }
+
+    async loadConfig() {
+        try {
+            const response = await fetch('/config.json');
+            if (!response.ok) {
+                throw new Error(`Failed to load config: ${response.status} ${response.statusText}`);
+            }
+            const config = await response.json();
+            if (!config.apiEndpoint) {
+                throw new Error('API endpoint not found in configuration');
+            }
+            this.API_ENDPOINT = config.apiEndpoint.replace(/\/$/, ''); // Remove trailing slash if present
+        } catch (error) {
+            console.error('Config loading error:', error);
+            this.showToast('Error loading configuration. Please refresh the page.', 'error');
+            throw error;
+        }
     }
 
     setupEventListeners() {

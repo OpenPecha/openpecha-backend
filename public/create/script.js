@@ -1,6 +1,41 @@
 class LocalizedForm {
     constructor() {
-        this.API_ENDPOINT = 'https://api-aq25662yyq-uc.a.run.app';
+        this.isLoading = false;
+        this.initialize();
+    }
+
+    async initialize() {
+        try {
+            await this.loadConfig();
+            this.setupElements();
+            this.setupEventListeners();
+            await this.fetchLanguages();
+            await this.fetchPechaOptions();
+        } catch (error) {
+            console.error('Initialization error:', error);
+            this.showToast('Failed to initialize. Please refresh the page.', 'error');
+        }
+    }
+
+    async loadConfig() {
+        try {
+            const response = await fetch('/config.json');
+            if (!response.ok) {
+                throw new Error(`Failed to load config: ${response.status} ${response.statusText}`);
+            }
+            const config = await response.json();
+            if (!config.apiEndpoint) {
+                throw new Error('API endpoint not found in configuration');
+            }
+            this.API_ENDPOINT = config.apiEndpoint.replace(/\/$/, ''); // Remove trailing slash if present
+        } catch (error) {
+            console.error('Config loading error:', error);
+            this.showToast('Error loading configuration. Please refresh the page.', 'error');
+            throw error;
+        }
+    }
+
+    setupElements() {
         this.baseLanguageSelect = document.getElementById("baseLanguage");
         this.baseLanguageLoader = document.getElementById("baseLanguageLoader");
         this.popupContainer = document.getElementById("popupContainer");
@@ -23,16 +58,6 @@ class LocalizedForm {
         this.creatingSpinner = createButton.querySelector(".spinner")
         this.creating = false;
         this.languageOptions = [];
-        this.fetchLanguages().then(languages => {
-            this.languageOptions = languages;
-            let temp = `<option value="">Language</option>`;
-            languages.forEach(lang => {
-                temp += `<option value="${lang.code}">${lang.name}</option>`;
-            });
-
-            this.baseLanguageSelect.innerHTML = temp;
-        });
-        this.setupEventListeners();
     }
 
     setupEventListeners() {
@@ -365,6 +390,12 @@ class LocalizedForm {
             }
 
             const data = await response.json();
+            this.languageOptions = data;
+            let temp = `<option value="">Language</option>`;
+            this.languageOptions.forEach(lang => {
+                temp += `<option value="${lang.code}">${lang.name}</option>`;
+            });
+            this.baseLanguageSelect.innerHTML = temp;
             return data;
         } catch (error) {
             console.error('Error fetching languages:', error);
