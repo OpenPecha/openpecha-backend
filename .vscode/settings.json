@@ -1,4 +1,5 @@
 {
+    "python.envFile": "${workspaceFolder}/.env",
     "python.analysis.extraPaths": [
         "functions/venv/lib/python3.12/site-packages",
         "./functions",
