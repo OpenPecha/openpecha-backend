@@ -36,11 +36,13 @@ def get_duplicate_key(document_id: str):
 @pecha_bp.route("/", methods=["POST"], strict_slashes=False)
 def post_pecha():
     text = request.files.get("text")
+    data = request.files.get("data")
 
-    if not text:
-        raise InvalidRequest("Missing text file")
+    if not text and not data:
+        raise InvalidRequest("Either text or data is required")
 
-    validate_file(text)
+    if text and data:
+        raise InvalidRequest("Both text and data cannot be uploaded together")
 
     metadata_json = request.form.get("metadata")
     if not metadata_json:
@@ -49,7 +51,6 @@ def post_pecha():
     metadata_dict = json.loads(metadata_json)
     metadata = MetadataModel.model_validate(metadata_dict)
 
-    logger.info("Uploaded text file: %s", text.filename)
     logger.info("Metadata: %s", metadata)
 
     duplicate_key = get_duplicate_key(metadata.document_id)
@@ -57,10 +58,18 @@ def post_pecha():
     if duplicate_key:
         raise InvalidRequest(f"Document '{metadata.document_id}' is already published as: {duplicate_key}")
 
-    pecha_id = process_pecha(text=text, metadata=metadata.model_dump())
-    title = metadata.title[metadata.language] or metadata.title["en"]
+    if text:
+        validate_file(text)
 
-    return jsonify({"message": "Text created successfully", "id": pecha_id, "title": title}), 200
+        logger.info("Uploaded text file: %s", text.filename)
+
+        pecha_id = process_pecha(text=text, metadata=metadata.model_dump())
+
+        title = metadata.title[metadata.language] or metadata.title["en"]
+
+        return jsonify({"message": "Text created successfully", "id": pecha_id, "title": title}), 200
+
+    raise InvalidRequest("Data upload is not supported yet")
 
 
 @pecha_bp.route("/<string:pecha_id>", methods=["GET"], strict_slashes=False)
