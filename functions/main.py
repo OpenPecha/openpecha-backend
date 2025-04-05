@@ -27,7 +27,7 @@ def create_app(testing=False):
     @app.errorhandler(Exception)
     def handle_exception(e):
         if isinstance(e, ValidationError):
-            return jsonify({"error": "Validation error", "details": e.errors()}), 400
+            return jsonify({"error": "Validation error", "details": e.errors()}), 422
         if isinstance(e, OpenPechaException):
             return jsonify(e.to_dict()), e.status_code
 

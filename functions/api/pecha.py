@@ -2,7 +2,7 @@ import json
 import logging
 
 from api.text import validate_file
-from exceptions import DataNotFound, InvalidRequest
+from exceptions import DataConflict, DataNotFound, InvalidRequest
 from firebase_config import db
 from flask import Blueprint, jsonify, request, send_file
 from metadata_model import MetadataModel
@@ -26,11 +26,8 @@ def add_no_cache_headers(response):
 
 
 def get_duplicate_key(document_id: str):
-    doc = next(
-        db.collection("metadata").where("document_id", "==", document_id).limit(1).stream(),
-        None,
-    )
-    return doc.id if doc else None
+    docs = db.collection("metadata").where("document_id", "==", document_id).limit(1).get()
+    return docs[0].id if docs else None
 
 
 @pecha_bp.route("/", methods=["POST"], strict_slashes=False)
@@ -56,7 +53,7 @@ def post_pecha():
     duplicate_key = get_duplicate_key(metadata.document_id)
 
     if duplicate_key:
-        raise InvalidRequest(f"Document '{metadata.document_id}' is already published as: {duplicate_key}")
+        raise DataConflict(f"Document '{metadata.document_id}' is already published as: {duplicate_key}")
 
     if text:
         validate_file(text)
