@@ -44,8 +44,6 @@ def validate_relationship(metadata: MetadataModel, parent: MetadataModel, relati
             return parent.language == metadata.language
         case Relationship.TRANSLATION:
             return parent.language != metadata.language
-        case _:
-            return False
 
 
 def db_get_metadata(pecha_id: str) -> dict[str, Any]:
@@ -155,6 +153,9 @@ def serialize(pecha: Pecha, reserialize: bool) -> dict[str, Any]:
     metadata_chain = get_metadata_chain(pecha_id=pecha.id)
     metadatas = [md for _, md in metadata_chain]
 
+    if metadatas is None:
+        raise ValueError("No metadata found for Pecha")
+
     storage = Storage()
     if storage.pechaorg_json_exists(pecha_id=pecha.id) and not reserialize:
         pecha_json = storage.retrieve_pechaorg_json(pecha_id=pecha.id)
@@ -162,43 +163,46 @@ def serialize(pecha: Pecha, reserialize: bool) -> dict[str, Any]:
         logger.info("Serialized Pecha %s already exist, updating the json", pecha.id)
         return update_serialize_json(pecha=pecha, metadatas=metadatas, json=pecha_json)
 
+    logger.info("Serialized Pecha %s doesn't exist, starting serialize", pecha.id)
+
+    category_id = metadatas[0].get("category")
+    if category_id is None:
+        raise ValueError("No category found in metadata")
+
+    category = db.collection("categories").document(category_id).get().to_dict()
+    if category is None:
+        raise ValueError(f"Category with ID {category_id} not found")
+
+    logger.info("Category retrieved: %s", category)
+
     id_chain = [id for id, _ in metadata_chain]
     logger.info("Pecha IDs: %s", ", ".join(id_chain))
     pecha_chain = get_pecha_chain(pecha_ids=id_chain)
 
-    logger.info("Serialized Pecha %s doesn't exist, starting serialize", pecha.id)
     logger.info("Pechas: %s", [pecha.id for pecha in pecha_chain])
 
-    return Serializer().serialize(pechas=pecha_chain, metadatas=metadatas)
+    return Serializer().serialize(pechas=pecha_chain, metadatas=metadatas, pecha_category=category)
 
 
-def process_pecha(
-    text: FileStorage, metadata: dict[str, Any], pecha_id: str | None = None
-) -> tuple[str | None, str | None]:
+def process_pecha(text: FileStorage, metadata: dict[str, Any], pecha_id: str | None = None) -> str:
     """
     Handles Pecha processing: parsing, alignment, serialization, storage, and database transactions.
 
     Returns:
-        - `(None, pecha.id)` if successful.
-        - `("Error message", None)` if an error occurs.
-    """
-    try:
-        pecha = parse(docx_file=text, pecha_id=pecha_id, metadata=metadata)
+        - `pecha.id` if successful.
 
-        logger.info("Pecha created: %s %s", pecha.id, pecha.pecha_path)
-    except Exception as e:
-        return f"Could not process metadata {str(e)}", None
+    Raises:
+        - Exception if an error occurs during processing.
+    """
+    pecha = parse(docx_file=text, pecha_id=pecha_id, metadata=metadata)
+    logger.info("Pecha created: %s %s", pecha.id, pecha.pecha_path)
 
     storage = Storage()
 
-    try:
-        stream = text.stream
-        stream.seek(0)
-        storage.store_pecha_doc(pecha_id=pecha.id, doc=stream)
-        storage.store_pecha_opf(pecha)
-    except Exception as e:
-        logger.error("Error saving Pecha to storage: %s", e)
-        return f"Failed to save to storage {str(e)}", None
+    stream = text.stream
+    stream.seek(0)
+    storage.store_pecha_doc(pecha_id=pecha.id, doc=stream)
+    storage.store_pecha_opf(pecha)
 
     try:
         with db.transaction() as transaction:
@@ -208,7 +212,6 @@ def process_pecha(
             logger.info("Saving metadata to DB: %s", json.dumps(metadata, ensure_ascii=False))
             transaction.set(doc_ref_metadata, metadata)
             logger.info("Metadata saved to DB: %s", pecha.id)
-
     except Exception as e:
         logger.error("Error saving to DB: %s", e)
         try:
@@ -216,6 +219,6 @@ def process_pecha(
         except Exception as rollback_error:
             logger.error("Rollback failed: %s", rollback_error)
 
-        return f"Failed to save to DB {str(e)} metadata: {metadata}", None
+        raise
 
-    return None, pecha.id
+    return pecha.id

@@ -2,6 +2,7 @@ import json
 import logging
 
 from api.text import validate_file
+from exceptions import DataNotFound, InvalidRequest
 from firebase_config import db
 from flask import Blueprint, jsonify, request, send_file
 from metadata_model import MetadataModel
@@ -37,15 +38,13 @@ def post_pecha():
     text = request.files.get("text")
 
     if not text:
-        return jsonify({"error": "Missing text"}), 400
+        raise InvalidRequest("Missing text file")
 
-    is_valid, error_message = validate_file(text)
-    if not is_valid:
-        return jsonify({"error": f"Text file: {error_message}"}), 400
+    validate_file(text)
 
     metadata_json = request.form.get("metadata")
     if not metadata_json:
-        return jsonify({"error": "Missing metadata"}), 400
+        raise InvalidRequest("Missing metadata")
 
     metadata_dict = json.loads(metadata_json)
     metadata = MetadataModel.model_validate(metadata_dict)
@@ -53,21 +52,12 @@ def post_pecha():
     logger.info("Uploaded text file: %s", text.filename)
     logger.info("Metadata: %s", metadata)
 
-    if not isinstance(metadata.document_id, str):
-        return jsonify({"error": "Invalid metadata"}), 400
-
     duplicate_key = get_duplicate_key(metadata.document_id)
 
     if duplicate_key:
-        return (
-            jsonify({"error": f"Document '{metadata.document_id}' is already published as: {duplicate_key}"}),
-            400,
-        )
+        raise InvalidRequest(f"Document '{metadata.document_id}' is already published as: {duplicate_key}")
 
-    error_message, pecha_id = process_pecha(text=text, metadata=metadata.model_dump())
-    if error_message:
-        return jsonify({"error": error_message}), 500
-
+    pecha_id = process_pecha(text=text, metadata=metadata.model_dump())
     title = metadata.title[metadata.language] or metadata.title["en"]
 
     return jsonify({"message": "Text created successfully", "id": pecha_id, "title": title}), 200
@@ -75,27 +65,22 @@ def post_pecha():
 
 @pecha_bp.route("/<string:pecha_id>", methods=["GET"], strict_slashes=False)
 def get_pecha(pecha_id: str):
-    try:
-        storage = Storage()
-        opf_path = storage.retrieve_pecha_opf(pecha_id=pecha_id)
+    storage = Storage()
+    opf_path = storage.retrieve_pecha_opf(pecha_id=pecha_id)
 
-        return send_file(
-            opf_path,
-            mimetype="application/zip",
-            as_attachment=True,
-            download_name=f"{pecha_id}.zip",
-        )
-    except FileNotFoundError:
-        return jsonify({"error": f"Pecha {pecha_id} not found"}), 404
-    except Exception as e:
-        return jsonify({"error": f"Failed to get Pecha {pecha_id}: {str(e)}"}), 500
+    return send_file(
+        opf_path,
+        mimetype="application/zip",
+        as_attachment=True,
+        download_name=f"{pecha_id}.zip",
+    )
 
 
 @pecha_bp.route("/<string:pecha_id>", methods=["DELETE"], strict_slashes=False)
 def delete_pecha(pecha_id: str):
     doc_ref = db.collection("metadata").document(pecha_id)
     if not doc_ref.get().exists:
-        return jsonify({"error": f"Pecha {pecha_id} not found"}), 404
+        raise DataNotFound(f"Pecha with ID '{pecha_id}' not found")
 
     try:
         storage = Storage()
@@ -105,11 +90,8 @@ def delete_pecha(pecha_id: str):
     except Exception as e:
         logger.warning("Failed to delete Pecha %s: %s", pecha_id, e)
 
-    try:
-        doc_ref.delete()
-        return jsonify({"message": "Pecha deleted successfully", "id": pecha_id}), 200
-    except Exception as e:
-        return jsonify({"error": f"Failed to delete Pecha {pecha_id}: {str(e)}"}), 500
+    doc_ref.delete()
+    return jsonify({"message": "Pecha deleted successfully", "id": pecha_id}), 200
 
 
 @pecha_bp.route("/<string:pecha_id>/publish", methods=["POST"], strict_slashes=False)
@@ -119,27 +101,23 @@ def publish(pecha_id: str):
     reserialize = data.get("reserialize", False)
 
     if not pecha_id:
-        return jsonify({"error": "Missing Pecha Id"}), 400
+        raise InvalidRequest("Missing Pecha ID")
 
     if destination not in ["staging", "production"]:
-        return jsonify({"error": "Invalid destination"}), 400
+        raise InvalidRequest(f"Invalid destination '{destination}'")
 
-    try:
-        pecha = retrieve_pecha(pecha_id=pecha_id)
-        logger.info("Successfully retrieved Pecha %s from storage", pecha_id)
+    pecha = retrieve_pecha(pecha_id=pecha_id)
+    logger.info("Successfully retrieved Pecha %s from storage", pecha_id)
 
-        destination_url = getattr(Destination_url, destination.upper())
-        logger.info("Destination URL: %s", destination_url)
+    destination_url = getattr(Destination_url, destination.upper())
+    logger.info("Destination URL: %s", destination_url)
 
-        serialized = serialize(pecha=pecha, reserialize=reserialize)
-        logger.info("Successfully serialized Pecha %s", pecha_id)
+    serialized = serialize(pecha=pecha, reserialize=reserialize)
+    logger.info("Successfully serialized Pecha %s", pecha_id)
 
-        Storage().store_pechaorg_json(pecha_id=pecha_id, json_dict=serialized)
-        logger.info("Successfully saved Pecha %s to storage", pecha_id)
+    Storage().store_pechaorg_json(pecha_id=pecha_id, json_dict=serialized)
+    logger.info("Successfully saved Pecha %s to storage", pecha_id)
 
-        upload(text=serialized, destination_url=destination_url, overwrite=True)
+    upload(text=serialized, destination_url=destination_url, overwrite=True)
 
-        return jsonify({"message": "Pecha published successfully", "id": pecha_id}), 200
-
-    except Exception as e:
-        return jsonify({"error": f"Failed to publish pecha: {str(e)}"}), 500
+    return jsonify({"message": "Pecha published successfully", "id": pecha_id}), 200

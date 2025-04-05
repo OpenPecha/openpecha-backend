@@ -2,6 +2,7 @@ import logging
 from typing import Any, Generator
 
 import yaml
+from exceptions import InvalidRequest
 from firebase_config import db
 from flask import Blueprint, jsonify, request
 from werkzeug.datastructures import FileStorage
@@ -50,31 +51,22 @@ def process_categories(
 
 @categories_bp.route("/", methods=["PUT"], strict_slashes=False)
 def upload_categories():
-    try:
-        if "file" not in request.files:
-            return jsonify({"error": "No file provided"}), 400
+    if "file" not in request.files:
+        raise InvalidRequest("No file provided")
 
-        file: FileStorage = request.files["file"]
-        if not file.filename or not file.filename.endswith(".yaml"):
-            return jsonify({"error": "Invalid file format. Please upload a YAML file"}), 400
+    file: FileStorage = request.files["file"]
+    if not file.filename or not file.filename.endswith(".yaml"):
+        raise InvalidRequest("Invalid file format. Please upload a YAML file")
 
-        try:
-            content = yaml.safe_load(file.stream)
-        except yaml.YAMLError as e:
-            logger.error("Failed to parse YAML: %s", e)
-            return jsonify({"error": "Invalid YAML format"}), 400
+    content = yaml.safe_load(file.stream)
 
-        if not isinstance(content, dict) or "categories" not in content:
-            return jsonify({"error": "Invalid category structure"}), 400
+    if not isinstance(content, dict) or "categories" not in content:
+        raise InvalidRequest("Invalid file structure. Expected a dictionary with 'categories' key")
 
-        categories = list(process_categories(content["categories"]))
-        logger.info("Processed %d categories", len(categories))
+    categories = list(process_categories(content["categories"]))
+    logger.info("Processed %d categories", len(categories))
 
-        return jsonify({"message": "Categories uploaded successfully", "count": len(categories)}), 201
-
-    except Exception as e:
-        logger.error("Failed to process categories: %s", e)
-        return jsonify({"error": f"Failed to process categories: {str(e)}"}), 500
+    return jsonify({"message": "Categories uploaded successfully", "count": len(categories)}), 201
 
 
 def build_category_tree() -> list[dict[str, Any]]:
@@ -96,9 +88,5 @@ def build_category_tree() -> list[dict[str, Any]]:
 
 @categories_bp.route("/", methods=["GET"], strict_slashes=False)
 def get_categories():
-    try:
-        categories = build_category_tree()
-        return jsonify({"categories": categories}), 200
-    except Exception as e:
-        logger.error("Failed to retrieve categories: %s", e)
-        return jsonify({"error": f"Failed to retrieve categories: {str(e)}"}), 500
+    categories = build_category_tree()
+    return jsonify({"categories": categories}), 200
