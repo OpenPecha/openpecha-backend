@@ -219,18 +219,19 @@ class UpdateMetaData {
     }
     reorderMetadata(metadata) {
         const order = [
-            "author",
-            "category",
-            "date",
-            "source",
-            "presentation",
-            "usage_title",
             "title",
-            "long_title",
-            "alt_titles",
             "version_of",
             "commentary_of",
             "translation_of",
+            "author",
+            "category",
+            "long_title",
+            "usage_title",
+            "alt_titles",
+            "language",
+            "source",
+            "presentation",
+            "date",
             "document_id"
         ];
     
