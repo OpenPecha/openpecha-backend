@@ -169,7 +169,7 @@ def serialize(pecha: Pecha, reserialize: bool) -> dict[str, Any]:
     if category_id is None:
         raise ValueError("No category found in metadata")
 
-    category = db.collection("categories").document(category_id).get().to_dict()
+    category = db.collection("category").document(category_id).get().to_dict()
     if category is None:
         raise ValueError(f"Category with ID {category_id} not found")
 

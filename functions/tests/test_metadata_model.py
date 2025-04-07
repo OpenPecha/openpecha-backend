@@ -33,6 +33,7 @@ from pydantic import ValidationError
                 "usage_title": None,
                 "version_of": None,
                 "category": None,
+                "bdrc": None,
             },
         ),
     ],
@@ -82,7 +83,10 @@ def test_valid_metadata_model(input_data, expected_dict):
     [
         # Invalid: Missing required fields
         ({"document_id": "DOC123", "source": "https://example.com", "title": {"en": "Title", "bo": "བོད་ཡིག"}}, "author"),
-        ({"author": {"en": "John Doe"}, "source": "https://example.com", "title": {"en": "Title", "bo": "བོད་ཡིག"}}, "document_id"),
+        (
+            {"author": {"en": "John Doe"}, "source": "https://example.com", "title": {"en": "Title", "bo": "བོད་ཡིག"}},
+            "document_id",
+        ),
         # We don't test for missing source/source_url since the model now requires one of them
         ({"author": {"en": "John Doe"}, "document_id": "DOC123", "source": "https://example.com"}, "title"),
         (
