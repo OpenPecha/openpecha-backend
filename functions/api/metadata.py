@@ -204,7 +204,6 @@ def filter_metadata():
         "page": page,
         "limit": limit,
         "total": total_count,
-        "pages": (total_count + limit - 1) // limit  # Ceiling division
     }
     
     return jsonify({

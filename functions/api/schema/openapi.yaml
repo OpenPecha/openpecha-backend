@@ -3,10 +3,10 @@ info:
   title: OpenPecha API
   version: '0.1.0'
 servers:
-  - url: https://api-aq25662yyq-uc.a.run.app
-    description: Production
   - url: https://api-l25bgmwqoa-uc.a.run.app
     description: Development
+  - url: https://api-aq25662yyq-uc.a.run.app
+    description: Production
 
 paths:
   /pecha:
@@ -483,7 +483,6 @@ paths:
                       - page
                       - limit
                       - total
-                      - pages
                     properties:
                       page:
                         type: integer
@@ -497,10 +496,6 @@ paths:
                         type: integer
                         description: Total number of documents matching the query
                         examples: [42]
-                      pages:
-                        type: integer
-                        description: Total number of pages available
-                        examples: [3]
         "400":
           $ref: '#/components/responses/InvalidRequest'
         "500":
