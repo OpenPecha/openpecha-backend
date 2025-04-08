@@ -609,20 +609,48 @@ class UpdateMetaData {
     displayMetadata(metadata) {
         if (!this.elements.metadataContent) return;
 
-        const metadataHTML = Object.entries(metadata).map(([key, value]) => {
-            const formattedKey = key.replace(/_/g, ' ').toUpperCase();
-            const formattedValue = this.formatMetadataValue(value);
-            return `
-                <div class="metadata-item">
-                    <div class="metadata-key">${formattedKey}</div>
-                    <div class="metadata-value">${formattedValue}</div>
-                </div>
-            `;
-        }).join('');
+        const reorderedMetadata = this.reorderMetadata(metadata);
+    const metadataHTML = Object.entries(reorderedMetadata).map(([key, value]) => {
+        const formattedKey = key.replace(/_/g, ' ').toUpperCase();
+        const formattedValue = this.formatMetadataValue(value);
+        return `
+            <div class="metadata-item">
+                <div class="metadata-key">${formattedKey}</div>
+                <div class="metadata-value">${formattedValue}</div>
+            </div>
+        `;
+    }).join('');
 
-        this.elements.metadataContent.innerHTML = metadataHTML;
+    this.elements.metadataContent.innerHTML = metadataHTML;
+
     }
 
+    reorderMetadata(metadata) {
+        const order = [
+            "title",
+            "category",
+            "version_of",
+            "commentary_of",
+            "translation_of",
+            "author",
+            "long_title",
+            "usage_title",
+            "alt_titles",
+            "language",
+            "source",
+            "presentation",
+            "date",
+            "document_id"
+        ];
+    
+        const reorderedMetadata = {};
+    
+        order.forEach((key) => {
+            reorderedMetadata[key] = metadata.hasOwnProperty(key) ? metadata[key] : null;
+        });
+    
+        return reorderedMetadata;
+    }
     showTreeState(show = true) {
         if (!this.elements.treeContainer) return;
         this.elements.treeContainer.style.display = show ? 'block' : 'none';
