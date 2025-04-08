@@ -434,7 +434,9 @@ paths:
         1. **Single Field Query** - Search by a single metadata field.
         2. **AND Query** - Return results that match **all** given conditions.  
         3. **OR Query** - Return results that match **any** given conditions.
-        4. **No Filters** - If the request body is empty, all Pechas are returned.  
+        4. **No Filters** - If the request body is empty, all Pechas are returned.
+        
+        Supports pagination with page and limit parameters.
       tags:
         - Metadata
       requestBody:
@@ -446,26 +448,59 @@ paths:
               properties:
                 filter:
                   $ref: "https://pecha-backend.web.app/schema/filter"
+                page:
+                  type: integer
+                  description: Page number (1-based indexing)
+                  minimum: 1
+                  default: 1
+                  examples: [1]
+                limit:
+                  type: integer
+                  description: Number of results per page
+                  minimum: 1
+                  maximum: 100
+                  default: 20
+                  examples: [20]
       responses:
         "200":
           description: Successfully retrieved filtered metadata
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    id:
-                      type: string
-                      description: Unique Pecha ID.
-                      examples: 
-                        - I857977C3
-                    title:
-                      type: string
-                      description: Title of the Pecha in its respective language.
-                      examples:
-                        - "Illuminating the Intent Chapter 6"
+                type: object
+                required:
+                  - metadata
+                  - pagination
+                properties:
+                  metadata:
+                    type: array
+                    description: List of metadata objects
+                    items:
+                      $ref: "https://pecha-backend.web.app/schema/metadata"
+                  pagination:
+                    type: object
+                    required:
+                      - page
+                      - limit
+                      - total
+                      - pages
+                    properties:
+                      page:
+                        type: integer
+                        description: Current page number
+                        examples: [1]
+                      limit:
+                        type: integer
+                        description: Number of results per page
+                        examples: [20]
+                      total:
+                        type: integer
+                        description: Total number of documents matching the query
+                        examples: [42]
+                      pages:
+                        type: integer
+                        description: Total number of pages available
+                        examples: [3]
         "400":
           $ref: '#/components/responses/InvalidRequest'
         "500":
