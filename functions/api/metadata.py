@@ -1,6 +1,7 @@
 import logging
 from typing import Any
 
+from exceptions import DataNotFound, InvalidRequest
 from filter_model import AndFilter, Condition, FilterModel, OrFilter
 from firebase_config import db
 from flask import Blueprint, jsonify, request
@@ -57,127 +58,103 @@ def add_no_cache_headers(response):
 
 @metadata_bp.route("/<string:pecha_id>", methods=["GET"], strict_slashes=False)
 def get_metadata(pecha_id):
-    try:
-        doc = db.collection("metadata").document(pecha_id).get()
+    doc = db.collection("metadata").document(pecha_id).get()
 
-        if not doc.exists:
-            return jsonify({"error": "Metadata not found"}), 404
+    if not doc.exists:
+        raise DataNotFound(f"Metadata with ID '{pecha_id}' not found")
 
-        return jsonify(doc.to_dict()), 200
-
-    except Exception as e:
-        return jsonify({"error": f"Failed to retrieve metadata: {str(e)}"}), 500
+    return jsonify(doc.to_dict()), 200
 
 
 @metadata_bp.route("/<string:pecha_id>/related", methods=["GET"], strict_slashes=False)
 def get_related_metadata(pecha_id):
-    try:
-        traversal = request.args.get("traversal", "full_tree")
-        try:
-            traversal_mode = TraversalMode[traversal.upper()]
-        except KeyError:
-            return jsonify({"error": "Invalid traversal mode. Use 'upward' or 'full_tree'"}), 400
+    traversal = request.args.get("traversal", "full_tree").upper()
 
-        relationship_map = {
-            "commentary": Relationship.COMMENTARY,
-            "version": Relationship.VERSION,
-            "translation": Relationship.TRANSLATION,
-        }
+    if traversal not in TraversalMode.__members__:
+        raise InvalidRequest("Invalid traversal mode. Use 'upward' or 'full_tree'")
 
-        rel_param = request.args.get("relationships", "")
-        try:
-            relationships = (
-                [relationship_map[r.strip().lower()] for r in rel_param.split(",") if r.strip()]
-                if rel_param
-                else list(Relationship)
-            )
-        except KeyError:
-            return jsonify({"error": "Invalid relationship type. Use 'commentary', 'version', or 'translation'"}), 400
+    traversal_mode = TraversalMode[traversal]
 
-        related_metadata = get_metadata_chain(pecha_id, traversal_mode=traversal_mode, relationships=relationships)
+    relationship_map = {
+        "commentary": Relationship.COMMENTARY,
+        "version": Relationship.VERSION,
+        "translation": Relationship.TRANSLATION,
+    }
 
-        if not related_metadata:
-            return jsonify({"error": "Metadata not found"}), 404
+    rel_param = request.args.get("relationships", "")
+    relationships = (
+        [relationship_map[r.strip().lower()] for r in rel_param.split(",") if r.strip().lower() in relationship_map]
+        if rel_param
+        else list(Relationship)
+    )
 
-        return jsonify(format_metadata_chain(related_metadata)), 200
+    if rel_param and len(relationships) != len(rel_param.split(",")):
+        raise InvalidRequest("Invalid relationship type. Use 'commentary', 'version', or 'translation'")
 
-    except Exception as e:
-        logger.error("Failed to retrieve related metadata: %s", e)
-        return jsonify({"error": f"Failed to retrieve related metadata: {str(e)}"}), 500
+    related_metadata = get_metadata_chain(pecha_id, traversal_mode=traversal_mode, relationships=relationships)
+
+    if not related_metadata:
+        raise DataNotFound(f"Metadata with ID '{pecha_id}' not found")
+
+    return jsonify(format_metadata_chain(related_metadata)), 200
 
 
 @metadata_bp.route("/<string:pecha_id>", methods=["PUT"], strict_slashes=False)
 def put_metadata(pecha_id: str):
-    try:
-        if not pecha_id:
-            return jsonify({"error": "Missing Pecha ID"}), 400
+    if not pecha_id:
+        raise InvalidRequest("Missing Pecha ID")
 
-        data = request.get_json()
-        metadata_json = data.get("metadata")
+    data = request.get_json()
+    metadata_json = data.get("metadata")
 
-        if not metadata_json:
-            return jsonify({"error": "Missing metadata"}), 400
+    if not metadata_json:
+        raise InvalidRequest("Missing metadata")
 
-        metadata = MetadataModel.model_validate(metadata_json)
-        logger.info("Parsed metadata: %s", metadata.model_dump_json())
+    metadata = MetadataModel.model_validate(metadata_json)
+    logger.info("Parsed metadata: %s", metadata.model_dump_json())
 
-        pecha = retrieve_pecha(pecha_id)
-        pecha.set_metadata(metadata.model_dump())
+    pecha = retrieve_pecha(pecha_id)
+    pecha.set_metadata(metadata.model_dump())
 
-        Storage().store_pecha_opf(pecha)
+    Storage().store_pecha_opf(pecha)
 
-        logger.info("Updated Pecha stored successfully")
+    logger.info("Updated Pecha stored successfully")
 
-        doc_ref = db.collection("metadata").document(pecha_id)
-        doc = doc_ref.get()
+    doc_ref = db.collection("metadata").document(pecha_id)
+    doc = doc_ref.get()
 
-        if not doc.exists:
-            return jsonify({"error": f"Metadata with ID '{pecha_id}' not found"}), 404
+    if not doc.exists:
+        raise DataNotFound(f"Metadata with ID '{pecha_id}' not found")
 
-        if doc.to_dict().get("document_id") != metadata.document_id:
-            return jsonify({"error": f"Document ID '{metadata.document_id}' does not match the existing metadata"}), 400
+    if doc.to_dict().get("document_id") != metadata.document_id:
+        raise InvalidRequest("Document ID '{metadata.document_id}' does not match the existing metadata")
 
-        doc_ref.set(metadata.model_dump())
+    doc_ref.set(metadata.model_dump())
 
-        return (
-            jsonify({"message": "Metadata updated successfully", "id": pecha_id}),
-            200,
-        )
-
-    except Exception as e:
-        return jsonify({"error": f"Failed to update metadata: {str(e)}"}), 500
+    return jsonify({"message": "Metadata updated successfully", "id": pecha_id}), 200
 
 
 @metadata_bp.route("/<string:pecha_id>/category", methods=["PUT"], strict_slashes=False)
 def set_category(pecha_id: str):
-    try:
-        if not pecha_id:
-            return jsonify({"error": "Missing Pecha ID"}), 400
+    if not pecha_id:
+        raise InvalidRequest("Missing Pecha ID")
 
-        data = request.get_json()
-        category_id = data.get("category_id")
+    data = request.get_json()
+    category_id = data.get("category_id")
 
-        if not category_id:
-            return jsonify({"error": "Missing category ID"}), 400
+    if not category_id:
+        raise InvalidRequest("Missing category ID")
 
-        if not db.collection("category").document(category_id).get().exists:
-            return jsonify({"error": f"Category '{category_id}' not found"}), 404
+    if not db.collection("category").document(category_id).get().exists:
+        raise DataNotFound(f"Category with ID '{category_id}' not found")
 
-        doc_ref = db.collection("metadata").document(pecha_id)
-        doc = doc_ref.get()
+    doc_ref = db.collection("metadata").document(pecha_id)
+    if not doc_ref.get().exists:
+        raise DataNotFound(f"Metadata with ID '{pecha_id}' not found")
 
-        if not doc.exists:
-            return jsonify({"error": f"Metadata with ID '{pecha_id}' not found"}), 404
+    doc_ref.update({"category": category_id})
 
-        doc_ref.update({"category": category_id})
-
-        return (
-            jsonify({"message": "Category updated successfully", "id": pecha_id}),
-            200,
-        )
-
-    except Exception as e:
-        return jsonify({"error": f"Failed to update category: {str(e)}"}), 500
+    return jsonify({"message": "Category updated successfully", "id": pecha_id}), 200
 
 
 @metadata_bp.route("/filter", methods=["POST"], strict_slashes=False)
@@ -185,40 +162,28 @@ def filter_metadata():
     def extract_info(query):
         return [extract_short_info(doc.id, doc.to_dict()) for doc in query.stream()]
 
-    try:
-        data = request.get_json(silent=True) or {}
-        if not (filter_json := data.get("filter")):
-            return jsonify(extract_info(db.collection("metadata"))), 200
+    data = request.get_json(silent=True) or {}
+    filter_json = data.get("filter")
 
-        try:
-            filter_model = FilterModel.model_validate(filter_json)
-        except Exception as e:
-            return jsonify({"error": f"Invalid filter: {str(e)}"}), 400
+    if not filter_json:
+        return jsonify(extract_info(db.collection("metadata"))), 200
 
-        logger.info("Parsed filter: %s", filter_model.model_dump())
+    filter_model = FilterModel.model_validate(filter_json)
+    logger.info("Parsed filter: %s", filter_model.model_dump())
 
-        if (f := filter_model.root) is None:
-            return jsonify({"error": "Invalid filters provided"}), 400
+    if not (f := filter_model.root):
+        raise InvalidRequest("Invalid filters provided")
 
-        col_ref = db.collection("metadata")
+    query = db.collection("metadata")
 
-        if isinstance(f, OrFilter):
-            query = col_ref.where(filter=Or([FieldFilter(c.field, c.operator, c.value) for c in f.conditions]))
-            return jsonify(extract_info(query)), 200
+    if isinstance(f, OrFilter):
+        query = query.where(filter=Or([FieldFilter(c.field, c.operator, c.value) for c in f.conditions]))
+    elif isinstance(f, AndFilter):
+        for c in f.conditions:
+            query = query.where(filter=FieldFilter(c.field, c.operator, c.value))
+    elif isinstance(f, Condition):
+        query = query.where(f.field, f.operator, f.value)
+    else:
+        raise InvalidRequest("No valid filters provided")
 
-        if isinstance(f, AndFilter):
-            query = col_ref
-            for c in f.conditions:
-                query = query.where(filter=FieldFilter(c.field, c.operator, c.value))
-            return jsonify(extract_info(query)), 200
-
-        if isinstance(f, Condition):
-            return (
-                jsonify(extract_info(col_ref.where(f.field, f.operator, f.value))),
-                200,
-            )
-
-        return jsonify({"error": "No valid filters provided"}), 400
-
-    except Exception as e:
-        return jsonify({"error": f"Failed to filter metadata: {str(e)}"}), 500
+    return jsonify(extract_info(query)), 200

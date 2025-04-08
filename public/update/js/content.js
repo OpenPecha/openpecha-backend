@@ -1,8 +1,43 @@
 class UpdateMetaData {
     constructor() {
+        this.initialize();
+    }
+
+    async initialize() {
+        try {
+            await this.loadConfig();
+            this.setupElements();
+            await this.fetchPechaOptions();
+            this.setupEventListeners();
+            this.showInitialMetadataState();
+        } catch (error) {
+            console.error('Initialization error:', error);
+            this.showToast('Failed to initialize. Please refresh the page.', 'error');
+        }
+    }
+
+    async loadConfig() {
+        try {
+            const response = await fetch('/config.json');
+            if (!response.ok) {
+                throw new Error(`Failed to load config: ${response.status} ${response.statusText}`);
+            }
+            const config = await response.json();
+            if (!config.apiEndpoint) {
+                throw new Error('API endpoint not found in configuration');
+            }
+            this.API_ENDPOINT = config.apiEndpoint.replace(/\/$/, ''); // Remove trailing slash if present
+        } catch (error) {
+            console.error('Config loading error:', error);
+            this.showToast('Error loading configuration. Please refresh the page.', 'error');
+            throw error;
+        }
+    }
+
+    setupElements() {
         this.elements = {
             form: document.getElementById('updateForm'),
-            pechaOptionsContainer : document.getElementById('pechaOptionsContainer'),
+            pechaOptionsContainer: document.getElementById('pechaOptionsContainer'),
             googleDocsContainer: document.getElementById('googleDocsContainer'),
             docsInput: document.getElementById('googleDocsInput'),
             updateButton: document.getElementById('updateButton'),
@@ -15,10 +50,6 @@ class UpdateMetaData {
         };
 
         this.isLoading = false;
-        this.API_ENDPOINT = 'https://api-aq25662yyq-uc.a.run.app';
-        this.setupEventListeners();
-        this.fetchPechaOptions();
-        this.showInitialMetadataState();
     }
 
     setupEventListeners() {
@@ -180,17 +211,19 @@ class UpdateMetaData {
 
     reorderMetadata(metadata) {
         const order = [
-            "author",
-            "date",
-            "source",
-            "presentation",
-            "usage_title",
             "title",
-            "long_title",
-            "alt_titles",
             "version_of",
             "commentary_of",
             "translation_of",
+            "author",
+            "category",
+            "long_title",
+            "usage_title",
+            "alt_titles",
+            "language",
+            "source",
+            "presentation",
+            "date",
             "document_id"
         ];
     

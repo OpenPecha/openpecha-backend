@@ -89,6 +89,7 @@ def mock_db():
         ({"filter": {"field": "nonexistent", "operator": "==", "value": "test"}}, []),
     ],
 )
+
 def test_filter_metadata(mock_db, client, filter_payload, expected_result):
     """Test various filtering scenarios."""
     response = client.post("/metadata/filter", json=filter_payload)

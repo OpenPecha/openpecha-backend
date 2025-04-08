@@ -32,6 +32,8 @@ from pydantic import ValidationError
                 "translation_of": None,
                 "usage_title": None,
                 "version_of": None,
+                "category": None,
+                "bdrc": None,
             },
         ),
     ],
@@ -80,18 +82,33 @@ def test_valid_metadata_model(input_data, expected_dict):
     "invalid_data, expected_error",
     [
         # Invalid: Missing required fields
-        ({"document_id": "DOC123", "source": "https://example.com"}, "author"),
-        ({"author": {"en": "John Doe"}, "source": "https://example.com"}, "document_id"),
-        ({"author": {"en": "John Doe"}, "document_id": "DOC123"}, "source"),
+        ({"document_id": "DOC123", "source": "https://example.com", "title": {"en": "Title", "bo": "བོད་ཡིག"}}, "author"),
+        (
+            {"author": {"en": "John Doe"}, "source": "https://example.com", "title": {"en": "Title", "bo": "བོད་ཡིག"}},
+            "document_id",
+        ),
+        # We don't test for missing source/source_url since the model now requires one of them
         ({"author": {"en": "John Doe"}, "document_id": "DOC123", "source": "https://example.com"}, "title"),
         (
             {
                 "author": {"en": "John Doe"},
                 "document_id": "DOC123",
                 "source": "https://example.com",
-                "title": {"en": "Title"},
+                "title": {"en": "Title", "bo": "བོད་ཡིག"},
             },
             "long_title",
+        ),
+        # Test for missing both en and bo localizations in title
+        (
+            {
+                "author": {"en": "John Doe"},
+                "document_id": "DOC123",
+                "source": "https://example.com",
+                "title": {"en": "Title"},  # Missing bo localization
+                "long_title": {"en": "Long Title"},
+                "language": "en",
+            },
+            "localizations",
         ),
         # Invalid: Multiple exclusive fields set
         (
@@ -99,7 +116,7 @@ def test_valid_metadata_model(input_data, expected_dict):
                 "author": {"en": "John Doe"},
                 "document_id": "DOC123",
                 "source": "https://example.com",
-                "title": {"en": "Title"},
+                "title": {"en": "Title", "bo": "བོད་ཡིག"},
                 "long_title": {"en": "Long Title"},
                 "commentary_of": "I12345678",
                 "version_of": "I87654321",
@@ -112,12 +129,12 @@ def test_valid_metadata_model(input_data, expected_dict):
             {
                 "author": {"en": "John Doe"},
                 "document_id": "DOC123",
-                "source": "not-a-url",
-                "title": {"en": "Title"},
+                "source_url": "not-a-url",
+                "title": {"en": "Title", "bo": "བོད་ཡིག"},
                 "long_title": {"en": "Long Title"},
                 "language": "en",
             },
-            "source",
+            "URL",
         ),
         # Invalid: Empty strings for non-nullable fields
         (
@@ -125,11 +142,11 @@ def test_valid_metadata_model(input_data, expected_dict):
                 "author": {"en": ""},
                 "document_id": "DOC123",
                 "source": "https://example.com",
-                "title": {"en": "Title"},
+                "title": {"en": "Title", "bo": "བོད་ཡིག"},
                 "long_title": {"en": "Long Title"},
                 "language": "en",
             },
-            "author",
+            "String should have at least 1 character",
         ),
         # Invalid: Language not following the pattern
         (
@@ -137,11 +154,22 @@ def test_valid_metadata_model(input_data, expected_dict):
                 "author": {"en": "John Doe"},
                 "document_id": "DOC123",
                 "source": "https://example.com",
-                "title": {"en": "Title"},
+                "title": {"en": "Title", "bo": "བོད་ཡིག"},
                 "long_title": {"en": "Long Title"},
                 "language": "eng",  # Wrong format, should be "en" or "en-US"
             },
-            "language",
+            "pattern",
+        ),
+        # Invalid: Missing both source and source_url
+        (
+            {
+                "author": {"en": "John Doe"},
+                "document_id": "DOC123",
+                "title": {"en": "Title", "bo": "བོད་ཡིག"},
+                "long_title": {"en": "Long Title"},
+                "language": "en",
+            },
+            "Either 'source' or 'source_url' must be provided",
         ),
     ],
 )
