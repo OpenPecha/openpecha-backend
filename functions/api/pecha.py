@@ -1,12 +1,12 @@
 import json
 import logging
 
-from api.text import validate_file
+from api.text import validate_bdrc_file, validate_docx_file
 from exceptions import DataConflict, DataNotFound, InvalidRequest
 from firebase_config import db
 from flask import Blueprint, jsonify, request, send_file
 from metadata_model import MetadataModel
-from pecha_handling import process_pecha, retrieve_pecha, serialize
+from pecha_handling import process_bdrc_pecha, process_pecha, retrieve_pecha, serialize
 from pecha_uploader.config import Destination_url
 from pecha_uploader.pipeline import upload
 from storage import Storage
@@ -37,7 +37,6 @@ def post_pecha():
 
     if not text and not data:
         raise InvalidRequest("Either text or data is required")
-
     if text and data:
         raise InvalidRequest("Both text and data cannot be uploaded together")
 
@@ -47,26 +46,23 @@ def post_pecha():
 
     metadata_dict = json.loads(metadata_json)
     metadata = MetadataModel.model_validate(metadata_dict)
-
     logger.info("Metadata: %s", metadata)
 
     duplicate_key = get_duplicate_key(metadata.document_id)
-
     if duplicate_key:
         raise DataConflict(f"Document '{metadata.document_id}' is already published as: {duplicate_key}")
 
     if text:
-        validate_file(text)
-
+        validate_docx_file(text)
         logger.info("Uploaded text file: %s", text.filename)
-
         pecha_id = process_pecha(text=text, metadata=metadata.model_dump())
+    else:  # data file (BDRC)
+        validate_bdrc_file(data)
+        logger.info("Uploaded data file: %s", data.filename)
+        pecha_id = process_bdrc_pecha(data=data, metadata=metadata.model_dump())
 
-        title = metadata.title[metadata.language] or metadata.title["en"]
-
-        return jsonify({"message": "Text created successfully", "id": pecha_id, "title": title}), 200
-
-    raise InvalidRequest("Data upload is not supported yet")
+    title = metadata.title[metadata.language] or metadata.title["en"]
+    return jsonify({"message": "Text created successfully", "id": pecha_id, "title": title}), 200
 
 
 @pecha_bp.route("/<string:pecha_id>", methods=["GET"], strict_slashes=False)

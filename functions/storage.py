@@ -41,7 +41,7 @@ class Storage:
         logger.info("Uploaded to storage: %s", blob.public_url)
 
         return blob.public_url
-    
+
     def store_bdrc_data(self, pecha_id: str, bdrc_data: IO[bytes]) -> str:
         blob = self._blob(Storage._pecha_bdrc_path(pecha_id))
         blob.upload_from_file(bdrc_data)
@@ -87,7 +87,7 @@ class Storage:
     @staticmethod
     def _pecha_doc_path(pecha_id: str) -> str:
         return f"doc/{pecha_id}.docx"
-    
+
     @staticmethod
     def _pecha_bdrc_path(pecha_id: str) -> str:
         return f"bdrc/{pecha_id}.zip"
@@ -98,7 +98,7 @@ class Storage:
         blob.cache_control = "no-cache, no-store, must-revalidate"
 
         return blob
-    
+
     def _delete(self, storage_path):
         blob = self.bucket.blob(storage_path)
         blob.delete()

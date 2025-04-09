@@ -11,6 +11,7 @@ from google.cloud.firestore_v1.base_query import FieldFilter, Or
 from metadata_model import MetadataModel
 from openpecha.pecha import Pecha
 from openpecha.pecha.parsers.docx import DocxParser
+from openpecha.pecha.parsers.ocr import BdrcParser
 from openpecha.pecha.serializers.pecha_db import Serializer
 from openpecha.pecha.serializers.pecha_db.updated_opf_serializer import update_serialize_json
 from storage import Storage
@@ -149,6 +150,20 @@ def parse(docx_file: FileStorage, metadata: dict[str, Any], pecha_id: str | None
     )
 
 
+def parse_bdrc(data: FileStorage, metadata: dict[str, Any], pecha_id: str | None = None) -> Pecha:
+    if not data.filename:
+        raise ValueError("Data has no filename")
+
+    path = create_tmp()
+    data.save(path)
+
+    return BdrcParser().parse(
+        input=path,
+        metadata=metadata,
+        pecha_id=pecha_id,
+    )
+
+
 def serialize(pecha: Pecha, reserialize: bool) -> dict[str, Any]:
     metadata_chain = get_metadata_chain(pecha_id=pecha.id)
     metadatas = [md for _, md in metadata_chain]
@@ -202,6 +217,37 @@ def process_pecha(text: FileStorage, metadata: dict[str, Any], pecha_id: str | N
     stream = text.stream
     stream.seek(0)
     storage.store_pecha_doc(pecha_id=pecha.id, doc=stream)
+    storage.store_pecha_opf(pecha)
+
+    try:
+        with db.transaction() as transaction:
+            doc_ref_metadata = db.collection("metadata").document(pecha.id)
+            # doc_ref_alignment = db.collection("alignment").document(pecha.id)
+
+            logger.info("Saving metadata to DB: %s", json.dumps(metadata, ensure_ascii=False))
+            transaction.set(doc_ref_metadata, metadata)
+            logger.info("Metadata saved to DB: %s", pecha.id)
+    except Exception as e:
+        logger.error("Error saving to DB: %s", e)
+        try:
+            storage.delete_pecha_opf(pecha_id=pecha.id)
+        except Exception as rollback_error:
+            logger.error("Rollback failed: %s", rollback_error)
+
+        raise
+
+    return pecha.id
+
+
+def process_bdrc_pecha(data: FileStorage, metadata: dict[str, Any], pecha_id: str | None = None) -> str:
+    pecha = parse_bdrc(data=data, metadata=metadata, pecha_id=pecha_id)
+    logger.info("Pecha created: %s %s", pecha.id, pecha.pecha_path)
+
+    storage = Storage()
+
+    stream = data.stream
+    stream.seek(0)
+    storage.store_bdrc_data(pecha_id=pecha.id, bdrc_data=stream)
     storage.store_pecha_opf(pecha)
 
     try:

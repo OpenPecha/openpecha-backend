@@ -12,7 +12,7 @@ paths:
   /pecha:
     post:
       summary: Create a Pecha
-      description: Accepts a text document (.docx) and associated metadata in JSON format, processes them, and stores the resulting Pecha in the database.
+      description: Accepts either a text document (.docx) or BDRC OCR data (zipped) along with associated metadata in JSON format, processes them, and stores the resulting Pecha in the database.
       tags:
         - Pecha
       requestBody:
@@ -22,13 +22,19 @@ paths:
             schema:
               type: object
               required:
-                - text
                 - metadata
+              oneOf:
+                - required: [text]
+                - required: [data]
               properties:
                 text:
                   type: string
                   format: binary
-                  description: The uploaded text file (must be .docx format).
+                  description: The uploaded text file (must be .docx format). Either this or 'data' must be provided, but not both.
+                data:
+                  type: string
+                  format: binary
+                  description: BDRC OCR files in ZIP format. Either this or 'text' must be provided, but not both.
                 metadata:
                   type: string
                   format: json

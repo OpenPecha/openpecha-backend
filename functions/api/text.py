@@ -11,16 +11,23 @@ text_bp = Blueprint("text", __name__)
 
 logger = logging.getLogger(__name__)
 
-TEXT_FORMATS = [".docx"]
 
-
-def validate_file(text: FileStorage) -> None:
+def validate_docx_file(text: FileStorage) -> None:
     if not text.filename:
         raise InvalidRequest("Text file must have a filename")
 
     _, extension = os.path.splitext(text.filename)
-    if extension not in TEXT_FORMATS:
-        raise InvalidRequest(f"Invalid file type '{extension}'. Supported types: {', '.join(TEXT_FORMATS)}")
+    if extension != ".docx":
+        raise InvalidRequest(f"Invalid file type '{extension}'. Supported type: '.docx'")
+
+
+def validate_bdrc_file(data: FileStorage) -> None:
+    if not data.filename:
+        raise InvalidRequest("Data has no filename")
+
+    _, extension = os.path.splitext(data.filename)
+    if extension != ".zip":
+        raise InvalidRequest(f"Invalid file type '{extension}'. Supported type: '.zip'")
 
 
 @text_bp.route("/<string:pecha_id>", methods=["PUT"], strict_slashes=False)
@@ -29,7 +36,7 @@ def put_text(pecha_id: str):
     if not text:
         raise InvalidRequest("Missing text file")
 
-    validate_file(text)
+    validate_docx_file(text)
 
     doc = db.collection("metadata").document(pecha_id).get()
 
