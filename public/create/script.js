@@ -345,7 +345,8 @@ class LocalizedForm {
         };
 
         body.filter = filters[filterBy] || {};
-
+        body.page=1;
+        body.limit=100;
         try {
             this.handleSpinner(this.pechaOptionsContainer, true);
             const response = await fetch(`${this.API_ENDPOINT}/metadata/filter/`, {

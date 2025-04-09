@@ -131,7 +131,11 @@ class MetadataManager {
                     'accept': 'application/json',
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({})
+                body: JSON.stringify({"filter": {
+                },
+                "page": 1,
+                "limit": 100
+              })
             });
 
             if (!response.ok) {
@@ -185,7 +189,8 @@ class MetadataManager {
         };
 
         body.filter = filters[relationshipType] || {};
-
+        body.page=1;
+        body.limit=100;
         try {
             this.showSpinner(this.elements.relatedPechaContainer, true);
             
@@ -221,9 +226,9 @@ class MetadataManager {
         );
 
         const customDropdown = document.getElementById("relatedPecha");
-        const pecha = pechas.find(p => p.id === pechaId);
+        const pecha = pechas.metadata.find(p => p.id === pechaId);
         customDropdown.dataset.value = pecha?.id || '';
-        customDropdown.textContent = pecha ? `${pecha.id} - ${pecha.title}` : 'Select pecha';
+        customDropdown.textContent = pecha ? `${pecha.id} - ${pecha.title[pecha.language]}` : 'Select pecha';
     }
 
     handlePechaSelection(pechaId) {

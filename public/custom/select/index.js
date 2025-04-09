@@ -2,7 +2,7 @@ class CustomSearchableDropdown {
     constructor(selectElementContainer, options, elementId="") {
           console.log("CustomSearchableDropdown constructor", selectElementContainer, options, elementId);
         this.selectElementContainer = selectElementContainer;
-        this.options = options
+        this.options = options.metadata ?? options;
         this.wrapperId = elementId;
         this.createCustomDropdown();
         this.bindEvents();
@@ -37,10 +37,10 @@ class CustomSearchableDropdown {
         defaultOption.dataset.value = ""; // Set the value to null
         this.optionsList.appendChild(defaultOption);
         // Populate options list
-        this.options.forEach((option, index) => {
+        this.options.forEach((option) => {
             if (option.title) {  
                 const listItem = document.createElement('li');
-                listItem.textContent = `${option.id} - ${option.title}`;
+                listItem.textContent = `${option.id} - ${option.title[option.language]}`;
                 listItem.dataset.value = option.id;
                 this.optionsList.appendChild(listItem);
             }else{

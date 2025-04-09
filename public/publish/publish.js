@@ -94,11 +94,14 @@ class UpdateMetaData {
                     'accept': 'application/json',
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({})
+                body: JSON.stringify({
+                    "filter": {
+                    },
+                    "page": 1,
+                    "limit": 100
+                })
             });
-
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-
             const pechas = await response.json();
             this.updatePechaOptions(pechas);
         } catch (error) {
