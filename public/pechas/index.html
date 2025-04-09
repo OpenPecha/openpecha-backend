@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="OpenPecha Pechas List" />
+    <link rel="shortcut icon" href="../assets/favicon.ico" type="image/x-icon">
+    <title>OpenPecha - Pechas List</title>
+    <link rel="stylesheet" href="../index.css" />
+    <link rel="stylesheet" href="../navbar.css" />
+    <link rel="stylesheet" href="./pechas.css" />
+    <link rel="stylesheet" href="../toast_style.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- Add Intersection Observer polyfill for older browsers -->
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=IntersectionObserver"></script>
+</head>
+<body>
+    <main class="container">
+        <!-- Navbar -->
+        <nav class="navbar">
+            <div class="nav-container">
+                <a href="../index.html" class="nav-logo">
+                    <img src="../assets/logo.svg" alt="OpenPecha Logo" />
+                    <span>OpenPecha</span>
+                </a>
+                <div class="nav-links">
+                    <a href="../create/create.html" class="nav-link">Create</a>
+                    <a href="../publish/publish.html" class="nav-link">Publish</a>
+                    <a href="../update/" class="nav-link">Update</a>
+                    <a href="../category/" class="nav-link">Category</a>
+                    <a href="./index.html" class="nav-link active">Pechas</a>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <section class="pechas-container">
+            
+            <!-- Search and Filter Section -->
+            <div class="search-section">
+                <div class="search-bar">
+                    <input type="text" id="search-input" placeholder="Search by ID or title..." />
+                    <button id="search-button" class="search-button">Search</button>
+                    <button id="advanced-filter-button" class="filter-button" title="Advanced Filter">
+                        <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" viewBox="0 0 16 16">
+                            <path d="M6 10.5a.5.5 0 0 1 .5-.5h3a.5.5 0 0 1 0 1h-3a.5.5 0 0 1-.5-.5zm-2-3a.5.5 0 0 1 .5-.5h7a.5.5 0 0 1 0 1h-7a.5.5 0 0 1-.5-.5zm-2-3a.5.5 0 0 1 .5-.5h11a.5.5 0 0 1 0 1h-11a.5.5 0 0 1-.5-.5z"/>
+                        </svg>
+                    </button>
+                </div>
+                
+                <!-- Advanced Filter Modal -->
+                <div id="filter-modal" class="filter-modal">
+                    <div class="filter-modal-content">
+                        <div class="filter-modal-header">
+                            <h2>Advanced Search</h2>
+                            <span class="close-modal">&times;</span>
+                        </div>
+                        <div class="filter-modal-body">
+                            <div class="filter-section">
+                                <h3>Relationships</h3>
+                                <div class="filter-options">
+                                    <label class="filter-option">
+                                        <input type="checkbox" name="relationship" value="version_of"> Version
+                                    </label>
+                                    <label class="filter-option">
+                                        <input type="checkbox" name="relationship" value="commentary_of"> Commentary
+                                    </label>
+                                    <label class="filter-option">
+                                        <input type="checkbox" name="relationship" value="translation_of"> Translation
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div class="filter-section">
+                                <h3>Language</h3>
+                                <div class="filter-options">
+                                    <label class="filter-option">
+                                        <input type="checkbox" name="language" value="bo"> Tibetan
+                                    </label>
+                                    <label class="filter-option">
+                                        <input type="checkbox" name="language" value="en"> English
+                                    </label>
+                                    <label class="filter-option">
+                                        <input type="checkbox" name="language" value="zh"> Chinese
+                                    </label>
+                                    <label class="filter-option">
+                                        <input type="checkbox" name="language" value="sa"> Sanskrit
+                                    </label>
+                                    <label class="filter-option">
+                                        <input type="checkbox" name="language" value="it"> Italian
+                                    </label>
+                                    <label class="filter-option">
+                                        <input type="checkbox" name="language" value="ru"> Russian
+                                    </label>
+                                    <label class="filter-option">
+                                        <input type="checkbox" name="language" value="hi"> Hindi
+                                    </label>
+                                </div>
+                            </div>
+                            
+                            <div class="filter-section">
+                                <h3>Category</h3>
+                                <select id="category-select" class="category-select">
+                                    <option value="">Select category of pecha</option>
+                                    <!-- Categories will be loaded dynamically -->
+                                </select>
+                            </div>
+                        </div>
+                        <div class="filter-modal-footer">
+                            <button id="apply-filters" class="action-button">Apply Filters</button>
+                            <button id="reset-filters" class="reset-button">Reset</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Results Section -->
+            <div class="results-section">
+                <div class="results-header">
+                    <div class="sort-options">
+                        <label for="sort-select">Sort by:</label>
+                        <select id="sort-select" class="sort-select">
+                            <option value="relevance">Relevance</option>
+                            <option value="title-asc">Title (A-Z)</option>
+                            <option value="title-desc">Title (Z-A)</option>
+                            <option value="id-asc">ID (A-Z)</option>
+                            <option value="id-desc">ID (Z-A)</option>
+                        </select>
+                    </div>
+                    <div class="results-count">
+                        <span id="total-results">Total: 0</span>
+                    </div>
+                </div>
+                
+                <div id="results-grid" >
+                    <!-- Results will be loaded dynamically -->
+                    <!-- Example card for reference -->
+                    <!-- 
+                    <div class="pecha-card">
+                        <div class="pecha-card-content">
+                            <h3 class="pecha-id">ID: P012345</h3>
+                            <h2 class="pecha-title">Title of the Pecha</h2>
+                            <p class="pecha-author">Author: Author Name</p>
+                            <div class="pecha-relationships">
+                                <p>Relationships: [version of 123, commentary of 456]</p>
+                            </div>
+                        </div>
+                    </div>
+                    -->
+                </div>
+                
+                <!-- Pagination -->
+                <div class="pagination">
+                    <button id="prev-page" class="pagination-button" disabled>Previous</button>
+                    <span id="page-info">Page 1 of 1</span>
+                    <button id="next-page" class="pagination-button" disabled>Next</button>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Toast for notifications -->
+    <div id="toastContainer" role="alert" aria-live="polite"></div>
+
+    <script src="./pechas.js"></script>
+</body>
+</html>

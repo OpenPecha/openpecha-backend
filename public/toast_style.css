@@ -25,7 +25,9 @@
 .toast.success {
     background-color: #28a745;
 }
-
+.toast.info {
+    background-color: #204089;
+}
 @keyframes slideIn {
     from {
         transform: translateX(50%);
