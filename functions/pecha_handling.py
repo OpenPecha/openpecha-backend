@@ -136,7 +136,9 @@ def create_tmp() -> Path:
 
 def parse(docx_file: FileStorage, metadata: dict[str, Any], pecha_id: str | None = None) -> Pecha:
     if not docx_file.filename:
-        raise ValueError("docx_file has no filename")
+        raise ValueError("Docx file has no filename")
+
+    logger.info("Parsing docx file: %s", docx_file.filename)
 
     path = create_tmp()
     docx_file.save(path)
@@ -153,6 +155,8 @@ def parse(docx_file: FileStorage, metadata: dict[str, Any], pecha_id: str | None
 def parse_bdrc(data: FileStorage, metadata: dict[str, Any], pecha_id: str | None = None) -> Pecha:
     if not data.filename:
         raise ValueError("Data has no filename")
+
+    logger.info("Parsing data file: %s", data.filename)
 
     path = create_tmp()
     data.save(path)

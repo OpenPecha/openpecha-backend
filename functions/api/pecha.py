@@ -54,12 +54,12 @@ def post_pecha():
 
     if text:
         validate_docx_file(text)
-        logger.info("Uploaded text file: %s", text.filename)
         pecha_id = process_pecha(text=text, metadata=metadata.model_dump())
+        logger.info("Processed text file: %s", text.filename)
     else:  # data file (BDRC)
         validate_bdrc_file(data)
-        logger.info("Uploaded data file: %s", data.filename)
         pecha_id = process_bdrc_pecha(data=data, metadata=metadata.model_dump())
+        logger.info("Processed data file: %s", data.filename)
 
     title = metadata.title[metadata.language] or metadata.title["en"]
     return jsonify({"message": "Text created successfully", "id": pecha_id, "title": title}), 200
