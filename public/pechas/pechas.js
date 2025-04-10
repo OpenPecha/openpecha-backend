@@ -12,18 +12,13 @@ class PechaList {
             sortSelect: document.getElementById('sort-select'),
             totalResults: document.getElementById('total-results'),
             resultsGrid: document.getElementById('results-grid'),
-            prevPageButton: document.getElementById('prev-page'),
-            nextPageButton: document.getElementById('next-page'),
-            pageInfo: document.getElementById('page-info'),
+            endPageIndicator: document.getElementById('end-page-indicator'),
             categorySelect: document.getElementById('category-select'),
             toastContainer: document.getElementById('toastContainer')
         };
 
         // Initialize state
         this.state = {
-            currentPage: 1,
-            totalPages: 1,
-            itemsPerPage: 12,
             allPechas: [],
             filteredPechas: [],
             currentSort: 'relevance',
@@ -37,10 +32,6 @@ class PechaList {
             hasMoreData: true,
             isLoadingMore: false,
             observer: null,
-            visibleItems: new Set(),
-            itemHeight: 250, // Estimated height of each item in pixels
-            bufferItems: 5, // Number of items to render above and below visible area
-            totalItems: 0,
             apiPage: 1,
             apiLimit: 20
         };
@@ -82,6 +73,25 @@ class PechaList {
         this.state.isLoadingMore = true;
         
         try {
+            // Build the request body based on whether we have advanced filters
+            const hasAdvancedFilters = 
+                this.state.currentFilters.relationships.length > 0 || 
+                this.state.currentFilters.languages.length > 0 || 
+                this.state.currentFilters.category !== '';
+            
+            let requestBody = {};
+            
+            // Add filter if we have advanced filters
+            if (hasAdvancedFilters) {
+                const filter = this.buildApiFilter();
+                if (filter && Object.keys(filter).length > 0) {
+                    requestBody.filter = filter;
+                }
+            } else if (this.state.currentFilters.search && page === 1) {
+                // Only include search term for the first page request
+                // For lazy loading (page > 1), we just request the next page
+                requestBody.search = this.state.currentFilters.search;
+            }
             const response = await fetch(`${this.API_ENDPOINT}/metadata/filter/`, {
                 method: 'POST',
                 headers: {
@@ -89,10 +99,11 @@ class PechaList {
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
-                    "filter": this.buildApiFilter(),
-                    "page": page,
-                    "limit": limit
+                    ...requestBody,
+                    page: page,
+                    limit: limit
                 })
+
             });
             
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
@@ -106,61 +117,65 @@ class PechaList {
                 this.state.hasMoreData = data.pagination.page * data.pagination.limit < data.pagination.total;
             }
             
-            this.state.isLoading = false;
-            this.state.isLoadingMore = false;
-            
-            return data.metadata || [];
+            // Check if the data has the expected structure
+            if (data.metadata && Array.isArray(data.metadata)) {
+                return data.metadata;
+            } else if (data.results && Array.isArray(data.results)) {
+                return data.results;
+            } else {
+                console.warn("Unexpected API response structure:", data);
+                return [];
+            }
         } catch (error) {
-            console.error('Error fetching pechas:', error);
-            this.showToast('Error loading pechas. Please try again.', 'error');
+            console.error("Error fetching pechas:", error);
+            this.showToast(`Error loading data: ${error.message}`, 'error');
+            return [];
+        } finally {
             this.state.isLoading = false;
             this.state.isLoadingMore = false;
-            return [];
         }
     }
     
     // Build API filter based on current UI filters
     buildApiFilter() {
-        let filter = {};
-
-        // Add search term
-        if (this.state.currentFilters.search) {
-            filter.search = this.state.currentFilters.search;
-        }
+        console.log("Building API filter");
         
-        // For advanced filters only (not search)
+        const relationships = [];
+        const languages = [];
+        const categories = [];
         
         // Add relationship filters
         if (this.state.currentFilters.relationships.length > 0) {
-            filter.relationships = {};
-            
             this.state.currentFilters.relationships.forEach(rel => {
-                filter = {
-                    "field": rel,
-                    "operator": "!=",
-                    "value": null
-                };
+                relationships.push({"field": rel, "operator": "!=", "value": null});
             });
         }
         
         // Add language filters
         if (this.state.currentFilters.languages.length > 0) {
-            filter.languages = {
-                "field": "language",
-                "operator": "in",
-                "value": this.state.currentFilters.languages
-            };
+            this.state.currentFilters.languages.forEach(lang => {
+                languages.push({"field": "language", "operator": "==", "value": lang});
+            });
         }
-        
         // Add category filter
         if (this.state.currentFilters.category) {
-            filter.category = {
-                "field": "category",
-                "operator": "==",
-                "value": this.state.currentFilters.category
+            categories.push({"field": "category", "operator": "==", "value": this.state.currentFilters.category});
+        }
+        console.log("Categories:", categories)
+        // If we have multiple filters, combine them with 'and'
+        let filter;
+        if (relationships.length > 0 || languages.length > 0 || categories.length > 0) {
+            filter = {
+                "or": [
+                    ...relationships
+                ]
             };
+        } else {
+            // No filters
+            filter = {};
         }
         
+        console.log("Built filter:", filter);
         return filter;
     }
 
@@ -169,35 +184,58 @@ class PechaList {
             const response = await fetch(`${this.API_ENDPOINT}/categories/`);
             if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
             const categories = await response.json();
-            // this.populateCategories(categories);
+            console.log("Categories:", categories);
+            const innermostIds = this.extractInnermostIds(categories);
+            this.populateCategories(innermostIds);
         } catch (error) {
             console.error('Error fetching categories:', error);
             this.showToast('Error loading categories. Please try again.', 'error');
         }
     }
 
-    populateCategories(data) {
+    extractInnermostIds(data) {
+        const innermostIds = [];
+        
+        function traverse(category) {
+          // If this category has no subcategories or empty subcategories array, it's innermost
+          if (!category?.subcategories || category.subcategories.length === 0) {
+            innermostIds.push(category.id);
+          } else {
+            // Otherwise, traverse each subcategory
+            category?.subcategories?.forEach(subcategory => traverse(subcategory));
+          }
+        }
+        
+        // Start traversal with each top-level category
+        data.categories?.forEach(category => traverse(category));
+        
+        return innermostIds;
+      }
+
+    populateCategories(categories) {
         // Clear existing options except the default one
         const select = this.elements.categorySelect;
         while (select.options.length > 1) {
             select.remove(1);
         }
-
-        // Add new options
-        data.forEach(category => {
+        
+        // Add leaf categories to the dropdown
+        categories.forEach(category => {
             const option = document.createElement('option');
-            option.value = category.id;
-            option.textContent = category.name;
+            option.value = category;
+            option.textContent = category;
+            
             select.appendChild(option);
         });
     }
 
     // Filtering and sorting methods
     async filterPechas() {
-        // Reset pagination
-        this.state.currentPage = 1;
-        this.state.apiPage = 1;
+        console.log("Filtering pechas...", this.state.currentFilters)
+        // Reset state for new filtering
         this.state.isLoading = true;
+        this.state.apiPage = 1;
+        this.state.hasMoreData = true;
         
         // Show skeleton loading
         this.displaySkeletons();
@@ -211,53 +249,55 @@ class PechaList {
         let filteredData = [];
         
         if (hasAdvancedFilters) {
-            console.log("Applying advanced filters");
-            // Use API for advanced filtering
+            console.log("Applying advanced filters via API");
+            // Use API for advanced filtering with the proper filter format
             filteredData = await this.fetchPechas(this.state.apiPage, this.state.apiLimit);
             this.state.allPechas = filteredData; // Update all pechas with the filtered results
+            this.state.filteredPechas = filteredData;
         } else {
-            console.log("Applying basic filters");
-            console.log(this.state.allPechas)
+            console.log("Applying basic search filter locally");
+            
             // For basic search (ID and title), filter locally from allPechas
-            filteredData = this.state.allPechas.filter(pecha => {
-                // If no search term, include all
-                if (!this.state.currentFilters.search) {
-                    return true;
-                }
-                
-                const searchTerm = this.state.currentFilters.search.toLowerCase();
-                
-                // Check ID
-                if (pecha.id && pecha.id.toLowerCase().includes(searchTerm)) {
-                    return true;
-                }
-                
-                // Check title in any available language
-                if (pecha.title) {
-                    for (const lang in pecha.title) {
-                        if (pecha.title[lang] && pecha.title[lang].toLowerCase().includes(searchTerm)) {
-                            return true;
+            if (this.state.currentFilters.search) {
+                // If there's a search term, filter the existing data
+                filteredData = this.state.allPechas.filter(pecha => {
+                    const searchTerm = this.state.currentFilters.search.toLowerCase();
+                    
+                    // Check ID
+                    if (pecha.id && pecha.id.toLowerCase().includes(searchTerm)) {
+                        return true;
+                    }
+                    
+                    // Check title in any available language
+                    if (pecha.title) {
+                        for (const lang in pecha.title) {
+                            if (pecha.title[lang] && pecha.title[lang].toLowerCase().includes(searchTerm)) {
+                                return true;
+                            }
                         }
                     }
-                }
+                    
+                    return false;
+                });
                 
-                return false;
-            });
+                this.state.filteredPechas = filteredData;
+            } else {
+                // If no search term, use all pechas
+                this.state.filteredPechas = [...this.state.allPechas];
+            }
         }
         
-        console.log("Filtered data:", filteredData);
-        this.state.filteredPechas = filteredData;
+        console.log("Filtered data:", this.state.filteredPechas);
         
         // Apply sorting
         this.sortPechas();
         
         // Update UI
         this.updateTotalResults();
-        this.updatePagination();
         this.displayPechas();
         
         // Set up intersection observer for lazy loading
-        // this.setupLazyLoading();
+        this.setupLazyLoading();
     }
 
     sortPechas() {
@@ -298,9 +338,10 @@ class PechaList {
         // Clear existing results
         resultsGrid.innerHTML = '';
         
-        // If no results, show message
+        // If no results and not loading, show message
         if (this.state.filteredPechas.length === 0 && !this.state.isLoading) {
             resultsGrid.innerHTML = '<div class="no-results">No pechas found matching your criteria.</div>';
+            this.updateEndPageIndicator(false, 'No results found');
             return;
         }
         
@@ -314,25 +355,15 @@ class PechaList {
             gridContainer.appendChild(card);
         });
         
-        // Add lazy loading trigger if there might be more data
-        if (this.state.hasMoreData) {
-            const loadTrigger = document.createElement('div');
-            loadTrigger.className = 'lazy-load-trigger';
-            loadTrigger.id = 'lazy-load-trigger';
-            loadTrigger.style.gridColumn = '1 / -1'; // Make it span all columns in the grid
-            
-            if (this.state.isLoadingMore) {
-                const spinner = document.createElement('div');
-                spinner.className = 'loading-spinner';
-                loadTrigger.appendChild(spinner);
-            }
-            
-            gridContainer.appendChild(loadTrigger);
-        }
-        
         resultsGrid.appendChild(gridContainer);
+        
+        // Update the end page indicator based on whether there's more data
+        this.updateEndPageIndicator(this.state.hasMoreData);
+        
+        // Set up intersection observer for lazy loading
+        this.setupLazyLoading();
     }
-    
+
     createPechaCard(pecha, index) {
         const card = document.createElement('div');
         card.className = 'pecha-card';
@@ -396,7 +427,7 @@ class PechaList {
         gridContainer.className = 'results-grid';
         
         // Create 12 skeleton cards (one page worth)
-        for (let i = 0; i < this.state.itemsPerPage; i++) {
+        for (let i = 0; i < this.state.apiLimit; i++) {
             const skeletonCard = document.createElement('div');
             skeletonCard.className = 'pecha-card';
             
@@ -445,13 +476,12 @@ class PechaList {
             });
         }, { rootMargin: '100px' });
         
-        // Observe the lazy load trigger element
-        const trigger = document.getElementById('lazy-load-trigger');
-        if (trigger) {
-            this.state.observer.observe(trigger);
+        // Observe the end page indicator element
+        if (this.elements.endPageIndicator) {
+            this.state.observer.observe(this.elements.endPageIndicator);
         }
     }
-    
+
     async loadMorePechas() {
         if (this.state.isLoadingMore || !this.state.hasMoreData) return;
         
@@ -459,11 +489,8 @@ class PechaList {
         this.state.isLoadingMore = true;
         this.state.apiPage++;
         
-        // Update the loading trigger to show spinner
-        const trigger = document.getElementById('lazy-load-trigger');
-        if (trigger) {
-            trigger.innerHTML = '<div class="loading-spinner"></div>';
-        }
+        // Update the loading indicator
+        this.updateEndPageIndicator(true, 'Loading more results...');
         
         // Fetch more data
         const newPechas = await this.fetchPechas(this.state.apiPage, this.state.apiLimit);
@@ -477,21 +504,48 @@ class PechaList {
         
         // Update UI
         this.updateTotalResults();
-        this.displayPechas();
         
-        // Set up intersection observer for the new lazy loading trigger
-        this.setupLazyLoading();
+        // Append new pechas to the grid without clearing existing ones
+        const gridContainer = document.querySelector('.results-grid');
+        if (gridContainer) {
+            newPechas.forEach((pecha, index) => {
+                const card = this.createPechaCard(pecha, this.state.filteredPechas.length - newPechas.length + index);
+                gridContainer.appendChild(card);
+            });
+        }
+        
+        // Update loading state
+        this.state.isLoadingMore = false;
+        
+        // Update end page indicator
+        this.updateEndPageIndicator(this.state.hasMoreData);
     }
     
-    updateTotalResults() {
-        this.elements.totalResults.textContent = `Total: ${this.state.totalItems}`;
+    updateEndPageIndicator(hasMoreData, message = null) {
+        const indicator = this.elements.endPageIndicator;
+        if (!indicator) return;
+        
+        const loadingText = indicator.querySelector('.loading-text');
+        
+        if (hasMoreData) {
+            // Still has more data to load
+            indicator.classList.remove('complete');
+            if (loadingText && message) {
+                loadingText.textContent = message;
+            } else if (loadingText) {
+                loadingText.textContent = 'Loading more results...';
+            }
+        } else {
+            // No more data, show end of results
+            indicator.classList.add('complete');
+            if (loadingText) {
+                loadingText.textContent = message || 'End of results';
+            }
+        }
     }
 
-    updatePagination() {
-        this.state.totalPages = Math.ceil(this.state.totalItems / this.state.itemsPerPage);
-        this.elements.pageInfo.textContent = `Page ${this.state.currentPage} of ${this.state.totalPages || 1}`;
-        this.elements.prevPageButton.disabled = this.state.currentPage <= 1;
-        this.elements.nextPageButton.disabled = this.state.currentPage >= this.state.totalPages;
+    updateTotalResults() {
+        this.elements.totalResults.textContent = `Total: ${this.state.totalItems}`;
     }
 
     // Event handlers
@@ -556,22 +610,6 @@ class PechaList {
         this.displayPechas();
     }
 
-    handlePrevPage() {
-        if (this.state.currentPage > 1) {
-            this.state.currentPage--;
-            this.updatePagination();
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-    }
-
-    handleNextPage() {
-        if (this.state.currentPage < this.state.totalPages) {
-            this.state.currentPage++;
-            this.updatePagination();
-            window.scrollTo({ top: 0, behavior: 'smooth' });
-        }
-    }
-
     // Setup event listeners
     setupEventListeners() {
         // Search button click
@@ -605,12 +643,6 @@ class PechaList {
         
         // Sort select change
         this.elements.sortSelect.addEventListener('change', () => this.handleSortChange());
-        
-        // Previous page button
-        this.elements.prevPageButton.addEventListener('click', () => this.handlePrevPage());
-        
-        // Next page button
-        this.elements.nextPageButton.addEventListener('click', () => this.handleNextPage());
     }
     
     // Initialize the application
@@ -618,26 +650,41 @@ class PechaList {
         // Show skeleton loading
         this.displaySkeletons();
         
-        // Fetch pechas data
-        this.API_ENDPOINT = await loadConfig()
-        this.state.allPechas = await this.fetchPechas(this.state.apiPage, this.state.apiLimit);
-        this.state.filteredPechas = [...this.state.allPechas];
-        
-        // Populate categories
-        this.fetchCategories();
+        try {
+            // Fetch pechas data
+            this.API_ENDPOINT = await loadConfig();
+            console.log("API endpoint:", this.API_ENDPOINT);
+            
+            const initialPechas = await this.fetchPechas(this.state.apiPage, this.state.apiLimit);
+            console.log("Initial pechas loaded:", initialPechas.length);
+            
+            if (initialPechas.length === 0) {
+                this.showToast("No pechas found. The API may be unavailable or returned no data.", "info");
+            }
+            
+            this.state.allPechas = initialPechas;
+            this.state.filteredPechas = [...initialPechas];
+            
+            // Populate categories
+            this.fetchCategories();
+            
+            // Update total results
+            this.updateTotalResults();
+            
+            // Display initial results
+            this.displayPechas();
+            
+            // Set up lazy loading
+            this.setupLazyLoading();
+        } catch (error) {
+            console.error("Error initializing pecha list:", error);
+            this.showToast(`Error initializing: ${error.message}`, 'error');
+            this.state.isLoading = false;
+            this.displayPechas(); // This will show the no results message
+        }
         
         // Set up event listeners
         this.setupEventListeners();
-        
-        // Set up pagination
-        this.updateTotalResults();
-        this.updatePagination();
-        
-        // Display initial results
-        this.displayPechas();
-        
-        // Set up lazy loading
-        this.setupLazyLoading();
     }
 }
 
