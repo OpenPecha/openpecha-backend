@@ -6,7 +6,7 @@ class MetadataManager {
 
     async initialize() {
         try {
-            await this.loadConfig();
+            this.API_ENDPOINT = await loadConfig();
             this.elements = {
                 pechaOptionsContainer: document.getElementById('pechaOptionsContainer'),
                 toastContainer: document.getElementById('toastContainer'),
@@ -37,23 +37,6 @@ class MetadataManager {
         }
     }
 
-    async loadConfig() {
-        try {
-            const response = await fetch('/config.json');
-            if (!response.ok) {
-                throw new Error(`Failed to load config: ${response.status} ${response.statusText}`);
-            }
-            const config = await response.json();
-            if (!config.apiEndpoint) {
-                throw new Error('API endpoint not found in configuration');
-            }
-            this.API_ENDPOINT = config.apiEndpoint.replace(/\/$/, ''); // Remove trailing slash if present
-        } catch (error) {
-            console.error('Config loading error:', error);
-            this.showToast('Error loading configuration. Please refresh the page.', 'error');
-            throw error;
-        }
-    }
 
     setupEventListeners() {
        // action handler for pecha selection

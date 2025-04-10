@@ -75,24 +75,6 @@ class PechaList {
     clearToasts() {
         this.elements.toastContainer.innerHTML = '';
     }
-
-    async loadConfig() {
-        try {
-            const response = await fetch('/config.json');
-            if (!response.ok) {
-                throw new Error(`Failed to load config: ${response.status} ${response.statusText}`);
-            }
-            const config = await response.json();
-            if (!config.apiEndpoint) {
-                throw new Error('API endpoint not found in configuration');
-            }
-            this.API_ENDPOINT = config.apiEndpoint.replace(/\/$/, ''); // Remove trailing slash if present
-        } catch (error) {
-            console.error('Config loading error:', error);
-            this.showToast('Error loading configuration. Please refresh the page.', 'error');
-            throw error; // Re-throw to handle in initialize()
-        }
-    }
     
     // Data methods
     async fetchPechas(page = 1, limit = 20) {
@@ -637,7 +619,7 @@ class PechaList {
         this.displaySkeletons();
         
         // Fetch pechas data
-        await this.loadConfig();
+        this.API_ENDPOINT = await loadConfig()
         this.state.allPechas = await this.fetchPechas(this.state.apiPage, this.state.apiLimit);
         this.state.filteredPechas = [...this.state.allPechas];
         

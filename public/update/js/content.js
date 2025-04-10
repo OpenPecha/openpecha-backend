@@ -5,7 +5,7 @@ class UpdateMetaData {
 
     async initialize() {
         try {
-            await this.loadConfig();
+            this.API_ENDPOINT = await loadConfig();
             this.setupElements();
             await this.fetchPechaOptions();
             this.setupEventListeners();
@@ -13,24 +13,6 @@ class UpdateMetaData {
         } catch (error) {
             console.error('Initialization error:', error);
             this.showToast('Failed to initialize. Please refresh the page.', 'error');
-        }
-    }
-
-    async loadConfig() {
-        try {
-            const response = await fetch('/config.json');
-            if (!response.ok) {
-                throw new Error(`Failed to load config: ${response.status} ${response.statusText}`);
-            }
-            const config = await response.json();
-            if (!config.apiEndpoint) {
-                throw new Error('API endpoint not found in configuration');
-            }
-            this.API_ENDPOINT = config.apiEndpoint.replace(/\/$/, ''); // Remove trailing slash if present
-        } catch (error) {
-            console.error('Config loading error:', error);
-            this.showToast('Error loading configuration. Please refresh the page.', 'error');
-            throw error;
         }
     }
 
