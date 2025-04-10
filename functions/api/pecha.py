@@ -5,7 +5,7 @@ from api.text import validate_bdrc_file, validate_docx_file
 from exceptions import DataConflict, DataNotFound, InvalidRequest
 from firebase_config import db
 from flask import Blueprint, jsonify, request, send_file
-from metadata_model import MetadataModel
+from metadata_model import MetadataModel, SourceType
 from pecha_handling import process_bdrc_pecha, process_pecha, retrieve_pecha, serialize
 from pecha_uploader.config import Destination_url
 from pecha_uploader.pipeline import upload
@@ -45,6 +45,7 @@ def post_pecha():
         raise InvalidRequest("Missing metadata")
 
     metadata_dict = json.loads(metadata_json)
+    metadata_dict["source_type"] = SourceType.DOCX if text else SourceType.BDRC
     metadata = MetadataModel.model_validate(metadata_dict)
     logger.info("Metadata: %s", metadata)
 

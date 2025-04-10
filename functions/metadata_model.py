@@ -1,8 +1,14 @@
-from typing import Annotated, Mapping, Sequence, Any
+from enum import Enum
+from typing import Annotated, Any, Mapping, Sequence
 
 from pydantic import AnyUrl, BaseModel, ConfigDict, Field, RootModel, field_serializer, model_validator
 
 NonEmptyStr = Annotated[str, Field(min_length=1)]
+
+
+class SourceType(str, Enum):
+    DOCX = "docx"
+    BDRC = "bdrc"
 
 
 class PechaId(RootModel[str]):
@@ -24,8 +30,8 @@ class LocalizedString(RootModel[Mapping[str, NonEmptyStr]]):
 
 
 class MetadataModel(BaseModel):
-    author: LocalizedString = Field(
-        ...,
+    author: LocalizedString | None = Field(
+        None,
         description="Dictionary with language codes as keys and corresponding strings as values",
     )
     date: str | None = Field(None, pattern="\\S")
@@ -37,6 +43,10 @@ class MetadataModel(BaseModel):
         None,
         description="An optional URL pointing to the source of this Pecha",
     )
+    source_type: SourceType | None = Field(
+        None,
+        description="The type of source for this Pecha, either 'docx' or 'bdrc'",
+    )
     document_id: str = Field(..., pattern="\\S")
     presentation: LocalizedString | None = Field(
         None,
@@ -46,12 +56,12 @@ class MetadataModel(BaseModel):
         None,
         description="Dictionary with language codes as keys and corresponding strings as values",
     )
-    title: LocalizedString = Field(
-        ...,
+    title: LocalizedString | None = Field(
+        None,
         description="Dictionary with language codes as keys and corresponding strings as values",
     )
-    long_title: LocalizedString = Field(
-        ...,
+    long_title: LocalizedString | None = Field(
+        None,
         description="Dictionary with language codes as keys and corresponding strings as values",
     )
     alt_titles: Sequence[LocalizedString] | None = Field(None, min_length=1)
@@ -70,7 +80,7 @@ class MetadataModel(BaseModel):
         description="ID pattern that starts with 'I' followed by 8 uppercase hex characters",
         pattern="^I[A-F0-9]{8}$",
     )
-    language: str = Field(..., pattern="^[a-z]{2}(-[A-Z]{2})?$")
+    language: str | None = Field(None, pattern="^[a-z]{2}(-[A-Z]{2})?$")
     category: str | None = Field(
         None,
         description="An optional ID of the category of this Pecha",
@@ -116,6 +126,9 @@ class MetadataModel(BaseModel):
     @model_validator(mode="after")
     def check_required_localizations(self):
         """Ensure title has both English and Tibetan localizations."""
+        if self.source_type == SourceType.BDRC:
+            return self
+
         try:
             if self.title["en"] is not None and self.title["bo"] is not None:
                 return self
@@ -139,5 +152,23 @@ class MetadataModel(BaseModel):
         # Ensure that at least one of source or source_url is set
         if not self.source and not self.source_url:
             raise ValueError("Either 'source' or 'source_url' must be provided.")
+
+        return self
+
+    @model_validator(mode="after")
+    def check_required_fields_for_source_type(self):
+        """Ensure required fields are provided unless source_type is 'bdrc'."""
+        # If source_type is not bdrc, author, title, long_title, and language must be provided
+        if self.source_type == SourceType.BDRC:
+            return self
+
+        if self.author is None:
+            raise ValueError("'author' is required")
+        if self.title is None:
+            raise ValueError("'title' is required")
+        if self.long_title is None:
+            raise ValueError("'long_title' is required")
+        if self.language is None:
+            raise ValueError("'language' is required")
 
         return self

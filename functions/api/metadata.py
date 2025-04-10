@@ -163,23 +163,23 @@ def filter_metadata():
     filter_json = data.get("filter")
     page = int(data.get("page", 1))
     limit = int(data.get("limit", 20))
-    
+
     if page < 1:
         raise InvalidRequest("Page must be >= 1")
     if limit < 1 or limit > 100:
         raise InvalidRequest("Limit must be between 1 and 100")
 
     offset = (page - 1) * limit
-    
+
     query = db.collection("metadata")
-    
+
     if filter_json:
         filter_model = FilterModel.model_validate(filter_json)
         logger.info("Parsed filter: %s", filter_model.model_dump())
 
         if not (f := filter_model.root):
             raise InvalidRequest("Invalid filters provided")
-            
+
         if isinstance(f, OrFilter):
             query = query.where(filter=Or([FieldFilter(c.field, c.operator, c.value) for c in f.conditions]))
         elif isinstance(f, AndFilter):
@@ -189,24 +189,21 @@ def filter_metadata():
             query = query.where(f.field, f.operator, f.value)
         else:
             raise InvalidRequest("No valid filters provided")
-    
+
     total_count = query.count().get()[0][0].value
-    
+
     query = query.limit(limit).offset(offset)
-    
+
     results = []
     for doc in query.stream():
         metadata = doc.to_dict()
         metadata["id"] = doc.id
         results.append(metadata)
-    
+
     pagination = {
         "page": page,
         "limit": limit,
         "total": total_count,
     }
-    
-    return jsonify({
-        "metadata": results,
-        "pagination": pagination
-    }), 200
+
+    return jsonify({"metadata": results, "pagination": pagination}), 200
