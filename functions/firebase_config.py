@@ -1,5 +1,5 @@
 import firebase_admin
-from firebase_admin import credentials, firestore, storage
+from firebase_admin import credentials, firestore
 from google.cloud import logging as cloud_logging
 
 try:
@@ -10,7 +10,6 @@ except ValueError:
 
 # Firestore client
 db = firestore.client()
-storage_bucket = storage.bucket()
 
 logging_client = cloud_logging.Client()
 logging_client.setup_logging()

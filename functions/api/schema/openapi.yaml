@@ -467,6 +467,16 @@ paths:
                   maximum: 100
                   default: 20
                   examples: [20]
+            examples:
+              andFilter:
+                value:
+                  page: 1
+                  limit: 50
+                  filter:
+                    and: [
+                      {"field": "language", "operator": "==", "value": "en"},
+                      {"field": "commentary_of", "operator": "!=", "value": null},
+                    ]
       responses:
         "200":
           description: Successfully retrieved filtered metadata

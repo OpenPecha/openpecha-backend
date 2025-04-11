@@ -151,8 +151,8 @@ class MetadataModel(BaseModel):
             if self.title["en"] is not None and self.title["bo"] is not None:
                 return self
             raise ValueError("Title values cannot be empty")
-        except TypeError as e:
-            raise ValueError("Title must have both 'en' and 'bo' localizations.") from e
+        except (TypeError, KeyError) as e:
+            raise ValueError("Title must have both 'en' and 'bo' localizations.")
 
     @model_validator(mode="after")
     def check_mutually_exclusive_fields(self):

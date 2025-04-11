@@ -168,6 +168,22 @@ def parse_bdrc(data: FileStorage, metadata: dict[str, Any], pecha_id: str | None
     )
 
 
+def get_category_chain(category_id: str) -> list[dict[str, Any]]:
+    categories = []
+    current_id = category_id
+
+    while current_id:
+        category_doc = db.collection("category").document(current_id).get()
+        if not category_doc.exists:
+            raise ValueError(f"Category with ID {current_id} not found")
+
+        category_data = category_doc.to_dict()
+        categories.insert(0, category_data)
+        current_id = category_data.get("parent")
+
+    return categories
+
+
 def serialize(pecha: Pecha, reserialize: bool) -> dict[str, Any]:
     metadata_chain = get_metadata_chain(pecha_id=pecha.id)
     metadatas = [md for _, md in metadata_chain]
@@ -188,19 +204,17 @@ def serialize(pecha: Pecha, reserialize: bool) -> dict[str, Any]:
     if category_id is None:
         raise ValueError("No category found in metadata")
 
-    category = db.collection("category").document(category_id).get().to_dict()
-    if category is None:
-        raise ValueError(f"Category with ID {category_id} not found")
-
-    logger.info("Category retrieved: %s", category)
+    # Build the category chain from the given category to the root
+    category_chain = get_category_chain(category_id)
+    logger.info("Category chain retrieved with %d categories", len(category_chain))
 
     id_chain = [id for id, _ in metadata_chain]
     logger.info("Pecha IDs: %s", ", ".join(id_chain))
-    pecha_chain = get_pecha_chain(pecha_ids=id_chain)
 
+    pecha_chain = get_pecha_chain(pecha_ids=id_chain)
     logger.info("Pechas: %s", [pecha.id for pecha in pecha_chain])
 
-    return Serializer().serialize(pechas=pecha_chain, metadatas=metadatas, pecha_category=category)
+    return Serializer().serialize(pechas=pecha_chain, metadatas=metadatas, pecha_category=category_chain)
 
 
 def process_pecha(text: FileStorage, metadata: dict[str, Any], pecha_id: str | None = None) -> str:

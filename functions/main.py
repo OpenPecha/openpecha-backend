@@ -32,8 +32,7 @@ def create_app(testing=False):
         if isinstance(e, OpenPechaException):
             return jsonify(e.to_dict()), e.status_code
 
-        error = OpenPechaException(str(e))
-        return jsonify(error.to_dict()), error.status_code
+        return jsonify({"error": str(e)}), 500
 
     @app.after_request
     def log_response(response):
