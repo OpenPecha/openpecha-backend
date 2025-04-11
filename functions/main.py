@@ -28,7 +28,9 @@ def create_app(testing=False):
     def handle_exception(e):
         app.logger.error("Error: %s", e)
         if isinstance(e, ValidationError):
-            return jsonify({"error": "Validation error", "details": e.errors()}), 422
+            # for some reason if ctx is in the error dict, it will break the response, we need to remove it
+            errors = [{k: v for k, v in err.items() if k != "ctx"} for err in e.errors()]
+            return jsonify({"error": "Validation error", "details": errors}), 422
         if isinstance(e, OpenPechaException):
             return jsonify(e.to_dict()), e.status_code
 

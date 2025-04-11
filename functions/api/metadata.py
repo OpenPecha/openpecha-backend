@@ -68,6 +68,12 @@ def get_metadata(pecha_id):
 
 @metadata_bp.route("/<string:pecha_id>/related", methods=["GET"], strict_slashes=False)
 def get_related_metadata(pecha_id):
+    if not pecha_id:
+        raise InvalidRequest("Missing Pecha ID")
+
+    if not db.collection("metadata").document(pecha_id).get().exists:
+        raise DataNotFound(f"Metadata with ID '{pecha_id}' not found")
+
     traversal = request.args.get("traversal", "full_tree").upper()
 
     if traversal not in TraversalMode.__members__:
@@ -103,6 +109,9 @@ def get_related_metadata(pecha_id):
 def put_metadata(pecha_id: str):
     if not pecha_id:
         raise InvalidRequest("Missing Pecha ID")
+
+    if not db.collection("metadata").document(pecha_id).get().exists:
+        raise DataNotFound(f"Metadata with ID '{pecha_id}' not found")
 
     data = request.get_json()
     metadata_json = data.get("metadata")
@@ -165,7 +174,7 @@ def filter_metadata():
     limit = int(data.get("limit", 20))
 
     if page < 1:
-        raise InvalidRequest("Page must be >= 1")
+        raise InvalidRequest("Page must be greater than 0")
     if limit < 1 or limit > 100:
         raise InvalidRequest("Limit must be between 1 and 100")
 
@@ -191,6 +200,7 @@ def filter_metadata():
             raise InvalidRequest("No valid filters provided")
 
     total_count = query.count().get()[0][0].value
+    logger.info("Total count: %s", total_count)
 
     query = query.limit(limit).offset(offset)
 
@@ -199,6 +209,7 @@ def filter_metadata():
         metadata = doc.to_dict()
         metadata["id"] = doc.id
         results.append(metadata)
+        logger.info("Appended to results: %s", doc.id)
 
     pagination = {
         "page": page,

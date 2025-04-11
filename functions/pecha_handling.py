@@ -6,6 +6,7 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import Any
 
+from exceptions import DataNotFound
 from firebase_config import db
 from google.cloud.firestore_v1.base_query import FieldFilter, Or
 from metadata_model import MetadataModel
@@ -50,7 +51,7 @@ def validate_relationship(metadata: MetadataModel, parent: MetadataModel, relati
 def db_get_metadata(pecha_id: str) -> dict[str, Any]:
     doc = db.collection("metadata").document(pecha_id).get()
     if not doc.exists:
-        raise ValueError(f"Metadata not found for ID: {pecha_id}")
+        raise DataNotFound(f"Metadata not found for ID: {pecha_id}")
     return doc.to_dict()
 
 
@@ -60,6 +61,7 @@ def get_metadata_chain(
     traversal_mode: TraversalMode = TraversalMode.UPWARD,
     relationships: list[Relationship] | None = None,
 ) -> list[tuple[str, dict[str, Any]]]:
+    logger.info("Getting metadata chain for: id: %s, metadata: %s", pecha_id, metadata)
 
     if metadata is None and pecha_id is None:
         raise ValueError("Either metadata or pecha_id must be provided")
@@ -72,11 +74,6 @@ def get_metadata_chain(
     else:
         logger.info("Pecha ID provided: %s getting metadata from DB", pecha_id)
         metadata = db_get_metadata(pecha_id)
-
-    if not metadata:
-        raise ValueError(f"Metadata not found for ID: {pecha_id}")
-
-    logger.info("Getting metadata chain for: id: %s, metadata: %s", pecha_id, metadata)
 
     ref_fields = [r.value for r in relationships]
     chain = [(pecha_id or "", metadata)]
