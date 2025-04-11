@@ -124,6 +124,24 @@ class MetadataModel(BaseModel):
         return str(source_url)
 
     @model_validator(mode="after")
+    def check_required_fields(self):
+        """Ensure required fields are provided unless source_type is 'bdrc'."""
+        # If source_type is not bdrc, author, title, long_title, and language must be provided
+        if self.source_type == SourceType.BDRC:
+            return self
+
+        if self.author is None:
+            raise ValueError("'author' is required")
+        if self.title is None:
+            raise ValueError("'title' is required")
+        if self.long_title is None:
+            raise ValueError("'long_title' is required")
+        if self.language is None:
+            raise ValueError("'language' is required")
+
+        return self
+
+    @model_validator(mode="after")
     def check_required_localizations(self):
         """Ensure title has both English and Tibetan localizations."""
         if self.source_type == SourceType.BDRC:
@@ -133,7 +151,7 @@ class MetadataModel(BaseModel):
             if self.title["en"] is not None and self.title["bo"] is not None:
                 return self
             raise ValueError("Title values cannot be empty")
-        except KeyError as e:
+        except TypeError as e:
             raise ValueError("Title must have both 'en' and 'bo' localizations.") from e
 
     @model_validator(mode="after")
@@ -152,23 +170,5 @@ class MetadataModel(BaseModel):
         # Ensure that at least one of source or source_url is set
         if not self.source and not self.source_url:
             raise ValueError("Either 'source' or 'source_url' must be provided.")
-
-        return self
-
-    @model_validator(mode="after")
-    def check_required_fields_for_source_type(self):
-        """Ensure required fields are provided unless source_type is 'bdrc'."""
-        # If source_type is not bdrc, author, title, long_title, and language must be provided
-        if self.source_type == SourceType.BDRC:
-            return self
-
-        if self.author is None:
-            raise ValueError("'author' is required")
-        if self.title is None:
-            raise ValueError("'title' is required")
-        if self.long_title is None:
-            raise ValueError("'long_title' is required")
-        if self.language is None:
-            raise ValueError("'language' is required")
 
         return self
