@@ -12,12 +12,12 @@
       ],
       "include": [
         "api/schema/openapi.yaml"
-      ]
+      ],
+      "predeploy": "./functions_predeploy.sh"
     }
   ],
   "hosting": {
     "public": "public",
-    "predeploy": "./hosting_predeploy.sh",
     "headers": [
       {
         "source": "**",
