@@ -19,12 +19,15 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Install Python dependencies for Firebase
-        run: |
-          pip install -r functions/requirements.txt --target functions/.python_packages/lib
-
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
+
+      - name: Set up Python venv and install deps
+        run: |
+          cd functions
+          python3.12 -m venv venv
+          source venv/bin/activate
+          pip install -r requirements.txt
 
       - name: Deploy to Firebase
         env:
@@ -40,4 +43,8 @@ jobs:
             exit 1
           fi
 
-          firebase deploy --project "$TARGET_PROJECT" --only functions,hosting
+          ls -la venv/
+          echo "$(pwd)"
+          export PYTHONPATH=$(pwd)/venv/lib/python3.12/site-packages
+
+          firebase deploy --project "$TARGET_PROJECT" --only functions,hosting --debug
