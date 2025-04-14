@@ -12,8 +12,7 @@
       ],
       "include": [
         "api/schema/openapi.yaml"
-      ],
-      "predeploy": "./functions_predeploy.sh"
+      ]
     }
   ],
   "hosting": {
