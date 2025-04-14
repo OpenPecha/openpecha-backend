@@ -43,8 +43,6 @@ jobs:
             exit 1
           fi
 
-          ls -la
-          echo "$(pwd)"
-          export PYTHONPATH=$(pwd)/venv/lib/python3.12/site-packages
-
+          cd functions
+          source venv/bin/activate
           firebase deploy --project "$TARGET_PROJECT" --only functions,hosting --debug
