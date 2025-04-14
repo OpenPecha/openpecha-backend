@@ -265,10 +265,10 @@ class UpdateMetaData {
 
 
     validateFields() {
-        if (!this.metadata.category) {
-            this.showToast('This pecha does not have category', 'error');
-            return false;
-        }
+        // if (!this.metadata.category) {
+        //     this.showToast('This pecha does not have category', 'error');
+        //     return false;
+        // }
         this.selectedPecha = document.getElementById("selectedPecha");
         const publishTextId = this.selectedPecha.dataset.value;
         if (!publishTextId) {
