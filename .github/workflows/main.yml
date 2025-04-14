@@ -17,14 +17,11 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.11'
+          python-version: '3.12'
 
-      - name: Set up Python env
+      - name: Install Python dependencies for Firebase
         run: |
-          cd functions
-          python3 -m venv venv
-          source venv/bin/activate
-          pip install -r requirements.txt
+          pip install -r functions/requirements.txt --target functions/.python_packages/lib
 
       - name: Install Firebase CLI
         run: npm install -g firebase-tools
