@@ -56,12 +56,12 @@ class MetadataModel(BaseModel):
         None,
         description="Dictionary with language codes as keys and corresponding strings as values",
     )
-    title: LocalizedString | None = Field(
-        None,
+    title: LocalizedString = Field(
+        ...,
         description="Dictionary with language codes as keys and corresponding strings as values",
     )
-    long_title: LocalizedString | None = Field(
-        None,
+    long_title: LocalizedString = Field(
+        ...,
         description="Dictionary with language codes as keys and corresponding strings as values",
     )
     alt_titles: Sequence[LocalizedString] | None = Field(None, min_length=1)
@@ -80,7 +80,7 @@ class MetadataModel(BaseModel):
         description="ID pattern that starts with 'I' followed by 8 uppercase hex characters",
         pattern="^I[A-F0-9]{8}$",
     )
-    language: str | None = Field(None, pattern="^[a-z]{2}(-[A-Z]{2})?$")
+    language: str = Field(..., pattern="^[a-z]{2}(-[A-Z]{2})?$")
     category: str | None = Field(
         None,
         description="An optional ID of the category of this Pecha",
@@ -132,12 +132,6 @@ class MetadataModel(BaseModel):
 
         if self.author is None:
             raise ValueError("'author' is required")
-        if self.title is None:
-            raise ValueError("'title' is required")
-        if self.long_title is None:
-            raise ValueError("'long_title' is required")
-        if self.language is None:
-            raise ValueError("'language' is required")
 
         return self
 
@@ -152,7 +146,7 @@ class MetadataModel(BaseModel):
                 return self
             raise ValueError("Title values cannot be empty")
         except (TypeError, KeyError) as e:
-            raise ValueError("Title must have both 'en' and 'bo' localizations.")
+            raise ValueError("Title must have both 'en' and 'bo' localizations.") from e
 
     @model_validator(mode="after")
     def check_mutually_exclusive_fields(self):

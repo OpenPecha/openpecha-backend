@@ -99,6 +99,9 @@ class TestValidMetadataModel:
             "document_id": "W1234",
             "source_url": "https://library.bdrc.io/show/bdr:W1234",
             "source_type": "bdrc",
+            "title": {"en": "BDRC Title", "bo": "བི་ཌི་ཨར་སི་འགོ་བརྗོད།"},
+            "long_title": {"en": "BDRC Long Title", "bo": "བི་ཌི་ཨར་སི་འགོ་བརྗོད་རིང་པོ།"},
+            "language": "bo",
             "bdrc": {
                 "work_id": "W1234",
                 "volume_number": 1,
@@ -110,12 +113,13 @@ class TestValidMetadataModel:
         assert model.document_id == "W1234"
         assert model.source_type == SourceType.BDRC
         assert model.bdrc["work_id"] == "W1234"
+        assert model.title["en"] == "BDRC Title"
+        assert model.title["bo"] == "བི་ཌི་ཨར་སི་འགོ་བརྗོད།"
+        assert model.long_title["en"] == "BDRC Long Title"
+        assert model.language == "bo"
 
-        # BDRC type doesn't require these fields
+        # BDRC type still doesn't require author
         assert model.author is None
-        assert model.title is None
-        assert model.long_title is None
-        assert model.language is None
 
     def test_parent_property(self):
         """Test the parent property returns the correct relation."""
@@ -226,7 +230,7 @@ class TestInvalidMetadataModel:
                     "source_type": "docx",
                 }
             )
-        assert "'title' is required" in str(excinfo.value)
+        assert "title" in str(excinfo.value) and "Field required" in str(excinfo.value)
 
         # Missing long_title
         with pytest.raises(ValidationError) as excinfo:
@@ -240,7 +244,7 @@ class TestInvalidMetadataModel:
                     "source_type": "docx",
                 }
             )
-        assert "'long_title' is required" in str(excinfo.value)
+        assert "long_title" in str(excinfo.value) and "Field required" in str(excinfo.value)
 
         # Missing language
         with pytest.raises(ValidationError) as excinfo:
@@ -254,7 +258,7 @@ class TestInvalidMetadataModel:
                     "source_type": "docx",
                 }
             )
-        assert "'language' is required" in str(excinfo.value)
+        assert "language" in str(excinfo.value) and "Field required" in str(excinfo.value)
 
     def test_missing_title_localizations(self):
         """Test validation error for missing title localizations."""
@@ -288,18 +292,62 @@ class TestInvalidMetadataModel:
             )
         assert "Title must have both 'en' and 'bo' localizations" in str(excinfo.value)
 
-    def test_bdrc_skips_title_validation(self):
-        """Test that BDRC source type skips title localization validation."""
-        # This should not raise an error despite missing localizations
+    def test_bdrc_requires_title_fields(self):
+        """Test that BDRC source type requires title, long_title and language fields."""
+        # Valid model with all required fields
         model = MetadataModel.model_validate(
             {
                 "document_id": "W1234",
                 "source_url": "https://library.bdrc.io/show/bdr:W1234",
                 "source_type": "bdrc",
-                "title": {"en": "Title"},  # Only en localization
+                "title": {"en": "Title", "bo": "འགོ་བརྗོད།"},
+                "long_title": {"en": "Long Title", "bo": "འགོ་བརྗོད་རིང་པོ།"},
+                "language": "bo",
             }
         )
         assert model.title["en"] == "Title"
+        assert model.title["bo"] == "འགོ་བརྗོད།"
+        assert model.long_title["en"] == "Long Title"
+        assert model.language == "bo"
+
+        # Missing title field should raise an error
+        with pytest.raises(ValidationError) as excinfo:
+            MetadataModel.model_validate(
+                {
+                    "document_id": "W1234",
+                    "source_url": "https://library.bdrc.io/show/bdr:W1234",
+                    "source_type": "bdrc",
+                    "long_title": {"en": "Long Title", "bo": "འགོ་བརྗོད་རིང་པོ།"},
+                    "language": "bo",
+                }
+            )
+        assert "title" in str(excinfo.value) and "Field required" in str(excinfo.value)
+
+        # Missing long_title field should raise an error
+        with pytest.raises(ValidationError) as excinfo:
+            MetadataModel.model_validate(
+                {
+                    "document_id": "W1234",
+                    "source_url": "https://library.bdrc.io/show/bdr:W1234",
+                    "source_type": "bdrc",
+                    "title": {"en": "Title", "bo": "འགོ་བརྗོད།"},
+                    "language": "bo",
+                }
+            )
+        assert "long_title" in str(excinfo.value) and "Field required" in str(excinfo.value)
+
+        # Missing language field should raise an error
+        with pytest.raises(ValidationError) as excinfo:
+            MetadataModel.model_validate(
+                {
+                    "document_id": "W1234",
+                    "source_url": "https://library.bdrc.io/show/bdr:W1234",
+                    "source_type": "bdrc",
+                    "title": {"en": "Title", "bo": "འགོ་བརྗོད།"},
+                    "long_title": {"en": "Long Title", "bo": "འགོ་བརྗོད་རིང་པོ།"},
+                }
+            )
+        assert "language" in str(excinfo.value) and "Field required" in str(excinfo.value)
 
     def test_multiple_exclusive_fields(self):
         """Test validation error when multiple exclusive fields are set."""
