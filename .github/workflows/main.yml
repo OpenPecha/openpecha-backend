@@ -43,7 +43,7 @@ jobs:
             exit 1
           fi
 
-          ls -la venv/
+          ls -la
           echo "$(pwd)"
           export PYTHONPATH=$(pwd)/venv/lib/python3.12/site-packages
 
