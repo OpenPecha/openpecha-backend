@@ -13,10 +13,10 @@ class MockStorageBucket:
     def __init__(self, *args, **kwargs):
         pass
 
-    def blob(self, *args, **kwargs):
+    def blob(self):
         return MockBlob()
 
-    def get_blob(self, *args, **kwargs):
+    def get_blob(self):
         return MockBlob()
 
 
