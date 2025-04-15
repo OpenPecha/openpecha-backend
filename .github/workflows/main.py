@@ -1,0 +1,49 @@
+name: Deploy to Firebase
+
+on:
+  push:
+    branches:
+      - main
+      - dev
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install Firebase CLI
+        run: npm install -g firebase-tools
+
+      - name: Set up Python venv and install deps
+        run: |
+          cd functions
+          python3.12 -m venv venv
+          source venv/bin/activate
+          pip install -r requirements.txt
+
+      - name: Deploy to Firebase
+        env:
+          FIREBASE_TOKEN: ${{ secrets.FIREBASE_TOKEN }}
+        run: |
+          BRANCH="${GITHUB_REF##*/}"
+          if [ "$BRANCH" = "main" ]; then
+            TARGET_PROJECT="prod"
+          elif [ "$BRANCH" = "dev" ]; then
+            TARGET_PROJECT="dev"
+          else
+            echo "Unsupported branch: $BRANCH"
+            exit 1
+          fi
+
+          cd functions
+          source venv/bin/activate
+          firebase deploy --project "$TARGET_PROJECT" --only functions,hosting --debug
+
