@@ -3,7 +3,7 @@ import logging
 
 from api.text import validate_bdrc_file, validate_docx_file
 from exceptions import DataConflict, DataNotFound, InvalidRequest
-from firebase_config import db
+from firebase_admin import firestore
 from flask import Blueprint, jsonify, request, send_file
 from metadata_model import MetadataModel, SourceType
 from pecha_handling import process_bdrc_pecha, process_pecha, retrieve_pecha, serialize
@@ -26,6 +26,7 @@ def add_no_cache_headers(response):
 
 
 def get_duplicate_key(document_id: str):
+    db = firestore.client()
     docs = db.collection("metadata").where("document_id", "==", document_id).limit(1).get()
     return docs[0].id if docs else None
 
@@ -81,6 +82,7 @@ def get_pecha(pecha_id: str):
 
 @pecha_bp.route("/<string:pecha_id>", methods=["DELETE"], strict_slashes=False)
 def delete_pecha(pecha_id: str):
+    db = firestore.client()
     doc_ref = db.collection("metadata").document(pecha_id)
     if not doc_ref.get().exists:
         raise DataNotFound(f"Pecha with ID '{pecha_id}' not found")

@@ -2,7 +2,7 @@ import logging
 import os
 
 from exceptions import DataNotFound, InvalidRequest
-from firebase_config import db
+from firebase_admin import firestore
 from flask import Blueprint, jsonify, request
 from pecha_handling import process_pecha
 from werkzeug.datastructures import FileStorage
@@ -38,6 +38,7 @@ def put_text(pecha_id: str):
 
     validate_docx_file(text)
 
+    db = firestore.client()
     doc = db.collection("metadata").document(pecha_id).get()
 
     if not doc.exists:

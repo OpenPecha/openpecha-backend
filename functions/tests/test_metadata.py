@@ -78,8 +78,7 @@ def mock_db():
     mock_db.collection("category").document("CAT001").set({"name": "Fiction"})
     mock_db.collection("category").document("CAT002").set({"name": "Non-Fiction"})
 
-    # Patch db in both modules that need it
-    with patch("api.metadata.db", mock_db), patch("pecha_handling.db", mock_db):
+    with patch("firebase_admin.firestore.client", return_value=mock_db):
         yield mock_db
 
 

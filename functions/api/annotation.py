@@ -2,7 +2,7 @@ import logging
 
 from annotation_model import AnnotationModel
 from exceptions import DataConflict, InvalidRequest
-from firebase_config import db
+from firebase_admin import firestore
 from flask import Blueprint, jsonify, request
 
 logger = logging.getLogger(__name__)
@@ -11,6 +11,7 @@ annotation_bp = Blueprint("annotation", __name__)
 
 
 def get_duplicate_key(document_id: str):
+    db = firestore.client()
     doc = db.collection("annotation").where("document_id", "==", document_id).limit(1).get()
     return doc[0].id if doc else None
 
@@ -25,5 +26,6 @@ def post_annotation():
     if duplicate_key := get_duplicate_key(annotation.document_id):
         raise DataConflict(f"Document '{annotation.document_id}' already used to annotate: {duplicate_key}")
 
+    db = firestore.client()
     db.collection("annotations").document().set(annotation.model_dump())
     return jsonify({"message": "Annotation created successfully"}), 201

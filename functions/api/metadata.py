@@ -3,7 +3,7 @@ from typing import Any
 
 from exceptions import DataNotFound, InvalidRequest
 from filter_model import AndFilter, Condition, FilterModel, OrFilter
-from firebase_config import db
+from firebase_admin import firestore
 from flask import Blueprint, jsonify, request
 from google.cloud.firestore_v1.base_query import FieldFilter, Or
 from metadata_model import MetadataModel
@@ -58,6 +58,7 @@ def add_no_cache_headers(response):
 
 @metadata_bp.route("/<string:pecha_id>", methods=["GET"], strict_slashes=False)
 def get_metadata(pecha_id):
+    db = firestore.client()
     doc = db.collection("metadata").document(pecha_id).get()
 
     if not doc.exists:
@@ -71,6 +72,7 @@ def get_related_metadata(pecha_id):
     if not pecha_id:
         raise InvalidRequest("Missing Pecha ID")
 
+    db = firestore.client()
     if not db.collection("metadata").document(pecha_id).get().exists:
         raise DataNotFound(f"Metadata with ID '{pecha_id}' not found")
 
@@ -110,6 +112,7 @@ def put_metadata(pecha_id: str):
     if not pecha_id:
         raise InvalidRequest("Missing Pecha ID")
 
+    db = firestore.client()
     if not db.collection("metadata").document(pecha_id).get().exists:
         raise DataNotFound(f"Metadata with ID '{pecha_id}' not found")
 
@@ -129,6 +132,7 @@ def put_metadata(pecha_id: str):
 
     logger.info("Updated Pecha stored successfully")
 
+    db = firestore.client()
     doc_ref = db.collection("metadata").document(pecha_id)
     doc = doc_ref.get()
 
@@ -153,6 +157,8 @@ def set_category(pecha_id: str):
 
     if not category_id:
         raise InvalidRequest("Missing category ID")
+
+    db = firestore.client()
 
     if not db.collection("category").document(category_id).get().exists:
         raise DataNotFound(f"Category with ID '{category_id}' not found")
@@ -180,6 +186,7 @@ def filter_metadata():
 
     offset = (page - 1) * limit
 
+    db = firestore.client()
     query = db.collection("metadata")
 
     if filter_json:

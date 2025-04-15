@@ -7,7 +7,7 @@ from pathlib import Path
 from typing import Any
 
 from exceptions import DataNotFound
-from firebase_config import db
+from firebase_admin import firestore
 from google.cloud.firestore_v1.base_query import FieldFilter, Or
 from metadata_model import MetadataModel
 from openpecha.pecha import Pecha
@@ -49,6 +49,7 @@ def validate_relationship(metadata: MetadataModel, parent: MetadataModel, relati
 
 
 def db_get_metadata(pecha_id: str) -> dict[str, Any]:
+    db = firestore.client()
     doc = db.collection("metadata").document(pecha_id).get()
     if not doc.exists:
         raise DataNotFound(f"Metadata not found for ID: {pecha_id}")
@@ -94,6 +95,7 @@ def get_metadata_chain(
         while to_process:
             current_id = to_process.pop(0)  # Get next ID to process
 
+            db = firestore.client()
             # Find all metadata that reference current_id
             docs = (
                 db.collection("metadata")
@@ -166,6 +168,7 @@ def parse_bdrc(data: FileStorage, metadata: dict[str, Any], pecha_id: str | None
 
 
 def get_category_chain(category_id: str) -> list[dict[str, Any]]:
+    db = firestore.client()
     categories = []
     current_id = category_id
 
@@ -234,6 +237,8 @@ def process_pecha(text: FileStorage, metadata: dict[str, Any], pecha_id: str | N
     storage.store_pecha_doc(pecha_id=pecha.id, doc=stream)
     storage.store_pecha_opf(pecha)
 
+    db = firestore.client()
+
     try:
         with db.transaction() as transaction:
             doc_ref_metadata = db.collection("metadata").document(pecha.id)
@@ -265,6 +270,7 @@ def process_bdrc_pecha(data: FileStorage, metadata: dict[str, Any], pecha_id: st
     storage.store_bdrc_data(pecha_id=pecha.id, bdrc_data=stream)
     storage.store_pecha_opf(pecha)
 
+    db = firestore.client()
     try:
         with db.transaction() as transaction:
             doc_ref_metadata = db.collection("metadata").document(pecha.id)
