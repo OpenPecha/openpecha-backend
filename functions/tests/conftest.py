@@ -24,28 +24,28 @@ class MockBlob:
     def __init__(self, *args, **kwargs):
         pass
 
-    def upload_from_string(self, *args, **kwargs):
+    def upload_from_string(self):
         return None
 
-    def upload_from_filename(self, *args, **kwargs):
+    def upload_from_filename(self):
         return None
 
-    def download_as_string(self, *args, **kwargs):
+    def download_as_string(self):
         return b"mock content"
 
-    def download_as_bytes(self, *args, **kwargs):
+    def download_as_bytes(self):
         return b"mock content"
 
-    def download_to_filename(self, *args, **kwargs):
+    def download_to_filename(self):
         return None
 
-    def generate_signed_url(self, *args, **kwargs):
+    def generate_signed_url(self):
         return "https://mockurl.com/signed"
 
-    def reload(self, *args, **kwargs):
+    def reload(self):
         pass
 
-    def exists(self, *args, **kwargs):
+    def exists(self):
         return True
 
     @property
