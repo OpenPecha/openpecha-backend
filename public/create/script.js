@@ -6,7 +6,8 @@ class LocalizedForm {
 
     async initialize() {
         try {
-            this.API_ENDPOINT = await loadConfig();
+            this.API_ENDPOINT = await getApiEndpoint();
+            // this.API_ENDPOINT = config.API_ENDPOINT;
             this.setupElements();
             this.setupEventListeners();
             await this.fetchLanguages();
@@ -327,24 +328,38 @@ class LocalizedForm {
         };
 
         body.filter = filters[filterBy] || {};
-        body.page=1;
-        body.limit=100;
         try {
             this.handleSpinner(this.pechaOptionsContainer, true);
-            const response = await fetch(`${this.API_ENDPOINT}/metadata/filter/`, {
-                method: 'POST',
-                headers: {
-                    'accept': 'application/json',
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(body)
-            });
-            if (!response.ok) {
-                throw new Error(`Failed to fetch data: ${response.statusText}`);
+            
+            let allPechas = [];
+            let currentPage = 1;
+            let hasMorePages = true;
+            const limit = 100; // Keep the same limit per request
+            
+            // Loop until we've fetched all pages
+            while (hasMorePages) {
+                body.page = currentPage;
+                body.limit = limit;
+                
+                const response = await fetch(`${this.API_ENDPOINT}/metadata/filter/`, {
+                    method: 'POST',
+                    headers: {
+                        'accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(body)
+                });
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch data: ${response.statusText}`);
+                }
+                const pechas = await response.json();
+                allPechas = allPechas.concat(pechas.metadata);
+                hasMorePages = pechas.metadata.length === limit;
+                currentPage++;
             }
-            const pechas = await response.json();
+            
             this.handleSpinner(this.pechaOptionsContainer, false);
-            this.updatePechaOptions(pechas)
+            this.updatePechaOptions(allPechas);
         } catch (error) {
             this.handleSpinner(this.pechaOptionsContainer, false);
             console.error("Error loading pecha options:", error);

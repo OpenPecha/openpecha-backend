@@ -1,7 +1,8 @@
 {
-    "apiEndpoint": "https://api-l25bgmwqoa-uc.a.run.app",
-    "clientId": "210223691571-ul4cfmq97eoudb7b8ujg4av2u271l2gm.apps.googleusercontent.com",
-    "apiKey": "AIzaSyDO2sGIHrTBwA80-igeT60To6OIqacaqpY",
-    "scopes": "https://www.googleapis.com/auth/drive.readonly",
-    "discoveryDoc": "https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"
+    "PROD_SERVER": "https://api-aq25662yyq-uc.a.run.app",
+    "DEV_SERVER": "https://api-l25bgmwqoa-uc.a.run.app",
+    "CLIENT_ID": "210223691571-ul4cfmq97eoudb7b8ujg4av2u271l2gm.apps.googleusercontent.com",
+    "API_KEY": "AIzaSyDO2sGIHrTBwA80-igeT60To6OIqacaqpY",
+    "SCOPES": "https://www.googleapis.com/auth/drive.readonly",
+    "DISCOVERY_DOC": "https://www.googleapis.com/discovery/v1/apis/drive/v3/rest"
 }
