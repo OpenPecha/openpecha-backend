@@ -34,28 +34,11 @@ class CategoryTreeUI {
         this.selectedNode = null;
         this.categories = [];
         this.options = [];
-        this.loadConfig().then(() => {
+        getApiEndpoint().then((apiEndpoint) => {
+            this.API_ENDPOINT = apiEndpoint;
             this.bindEventListeners();
             this.fetchCategories();
         });
-    }
-
-    async loadConfig() {
-        try {
-            const response = await fetch('/config.json');
-            if (!response.ok) {
-                throw new Error(`Failed to load config: ${response.status} ${response.statusText}`);
-            }
-            const config = await response.json();
-            if (!config.apiEndpoint) {
-                throw new Error('API endpoint not found in configuration');
-            }
-            this.API_ENDPOINT = config.apiEndpoint.replace(/\/$/, ''); // Remove trailing slash if present
-        } catch (error) {
-            console.error('Config loading error:', error);
-            this.showToast('Error loading configuration. Please refresh the page.', 'error');
-            throw error;
-        }
     }
 
     bindEventListeners() {
@@ -391,7 +374,7 @@ class UpdateMetaData {
     async initialize() {
         try {
             this.setupElements();
-            await this.loadConfig();
+            this.API_ENDPOINT = await getApiEndpoint()
             await this.fetchPechaOptions();
             this.setupEventListeners();
             this.showInitialMetadataState();
@@ -462,19 +445,35 @@ class UpdateMetaData {
         this.showSelectLoading(true);
 
         try {
-            const response = await fetch(`${this.API_ENDPOINT}/metadata/filter/`, {
-                method: 'POST',
-                headers: {
-                    'accept': 'application/json',
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({})
-            });
+            let allPechas = [];
+            let currentPage = 1;
+            let hasMorePages = true;
+            const limit = 100; // Keep the same limit per request
+            
+            // Loop until we've fetched all pages
+            while (hasMorePages) {
+                const response = await fetch(`${this.API_ENDPOINT}/metadata/filter/`, {
+                    method: 'POST',
+                    headers: {
+                        'accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        "filter": {},
+                        "page": currentPage,
+                        "limit": limit
+                    })
+                });
 
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
-            const pechas = await response.json();
-            this.updatePechaOptions(pechas);
+                const pechas = await response.json();
+                allPechas = allPechas.concat(pechas.metadata);
+                hasMorePages = pechas.metadata.length === limit;
+                currentPage++;
+            }
+            
+            this.updatePechaOptions(allPechas);
         } catch (error) {
             console.error('Error loading pecha options:', error);
             this.showToast('Unable to load pecha options. Please try again later.', 'error');
@@ -609,20 +608,48 @@ class UpdateMetaData {
     displayMetadata(metadata) {
         if (!this.elements.metadataContent) return;
 
-        const metadataHTML = Object.entries(metadata).map(([key, value]) => {
-            const formattedKey = key.replace(/_/g, ' ').toUpperCase();
-            const formattedValue = this.formatMetadataValue(value);
-            return `
-                <div class="metadata-item">
-                    <div class="metadata-key">${formattedKey}</div>
-                    <div class="metadata-value">${formattedValue}</div>
-                </div>
-            `;
-        }).join('');
+        const reorderedMetadata = this.reorderMetadata(metadata);
+    const metadataHTML = Object.entries(reorderedMetadata).map(([key, value]) => {
+        const formattedKey = key.replace(/_/g, ' ').toUpperCase();
+        const formattedValue = this.formatMetadataValue(value);
+        return `
+            <div class="metadata-item">
+                <div class="metadata-key">${formattedKey}</div>
+                <div class="metadata-value">${formattedValue}</div>
+            </div>
+        `;
+    }).join('');
 
-        this.elements.metadataContent.innerHTML = metadataHTML;
+    this.elements.metadataContent.innerHTML = metadataHTML;
+
     }
 
+    reorderMetadata(metadata) {
+        const order = [
+            "title",
+            "category",
+            "version_of",
+            "commentary_of",
+            "translation_of",
+            "author",
+            "long_title",
+            "usage_title",
+            "alt_titles",
+            "language",
+            "source",
+            "presentation",
+            "date",
+            "document_id"
+        ];
+    
+        const reorderedMetadata = {};
+    
+        order.forEach((key) => {
+            reorderedMetadata[key] = metadata.hasOwnProperty(key) ? metadata[key] : null;
+        });
+    
+        return reorderedMetadata;
+    }
     showTreeState(show = true) {
         if (!this.elements.treeContainer) return;
         this.elements.treeContainer.style.display = show ? 'block' : 'none';

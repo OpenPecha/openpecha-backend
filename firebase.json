@@ -1,22 +1,16 @@
 {
-  "functions": [
-    {
-      "source": "functions",
-      "runtime": "python312",
-      "codebase": "default",
-      "ignore": [
-        "venv",
-        ".git",
-        "firebase-debug.log",
-        "firebase-debug.*.log",
-        "*.local"
-      ],
-      "include": [
-        "api/schema/openapi.yaml"
-      ],
-      "predeploy": "./functions_predeploy.sh"
-    }
-  ],
+  "functions": {
+    "source": "functions",
+    "codebase": "default",
+    "ignore": [
+      "venv",
+      ".git",
+      "firebase-debug.log",
+      "firebase-debug.*.log",
+      "*.local"
+    ],
+    "predeploy": "./functions_predeploy.sh"
+  },
   "hosting": {
     "public": "public",
     "headers": [

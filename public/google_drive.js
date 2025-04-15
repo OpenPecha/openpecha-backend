@@ -1,16 +1,23 @@
-const CLIENT_ID = '210223691571-ul4cfmq97eoudb7b8ujg4av2u271l2gm.apps.googleusercontent.com';
-const API_KEY = 'AIzaSyDO2sGIHrTBwA80-igeT60To6OIqacaqpY';
-const SCOPES = 'https://www.googleapis.com/auth/drive.readonly';
-const DISCOVERY_DOC = 'https://www.googleapis.com/discovery/v1/apis/drive/v3/rest';
+// Load configuration asynchronously
+let config;
+async function loadConfiguration() {
+    config = await loadConfig();
+    console.log("Config loaded:", config);
+    return config;
+}
+
+// Initialize configuration loading
+const configPromise = loadConfiguration();
 
 let tokenClient;
-
 function gisLoaded() {
-    console.log("gis loaded")
-    tokenClient = google.accounts.oauth2.initTokenClient({
-        client_id: CLIENT_ID,
-        scope: SCOPES,
-        callback: '',
+    console.log("gis loaded");
+    configPromise.then(config => {
+        tokenClient = google.accounts.oauth2.initTokenClient({
+            client_id: config.CLIENT_ID,
+            scope: config.SCOPES,
+            callback: '',
+        });
     });
 }
 
@@ -19,9 +26,10 @@ function gapiLoaded() {
 }
 
 async function initializeGapiClient() {
+    await configPromise;
     await gapi.client.init({
-        apiKey: API_KEY,
-        discoveryDocs: [DISCOVERY_DOC],
+        apiKey: config.API_KEY,
+        discoveryDocs: [config.DISCOVERY_DOC],
     });
 }
 

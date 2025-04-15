@@ -1,9 +1,4 @@
 {
-    "python.analysis.extraPaths": [
-        "functions/venv/lib/python3.12/site-packages",
-        "./functions",
-        "./functions/api"
-    ],
     "pylint.args": [
         "--disable=missing-class-docstring",
         "--disable=missing-function-docstring",
@@ -21,7 +16,6 @@
         "editor.defaultFormatter": "ms-python.black-formatter",
         "editor.formatOnSave": true
     },
-    "python.analysis.typeCheckingMode": "standard",
     "editor.codeActionsOnSave": {
         "source.organizeImports": "explicit"
     },

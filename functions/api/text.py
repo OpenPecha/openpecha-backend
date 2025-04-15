@@ -1,7 +1,8 @@
 import logging
 import os
 
-from firebase_config import db
+from exceptions import DataNotFound, InvalidRequest
+from firebase_admin import firestore
 from flask import Blueprint, jsonify, request
 from pecha_handling import process_pecha
 from werkzeug.datastructures import FileStorage
@@ -10,50 +11,41 @@ text_bp = Blueprint("text", __name__)
 
 logger = logging.getLogger(__name__)
 
-TEXT_FORMATS = [".docx"]
 
-
-def validate_file(text: FileStorage):
-    if not text:
-        return False, "Text file is required"
-
+def validate_docx_file(text: FileStorage) -> None:
     if not text.filename:
-        return False, "Text file has no name"
+        raise InvalidRequest("Text file must have a filename")
 
     _, extension = os.path.splitext(text.filename)
-    if extension in TEXT_FORMATS:
-        return True, None
+    if extension != ".docx":
+        raise InvalidRequest(f"Invalid file type '{extension}'. Supported type: '.docx'")
 
-    return (
-        False,
-        f"Invalid file type. {extension} Supported types: {", ".join(TEXT_FORMATS)}",
-    )
+
+def validate_bdrc_file(data: FileStorage) -> None:
+    if not data.filename:
+        raise InvalidRequest("Data has no filename")
+
+    _, extension = os.path.splitext(data.filename)
+    if extension != ".zip":
+        raise InvalidRequest(f"Invalid file type '{extension}'. Supported type: '.zip'")
 
 
 @text_bp.route("/<string:pecha_id>", methods=["PUT"], strict_slashes=False)
 def put_text(pecha_id: str):
     text = request.files.get("text")
     if not text:
-        return jsonify({"error": "Missing required 'text' parameter"}), 400
+        raise InvalidRequest("Missing text file")
 
-    is_valid, error_message = validate_file(text)
-    if not is_valid:
-        return jsonify({"error": f"Text file: {error_message}"}), 400
+    validate_docx_file(text)
 
-    try:
-        doc = db.collection("metadata").document(pecha_id).get()
+    db = firestore.client()
+    doc = db.collection("metadata").document(pecha_id).get()
 
-        if not doc.exists:
-            return jsonify({"error": "Metadata not found"}), 404
+    if not doc.exists:
+        raise DataNotFound(f"Metadata with ID '{pecha_id}' not found")
 
-        metadata = doc.to_dict()
+    metadata = doc.to_dict()
 
-    except Exception as e:
-        return jsonify({"error": f"Failed to retrieve metadata: {str(e)}"}), 500
-
-    error_message, _ = process_pecha(text=text, metadata=metadata, pecha_id=pecha_id)
-
-    if error_message:
-        return jsonify({"error": error_message}), 500
+    _ = process_pecha(text=text, metadata=metadata, pecha_id=pecha_id)
 
     return jsonify({"message": "Text updated successfully", "id": pecha_id}), 201

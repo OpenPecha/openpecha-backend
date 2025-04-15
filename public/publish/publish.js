@@ -10,13 +10,13 @@ class UpdateMetaData {
         };
 
         this.isLoading = false;
-        this.metadata = null;
+        this.metadata = null
         this.initialize();
     }
     
     async initialize() {
         try {
-            await this.loadConfig();
+            this.API_ENDPOINT = await getApiEndpoint();
             await this.fetchPechaOptions();
             this.setupEventListeners();
             this.showInitialMetadataState();
@@ -26,23 +26,6 @@ class UpdateMetaData {
         }
     }
 
-    async loadConfig() {
-        try {
-            const response = await fetch('/config.json');
-            if (!response.ok) {
-                throw new Error(`Failed to load config: ${response.status} ${response.statusText}`);
-            }
-            const config = await response.json();
-            if (!config.apiEndpoint) {
-                throw new Error('API endpoint not found in configuration');
-            }
-            this.API_ENDPOINT = config.apiEndpoint.replace(/\/$/, ''); // Remove trailing slash if present
-        } catch (error) {
-            console.error('Config loading error:', error);
-            this.showToast('Error loading configuration. Please refresh the page.', 'error');
-            throw error; // Re-throw to handle in initialize()
-        }
-    }
 
     setupEventListeners() {
 
@@ -88,19 +71,33 @@ class UpdateMetaData {
         this.showSelectLoading(true);
         console.log(this.API_ENDPOINT);
         try {
-            const response = await fetch(`${this.API_ENDPOINT}/metadata/filter/`, {
-                method: 'POST',
-                headers: {
-                    'accept': 'application/json',
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({})
-            });
-
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-
-            const pechas = await response.json();
-            this.updatePechaOptions(pechas);
+            let allPechas = [];
+            let currentPage = 1;
+            let hasMorePages = true;
+            const limit = 100; // Keep the same limit per request
+            
+            // Loop until we've fetched all pages
+            while (hasMorePages) {
+                const response = await fetch(`${this.API_ENDPOINT}/metadata/filter/`, {
+                    method: 'POST',
+                    headers: {
+                        'accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        "filter": {
+                        },
+                        "page": currentPage,
+                        "limit": limit
+                    })
+                });
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                const pechas = await response.json();
+                allPechas = allPechas.concat(pechas.metadata);
+                hasMorePages = pechas.metadata.length === limit;
+                currentPage++;
+            }
+            this.updatePechaOptions(allPechas);
         } catch (error) {
             console.error('Error loading pecha options:', error);
             this.showToast('Unable to load pecha options. Please try again later.', 'error');
@@ -111,6 +108,7 @@ class UpdateMetaData {
 
 
     updatePechaOptions(pechas) {
+        console.log("pechas ",pechas)
         this.elements.pechaSelect.style.display = 'none';
         new CustomSearchableDropdown(this.elements.pechaOptionsContainer, pechas, "selectedPecha");
     }
@@ -219,18 +217,19 @@ class UpdateMetaData {
     }
     reorderMetadata(metadata) {
         const order = [
-            "author",
-            "category",
-            "date",
-            "source",
-            "presentation",
-            "usage_title",
             "title",
-            "long_title",
-            "alt_titles",
             "version_of",
             "commentary_of",
             "translation_of",
+            "author",
+            "category",
+            "long_title",
+            "usage_title",
+            "alt_titles",
+            "language",
+            "source",
+            "presentation",
+            "date",
             "document_id"
         ];
     
@@ -265,10 +264,10 @@ class UpdateMetaData {
 
 
     validateFields() {
-        // if (!this.metadata.category) {
-        //     this.showToast('This pecha does not have category', 'error');
-        //     return false;
-        // }
+        if (!this.metadata.category) {
+            this.showToast('This pecha does not have category', 'error');
+            return false;
+        }
         this.selectedPecha = document.getElementById("selectedPecha");
         const publishTextId = this.selectedPecha.dataset.value;
         if (!publishTextId) {

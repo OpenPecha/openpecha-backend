@@ -3,13 +3,16 @@ info:
   title: OpenPecha API
   version: '0.1.0'
 servers:
+  - url: https://api-l25bgmwqoa-uc.a.run.app
+    description: Development
   - url: https://api-aq25662yyq-uc.a.run.app
+    description: Production
 
 paths:
   /pecha:
     post:
       summary: Create a Pecha
-      description: Accepts a text document (.docx) and associated metadata in JSON format, processes them, and stores the resulting Pecha in the database.
+      description: Accepts either a text document (.docx) or BDRC OCR data (zipped) along with associated metadata in JSON format, processes them, and stores the resulting Pecha in the database.
       tags:
         - Pecha
       requestBody:
@@ -19,13 +22,19 @@ paths:
             schema:
               type: object
               required:
-                - text
                 - metadata
+              oneOf:
+                - required: [text]
+                - required: [data]
               properties:
                 text:
                   type: string
                   format: binary
-                  description: The uploaded text file (must be .docx format).
+                  description: The uploaded text file (must be .docx format). Either this or 'data' must be provided, but not both.
+                data:
+                  type: string
+                  format: binary
+                  description: BDRC OCR files in ZIP format. Either this or 'text' must be provided, but not both.
                 metadata:
                   type: string
                   format: json
@@ -53,58 +62,13 @@ paths:
                     examples:
                       - "Illuminating the Intent"
         "400":
-          description: Bad request (e.g., invalid file format or missing metadata).
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    examples:
-                      - "Text file: Invalid file type. Supported types: .docx"
+          $ref: '#/components/responses/InvalidRequest'
+        "409":
+          $ref: '#/components/responses/ConflictError'
         "422":
-          description: Unprocessable entity (e.g., invalid metadata format).
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: array
-                    description: Detailed validation errors.
-                    items:
-                      properties:
-                        message:
-                          type: string
-                          description: Validation error message.
-                          examples: 
-                            - "'author' is a required property"
-                        path:
-                          type: array
-                          items:
-                            type: string
-                          description: The path to the field causing the validation error.
-                          examples: 
-                            - ["author"]
-                        schema_path:
-                          type: array
-                          items:
-                            type: string
-                          description: The schema path related to the error.
-                          examples: 
-                            - ["properties", "author", "required"]
+          $ref: '#/components/responses/ValidationError'
         "500":
-          description: Internal server error (e.g., database failure).
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    examples:
-                      - Failed to save to DB
+          $ref: '#/components/responses/ServerError'
   /pecha/{pecha_id}:
     get:
       summary: Retrieve a Pecha OPF File
@@ -141,24 +105,12 @@ paths:
                   summary: File Attachment Header
                   description: Indicates the file should be downloaded.
                   value: "attachment; filename=I857977C3.zip"
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
         "404":
-          description: Pecha not found.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
+          $ref: '#/components/responses/NotFound'
         "500":
-          description: Internal server error if retrieving the Pecha fails.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
+          $ref: '#/components/responses/ServerError'
     delete:
       summary: Delete a Pecha
       description: Deletes a Pecha from the database.
@@ -187,28 +139,12 @@ paths:
                     type: string
                     examples:
                       - Pecha deleted successfully
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
         "404":
-          description: Pecha not found.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    examples:
-                      - Pecha I857977C3 not found
+          $ref: '#/components/responses/NotFound'
         "500":
-          description: Internal server error if deleting the Pecha fails.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    examples:
-                      - "Failed to delete pecha: Internal error"
+          $ref: '#/components/responses/ServerError'
   /pecha/{pecha_id}/publish:
     post:
       summary: Publish a Pecha to Pecha.org
@@ -254,27 +190,9 @@ paths:
                     examples: 
                     - I857977C3
         "400":
-          description: Bad request due to missing Pecha ID.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    examples:
-                      - Missing Pecha ID
+          $ref: '#/components/responses/InvalidRequest'
         "500":
-          description: Internal server error if publishing fails.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    examples: 
-                      - "Failed to publish pecha: Internal error"
+          $ref: '#/components/responses/ServerError'
   /languages:
     get:
       summary: Retrieve the list of available languages
@@ -302,21 +220,7 @@ paths:
                       examples:
                         - Tibetan
         "500":
-          description: Internal server error (e.g., database failure).
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-              examples:
-                errorExample:
-                  summary: Example error response
-                  value:
-                    {
-                      "error": "Failed to retrieve languages from DB"
-                    }
+          $ref: '#/components/responses/ServerError'
   /metadata/{pecha_id}:
     get:
       summary: Retrieve metadata by Pecha ID
@@ -337,28 +241,12 @@ paths:
             application/json:
               schema:
                 $ref: "https://pecha-backend.web.app/schema/metadata"
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
         "404":
-          description: Metadata not found
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    examples: 
-                      - Metadata not found
+          $ref: '#/components/responses/NotFound'
         "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    examples: 
-                      - "Failed to retrieve metadata: {error details}"
+          $ref: '#/components/responses/ServerError'
     put:
       summary: Overwrite metadata by ID
       description: Overwrites metadata for a given Pecha ID in DB. The metadata must be valid.
@@ -400,48 +288,13 @@ paths:
                     examples:
                       - I62E00D78
         "400":
-          description: Bad request (missing metadata field)
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    examples: 
-                      - \'metadata\' field is required
+          $ref: '#/components/responses/InvalidRequest'
         "404":
-          description: Metadata not found
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    examples:
-                      - Metadata with ID \'I62E00D78\' not found
+          $ref: '#/components/responses/NotFound'
         "422":
-          description: Metadata validation error
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: object
-                    description: Details of validation errors
+          $ref: '#/components/responses/ValidationError'
         "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    examples:
-                      - "Failed to update metadata: {error details}"
+          $ref: '#/components/responses/ServerError'
   /metadata/{pecha_id}/category:
     put:
       summary: Set category for a Pecha
@@ -498,62 +351,12 @@ paths:
                   value:
                     message: "Category updated successfully"
                     id: "I857977C3"
-        '400':
-          description: Bad request
-          content:
-            application/json:
-              schema:
-                type: object
-                required:
-                  - error
-                properties:
-                  error:
-                    type: string
-              examples:
-                missingPechaId:
-                  summary: Missing Pecha ID
-                  value:
-                    error: "Missing Pecha ID"
-                missingCategoryId:
-                  summary: Missing category ID
-                  value:
-                    error: "Missing category ID"
-        '404':
-          description: Not found
-          content:
-            application/json:
-              schema:
-                type: object
-                required:
-                  - error
-                properties:
-                  error:
-                    type: string
-              examples:
-                categoryNotFound:
-                  summary: Category not found
-                  value:
-                    error: "Category 'madhyamaka' not found"
-                metadataNotFound:
-                  summary: Metadata not found
-                  value:
-                    error: "Metadata with ID 'I857977C3' not found"
-        '500':
-          description: Server error
-          content:
-            application/json:
-              schema:
-                type: object
-                required:
-                  - error
-                properties:
-                  error:
-                    type: string
-              examples:
-                error:
-                  summary: Update failed
-                  value:
-                    error: "Failed to update category: Database error"
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/ServerError'
   /metadata/{pecha_id}/related:
     get:
       summary: Get related metadata chain
@@ -623,44 +426,11 @@ paths:
                     title: Root Text
                     version_of: IBA008040
         "400":
-          description: Invalid parameters provided
-          content:
-            application/json:
-              schema:
-                type: object
-                required:
-                  - error
-                properties:
-                  error:
-                    type: string
-                    examples:
-                      - "Invalid traversal mode. Use 'upward' or 'full_tree'"
+          $ref: '#/components/responses/InvalidRequest'
         "404":
-          description: Metadata not found
-          content:
-            application/json:
-              schema:
-                type: object
-                required:
-                  - error
-                properties:
-                  error:
-                    type: string
-                    examples:
-                      - "Metadata not found"
+          $ref: '#/components/responses/NotFound'
         "500":
-          description: Internal server error
-          content:
-            application/json:
-              schema:
-                type: object
-                required:
-                  - error
-                properties:
-                  error:
-                    type: string
-                    examples: 
-                    - "Failed to retrieve related metadata: <error details>"
+          $ref: '#/components/responses/ServerError'
   /metadata/filter:
     post:
       summary: Filter metadata
@@ -670,7 +440,9 @@ paths:
         1. **Single Field Query** - Search by a single metadata field.
         2. **AND Query** - Return results that match **all** given conditions.  
         3. **OR Query** - Return results that match **any** given conditions.
-        4. **No Filters** - If the request body is empty, all Pechas are returned.  
+        4. **No Filters** - If the request body is empty, all Pechas are returned.
+        
+        Supports pagination with page and limit parameters.
       tags:
         - Metadata
       requestBody:
@@ -682,44 +454,68 @@ paths:
               properties:
                 filter:
                   $ref: "https://pecha-backend.web.app/schema/filter"
+                page:
+                  type: integer
+                  description: Page number (1-based indexing)
+                  minimum: 1
+                  default: 1
+                  examples: [1]
+                limit:
+                  type: integer
+                  description: Number of results per page
+                  minimum: 1
+                  maximum: 100
+                  default: 20
+                  examples: [20]
+            examples:
+              andFilter:
+                value:
+                  page: 1
+                  limit: 50
+                  filter:
+                    and: [
+                      {"field": "language", "operator": "==", "value": "en"},
+                      {"field": "commentary_of", "operator": "!=", "value": null},
+                    ]
       responses:
         "200":
           description: Successfully retrieved filtered metadata
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    id:
-                      type: string
-                      description: Unique Pecha ID.
-                      examples: 
-                        - I857977C3
-                    title:
-                      type: string
-                      description: Title of the Pecha in its respective language.
-                      examples:
-                        - "Illuminating the Intent Chapter 6"
+                type: object
+                required:
+                  - metadata
+                  - pagination
+                properties:
+                  metadata:
+                    type: array
+                    description: List of metadata objects
+                    items:
+                      $ref: "https://pecha-backend.web.app/schema/metadata"
+                  pagination:
+                    type: object
+                    required:
+                      - page
+                      - limit
+                      - total
+                    properties:
+                      page:
+                        type: integer
+                        description: Current page number
+                        examples: [1]
+                      limit:
+                        type: integer
+                        description: Number of results per page
+                        examples: [20]
+                      total:
+                        type: integer
+                        description: Total number of documents matching the query
+                        examples: [42]
         "400":
-          description: Invalid request or unsupported query format
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
+          $ref: '#/components/responses/InvalidRequest'
         "500":
-          description: Server error
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
+          $ref: '#/components/responses/ServerError'
   /schema/filter:
     get:
       summary: Retrieve the Filter Schema
@@ -734,17 +530,12 @@ paths:
               schema:
                 type: object
                 description: The full JSON schema definition.
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
         "404":
-          description: Schema file not found.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    examples:
-                      - "Schema not found"
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/ServerError'
   /schema/metadata:
     get:
       summary: Retrieve the Metadata Schema
@@ -759,17 +550,12 @@ paths:
               schema:
                 type: object
                 description: The full JSON schema definition.
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
         "404":
-          description: Schema file not found.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    examples:
-                      - "Schema not found"
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/ServerError'
   /api/version:
       get:
         summary: Get API version and Git SHA
@@ -793,6 +579,8 @@ paths:
                           type: string
                           examples:
                             - "b706d2b1a5d0176df374da25c970274b2e0f7770"
+            "500":
+              $ref: '#/components/responses/ServerError'
   /text/{pecha_id}:
     put:
       summary: Upload a text to update a Pecha
@@ -841,38 +629,11 @@ paths:
                     examples:
                       - I857977C3
         "400":
-          description: Bad request due to missing or invalid DOCX file.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    examples:
-                      - "Missing required 'docx' parameter"
+          $ref: '#/components/responses/InvalidRequest'
         "404":
-          description: Pecha metadata not found.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    examples:
-                      - "Pecha metadata not found"
+          $ref: '#/components/responses/NotFound'
         "500":
-          description: Internal server error if updating the Pecha fails.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    examples:
-                      - "Failed to update Pecha: Internal error"
+          $ref: '#/components/responses/ServerError'
   /categories:
     get:
       summary: Get category tree
@@ -939,22 +700,10 @@ paths:
                             description:
                               en: "Prasangika treatises"
                               bo: "ཐལ་འགྱུར་པའི་གཞུང་སྣ་ཚོགས།"
-        '500':
-          description: Server error
-          content:
-            application/json:
-              schema:
-                type: object
-                required:
-                  - error
-                properties:
-                  error:
-                    type: string
-              examples:
-                error:
-                  summary: Failed to retrieve categories
-                  value:
-                    error: "Failed to retrieve categories: <error reason>"
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "500":
+          $ref: '#/components/responses/ServerError'
 
     put:
       summary: Upload categories
@@ -995,47 +744,106 @@ paths:
                   value:
                     message: "Categories uploaded successfully"
                     count: 3
-        '400':
-          description: Bad request
-          content:
-            application/json:
-              schema:
-                type: object
-                required:
-                  - error
-                properties:
-                  error:
-                    type: string
-              examples:
-                noFile:
-                  summary: No file provided
-                  value:
-                    error: "No file provided"
-                invalidFormat:
-                  summary: Invalid file format
-                  value:
-                    error: "Invalid file format. Please upload a YAML file"
-                invalidYaml:
-                  summary: Invalid YAML format
-                  value:
-                    error: "Invalid YAML format"
-                invalidStructure:
-                  summary: Invalid category structure
-                  value:
-                    error: "Invalid category structure"
-        '500':
-          description: Server error
-          content:
-            application/json:
-              schema:
-                type: object
-                required:
-                  - error
-                properties:
-                  error:
-                    type: string
-              examples:
-                error:
-                  summary: Processing failed
-                  value:
-                    error: "Failed to process categories: Database error"
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "500":
+          $ref: '#/components/responses/ServerError'
+components:
+  responses:
+    InvalidRequest:
+      description: There was an error with the request
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                description: Error message
+                examples:
+                  - "There was an error with the request"
+            required:
+              - error
+      
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                description: Error message
+                examples:
+                  - "Resource was not found"
+            required:
+              - error
+  
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              details:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    loc:
+                      type: array
+                      items:
+                        type: string
+                    msg:
+                      type: string
+                    type:
+                      type: string
+            required:
+              - error
+              - details
+          examples:
+            fieldMissing:
+              value:
+                error: "Validation error"
+                details: [
+                  {
+                    "loc": ["body", "title"],
+                    "msg": "field required", 
+                    "type": "value_error.missing"
+                  }
+                ]
+
+    ConflictError:
+      description: Conflicting data
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                description: Error message
+                examples:
+                  - "There was a conflict with the resource"
+            required:
+              - error
+
+    ServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                description: Error message
+                examples:
+                  - "There was an error on the server"
+            required:
+              - error
+  

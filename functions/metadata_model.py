@@ -1,8 +1,14 @@
-from typing import Annotated, Mapping, Sequence
+from enum import Enum
+from typing import Annotated, Any, Mapping, Sequence
 
 from pydantic import AnyUrl, BaseModel, ConfigDict, Field, RootModel, field_serializer, model_validator
 
 NonEmptyStr = Annotated[str, Field(min_length=1)]
+
+
+class SourceType(str, Enum):
+    DOCX = "docx"
+    BDRC = "bdrc"
 
 
 class PechaId(RootModel[str]):
@@ -24,8 +30,8 @@ class LocalizedString(RootModel[Mapping[str, NonEmptyStr]]):
 
 
 class MetadataModel(BaseModel):
-    author: LocalizedString = Field(
-        ...,
+    author: LocalizedString | None = Field(
+        None,
         description="Dictionary with language codes as keys and corresponding strings as values",
     )
     date: str | None = Field(None, pattern="\\S")
@@ -36,6 +42,10 @@ class MetadataModel(BaseModel):
     source_url: AnyUrl | None = Field(
         None,
         description="An optional URL pointing to the source of this Pecha",
+    )
+    source_type: SourceType | None = Field(
+        None,
+        description="The type of source for this Pecha, either 'docx' or 'bdrc'",
     )
     document_id: str = Field(..., pattern="\\S")
     presentation: LocalizedString | None = Field(
@@ -75,6 +85,10 @@ class MetadataModel(BaseModel):
         None,
         description="An optional ID of the category of this Pecha",
     )
+    bdrc: dict[str, Any] | None = Field(
+        None,
+        description="An optional dictionary containing BDRC-specific metadata",
+    )
 
     model_config = ConfigDict(
         extra="forbid",
@@ -110,13 +124,28 @@ class MetadataModel(BaseModel):
         return str(source_url)
 
     @model_validator(mode="after")
+    def check_required_fields(self):
+        """Ensure required fields are provided unless source_type is 'bdrc'."""
+        # If source_type is not bdrc, author, title, long_title, and language must be provided
+        if self.source_type == SourceType.BDRC:
+            return self
+
+        if self.author is None:
+            raise ValueError("'author' is required")
+
+        return self
+
+    @model_validator(mode="after")
     def check_required_localizations(self):
         """Ensure title has both English and Tibetan localizations."""
+        if self.source_type == SourceType.BDRC:
+            return self
+
         try:
             if self.title["en"] is not None and self.title["bo"] is not None:
                 return self
             raise ValueError("Title values cannot be empty")
-        except KeyError as e:
+        except (TypeError, KeyError) as e:
             raise ValueError("Title must have both 'en' and 'bo' localizations.") from e
 
     @model_validator(mode="after")

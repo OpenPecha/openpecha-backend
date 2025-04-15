@@ -6,6 +6,7 @@ from pathlib import Path
 from typing import IO, Any
 
 from firebase_admin import storage
+from google.cloud.storage.blob import Blob
 from openpecha.pecha import Pecha
 
 logger = logging.getLogger(__name__)
@@ -18,11 +19,10 @@ class Storage:
     def store_pechaorg_json(self, pecha_id: str, json_dict: dict[str, Any]) -> str:
         json_str = json.dumps(json_dict, ensure_ascii=False)
 
-        blob = self.bucket.blob(Storage._pechaorg_json_path(pecha_id))
+        blob = self._blob(Storage._pechaorg_json_path(pecha_id))
         blob.upload_from_string(json_str, content_type="application/json")
-        blob.make_public()
-        blob.cache_control = "no-cache, no-store, must-revalidate"
         logger.info("Uploaded to storage: %s", blob.public_url)
+        blob.make_public()
 
         return blob.public_url
 
@@ -30,20 +30,26 @@ class Storage:
         path = Path(tempfile.gettempdir()) / pecha.id
         zip_path = shutil.make_archive(str(path), "zip", pecha.pecha_path)
 
-        blob = self.bucket.blob(Storage._pecha_opf_path(pecha_id=pecha.id))
+        blob = self._blob(Storage._pecha_opf_path(pecha_id=pecha.id))
         blob.upload_from_filename(zip_path)
-        blob.make_public()
-        blob.cache_control = "no-cache, no-store, must-revalidate"
         logger.info("Uploaded to storage: %s", blob.public_url)
+        blob.make_public()
 
         return blob.public_url
 
     def store_pecha_doc(self, pecha_id: str, doc: IO[bytes]) -> str:
-        blob = self.bucket.blob(Storage._pecha_doc_path(pecha_id))
+        blob = self._blob(Storage._pecha_doc_path(pecha_id))
         blob.upload_from_file(doc)
-        blob.make_public()
-        blob.cache_control = "no-cache, no-store, must-revalidate"
         logger.info("Uploaded to storage: %s", blob.public_url)
+        blob.make_public()
+
+        return blob.public_url
+
+    def store_bdrc_data(self, pecha_id: str, bdrc_data: IO[bytes]) -> str:
+        blob = self._blob(Storage._pecha_bdrc_path(pecha_id))
+        blob.upload_from_file(bdrc_data)
+        logger.info("Uploaded to storage: %s", blob.public_url)
+        blob.make_public()
 
         return blob.public_url
 
@@ -85,6 +91,16 @@ class Storage:
     @staticmethod
     def _pecha_doc_path(pecha_id: str) -> str:
         return f"doc/{pecha_id}.docx"
+
+    @staticmethod
+    def _pecha_bdrc_path(pecha_id: str) -> str:
+        return f"bdrc/{pecha_id}_bdrc_ocr.zip"
+
+    def _blob(self, path: str) -> Blob:
+        blob = self.bucket.blob(path)
+        blob.cache_control = "no-cache, no-store, must-revalidate"
+
+        return blob
 
     def _delete(self, storage_path):
         blob = self.bucket.blob(storage_path)

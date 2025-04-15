@@ -5,7 +5,7 @@ class UpdateMetaData {
 
     async initialize() {
         try {
-            await this.loadConfig();
+            this.API_ENDPOINT = await getApiEndpoint();
             this.setupElements();
             await this.fetchPechaOptions();
             this.setupEventListeners();
@@ -13,24 +13,6 @@ class UpdateMetaData {
         } catch (error) {
             console.error('Initialization error:', error);
             this.showToast('Failed to initialize. Please refresh the page.', 'error');
-        }
-    }
-
-    async loadConfig() {
-        try {
-            const response = await fetch('/config.json');
-            if (!response.ok) {
-                throw new Error(`Failed to load config: ${response.status} ${response.statusText}`);
-            }
-            const config = await response.json();
-            if (!config.apiEndpoint) {
-                throw new Error('API endpoint not found in configuration');
-            }
-            this.API_ENDPOINT = config.apiEndpoint.replace(/\/$/, ''); // Remove trailing slash if present
-        } catch (error) {
-            console.error('Config loading error:', error);
-            this.showToast('Error loading configuration. Please refresh the page.', 'error');
-            throw error;
         }
     }
 
@@ -81,20 +63,36 @@ class UpdateMetaData {
         this.showSpinner(this.elements.pechaOptionsContainer, true);
         this.hideInputs();
         try {
-            const response = await fetch(`${this.API_ENDPOINT}/metadata/filter/`, {
-                method: 'POST',
-                headers: {
-                    'accept': 'application/json',
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({})
-            });
+            let allPechas = [];
+            let currentPage = 1;
+            let hasMorePages = true;
+            const limit = 100; // Keep the same limit per request
+            
+            // Loop until we've fetched all pages
+            while (hasMorePages) {
+                const response = await fetch(`${this.API_ENDPOINT}/metadata/filter/`, {
+                    method: 'POST',
+                    headers: {
+                        'accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        "filter": {},
+                        "page": currentPage,
+                        "limit": limit
+                    })
+                });
 
-            if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
-            const pechas = await response.json();
-            console.log(":::::",pechas)
-            this.updatePechaOptions(pechas);
+                const pechas = await response.json();
+                allPechas = allPechas.concat(pechas.metadata);
+                hasMorePages = pechas.metadata.length === limit;
+                currentPage++;
+            }
+            
+            console.log(":::::", allPechas);
+            this.updatePechaOptions(allPechas);
         } catch (error) {
             console.error('Error loading pecha options:', error);
             this.elements.pechaOptionsContainer.innerHTML="Unable to load pecha options. Please try again later.";
@@ -211,17 +209,19 @@ class UpdateMetaData {
 
     reorderMetadata(metadata) {
         const order = [
-            "author",
-            "date",
-            "source",
-            "presentation",
-            "usage_title",
             "title",
-            "long_title",
-            "alt_titles",
             "version_of",
             "commentary_of",
             "translation_of",
+            "author",
+            "category",
+            "long_title",
+            "usage_title",
+            "alt_titles",
+            "language",
+            "source",
+            "presentation",
+            "date",
             "document_id"
         ];
     

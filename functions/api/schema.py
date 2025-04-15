@@ -30,7 +30,4 @@ def get_filter_schema():
 def get_openapi_spec():
     schema_path = os.path.join(os.path.dirname(__file__), "schema/openapi.yaml")
 
-    if not os.path.exists(schema_path):
-        return jsonify({"error": "OpenAPI yaml not found"}), 404
-
     return send_file(schema_path, mimetype="application/x-yaml")
