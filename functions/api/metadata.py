@@ -3,7 +3,7 @@ from typing import Any
 
 from exceptions import DataNotFound, InvalidRequest
 from filter_model import AndFilter, Condition, FilterModel, OrFilter
-from firebase_config import db
+from firebase_admin import firestore
 from flask import Blueprint, jsonify, request
 from google.cloud.firestore_v1.base_query import FieldFilter, Or
 from metadata_model import MetadataModel
@@ -58,6 +58,7 @@ def add_no_cache_headers(response):
 
 @metadata_bp.route("/<string:pecha_id>", methods=["GET"], strict_slashes=False)
 def get_metadata(pecha_id):
+    db = firestore.client()
     doc = db.collection("metadata").document(pecha_id).get()
 
     if not doc.exists:
@@ -68,6 +69,13 @@ def get_metadata(pecha_id):
 
 @metadata_bp.route("/<string:pecha_id>/related", methods=["GET"], strict_slashes=False)
 def get_related_metadata(pecha_id):
+    if not pecha_id:
+        raise InvalidRequest("Missing Pecha ID")
+
+    db = firestore.client()
+    if not db.collection("metadata").document(pecha_id).get().exists:
+        raise DataNotFound(f"Metadata with ID '{pecha_id}' not found")
+
     traversal = request.args.get("traversal", "full_tree").upper()
 
     if traversal not in TraversalMode.__members__:
@@ -104,6 +112,10 @@ def put_metadata(pecha_id: str):
     if not pecha_id:
         raise InvalidRequest("Missing Pecha ID")
 
+    db = firestore.client()
+    if not db.collection("metadata").document(pecha_id).get().exists:
+        raise DataNotFound(f"Metadata with ID '{pecha_id}' not found")
+
     data = request.get_json()
     metadata_json = data.get("metadata")
 
@@ -120,6 +132,7 @@ def put_metadata(pecha_id: str):
 
     logger.info("Updated Pecha stored successfully")
 
+    db = firestore.client()
     doc_ref = db.collection("metadata").document(pecha_id)
     doc = doc_ref.get()
 
@@ -145,6 +158,8 @@ def set_category(pecha_id: str):
     if not category_id:
         raise InvalidRequest("Missing category ID")
 
+    db = firestore.client()
+
     if not db.collection("category").document(category_id).get().exists:
         raise DataNotFound(f"Category with ID '{category_id}' not found")
 
@@ -159,31 +174,54 @@ def set_category(pecha_id: str):
 
 @metadata_bp.route("/filter", methods=["POST"], strict_slashes=False)
 def filter_metadata():
-    def extract_info(query):
-        return [extract_short_info(doc.id, doc.to_dict()) for doc in query.stream()]
-
     data = request.get_json(silent=True) or {}
     filter_json = data.get("filter")
+    page = int(data.get("page", 1))
+    limit = int(data.get("limit", 20))
 
-    if not filter_json:
-        return jsonify(extract_info(db.collection("metadata"))), 200
+    if page < 1:
+        raise InvalidRequest("Page must be greater than 0")
+    if limit < 1 or limit > 100:
+        raise InvalidRequest("Limit must be between 1 and 100")
 
-    filter_model = FilterModel.model_validate(filter_json)
-    logger.info("Parsed filter: %s", filter_model.model_dump())
+    offset = (page - 1) * limit
 
-    if not (f := filter_model.root):
-        raise InvalidRequest("Invalid filters provided")
-
+    db = firestore.client()
     query = db.collection("metadata")
 
-    if isinstance(f, OrFilter):
-        query = query.where(filter=Or([FieldFilter(c.field, c.operator, c.value) for c in f.conditions]))
-    elif isinstance(f, AndFilter):
-        for c in f.conditions:
-            query = query.where(filter=FieldFilter(c.field, c.operator, c.value))
-    elif isinstance(f, Condition):
-        query = query.where(f.field, f.operator, f.value)
-    else:
-        raise InvalidRequest("No valid filters provided")
+    if filter_json:
+        filter_model = FilterModel.model_validate(filter_json)
+        logger.info("Parsed filter: %s", filter_model.model_dump())
 
-    return jsonify(extract_info(query)), 200
+        if not (f := filter_model.root):
+            raise InvalidRequest("Invalid filters provided")
+
+        if isinstance(f, OrFilter):
+            query = query.where(filter=Or([FieldFilter(c.field, c.operator, c.value) for c in f.conditions]))
+        elif isinstance(f, AndFilter):
+            for c in f.conditions:
+                query = query.where(filter=FieldFilter(c.field, c.operator, c.value))
+        elif isinstance(f, Condition):
+            query = query.where(f.field, f.operator, f.value)
+        else:
+            raise InvalidRequest("No valid filters provided")
+
+    total_count = query.count().get()[0][0].value
+    logger.info("Total count: %s", total_count)
+
+    query = query.limit(limit).offset(offset)
+
+    results = []
+    for doc in query.stream():
+        metadata = doc.to_dict()
+        metadata["id"] = doc.id
+        results.append(metadata)
+        logger.info("Appended to results: %s", doc.id)
+
+    pagination = {
+        "page": page,
+        "limit": limit,
+        "total": total_count,
+    }
+
+    return jsonify({"metadata": results, "pagination": pagination}), 200

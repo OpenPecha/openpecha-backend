@@ -3,7 +3,7 @@ from typing import Any, Generator
 
 import yaml
 from exceptions import InvalidRequest
-from firebase_config import db
+from firebase_admin import firestore
 from flask import Blueprint, jsonify, request
 from werkzeug.datastructures import FileStorage
 
@@ -39,6 +39,7 @@ def process_categories(
         category_data["parent"] = parent_id
 
         # Store category and get its ID
+        db = firestore.client()
         db.collection("category").document(category_id).set(category_data)
         logger.info("Created category %s", category_id)
 
@@ -71,6 +72,7 @@ def upload_categories():
 
 def build_category_tree() -> list[dict[str, Any]]:
     """Build a tree structure of categories from Firestore documents."""
+    db = firestore.client()
     categories = {
         doc.id: {"id": doc.id, **doc.to_dict(), "subcategories": []} for doc in db.collection("category").stream()
     }

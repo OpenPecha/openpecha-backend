@@ -6,11 +6,13 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import Any
 
-from firebase_config import db
+from exceptions import DataNotFound
+from firebase_admin import firestore
 from google.cloud.firestore_v1.base_query import FieldFilter, Or
 from metadata_model import MetadataModel
 from openpecha.pecha import Pecha
 from openpecha.pecha.parsers.docx import DocxParser
+from openpecha.pecha.parsers.ocr import BdrcParser
 from openpecha.pecha.serializers.pecha_db import Serializer
 from openpecha.pecha.serializers.pecha_db.updated_opf_serializer import update_serialize_json
 from storage import Storage
@@ -47,9 +49,10 @@ def validate_relationship(metadata: MetadataModel, parent: MetadataModel, relati
 
 
 def db_get_metadata(pecha_id: str) -> dict[str, Any]:
+    db = firestore.client()
     doc = db.collection("metadata").document(pecha_id).get()
     if not doc.exists:
-        raise ValueError(f"Metadata not found for ID: {pecha_id}")
+        raise DataNotFound(f"Metadata not found for ID: {pecha_id}")
     return doc.to_dict()
 
 
@@ -59,6 +62,7 @@ def get_metadata_chain(
     traversal_mode: TraversalMode = TraversalMode.UPWARD,
     relationships: list[Relationship] | None = None,
 ) -> list[tuple[str, dict[str, Any]]]:
+    logger.info("Getting metadata chain for: id: %s, metadata: %s", pecha_id, metadata)
 
     if metadata is None and pecha_id is None:
         raise ValueError("Either metadata or pecha_id must be provided")
@@ -71,11 +75,6 @@ def get_metadata_chain(
     else:
         logger.info("Pecha ID provided: %s getting metadata from DB", pecha_id)
         metadata = db_get_metadata(pecha_id)
-
-    if not metadata:
-        raise ValueError(f"Metadata not found for ID: {pecha_id}")
-
-    logger.info("Getting metadata chain for: id: %s, metadata: %s", pecha_id, metadata)
 
     ref_fields = [r.value for r in relationships]
     chain = [(pecha_id or "", metadata)]
@@ -96,6 +95,7 @@ def get_metadata_chain(
         while to_process:
             current_id = to_process.pop(0)  # Get next ID to process
 
+            db = firestore.client()
             # Find all metadata that reference current_id
             docs = (
                 db.collection("metadata")
@@ -135,7 +135,9 @@ def create_tmp() -> Path:
 
 def parse(docx_file: FileStorage, metadata: dict[str, Any], pecha_id: str | None = None) -> Pecha:
     if not docx_file.filename:
-        raise ValueError("docx_file has no filename")
+        raise ValueError("Docx file has no filename")
+
+    logger.info("Parsing docx file: %s", docx_file.filename)
 
     path = create_tmp()
     docx_file.save(path)
@@ -147,6 +149,39 @@ def parse(docx_file: FileStorage, metadata: dict[str, Any], pecha_id: str | None
         metadatas=metadatas,
         pecha_id=pecha_id,
     )
+
+
+def parse_bdrc(data: FileStorage, metadata: dict[str, Any], pecha_id: str | None = None) -> Pecha:
+    if not data.filename:
+        raise ValueError("Data has no filename")
+
+    logger.info("Parsing data file: %s", data.filename)
+
+    path = create_tmp()
+    data.save(path)
+
+    return BdrcParser().parse(
+        input=path,
+        metadata=metadata,
+        pecha_id=pecha_id,
+    )
+
+
+def get_category_chain(category_id: str) -> list[dict[str, Any]]:
+    db = firestore.client()
+    categories = []
+    current_id = category_id
+
+    while current_id:
+        category_doc = db.collection("category").document(current_id).get()
+        if not category_doc.exists:
+            raise ValueError(f"Category with ID {current_id} not found")
+
+        category_data = category_doc.to_dict()
+        categories.insert(0, category_data)
+        current_id = category_data.get("parent")
+
+    return categories
 
 
 def serialize(pecha: Pecha, reserialize: bool) -> dict[str, Any]:
@@ -169,19 +204,17 @@ def serialize(pecha: Pecha, reserialize: bool) -> dict[str, Any]:
     if category_id is None:
         raise ValueError("No category found in metadata")
 
-    category = db.collection("category").document(category_id).get().to_dict()
-    if category is None:
-        raise ValueError(f"Category with ID {category_id} not found")
-
-    logger.info("Category retrieved: %s", category)
+    # Build the category chain from the given category to the root
+    category_chain = get_category_chain(category_id)
+    logger.info("Category chain retrieved with %d categories", len(category_chain))
 
     id_chain = [id for id, _ in metadata_chain]
     logger.info("Pecha IDs: %s", ", ".join(id_chain))
-    pecha_chain = get_pecha_chain(pecha_ids=id_chain)
 
+    pecha_chain = get_pecha_chain(pecha_ids=id_chain)
     logger.info("Pechas: %s", [pecha.id for pecha in pecha_chain])
 
-    return Serializer().serialize(pechas=pecha_chain, metadatas=metadatas, pecha_category=category)
+    return Serializer().serialize(pechas=pecha_chain, metadatas=metadatas, pecha_category=category_chain)
 
 
 def process_pecha(text: FileStorage, metadata: dict[str, Any], pecha_id: str | None = None) -> str:
@@ -204,6 +237,40 @@ def process_pecha(text: FileStorage, metadata: dict[str, Any], pecha_id: str | N
     storage.store_pecha_doc(pecha_id=pecha.id, doc=stream)
     storage.store_pecha_opf(pecha)
 
+    db = firestore.client()
+
+    try:
+        with db.transaction() as transaction:
+            doc_ref_metadata = db.collection("metadata").document(pecha.id)
+            # doc_ref_alignment = db.collection("alignment").document(pecha.id)
+
+            logger.info("Saving metadata to DB: %s", json.dumps(metadata, ensure_ascii=False))
+            transaction.set(doc_ref_metadata, metadata)
+            logger.info("Metadata saved to DB: %s", pecha.id)
+    except Exception as e:
+        logger.error("Error saving to DB: %s", e)
+        try:
+            storage.delete_pecha_opf(pecha_id=pecha.id)
+        except Exception as rollback_error:
+            logger.error("Rollback failed: %s", rollback_error)
+
+        raise
+
+    return pecha.id
+
+
+def process_bdrc_pecha(data: FileStorage, metadata: dict[str, Any], pecha_id: str | None = None) -> str:
+    pecha = parse_bdrc(data=data, metadata=metadata, pecha_id=pecha_id)
+    logger.info("Pecha created: %s %s", pecha.id, pecha.pecha_path)
+
+    storage = Storage()
+
+    stream = data.stream
+    stream.seek(0)
+    storage.store_bdrc_data(pecha_id=pecha.id, bdrc_data=stream)
+    storage.store_pecha_opf(pecha)
+
+    db = firestore.client()
     try:
         with db.transaction() as transaction:
             doc_ref_metadata = db.collection("metadata").document(pecha.id)

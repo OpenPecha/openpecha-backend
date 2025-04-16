@@ -6,7 +6,7 @@ class MetadataManager {
 
     async initialize() {
         try {
-            await this.loadConfig();
+            this.API_ENDPOINT = await getApiEndpoint();
             this.elements = {
                 pechaOptionsContainer: document.getElementById('pechaOptionsContainer'),
                 toastContainer: document.getElementById('toastContainer'),
@@ -37,23 +37,6 @@ class MetadataManager {
         }
     }
 
-    async loadConfig() {
-        try {
-            const response = await fetch('/config.json');
-            if (!response.ok) {
-                throw new Error(`Failed to load config: ${response.status} ${response.statusText}`);
-            }
-            const config = await response.json();
-            if (!config.apiEndpoint) {
-                throw new Error('API endpoint not found in configuration');
-            }
-            this.API_ENDPOINT = config.apiEndpoint.replace(/\/$/, ''); // Remove trailing slash if present
-        } catch (error) {
-            console.error('Config loading error:', error);
-            this.showToast('Error loading configuration. Please refresh the page.', 'error');
-            throw error;
-        }
-    }
 
     setupEventListeners() {
        // action handler for pecha selection
@@ -125,26 +108,42 @@ class MetadataManager {
         try {
             this.showSpinner(this.elements.pechaOptionsContainer, true);
             this.elements.formContent.style.display = 'none';
-            const response = await fetch(`${this.API_ENDPOINT}/metadata/filter/`, {
-                method: 'POST',
-                headers: {
-                    'accept': 'application/json',
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify({})
-            });
+            
+            let allPechas = [];
+            let currentPage = 1;
+            let hasMorePages = true;
+            const limit = 100; // Keep the same limit per request
+            
+            // Loop until we've fetched all pages
+            while (hasMorePages) {
+                const response = await fetch(`${this.API_ENDPOINT}/metadata/filter/`, {
+                    method: 'POST',
+                    headers: {
+                        'accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        "filter": {},
+                        "page": currentPage,
+                        "limit": limit
+                    })
+                });
 
-            if (!response.ok) {
-                throw new Error(`HTTP error! status: ${response.status}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                const pechas = await response.json();
+                allPechas = allPechas.concat(pechas.metadata);
+                hasMorePages = pechas.metadata.length === limit;
+                currentPage++;
             }
-
-            const pechas = await response.json();
-            this.updatePechaOptions(pechas);
+            
+            this.updatePechaOptions(allPechas);
         } catch (error) {
             console.error('Error loading pecha options:', error);
             this.showToast('Error loading pecha options: ' + error.message, 'error');
         } finally {
-
             this.showSpinner(this.elements.pechaOptionsContainer, false);
             this.elements.formContent.style.display = 'block';
         }
@@ -185,25 +184,39 @@ class MetadataManager {
         };
 
         body.filter = filters[relationshipType] || {};
-
         try {
             this.showSpinner(this.elements.relatedPechaContainer, true);
             
-            const response = await fetch(`${this.API_ENDPOINT}/metadata/filter/`, {
-                method: 'POST',
-                headers: {
-                    'accept': 'application/json',
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(body)
-            });
+            let allPechas = [];
+            let currentPage = 1;
+            let hasMorePages = true;
+            const limit = 100; // Keep the same limit per request
             
-            if (!response.ok) {
-                throw new Error(`Failed to fetch data: ${response.statusText}`);
+            // Loop until we've fetched all pages
+            while (hasMorePages) {
+                body.page = currentPage;
+                body.limit = limit;
+                
+                const response = await fetch(`${this.API_ENDPOINT}/metadata/filter/`, {
+                    method: 'POST',
+                    headers: {
+                        'accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(body)
+                });
+                
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch data: ${response.statusText}`);
+                }
+                
+                const pechas = await response.json();
+                allPechas = allPechas.concat(pechas.metadata);
+                hasMorePages = pechas.metadata.length === limit;
+                currentPage++;
             }
             
-            const pechas = await response.json();
-            this.updateRelatedPechaOptions(pechas,pechaId);
+            this.updateRelatedPechaOptions(allPechas, pechaId);
         } catch (error) {
             console.error("Error loading related pecha options:", error);
             this.showToast("Unable to load related pecha options: " + error.message, "error");
@@ -223,7 +236,7 @@ class MetadataManager {
         const customDropdown = document.getElementById("relatedPecha");
         const pecha = pechas.find(p => p.id === pechaId);
         customDropdown.dataset.value = pecha?.id || '';
-        customDropdown.textContent = pecha ? `${pecha.id} - ${pecha.title}` : 'Select pecha';
+        customDropdown.textContent = pecha ? `${pecha.id} - ${pecha.title[pecha.language]}` : 'Select pecha';
     }
 
     handlePechaSelection(pechaId) {

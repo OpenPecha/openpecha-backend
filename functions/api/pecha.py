@@ -1,12 +1,12 @@
 import json
 import logging
 
-from api.text import validate_file
+from api.text import validate_bdrc_file, validate_docx_file
 from exceptions import DataConflict, DataNotFound, InvalidRequest
-from firebase_config import db
+from firebase_admin import firestore
 from flask import Blueprint, jsonify, request, send_file
-from metadata_model import MetadataModel
-from pecha_handling import process_pecha, retrieve_pecha, serialize
+from metadata_model import MetadataModel, SourceType
+from pecha_handling import process_bdrc_pecha, process_pecha, retrieve_pecha, serialize
 from pecha_uploader.config import Destination_url
 from pecha_uploader.pipeline import upload
 from storage import Storage
@@ -26,6 +26,7 @@ def add_no_cache_headers(response):
 
 
 def get_duplicate_key(document_id: str):
+    db = firestore.client()
     docs = db.collection("metadata").where("document_id", "==", document_id).limit(1).get()
     return docs[0].id if docs else None
 
@@ -37,7 +38,6 @@ def post_pecha():
 
     if not text and not data:
         raise InvalidRequest("Either text or data is required")
-
     if text and data:
         raise InvalidRequest("Both text and data cannot be uploaded together")
 
@@ -46,27 +46,25 @@ def post_pecha():
         raise InvalidRequest("Missing metadata")
 
     metadata_dict = json.loads(metadata_json)
+    metadata_dict["source_type"] = SourceType.DOCX if text else SourceType.BDRC
     metadata = MetadataModel.model_validate(metadata_dict)
-
     logger.info("Metadata: %s", metadata)
 
     duplicate_key = get_duplicate_key(metadata.document_id)
-
     if duplicate_key:
         raise DataConflict(f"Document '{metadata.document_id}' is already published as: {duplicate_key}")
 
     if text:
-        validate_file(text)
-
-        logger.info("Uploaded text file: %s", text.filename)
-
+        validate_docx_file(text)
         pecha_id = process_pecha(text=text, metadata=metadata.model_dump())
+        logger.info("Processed text file: %s", text.filename)
+    else:  # data file (BDRC)
+        validate_bdrc_file(data)
+        pecha_id = process_bdrc_pecha(data=data, metadata=metadata.model_dump())
+        logger.info("Processed data file: %s", data.filename)
 
-        title = metadata.title[metadata.language] or metadata.title["en"]
-
-        return jsonify({"message": "Text created successfully", "id": pecha_id, "title": title}), 200
-
-    raise InvalidRequest("Data upload is not supported yet")
+    title = metadata.title[metadata.language] or metadata.title["en"]
+    return jsonify({"message": "Text created successfully", "id": pecha_id, "title": title}), 200
 
 
 @pecha_bp.route("/<string:pecha_id>", methods=["GET"], strict_slashes=False)
@@ -84,6 +82,7 @@ def get_pecha(pecha_id: str):
 
 @pecha_bp.route("/<string:pecha_id>", methods=["DELETE"], strict_slashes=False)
 def delete_pecha(pecha_id: str):
+    db = firestore.client()
     doc_ref = db.collection("metadata").document(pecha_id)
     if not doc_ref.get().exists:
         raise DataNotFound(f"Pecha with ID '{pecha_id}' not found")

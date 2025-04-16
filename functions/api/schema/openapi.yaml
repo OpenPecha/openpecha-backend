@@ -3,16 +3,16 @@ info:
   title: OpenPecha API
   version: '0.1.0'
 servers:
-  - url: https://api-aq25662yyq-uc.a.run.app
-    description: Production
   - url: https://api-l25bgmwqoa-uc.a.run.app
     description: Development
+  - url: https://api-aq25662yyq-uc.a.run.app
+    description: Production
 
 paths:
   /pecha:
     post:
       summary: Create a Pecha
-      description: Accepts a text document (.docx) and associated metadata in JSON format, processes them, and stores the resulting Pecha in the database.
+      description: Accepts either a text document (.docx) or BDRC OCR data (zipped) along with associated metadata in JSON format, processes them, and stores the resulting Pecha in the database.
       tags:
         - Pecha
       requestBody:
@@ -22,13 +22,19 @@ paths:
             schema:
               type: object
               required:
-                - text
                 - metadata
+              oneOf:
+                - required: [text]
+                - required: [data]
               properties:
                 text:
                   type: string
                   format: binary
-                  description: The uploaded text file (must be .docx format).
+                  description: The uploaded text file (must be .docx format). Either this or 'data' must be provided, but not both.
+                data:
+                  type: string
+                  format: binary
+                  description: BDRC OCR files in ZIP format. Either this or 'text' must be provided, but not both.
                 metadata:
                   type: string
                   format: json
@@ -434,7 +440,9 @@ paths:
         1. **Single Field Query** - Search by a single metadata field.
         2. **AND Query** - Return results that match **all** given conditions.  
         3. **OR Query** - Return results that match **any** given conditions.
-        4. **No Filters** - If the request body is empty, all Pechas are returned.  
+        4. **No Filters** - If the request body is empty, all Pechas are returned.
+        
+        Supports pagination with page and limit parameters.
       tags:
         - Metadata
       requestBody:
@@ -446,26 +454,64 @@ paths:
               properties:
                 filter:
                   $ref: "https://pecha-backend.web.app/schema/filter"
+                page:
+                  type: integer
+                  description: Page number (1-based indexing)
+                  minimum: 1
+                  default: 1
+                  examples: [1]
+                limit:
+                  type: integer
+                  description: Number of results per page
+                  minimum: 1
+                  maximum: 100
+                  default: 20
+                  examples: [20]
+            examples:
+              andFilter:
+                value:
+                  page: 1
+                  limit: 50
+                  filter:
+                    and: [
+                      {"field": "language", "operator": "==", "value": "en"},
+                      {"field": "commentary_of", "operator": "!=", "value": null},
+                    ]
       responses:
         "200":
           description: Successfully retrieved filtered metadata
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    id:
-                      type: string
-                      description: Unique Pecha ID.
-                      examples: 
-                        - I857977C3
-                    title:
-                      type: string
-                      description: Title of the Pecha in its respective language.
-                      examples:
-                        - "Illuminating the Intent Chapter 6"
+                type: object
+                required:
+                  - metadata
+                  - pagination
+                properties:
+                  metadata:
+                    type: array
+                    description: List of metadata objects
+                    items:
+                      $ref: "https://pecha-backend.web.app/schema/metadata"
+                  pagination:
+                    type: object
+                    required:
+                      - page
+                      - limit
+                      - total
+                    properties:
+                      page:
+                        type: integer
+                        description: Current page number
+                        examples: [1]
+                      limit:
+                        type: integer
+                        description: Number of results per page
+                        examples: [20]
+                      total:
+                        type: integer
+                        description: Total number of documents matching the query
+                        examples: [42]
         "400":
           $ref: '#/components/responses/InvalidRequest'
         "500":
