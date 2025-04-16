@@ -1,32 +1,33 @@
-window.onload = function() {
+window.onload = async function() {
   //<editor-fold desc="Changeable Configuration Block">
 
-  // Fetch the config.json file to get the API endpoint
-  fetch('../config.json')
-    .then(response => response.json())
-    .then(config => {
-      // Construct the OpenAPI schema URL by appending the path to the API endpoint
-      const schemaUrl = `${config.apiEndpoint}/schema/openapi`;
-      console.log("schemaUrl", schemaUrl);
-      
-      // Initialize Swagger UI with the dynamic URL
-      window.ui = SwaggerUIBundle({
-        url: schemaUrl,
-        dom_id: '#swagger-ui',
-        deepLinking: true,
-        presets: [
-          SwaggerUIBundle.presets.apis,
-          SwaggerUIStandalonePreset
-        ],
-        plugins: [
-          SwaggerUIBundle.plugins.DownloadUrl
-        ],
-        layout: "StandaloneLayout"
-      });
-    })
-    .catch(error => {
-      console.error('Error loading config.json:', error);
+  try {
+    // Dynamically load config.js
+    await new Promise((resolve, reject) => {
+      const script = document.createElement('script');
+      script.src = '../config.js';
+      script.onload = resolve;
+      script.onerror = reject;
+      document.head.appendChild(script);
     });
+    
+    const apiEndpoint = await getApiEndpoint();
+    if (!apiEndpoint) throw new Error("Failed to get API endpoint");
+    
+    const schemaUrl = `${apiEndpoint}/schema/openapi`;
+    console.log("Using schema URL:", schemaUrl);
+    
+    window.ui = SwaggerUIBundle({
+      url: schemaUrl,
+      dom_id: '#swagger-ui',
+      deepLinking: true,
+      presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
+      plugins: [SwaggerUIBundle.plugins.DownloadUrl],
+      layout: "StandaloneLayout"
+    });
+  } catch (error) {
+    console.error('Error initializing Swagger UI:', error);
+  }
 
   //</editor-fold>
 };

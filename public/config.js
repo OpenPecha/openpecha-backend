@@ -14,13 +14,14 @@ const getApiEndpoint = async () => {
 
             console.log(`Detected Firebase project ID: ${projectId}`);
 
+            const config = await loadConfig();
             // Map project IDs to API endpoints
             if (projectId === 'pecha-backend') {
                 console.log("Using production environment based on project ID");
-                return 'https://api-aq25662yyq-uc.a.run.app';
+                return config.PROD_API;
             } else if (projectId === 'pecha-backend-dev') {
                 console.log("Using development environment based on project ID");
-                return 'https://api-l25bgmwqoa-uc.a.run.app';
+                return config.DEV_API;
             }
         } else {
             throw new Error("Failed to fetch Firebase init file");

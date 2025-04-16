@@ -1,6 +1,6 @@
 {
-    "PROD_SERVER": "https://api-aq25662yyq-uc.a.run.app",
-    "DEV_SERVER": "https://api-l25bgmwqoa-uc.a.run.app",
+    "PROD_API": "https://api-aq25662yyq-uc.a.run.app",
+    "DEV_API": "https://api-l25bgmwqoa-uc.a.run.app",
     "CLIENT_ID": "210223691571-ul4cfmq97eoudb7b8ujg4av2u271l2gm.apps.googleusercontent.com",
     "API_KEY": "AIzaSyDO2sGIHrTBwA80-igeT60To6OIqacaqpY",
     "SCOPES": "https://www.googleapis.com/auth/drive.readonly",
