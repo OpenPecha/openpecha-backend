@@ -363,7 +363,7 @@ class LocalizedForm {
         } catch (error) {
             this.handleSpinner(this.pechaOptionsContainer, false);
             console.error("Error loading pecha options:", error);
-            this.showToast('Unable to load pecha options. Please try again later.', 'error');
+            this.showToast("Unable to load pecha options. Please try again later.", "error");
         }
     }
 
