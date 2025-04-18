@@ -57,20 +57,20 @@
             </div>
           </div>
 
-          <div class="form-group">
+          <div class="form-group hidden">
             <label for="annotation">Annotation Type</label>
             <select id="annotation" name="annotation">
               <option value="">Select Annotation Type</option>
               <option value="Commentary">Commentary</option>
               <option value="Translation">Translation</option>
-              <option value="Segmentation">Segmentation</option>
+              <option value="Segmentation" selected>Segmentation</option>
             </select>
           </div>
 
           <div class="form-group conditional-field" id="pechaField">
             <label for="pechaDropdown">Select Pecha</label>
             <div class="select-search-container">
-              <select id="pechaDropdown" name="pechaDropdown">
+              <select id="pechaDropdown" name="pechaDropdown" disabled>
                 <option value="">Select Pecha</option>
               </select>
               <div class="search-overlay">
@@ -120,5 +120,6 @@
 
     <script src="../google_drive.js"></script>
     <script src="script.js"></script>
+    <script src="../config.js"></script>
   </body>
 </html>

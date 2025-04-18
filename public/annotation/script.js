@@ -1,6 +1,5 @@
 class AnnotationForm {
     constructor() {
-        this.API_ENDPOINT = 'https://api-aq25662yyq-uc.a.run.app';
         this.form = document.getElementById('annotationForm');
         this.annotationSelect = document.getElementById('annotation');
         this.pechaSelect = document.getElementById('pecha');
@@ -21,14 +20,23 @@ class AnnotationForm {
         this.initializeSearchUI = this.initializeSearchUI.bind(this);
 
         // Initialize event listeners
-        this.setupEventListeners();
-        this.initializeForm();
-        this.initializeSearchUI();
+        this.initialize()
     }
 
+    async initialize() {
+        try {
+            this.API_ENDPOINT = await getApiEndpoint();
+            this.setupEventListeners();
+            this.initializeForm();
+            this.initializeSearchUI();
+        } catch (error) {
+            console.error('Initialization error:', error);
+            this.showToast('Failed to initialize. Please refresh the page.', 'error');
+        }
+    }
     setupEventListeners() {
         this.form.addEventListener('submit', this.handleSubmit);
-        this.pechaSelect.addEventListener('change', (e) => this.fetchMetadata(e.target.value));
+        this.pechaSelect.addEventListener('change', (e) => this.onPechaSelect(e.target.value));
         this.annotationSelect.addEventListener('change', this.handleAnnotationChange);
     }
 
@@ -149,28 +157,33 @@ class AnnotationForm {
     }
 
     async toggleConditionalFields() {
-        const isPechaCommentary = ('translation_of' in this.metadata && this.metadata.translation_of !== null) || ('commentary_of' in this.metadata && this.metadata.commentary_of !== null);
+        const isCommentaryOrTranslation = ('translation_of' in this.metadata && this.metadata.translation_of !== null) || ('commentary_of' in this.metadata && this.metadata.commentary_of !== null);
 
         const isSegmentation = this.annotationSelect?.value === 'Segmentation';
 
-        if (!isPechaCommentary || !isSegmentation) {
+        if (!isCommentaryOrTranslation || !isSegmentation) {
             this.pechaDropdown.value = "";
             this.segmentationLayer.value = "";
         }
         const fields = {
-            'pechaField': isPechaCommentary && isSegmentation,
-            'segmentationField': isSegmentation && isPechaCommentary
+            'pechaField': isCommentaryOrTranslation && isSegmentation,
+            'segmentationField': isSegmentation && isCommentaryOrTranslation
         };
 
         Object.entries(fields).forEach(([fieldId, shouldShow]) => {
             document.getElementById(fieldId).style.display = shouldShow ? 'block' : 'none';
         });
-
+        if(isCommentaryOrTranslation && isSegmentation) {
+            const pechaId = this.metadata.translation_of ?? this.metadata.commentary_of;
+            // const metadata = await this.fetchMetadata(pechaId);
+            this.pechaDropdown.value = pechaId
+        }
         // Reset validation state
         this.form.classList.remove('was-validated');
     }
 
-    async fetchMetadata(pechaId) {
+
+    async fetchMetadata(pechaId){
         try {
             // Await the fetch call to get the response
             const response = await fetch(`${this.API_ENDPOINT}/metadata/${pechaId}`, {
@@ -185,13 +198,17 @@ class AnnotationForm {
             }
 
             const metadata = await response.json();
-            this.metadata = metadata;
+            return metadata;
         } catch (error) {
             console.error('Error fetching metadata:', error);
-            throw error;
-        } finally {
-            this.toggleConditionalFields();
+            this.showToast("Unable to fetch metadata", 'error');
+            return null;
         }
+    }
+
+    async onPechaSelect(pechaId) {
+        this.metadata = await this.fetchMetadata(pechaId);
+        this.toggleConditionalFields();
     }
 
     handleAnnotationChange(event) {
@@ -223,19 +240,33 @@ class AnnotationForm {
         body.filter = filters[filterBy] || {};
 
         try {
-            const response = await fetch(`${this.API_ENDPOINT}/metadata/filter/`, {
-                method: 'POST',
-                headers: {
-                    'accept': 'application/json',
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(body)
-            });
-            if (!response.ok) {
-                throw new Error(`Failed to fetch data: ${response.statusText}`);
+            let allPechas = [];
+            let currentPage = 1;
+            let hasMorePages = true;
+            const limit = 100; // Keep the same limit per request
+            
+            // Loop until we've fetched all pages
+            while (hasMorePages) {
+                body.page = currentPage;
+                body.limit = limit;
+                
+                const response = await fetch(`${this.API_ENDPOINT}/metadata/filter/`, {
+                    method: 'POST',
+                    headers: {
+                        'accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(body)
+                });
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch data: ${response.statusText}`);
+                }
+                const pechas = await response.json();
+                allPechas = allPechas.concat(pechas.metadata);
+                hasMorePages = pechas.metadata.length === limit;
+                currentPage++;
             }
-            const pechas = await response.json();
-            return pechas;
+            return allPechas;
         } catch (error) {
             this.handleSpinner(this.pechaOptionsContainer, false);
             console.error("Error loading pecha options:", error);
@@ -253,7 +284,7 @@ class AnnotationForm {
         }
 
         pechas.forEach(pecha => {
-            const option = new Option(`${pecha.id} - ${pecha.title}`, pecha.id);
+            const option = new Option(`${pecha.id} - ${pecha.title["bo"]}`, pecha.id);
             this.pechaSelect.add(option.cloneNode(true));
             this.pechaDropdown.add(option);
         });
@@ -261,7 +292,8 @@ class AnnotationForm {
 
     async initializeForm() {
         try {
-            const pechas = await this.fetchPechaList("version_of");
+            const pechas = await this.fetchPechaList();
+            console.log("pecha:::",pechas)
             this.populatePechaDropdowns(pechas);
         } catch (error) {
             console.error('Error initializing form:', error);

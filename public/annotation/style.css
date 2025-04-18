@@ -39,6 +39,7 @@ body {
 
 .form-container {
     max-width: 800px;
+    min-width:700px;
     margin: 2rem auto;
     padding: 2rem;
     background: var(--white);
@@ -189,6 +190,9 @@ body {
     cursor: not-allowed;
 }
 
+.hidden{
+    display: none;
+}
 .error {
     border-color: var(--color-error) !important;
 }
