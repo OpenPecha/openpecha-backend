@@ -8,6 +8,7 @@ class AnnotationForm {
         this.segmentationTitle = document.getElementById('segmentationTitle');
         this.googleDocsUrl = document.getElementById('googleDocsUrl');
         this.toastContainer = document.getElementById('toastContainer');
+        this.pechaLoadingSpinner = document.getElementById('pechaLoadingSpinner');
 
         // Search-related elements
         this.searchContainers = document.querySelectorAll('.select-search-container');
@@ -18,6 +19,7 @@ class AnnotationForm {
         this.handleAnnotationChange = this.handleAnnotationChange.bind(this);
         this.initializeForm = this.initializeForm.bind(this);
         this.initializeSearchUI = this.initializeSearchUI.bind(this);
+        this.toggleLoadingSpinner = this.toggleLoadingSpinner.bind(this);
 
         // Initialize event listeners
         this.initialize()
@@ -156,6 +158,26 @@ class AnnotationForm {
         items[nextIndex].scrollIntoView({ block: 'nearest' });
     }
 
+    toggleLoadingSpinner(isLoading) {
+        if (isLoading) {
+            // Show loading spinner
+            this.pechaLoadingSpinner.classList.add('active');
+            
+            // Hide dropdown containers while loading
+            this.searchContainers.forEach(container => {
+                container.classList.add('loading');
+            });
+        } else {
+            // Hide loading spinner
+            this.pechaLoadingSpinner.classList.remove('active');
+            
+            // Show dropdown containers after loading
+            this.searchContainers.forEach(container => {
+                container.classList.remove('loading');
+            });
+        }
+    }
+
     async toggleConditionalFields() {
         const isCommentaryOrTranslation = ('translation_of' in this.metadata && this.metadata.translation_of !== null) || ('commentary_of' in this.metadata && this.metadata.commentary_of !== null);
 
@@ -240,6 +262,9 @@ class AnnotationForm {
         body.filter = filters[filterBy] || {};
 
         try {
+            // Show loading spinner
+            this.toggleLoadingSpinner(true);
+            
             let allPechas = [];
             let currentPage = 1;
             let hasMorePages = true;
@@ -266,11 +291,16 @@ class AnnotationForm {
                 hasMorePages = pechas.metadata.length === limit;
                 currentPage++;
             }
+            
+            // Hide loading spinner
+            this.toggleLoadingSpinner(false);
             return allPechas;
         } catch (error) {
-            this.handleSpinner(this.pechaOptionsContainer, false);
+            // Hide loading spinner on error
+            this.toggleLoadingSpinner(false);
             console.error("Error loading pecha options:", error);
-            alert("Unable to load pecha options. Please try again later.");
+            this.showToast("Unable to load pecha options. Please try again later.", 'error');
+            return [];
         }
     }
 
@@ -292,11 +322,17 @@ class AnnotationForm {
 
     async initializeForm() {
         try {
+            // Show loading spinner before fetching pechas
+            this.toggleLoadingSpinner(true);
             const pechas = await this.fetchPechaList();
-            console.log("pecha:::",pechas)
+            console.log("pecha:::", pechas);
             this.populatePechaDropdowns(pechas);
+            // Loading spinner is already hidden in fetchPechaList
         } catch (error) {
+            // Hide loading spinner in case of error
+            this.toggleLoadingSpinner(false);
             console.error('Error initializing form:', error);
+            this.showToast('Failed to initialize form. Please refresh the page.', 'error');
         }
     }
 

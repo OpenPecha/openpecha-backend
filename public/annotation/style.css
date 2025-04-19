@@ -300,3 +300,27 @@ body {
 .select-search-container select::-ms-expand {
     display: none;
 }
+
+/* Loading Spinner */
+.loading-spinner {
+  display: none;
+  margin-top: 8px;
+  color: #666;
+  font-size: 14px;
+  align-items: center;
+  gap: 8px;
+}
+
+.loading-spinner i {
+  color: #4a90e2;
+  font-size: 16px;
+}
+
+.loading-spinner.active {
+  display: flex;
+}
+
+/* Hide dropdown while loading */
+.select-search-container.loading {
+  display: none;
+}
