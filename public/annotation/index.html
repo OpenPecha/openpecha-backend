@@ -1,0 +1,128 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="OpenPecha Annotation Interface" />
+    <link
+      rel="shortcut icon"
+      href="../assets/favicon.ico"
+      type="image/x-icon"
+    />
+    <title>OpenPecha - Add Annotation</title>
+    <link rel="stylesheet" href="../index.css" />
+    <link rel="stylesheet" href="../navbar.css" />
+    <link rel="stylesheet" href="style.css" />
+    <link rel="stylesheet" href="../toast_style.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+    />
+  </head>
+  <body>
+    <nav class="navbar">
+      <div class="nav-container">
+        <a href="../" class="nav-logo">
+          <img src="../assets/logo.svg" alt="OpenPecha Logo" />
+          <span>OpenPecha</span>
+        </a>
+        <div class="nav-links">
+          <a href="../create/create.html" class="nav-link">Create</a>
+          <a href="../publish/publish.html" class="nav-link">Publish</a>
+          <a href="../update/" class="nav-link">Update</a>
+          <a href="../category/" class="nav-link">Category</a>
+          <a href="../annotation/" class="nav-link active">Annotation</a>
+        </div>
+      </div>
+    </nav>
+
+    <main class="container">
+      <div class="form-container">
+        <h1>Add Annotation</h1>
+        <form id="annotationForm">
+          <div class="form-group">
+            <label for="pecha">Pecha</label>
+            <div class="select-search-container">
+              <select id="pecha" name="pecha">
+                <option value="">Select Pecha</option>
+              </select>
+              <div class="search-overlay">
+                <input
+                  type="text"
+                  class="search-input"
+                  placeholder="Search pechas..."
+                />
+                <div class="search-results"></div>
+              </div>
+            </div>
+            <!-- Loading spinner for pecha dropdown -->
+            <div id="pechaLoadingSpinner" class="loading-spinner">
+              <i class="fas fa-spinner fa-spin"></i> Loading pechas...
+            </div>
+          </div>
+
+          <div class="form-group hidden">
+            <label for="annotation">Annotation Type</label>
+            <select id="annotation" name="annotation">
+              <option value="">Select Annotation Type</option>
+              <option value="Commentary">Commentary</option>
+              <option value="Translation">Translation</option>
+              <option value="Segmentation" selected>Segmentation</option>
+            </select>
+          </div>
+
+          <div class="form-group conditional-field" id="pechaField">
+            <label for="pechaDropdown">Select Pecha</label>
+            <div class="select-search-container">
+              <select id="pechaDropdown" name="pechaDropdown" disabled>
+                <option value="">Select Pecha</option>
+              </select>
+              <div class="search-overlay">
+                <input
+                  type="text"
+                  class="search-input"
+                  placeholder="Search pechas..."
+                />
+                <div class="search-results"></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="form-group conditional-field" id="segmentationField">
+            <label for="segmentationLayer">Segmentation Layer</label>
+            <select id="segmentationLayer" name="segmentationLayer">
+              <option value="">Select Layer</option>
+            </select>
+          </div>
+
+          <div class="form-group" id="titleField">
+            <label for="segmentationTitle">Segmentation Title</label>
+            <input
+              type="text"
+              id="segmentationTitle"
+              name="segmentationTitle"
+              placeholder="Enter title"
+            />
+          </div>
+
+          <div class="form-group" id="urlField">
+            <label for="googleDocsUrl">Google Docs URL</label>
+            <input
+              type="url"
+              id="googleDocsUrl"
+              name="googleDocsUrl"
+              placeholder="Enter Google Docs URL"
+            />
+          </div>
+
+          <button type="submit" class="submit-button">Add Annotation</button>
+        </form>
+      </div>
+    </main>
+
+    <div id="toastContainer"></div>
+    <script src="script.js"></script>
+    <script src="../config.js"></script>
+    <script src="../google_drive.js"></script>
+  </body>
+</html>
