@@ -3,9 +3,10 @@ class AnnotationForm {
         this.form = document.getElementById('annotationForm');
         this.annotationSelect = document.getElementById('annotation');
         this.pechaSelect = document.getElementById('pecha');
+        this.pechaDropdownLabel = document.getElementById('pechaDropdownLabel');
         this.pechaDropdown = document.getElementById('pechaDropdown');
         this.segmentationLayer = document.getElementById('segmentationLayer');
-        this.segmentationTitle = document.getElementById('segmentationTitle');
+        this.annotationTitle = document.getElementById('annotationTitle');
         this.googleDocsUrl = document.getElementById('googleDocsUrl');
         this.toastContainer = document.getElementById('toastContainer');
         this.pechaLoadingSpinner = document.getElementById('pechaLoadingSpinner');
@@ -181,25 +182,34 @@ class AnnotationForm {
     async toggleConditionalFields() {
         const isCommentaryOrTranslation = ('translation_of' in this.metadata && this.metadata.translation_of !== null) || ('commentary_of' in this.metadata && this.metadata.commentary_of !== null);
 
-        const isSegmentation = this.annotationSelect?.value === 'Segmentation';
+        const isAlignment = this.annotationSelect?.value === 'Alignment';
 
-        if (!isCommentaryOrTranslation || !isSegmentation) {
+        if (!isCommentaryOrTranslation || !isAlignment) {
             this.pechaDropdown.value = "";
             this.segmentationLayer.value = "";
         }
         const fields = {
-            'pechaField': isCommentaryOrTranslation && isSegmentation,
-            'segmentationField': isSegmentation && isCommentaryOrTranslation
+            'pechaField': isCommentaryOrTranslation && isAlignment,
+            'segmentationField': isAlignment && isCommentaryOrTranslation
         };
 
         Object.entries(fields).forEach(([fieldId, shouldShow]) => {
             document.getElementById(fieldId).style.display = shouldShow ? 'block' : 'none';
         });
-        if(isCommentaryOrTranslation && isSegmentation) {
-            const pechaId = this.metadata.translation_of ?? this.metadata.commentary_of;
-            // const metadata = await this.fetchMetadata(pechaId);
-            this.pechaDropdown.value = pechaId
+        
+        if(isCommentaryOrTranslation && isAlignment) {
+            // Set the label dynamically based on relationship type
+            if ('translation_of' in this.metadata && this.metadata.translation_of !== null) {
+                this.pechaDropdownLabel.textContent = 'Translation of';
+                const pechaId = this.metadata.translation_of;
+                this.pechaDropdown.value = pechaId;
+            } else if ('commentary_of' in this.metadata && this.metadata.commentary_of !== null) {
+                this.pechaDropdownLabel.textContent = 'Commentary of';
+                const pechaId = this.metadata.commentary_of;
+                this.pechaDropdown.value = pechaId;
+            }
         }
+        
         // Reset validation state
         this.form.classList.remove('was-validated');
     }
@@ -337,49 +347,39 @@ class AnnotationForm {
     }
 
     getFormData() {
+        // Create FormData from the form (this won't include disabled fields)
         const formData = new FormData(this.form);
-        return Object.fromEntries(formData.entries());
+        const data = Object.fromEntries(formData.entries());
+        
+        // Manually add values from disabled fields
+        const disabledFields = this.form.querySelectorAll('input:disabled, select:disabled, textarea:disabled');
+        disabledFields.forEach(field => {
+            if (field.name && field.value) {
+                data[field.name] = field.value;
+            }
+        });
+
+        // Format the data according to the required structure
+        const formattedData = {
+            pecha: data.pecha,
+            annotation_type: data.annotation_type,
+            annotation_title: data.annotation_title,
+            google_docs_id: this.extractGoogleDocsId(data.google_docs_id)
+        };
+
+        // Handle pecha_aligned_to based on whether it's a root pecha or not
+        formattedData.pecha_aligned_to = data.pechaDropdown ? {
+                pecha_id: data.pechaDropdown,
+                alignment_annotation: data.segmentationLayer || null
+            } : null;
+
+        return formattedData;
     }
 
-    resetForm() {
-        this.form.reset();
-        this.toggleConditionalFields('');
-    }
-
-    validateForm(data) {
-        if (!data.pecha) {
-            this.highlightError(this.pechaSelect);
-            this.showToast('Pecha is required', 'error');
-            return false;
-        }
-        if (!data.annotation) {
-            this.highlightError(this.annotationSelect);
-            this.showToast('Annotation is required', 'error');
-            return false;
-        }
-        if (!data.pechaDropdown) {
-            this.highlightError(this.pechaDropdown);
-            this.showToast('Pecha is required', 'error');
-            return false;
-        }
-        // if (!data.segmentationLayer) {
-        //     this.highlightError(this.segmentationLayer);
-        //     this.showToast('Segmentation Layer is required', 'error');
-        //     return false;
-        // }
-
-        if (!data.segmentationTitle) {
-            this.highlightError(this.segmentationTitle);
-            this.showToast('Segmentation Title is required', 'error');
-            return false;
-        }
-
-        if (!data.googleDocsUrl) {
-            this.highlightError(this.googleDocsUrl);
-            this.showToast('Google Docs URL is required', 'error');
-            return false;
-        }
-        return true;
+    extractGoogleDocsId(url) {
+        // Extract Google Docs ID from URL
+        const match = url.match(/\/d\/([^\/]+)/);
+        return match && match[1] ? match[1] : url;
     }
 
     async submitAnnotation(data) {
@@ -443,6 +443,38 @@ class AnnotationForm {
     highlightError(field) {
         field.classList.add('error');
     }
+
+    validateForm(data) {
+        if (!data.pecha) {
+            this.highlightError(this.pechaSelect);
+            this.showToast('Pecha is required', 'error');
+            return false;
+        }
+        // if (!data.annotation_type) {
+        //     this.highlightError(this.annotationSelect);
+        //     this.showToast('Annotation Type is required', 'error');
+        //     return false;
+        // }
+
+        if (!data.annotation_title) {
+            this.highlightError(this.annotationTitle);
+            this.showToast('Annotation Title is required', 'error');
+            return false;
+        }
+
+        if (!data.google_docs_id) {
+            this.highlightError(this.googleDocsUrl);
+            this.showToast('Google Docs URL is required', 'error');
+            return false;
+        }
+        return true;
+    }
+
+    resetForm() {
+        this.form.reset();
+        this.toggleConditionalFields('');
+    }
+
 }
 
 // Initialize the form when the DOM is loaded

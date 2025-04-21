@@ -131,10 +131,10 @@ body {
     font-weight: 500;
 }
 
-.form-group label::after {
+/* .form-group label::after {
     content: " *";
     color: var(--color-error);
-}
+} */
 
 .form-group input {
     width: 100%;
