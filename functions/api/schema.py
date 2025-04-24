@@ -29,7 +29,11 @@ def get_filter_schema():
 
 @schema_bp.route("/annotation", methods=["GET"])
 def get_annotation_schema():
-    return jsonify(AnnotationModel.model_json_schema()), 200
+    try:
+        schema = AnnotationModel.model_json_schema()
+        return jsonify(schema), 200
+    except Exception as e:
+        return jsonify({"error": f"Error generating annotation schema: {str(e)}"}), 500
 
 
 @schema_bp.route("/openapi", methods=["GET"])
