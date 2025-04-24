@@ -45,6 +45,8 @@ def post_annotation():
 
     annotation = AnnotationModel.model_validate(json.loads(annotation_data))
 
+    logger.info("Parsed annotation: %s", annotation.model_dump_json())
+
     if duplicate_key := get_duplicate_key(annotation.document_id):
         raise DataConflict(f"Document '{annotation.document_id}' already used to annotate: {duplicate_key}")
 
