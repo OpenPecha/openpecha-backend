@@ -10,6 +10,7 @@ class AnnotationForm {
         this.googleDocsUrl = document.getElementById('googleDocsUrl');
         this.toastContainer = document.getElementById('toastContainer');
         this.pechaLoadingSpinner = document.getElementById('pechaLoadingSpinner');
+        this.formLoadingSpinner = document.getElementById('formLoadingSpinner');
 
         // Search-related elements
         this.searchContainers = document.querySelectorAll('.select-search-container');
@@ -182,7 +183,7 @@ class AnnotationForm {
     async toggleConditionalFields() {
         const isCommentaryOrTranslation = ('translation_of' in this.metadata && this.metadata.translation_of !== null) || ('commentary_of' in this.metadata && this.metadata.commentary_of !== null);
 
-        const isAlignment = this.annotationSelect?.value === 'Alignment';
+        const isAlignment = this.annotationSelect?.value === 'alignment';
 
         if (!isCommentaryOrTranslation || !isAlignment) {
             this.pechaDropdown.value = "";
@@ -230,6 +231,7 @@ class AnnotationForm {
             }
 
             const metadata = await response.json();
+            console.log("meta ",metadata)
             return metadata;
         } catch (error) {
             console.error('Error fetching metadata:', error);
@@ -382,13 +384,10 @@ class AnnotationForm {
         return match && match[1] ? match[1] : url;
     }
 
-    async submitAnnotation(data) {
+    async submitAnnotation(formData) {
         const response = await fetch(`${this.API_ENDPOINT}/annotation/`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(data)
+            body: formData
         });
 
         if (!response.ok) {
@@ -400,22 +399,50 @@ class AnnotationForm {
 
     async handleSubmit(event) {
         event.preventDefault();
-
+        // Disable submit button and show spinner inside
+        const submitBtn = document.getElementById('submitAnnotationBtn');
+        const btnText = submitBtn?.querySelector('.btn-text');
+        const btnSpinner = submitBtn?.querySelector('.btn-spinner');
+        if (submitBtn) submitBtn.disabled = true;
+        if (btnText) btnText.style.display = 'none';
+        if (btnSpinner) btnSpinner.style.display = 'inline-block';
         try {
             const data = this.getFormData();
             console.log("data ::: ", data)
             const isValid = this.validateForm(data);
             if (!isValid) {
+                if (submitBtn) submitBtn.disabled = false;
+                if (btnText) btnText.style.display = '';
+                if (btnSpinner) btnSpinner.style.display = 'none';
                 return;
             }
-            await this.submitAnnotation(data);
+            // Fetch document and prepare form data concurrently
+            const blob = await downloadDoc(data.document_id).catch(err => {
+                throw new Error(`Download failed: ${err.message}`);
+            });
+
+            const formData = await this.prepareFormData(blob, data);
+            const response = await this.submitAnnotation(formData);
+            console.log("response:::", response);
 
             this.showToast('Annotation added successfully!', 'success');
             this.resetForm();
         } catch (error) {
             this.showToast(error.message, 'error');
-            console.error('Error submitting form:', error);
+            console.error('Error adding annotation:', error);
+        } finally {
+            if (submitBtn) submitBtn.disabled = false;
+            if (btnText) btnText.style.display = '';
+            if (btnSpinner) btnSpinner.style.display = 'none';
         }
+    }
+
+    // Helper methods to publish
+    async prepareFormData(blob, annotation) {
+        const formData = new FormData();
+        formData.append("document", blob, `document_${annotation.document_id}.docx`);
+        formData.append("annotation", JSON.stringify(annotation));
+        return formData;
     }
 
     showToast(message, type = 'info') {
@@ -452,7 +479,7 @@ class AnnotationForm {
         }
         const isCommentaryOrTranslation = ('translation_of' in this.metadata && this.metadata.translation_of !== null) || ('commentary_of' in this.metadata && this.metadata.commentary_of !== null);
 
-        const isAlignment = this.annotationSelect?.value === 'Alignment';
+        const isAlignment = this.annotationSelect?.value === 'alignment';
 
         if (isCommentaryOrTranslation && isAlignment) {
             if (!data.aligned_to.alignment_annotation) {
