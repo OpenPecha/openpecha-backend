@@ -65,21 +65,9 @@ class MetadataModel(BaseModel):
         description="Dictionary with language codes as keys and corresponding strings as values",
     )
     alt_titles: Sequence[LocalizedString] | None = Field(None, min_length=1)
-    commentary_of: str | None = Field(
-        None,
-        description="ID pattern that starts with 'I' followed by 8 uppercase hex characters",
-        pattern="^I[A-F0-9]{8}$",
-    )
-    version_of: str | None = Field(
-        None,
-        description="ID pattern that starts with 'I' followed by 8 uppercase hex characters",
-        pattern="^I[A-F0-9]{8}$",
-    )
-    translation_of: str | None = Field(
-        None,
-        description="ID pattern that starts with 'I' followed by 8 uppercase hex characters",
-        pattern="^I[A-F0-9]{8}$",
-    )
+    commentary_of: PechaId | None
+    version_of: PechaId | None
+    translation_of: PechaId | None
     language: str = Field(..., pattern="^[a-z]{2}(-[A-Z]{2})?$")
     category: str | None = Field(
         None,

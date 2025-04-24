@@ -6,6 +6,7 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import Any
 
+from annotation_model import AnnotationModel
 from exceptions import DataNotFound
 from firebase_admin import firestore
 from google.cloud.firestore_v1.base_query import FieldFilter, Or
@@ -227,8 +228,14 @@ def process_pecha(text: FileStorage, metadata: dict[str, Any], pecha_id: str | N
     Raises:
         - Exception if an error occurs during processing.
     """
-    pecha = parse(docx_file=text, pecha_id=pecha_id, metadata=metadata)
+    pecha, annotation_id = parse(docx_file=text, pecha_id=pecha_id, metadata=metadata)
     logger.info("Pecha created: %s %s", pecha.id, pecha.pecha_path)
+
+    annotation = AnnotationModel(
+        pecha_id=pecha.id,
+        document_id=text.filename,
+        title="Default display",
+    )
 
     storage = Storage()
 
@@ -242,11 +249,15 @@ def process_pecha(text: FileStorage, metadata: dict[str, Any], pecha_id: str | N
     try:
         with db.transaction() as transaction:
             doc_ref_metadata = db.collection("metadata").document(pecha.id)
-            # doc_ref_alignment = db.collection("alignment").document(pecha.id)
+            doc_ref_annotation = db.collection("annotation").document(annotation_id)
 
-            logger.info("Saving metadata to DB: %s", json.dumps(metadata, ensure_ascii=False))
+            logger.info("Saving metadata and annotation to DB: %s", json.dumps(metadata, ensure_ascii=False))
+
             transaction.set(doc_ref_metadata, metadata)
             logger.info("Metadata saved to DB: %s", pecha.id)
+
+            transaction.set(doc_ref_annotation, annotation.model_dump())
+            logger.info("Annotation saved to DB: %s", annotation_id)
     except Exception as e:
         logger.error("Error saving to DB: %s", e)
         try:
