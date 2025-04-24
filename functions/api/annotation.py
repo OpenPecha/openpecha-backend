@@ -1,5 +1,5 @@
-import logging
 import json
+import logging
 
 from annotation_model import AnnotationModel
 from exceptions import DataConflict, InvalidRequest

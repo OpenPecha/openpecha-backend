@@ -12,7 +12,6 @@ class AnnotationModel(BaseModel):
     pecha_id: PechaId
     type: LayerEnum = Field(default=LayerEnum.segmentation, description="Type of the annotation")
     document_id: str = Field(..., pattern="\\S")
-    id: str = Field(..., pattern="\\S")
     title: str = Field(..., min_length=1)
     aligned_to: PechaAlignment | None = Field(None, description="Alignment descriptor")
 
@@ -23,7 +22,6 @@ class AnnotationModel(BaseModel):
                 "pecha_id": "I857977C3",
                 "type": "alignment",
                 "document_id": "1vgnfCQH3yaWPDaMDFXT_5GhlG0M9kEra0mxkDX46VLE",
-                "id": "test_id",
                 "title": "Test Alignment",
                 "aligned_to": {"pecha_id": "I857977C3", "alignment_id": "test_alignment_id"},
             }
