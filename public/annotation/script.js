@@ -361,14 +361,14 @@ class AnnotationForm {
 
         // Format the data according to the required structure
         const formattedData = {
-            pecha: data.pecha,
-            annotation_type: data.annotation_type,
-            annotation_title: data.annotation_title,
-            google_docs_id: this.extractGoogleDocsId(data.google_docs_id)
+            pecha_id: data.pecha,
+            type: data.annotation_type,
+            title: data.annotation_title,
+            document_id: this.extractGoogleDocsId(data.google_docs_id)
         };
 
         // Handle pecha_aligned_to based on whether it's a root pecha or not
-        formattedData.pecha_aligned_to = data.pechaDropdown ? {
+        formattedData.aligned_to = data.pechaDropdown ? {
                 pecha_id: data.pechaDropdown,
                 alignment_annotation: data.segmentationLayer || null
             } : null;
@@ -445,28 +445,35 @@ class AnnotationForm {
     }
 
     validateForm(data) {
-        if (!data.pecha) {
+        if (!data.pecha_id) {
             this.highlightError(this.pechaSelect);
             this.showToast('Pecha is required', 'error');
             return false;
         }
-        // if (!data.annotation_type) {
-        //     this.highlightError(this.annotationSelect);
-        //     this.showToast('Annotation Type is required', 'error');
-        //     return false;
-        // }
+        const isCommentaryOrTranslation = ('translation_of' in this.metadata && this.metadata.translation_of !== null) || ('commentary_of' in this.metadata && this.metadata.commentary_of !== null);
 
-        if (!data.annotation_title) {
+        const isAlignment = this.annotationSelect?.value === 'Alignment';
+
+        if (isCommentaryOrTranslation && isAlignment) {
+            if (!data.aligned_to.alignment_annotation) {
+                this.highlightError(this.segmentationLayer);
+                this.showToast('Alignment annotation is required', 'error');
+                return false;
+            }
+        }
+        
+        if (!data.title) {
             this.highlightError(this.annotationTitle);
             this.showToast('Annotation Title is required', 'error');
             return false;
         }
 
-        if (!data.google_docs_id) {
+        if (!data.document_id) {
             this.highlightError(this.googleDocsUrl);
             this.showToast('Google Docs URL is required', 'error');
             return false;
         }
+
         return true;
     }
 
