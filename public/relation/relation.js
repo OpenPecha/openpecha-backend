@@ -1,0 +1,583 @@
+class PechaRelationship {
+    constructor() {
+        // Initialize elements
+        this.elements = {
+            pechaSelect: document.getElementById('pecha-select'),
+            selectSpinner: document.getElementById('select-spinner'),
+            loadingContainer: document.getElementById('loading-container'),
+            noDataMessage: document.getElementById('no-data-message'),
+            graphContainer: document.getElementById('graph-container'),
+            resetZoomButton: document.getElementById('reset-zoom'),
+            zoomInButton: document.getElementById('zoom-in'),
+            zoomOutButton: document.getElementById('zoom-out'),
+            toastContainer: document.getElementById('toastContainer')
+        };
+
+        // Initialize state
+        this.state = {
+            selectedPecha: null,
+            relationshipData: null,
+            isLoading: false,
+            graph: null,
+            simulation: null,
+            svg: null,
+            zoom: null,
+            currentZoom: null,
+            width: 0,
+            height: 0
+        };
+
+        // D3 color scale for relationship types
+        this.relationshipColors = {
+            'version_of': getComputedStyle(document.documentElement).getPropertyValue('--version-color').trim(),
+            'commentary_of': getComputedStyle(document.documentElement).getPropertyValue('--commentary-color').trim(),
+            'translation_of': getComputedStyle(document.documentElement).getPropertyValue('--translation-color').trim(),
+            'selected': getComputedStyle(document.documentElement).getPropertyValue('--selected-color').trim()
+        };
+
+        // Initialize the application
+        this.init();
+    }
+
+    // Toast notification methods
+    showToast(message, type = 'info') {
+        this.clearToasts();
+
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.innerHTML = `${this.getToastIcon(type)} ${message}`;
+
+        this.elements.toastContainer.appendChild(toast);
+        setTimeout(() => toast.remove(), 3000);
+    }
+
+    getToastIcon(type) {
+        switch (type) {
+            case 'success':
+                return '<i class="fas fa-check-circle"></i>';
+            case 'error':
+                return '<i class="fas fa-exclamation-circle"></i>';
+            default:
+                return '<i class="fas fa-info-circle"></i>';
+        }
+    }
+
+    clearToasts() {
+        this.elements.toastContainer.innerHTML = '';
+    }
+
+    // Toggle loading spinner
+    toggleLoadingSpinner(show) {
+        this.elements.selectSpinner.style.display = show ? 'block' : 'none';
+    }
+
+    // Toggle main loading container
+    toggleLoading(show) {
+        this.elements.loadingContainer.style.display = show ? 'flex' : 'none';
+        this.state.isLoading = show;
+    }
+
+    // Toggle no data message
+    toggleNoDataMessage(show) {
+        this.elements.noDataMessage.style.display = show ? 'flex' : 'none';
+    }
+
+    // Fetch all pechas for the dropdown
+    async fetchPechaList() {
+        this.toggleLoadingSpinner(true);
+        
+        let body = {};
+
+        try {
+            let allPechas = [];
+            let currentPage = 1;
+            let hasMorePages = true;
+            const limit = 100; // Keep the same limit per request
+            
+            // Loop until we've fetched all pages
+            while (hasMorePages) {
+                body.page = currentPage;
+                body.limit = limit;
+                
+                const response = await fetch(`${this.API_ENDPOINT}/metadata/filter/`, {
+                    method: 'POST',
+                    headers: {
+                        'accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(body)
+                });
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch data: ${response.statusText}`);
+                }
+                const pechas = await response.json();
+                allPechas = allPechas.concat(pechas.metadata);
+                hasMorePages = pechas.metadata.length === limit;
+                currentPage++;
+            }
+            
+            // Hide loading spinner
+            this.toggleLoadingSpinner(false);
+            return allPechas;
+        } catch (error) {
+            // Hide loading spinner on error
+            this.toggleLoadingSpinner(false);
+            console.error("Error loading pecha options:", error);
+            this.showToast("Unable to load pecha options. Please try again later.", 'error');
+            return [];
+        }
+    }
+
+    // Populate the pecha select dropdown
+    populatePechaSelect(pechas) {
+        // Clear existing options except the default one
+        while (this.elements.pechaSelect.options.length > 1) {
+            this.elements.pechaSelect.remove(1);
+        }
+
+        // Sort pechas by ID
+        pechas.sort((a, b) => a.id.localeCompare(b.id));
+
+        // Add new options
+        pechas.forEach(pecha => {
+            const option = document.createElement('option');
+            option.value = pecha.id;
+            
+            // Get title in any available language
+            let title = this.getTitle(pecha);
+            option.textContent = `${pecha.id} - ${title}`;
+            
+            this.elements.pechaSelect.appendChild(option);
+        });
+    }
+
+    // Helper to get title in any available language
+    getTitle(pecha) {
+        if (!pecha.title) return 'Untitled';
+        
+        // Try to get English title first
+        if (pecha.title.en) return pecha.title.en;
+        
+        // Otherwise get the first available title
+        const lang = Object.keys(pecha.title)[0];
+        return pecha.title[lang] || 'Untitled';
+    }
+
+    // Fetch relationship data for a specific pecha
+    async fetchRelationshipData(pechaId) {
+        this.toggleLoading(true);
+        this.toggleNoDataMessage(false);
+        
+        try {
+            const response = await fetch(`${this.API_ENDPOINT}/metadata/${pechaId}/related?traversal=full_tree`, {
+                method: 'GET',
+                headers: {
+                    'accept': 'application/json'
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`Failed to fetch relationship data: ${response.statusText}`);
+            }
+            
+            const data = await response.json();
+            console.log("Relationship data:", data);
+            
+            this.toggleLoading(false);
+            
+            // Check if data is empty or has no relationships
+            if (!data || Object.keys(data).length === 0) {
+                this.toggleNoDataMessage(true);
+                return null;
+            }
+            
+            return this.processRelationshipData(data, pechaId);
+        } catch (error) {
+            console.error("Error fetching relationship data:", error);
+            this.showToast("Unable to load relationship data. Please try again later.", 'error');
+            this.toggleLoading(false);
+            this.toggleNoDataMessage(true);
+            return null;
+        }
+    }
+
+    // Process the API response into a format suitable for D3 visualization
+    processRelationshipData(data, selectedPechaId) {
+        // Create nodes and links arrays for D3
+        const nodes = [];
+        const links = [];
+        const nodeMap = new Map(); // To track nodes we've already added
+
+        // Add the selected pecha as the central node
+        const selectedNode = {
+            id: selectedPechaId,
+            name: selectedPechaId,
+            title: data[selectedPechaId]?.title || {},
+            group: 'selected',
+            isSelected: true
+        };
+        
+        nodes.push(selectedNode);
+        nodeMap.set(selectedPechaId, selectedNode); // Store the node object itself, not the index
+
+        // Process each pecha in the data
+        Object.entries(data).forEach(([pechaId, pechaData]) => {
+            // Skip if this is the selected pecha (already added)
+            if (pechaId === selectedPechaId) return;
+
+            // Add this pecha as a node if not already added
+            if (!nodeMap.has(pechaId)) {
+                const node = {
+                    id: pechaId,
+                    name: pechaId,
+                    title: pechaData.title || {},
+                    group: 'related'
+                };
+                nodes.push(node);
+                nodeMap.set(pechaId, node); // Store the node object itself, not the index
+            }
+
+            // Process relationships
+            const relationships = ['version_of', 'commentary_of', 'translation_of'];
+            relationships.forEach(relType => {
+                if (pechaData[relType]) {
+                    // Get the related pecha ID
+                    const relatedId = pechaData[relType];
+                    
+                    // Add the related pecha as a node if not already added
+                    if (!nodeMap.has(relatedId)) {
+                        const node = {
+                            id: relatedId,
+                            name: relatedId,
+                            title: data[relatedId]?.title || {},
+                            group: 'related'
+                        };
+                        nodes.push(node);
+                        nodeMap.set(relatedId, node); // Store the node object itself, not the index
+                    }
+                    
+                    // Add a link between this pecha and the related pecha
+                    links.push({
+                        source: nodeMap.get(pechaId),
+                        target: nodeMap.get(relatedId),
+                        type: relType
+                    });
+                }
+            });
+
+            // Add a link between the selected pecha and this pecha if directly related
+            if (data[selectedPechaId]) {
+                relationships.forEach(relType => {
+                    if (data[selectedPechaId][relType] === pechaId) {
+                        links.push({
+                            source: nodeMap.get(selectedPechaId),
+                            target: nodeMap.get(pechaId),
+                            type: relType
+                        });
+                    }
+                });
+            }
+        });
+
+        // Make sure all referenced nodes in links exist
+        const validLinks = links.filter(link => 
+            link.source && link.target && 
+            typeof link.source === 'object' && typeof link.target === 'object'
+        );
+
+        return { nodes, links: validLinks };
+    }
+
+    // Initialize the D3 graph visualization
+    initializeGraph() {
+        // Clear any existing graph
+        d3.select(this.elements.graphContainer).selectAll('*').remove();
+        
+        // Get container dimensions
+        const containerRect = this.elements.graphContainer.getBoundingClientRect();
+        this.state.width = containerRect.width;
+        this.state.height = containerRect.height;
+        
+        // Create SVG element
+        const svg = d3.select(this.elements.graphContainer)
+            .append('svg')
+            .attr('width', this.state.width)
+            .attr('height', this.state.height);
+            
+        // Create a group for the graph that will be transformed by zoom
+        const g = svg.append('g');
+        
+        // Initialize zoom behavior
+        this.state.zoom = d3.zoom()
+            .scaleExtent([0.1, 4])
+            .on('zoom', (event) => {
+                g.attr('transform', event.transform);
+                this.state.currentZoom = event.transform;
+            });
+            
+        // Apply zoom behavior to the SVG
+        svg.call(this.state.zoom);
+        
+        // Create tooltip div
+        const tooltip = d3.select('body')
+            .append('div')
+            .attr('class', 'node-tooltip')
+            .style('opacity', 0);
+            
+        // Store references
+        this.state.svg = svg;
+        this.state.g = g;
+        this.state.tooltip = tooltip;
+        
+        // Initial zoom to fit
+        this.resetZoom();
+        
+        return { svg, g, tooltip };
+    }
+
+    // Render the graph with the provided data
+    renderGraph(data) {
+        if (!data) return;
+        
+        const { svg, g, tooltip } = this.initializeGraph();
+        
+        // Create force simulation
+        const simulation = d3.forceSimulation(data.nodes)
+            .force('link', d3.forceLink(data.links).id(d => d.id).distance(100))
+            .force('charge', d3.forceManyBody().strength(-300))
+            .force('center', d3.forceCenter(this.state.width / 2, this.state.height / 2))
+            .force('collision', d3.forceCollide().radius(60));
+            
+        // Create links
+        const link = g.append('g')
+            .attr('class', 'links')
+            .selectAll('line')
+            .data(data.links)
+            .enter().append('line')
+            .attr('class', d => `link link-${d.type}`)
+            .attr('stroke-width', 2);
+            
+        // Create nodes
+        const node = g.append('g')
+            .attr('class', 'nodes')
+            .selectAll('.node')
+            .data(data.nodes)
+            .enter().append('g')
+            .attr('class', 'node')
+            .call(d3.drag()
+                .on('start', this.dragstarted.bind(this, simulation))
+                .on('drag', this.dragged.bind(this))
+                .on('end', this.dragended.bind(this, simulation)));
+                
+        // Add circles to nodes
+        node.append('circle')
+            .attr('r', d => d.isSelected ? 20 : 15)
+            .attr('fill', d => d.isSelected ? this.relationshipColors.selected : this.getNodeColor(d, data.links))
+            .attr('stroke', 'white')
+            .attr('stroke-width', 2);
+            
+        // Add text labels to nodes
+        node.append('text')
+            .attr('dy', 30)
+            .text(d => d.name)
+            .attr('text-anchor', 'middle');
+            
+        // Add hover effects and tooltip
+        node.on('mouseover', (event, d) => {
+                tooltip.transition()
+                    .duration(200)
+                    .style('opacity', .9);
+                    
+                // Get title in any available language
+                let title = '';
+                if (d.title) {
+                    if (d.title.en) title = d.title.en;
+                    else if (Object.keys(d.title).length > 0) {
+                        const lang = Object.keys(d.title)[0];
+                        title = d.title[lang];
+                    }
+                }
+                
+                const tooltipContent = `
+                    <strong>ID:</strong> ${d.id}<br>
+                    <strong>Title:</strong> ${title || 'Untitled'}
+                `;
+                
+                tooltip.html(tooltipContent)
+                    .style('left', (event.pageX + 10) + 'px')
+                    .style('top', (event.pageY - 28) + 'px');
+            })
+            .on('mouseout', () => {
+                tooltip.transition()
+                    .duration(500)
+                    .style('opacity', 0);
+            });
+            
+        // Update positions on each tick of the simulation
+        simulation.on('tick', () => {
+            link
+                .attr('x1', d => d.source.x)
+                .attr('y1', d => d.source.y)
+                .attr('x2', d => d.target.x)
+                .attr('y2', d => d.target.y);
+                
+            node
+                .attr('transform', d => `translate(${d.x},${d.y})`);
+        });
+        
+        // Store simulation reference
+        this.state.simulation = simulation;
+    }
+
+    // Determine node color based on its relationships
+    getNodeColor(node, links) {
+        // Default color
+        let color = '#aaa';
+        
+        // Check if this node has any relationships
+        const nodeLinks = links.filter(link => 
+            link.source.id === node.id || link.target.id === node.id
+        );
+        
+        if (nodeLinks.length > 0) {
+            // Use the color of the first relationship type found
+            const firstLink = nodeLinks[0];
+            color = this.relationshipColors[firstLink.type] || color;
+        }
+        
+        return color;
+    }
+
+    // Handle node dragging events
+    dragstarted(simulation, event, d) {
+        if (!event.active) simulation.alphaTarget(0.3).restart();
+        d.fx = d.x;
+        d.fy = d.y;
+    }
+
+    dragged(event, d) {
+        d.fx = event.x;
+        d.fy = event.y;
+    }
+
+    dragended(simulation, event, d) {
+        if (!event.active) simulation.alphaTarget(0);
+        d.fx = null;
+        d.fy = null;
+    }
+
+    // Reset zoom to fit the graph
+    resetZoom() {
+        if (!this.state.svg || !this.state.g) return;
+        
+        const svg = this.state.svg;
+        const g = this.state.g;
+        
+        // Reset the transform
+        svg.transition().duration(750).call(
+            this.state.zoom.transform,
+            d3.zoomIdentity.translate(this.state.width / 2, this.state.height / 2).scale(0.8)
+        );
+    }
+
+    // Zoom in
+    zoomIn() {
+        if (!this.state.svg) return;
+        
+        this.state.svg.transition().duration(300).call(
+            this.state.zoom.scaleBy,
+            1.2
+        );
+    }
+
+    // Zoom out
+    zoomOut() {
+        if (!this.state.svg) return;
+        
+        this.state.svg.transition().duration(300).call(
+            this.state.zoom.scaleBy,
+            0.8
+        );
+    }
+
+    // Handle pecha selection change
+    async handlePechaChange() {
+        const selectedPechaId = this.elements.pechaSelect.value;
+        
+        if (!selectedPechaId) {
+            // Clear the graph if no pecha is selected
+            d3.select(this.elements.graphContainer).selectAll('*').remove();
+            this.toggleNoDataMessage(false);
+            return;
+        }
+        
+        this.state.selectedPecha = selectedPechaId;
+        
+        // Fetch and render relationship data
+        const relationshipData = await this.fetchRelationshipData(selectedPechaId);
+        this.state.relationshipData = relationshipData;
+        
+        if (relationshipData) {
+            this.renderGraph(relationshipData);
+        }
+    }
+
+    // Setup event listeners
+    setupEventListeners() {
+        // Pecha select change
+        this.elements.pechaSelect.addEventListener('change', () => this.handlePechaChange());
+        
+        // Reset zoom button
+        this.elements.resetZoomButton.addEventListener('click', () => this.resetZoom());
+        
+        // Zoom buttons
+        this.elements.zoomInButton.addEventListener('click', () => this.zoomIn());
+        this.elements.zoomOutButton.addEventListener('click', () => this.zoomOut());
+        
+        // Handle window resize
+        window.addEventListener('resize', this.debounce(() => {
+            if (this.state.relationshipData) {
+                this.renderGraph(this.state.relationshipData);
+            }
+        }, 250));
+    }
+
+    // Debounce function for resize handling
+    debounce(func, wait) {
+        let timeout;
+        return function() {
+            const context = this;
+            const args = arguments;
+            clearTimeout(timeout);
+            timeout = setTimeout(() => func.apply(context, args), wait);
+        };
+    }
+
+    // Initialize the application
+    async init() {
+        try {
+            // Load API endpoint from config
+            this.API_ENDPOINT = await getApiEndpoint();
+            
+            // Fetch pecha list and populate dropdown
+            const pechas = await this.fetchPechaList();
+            this.populatePechaSelect(pechas);
+            
+            // Setup event listeners
+            this.setupEventListeners();
+            
+            // Hide loading spinner
+            this.toggleLoading(false);
+            
+        } catch (error) {
+            console.error("Error initializing application:", error);
+            this.showToast("Failed to initialize application. Please refresh the page.", 'error');
+            this.toggleLoading(false);
+        }
+    }
+}
+
+// Initialize the application when the DOM is loaded
+document.addEventListener('DOMContentLoaded', () => {
+    new PechaRelationship();
+});

@@ -1,0 +1,107 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="OpenPecha Pecha Relationship Visualization" />
+    <link rel="shortcut icon" href="../assets/favicon.ico" type="image/x-icon">
+    <title>OpenPecha - Pecha Relationships</title>
+    <link rel="stylesheet" href="../index.css" />
+    <link rel="stylesheet" href="../navbar.css" />
+    <link rel="stylesheet" href="./relation.css" />
+    <link rel="stylesheet" href="../toast_style.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- D3.js for graph visualization -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+</head>
+<body>
+    <main class="container">
+        <!-- Navbar -->
+        <nav class="navbar">
+            <div class="nav-container">
+                <a href="../index.html" class="nav-logo">
+                    <img src="../assets/logo.svg" alt="OpenPecha Logo" />
+                    <span>OpenPecha</span>
+                </a>
+                <div class="nav-links">
+                    <a href="../create/create.html" class="nav-link">Create</a>
+                    <a href="../publish/publish.html" class="nav-link">Publish</a>
+                    <a href="../update/" class="nav-link">Update</a>
+                    <a href="../category/" class="nav-link">Category</a>
+                    <a href="../annotation/" class="nav-link">Annotation</a>
+                    <a href="../pechas/" class="nav-link">Pechas</a>
+                    <a href="./index.html" class="nav-link active">Relationships</a>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <section class="relation-container">
+            <div class="selection-panel">
+                <h2>Pecha Relationship Visualization</h2>
+                <p>Select a pecha to visualize its relationships with other texts</p>
+                
+                <div class="pecha-select-container">
+                    <label for="pecha-select">Select Pecha:</label>
+                    <div class="select-wrapper">
+                        <select id="pecha-select" class="pecha-select">
+                            <option value="">Select a pecha...</option>
+                            <!-- Pechas will be loaded dynamically -->
+                        </select>
+                        <div class="loading-spinner" id="select-spinner" style="display: none;"></div>
+                    </div>
+                </div>
+
+                <div class="legend">
+                    <h3>Relationship Types</h3>
+                    <div class="legend-item">
+                        <span class="legend-color version"></span>
+                        <span>Version</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-color commentary"></span>
+                        <span>Commentary</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-color translation"></span>
+                        <span>Translation</span>
+                    </div>
+                    <div class="legend-item">
+                        <span class="legend-color selected"></span>
+                        <span>Selected Pecha</span>
+                    </div>
+                </div>
+
+                <div class="controls">
+                    <button id="reset-zoom" class="action-button">Reset View</button>
+                    <div class="zoom-controls">
+                        <button id="zoom-in" class="zoom-button">+</button>
+                        <button id="zoom-out" class="zoom-button">-</button>
+                    </div>
+                </div>
+            </div>
+
+            <div class="visualization-panel">
+                <div id="loading-container" class="loading-container">
+                    <div class="loading-spinner"></div>
+                    <p>Loading relationship data...</p>
+                </div>
+                <div id="no-data-message" class="no-data-message" style="display: none;">
+                    <p>No relationship data found for the selected pecha.</p>
+                </div>
+                <div id="graph-container" class="graph-container">
+                    <!-- D3.js graph will be rendered here -->
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Toast for notifications -->
+    <div id="toastContainer" role="alert" aria-live="polite"></div>
+
+    <script src="../config.js"></script>
+    <script src="./relation.js"></script>
+</body>
+</html>
