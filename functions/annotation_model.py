@@ -19,6 +19,7 @@ class AnnotationModel(BaseModel):
     document_id: str = Field(..., pattern="\\S")
     title: str = Field(..., min_length=1)
     aligned_to: PechaAlignment | None = Field(None, description="Alignment descriptor")
+    path: str = Field(..., pattern="\\S")
 
     model_config = ConfigDict(
         extra="forbid",

@@ -228,9 +228,9 @@ def process_pecha(text: FileStorage, metadata: dict[str, Any], pecha_id: str | N
     Raises:
         - Exception if an error occurs during processing.
     """
-    pecha, annotation_id = parse(docx_file=text, pecha_id=pecha_id, metadata=metadata)
+    pecha, annotation_path = parse(docx_file=text, pecha_id=pecha_id, metadata=metadata)
     logger.info("Pecha created: %s %s", pecha.id, pecha.pecha_path)
-    logger.info("Annotation ID: %s", annotation_id)
+    logger.info("Annotation path: %s", annotation_path)
 
     annotation = AnnotationModel(
         pecha_id=pecha.id,
@@ -250,7 +250,7 @@ def process_pecha(text: FileStorage, metadata: dict[str, Any], pecha_id: str | N
     try:
         with db.transaction() as transaction:
             doc_ref_metadata = db.collection("metadata").document(pecha.id)
-            doc_ref_annotation = db.collection("annotation").document(annotation_id)
+            doc_ref_annotation = db.collection("annotation").document()
 
             logger.info("Saving metadata to DB: %s", json.dumps(metadata, ensure_ascii=False))
             transaction.set(doc_ref_metadata, metadata)
@@ -258,7 +258,7 @@ def process_pecha(text: FileStorage, metadata: dict[str, Any], pecha_id: str | N
 
             logger.info("Saving annotation to DB: %s", json.dumps(annotation.model_dump(), ensure_ascii=False))
             transaction.set(doc_ref_annotation, annotation.model_dump())
-            logger.info("Annotation saved to DB: %s", annotation_id)
+            logger.info("Annotation saved to DB: %s", doc_ref_annotation.id)
     except Exception as e:
         logger.error("Error saving to DB: %s", e)
         try:

@@ -43,19 +43,15 @@ def post_annotation():
     if not annotation_data:
         raise InvalidRequest("Missing JSON object")
 
-    annotation = AnnotationModel.model_validate(json.loads(annotation_data))
+    if duplicate_key := get_duplicate_key(annotation_data["document_id"]):
+        raise DataConflict(f"Document '{annotation_data["document_id"]}' already used to annotate: {duplicate_key}")
 
-    logger.info("Parsed annotation: %s", annotation.model_dump_json())
+    pecha = retrieve_pecha(pecha_id=annotation_data["pecha_id"])
+    metadatas = [md for _, md in get_metadata_chain(pecha_id=annotation_data["pecha_id"])]
 
-    if duplicate_key := get_duplicate_key(annotation.document_id):
-        raise DataConflict(f"Document '{annotation.document_id}' already used to annotate: {duplicate_key}")
-
-    pecha = retrieve_pecha(pecha_id=annotation.pecha_id)
-    metadatas = [md for _, md in get_metadata_chain(pecha_id=annotation.pecha_id)]
-
-    new_pecha, annotation_id = DocxAnnotationParser().add_annotation(
+    new_pecha, annotation_path = DocxAnnotationParser().add_annotation(
         pecha=pecha,
-        type=annotation.type,
+        type=annotation_data["type"],
         docx_file=document,
         metadatas=metadatas,
     )
@@ -63,6 +59,10 @@ def post_annotation():
     storage = Storage()
     storage.store_pecha_opf(new_pecha)
 
+    annotation_data["path"] = annotation_path
+    annotation = AnnotationModel.model_validate(json.loads(annotation_data))
+
     db = firestore.client()
-    db.collection("annotations").document(annotation_id).set(annotation.model_dump())
-    return jsonify({"message": "Annotation created successfully", "title": annotation.title, "id": annotation_id}), 201
+    doc_ref = db.collection("annotations").add(annotation.model_dump())
+
+    return jsonify({"message": "Annotation created successfully", "title": annotation.title, "id": doc_ref[1].id}), 201

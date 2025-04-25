@@ -14,6 +14,7 @@ class TestValidAnnotationModel:
             "pecha_id": "I12345678",
             "document_id": "DOC123",
             "title": "Test Annotation",
+            "path": "E11/layer.json",
         }
 
         model = AnnotationModel(**input_data)
@@ -30,6 +31,7 @@ class TestValidAnnotationModel:
             "document_id": "DOC123",
             "title": "Test Alignment Annotation",
             "type": "alignment",
+            "path": "E11/layer.json",
         }
 
         model = AnnotationModel(**input_data)
@@ -46,6 +48,7 @@ class TestValidAnnotationModel:
             "document_id": "DOC123",
             "title": "Test Annotation with Alignment",
             "type": "alignment",
+            "path": "E11/layer.json",
             "aligned_to": {
                 "pecha_id": "I87654321",
                 "alignment_id": "ALIGN001",
@@ -67,6 +70,7 @@ class TestValidAnnotationModel:
             "pecha_id": "I12345678",
             "document_id": "DOC123",
             "title": "Test Dict Annotation",
+            "path": "E11/layer.json",
         }
 
         model = AnnotationModel.model_validate(input_data)
@@ -207,6 +211,7 @@ class TestAnnotationModelSerialization:
             document_id="DOC123",
             title="Serialization Test",
             type="alignment",
+            path="E11/layer.json",
             aligned_to={
                 "pecha_id": "I87654321",
                 "alignment_id": "ALIGN001",
@@ -218,15 +223,14 @@ class TestAnnotationModelSerialization:
         assert data["document_id"] == "DOC123"
         assert data["title"] == "Serialization Test"
         assert data["type"] == AnnotationType.ALIGNMENT
+        assert data["path"] == "E11/layer.json"
         assert data["aligned_to"]["pecha_id"] == "I87654321"
         assert data["aligned_to"]["alignment_id"] == "ALIGN001"
 
     def test_model_dump_json(self):
         """Test model_dump_json() produces valid JSON with expected structure."""
         model = AnnotationModel(
-            pecha_id="I12345678",
-            document_id="DOC123",
-            title="JSON Serialization Test",
+            pecha_id="I12345678", document_id="DOC123", title="JSON Serialization Test", path="E11/layer.json"
         )
 
         json_str = model.model_dump_json()
@@ -236,6 +240,7 @@ class TestAnnotationModelSerialization:
         assert data["document_id"] == "DOC123"
         assert data["title"] == "JSON Serialization Test"
         assert data["type"] == "segmentation"
+        assert data["path"] == "E11/layer.json"
         assert data["aligned_to"] is None
 
     def test_json_schema(self):
