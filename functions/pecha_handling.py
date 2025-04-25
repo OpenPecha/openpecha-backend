@@ -230,6 +230,7 @@ def process_pecha(text: FileStorage, metadata: dict[str, Any], pecha_id: str | N
     """
     pecha, annotation_id = parse(docx_file=text, pecha_id=pecha_id, metadata=metadata)
     logger.info("Pecha created: %s %s", pecha.id, pecha.pecha_path)
+    logger.info("Annotation ID: %s", annotation_id)
 
     annotation = AnnotationModel(
         pecha_id=pecha.id,
@@ -251,11 +252,11 @@ def process_pecha(text: FileStorage, metadata: dict[str, Any], pecha_id: str | N
             doc_ref_metadata = db.collection("metadata").document(pecha.id)
             doc_ref_annotation = db.collection("annotation").document(annotation_id)
 
-            logger.info("Saving metadata and annotation to DB: %s", json.dumps(metadata, ensure_ascii=False))
-
+            logger.info("Saving metadata to DB: %s", json.dumps(metadata, ensure_ascii=False))
             transaction.set(doc_ref_metadata, metadata)
             logger.info("Metadata saved to DB: %s", pecha.id)
 
+            logger.info("Saving annotation to DB: %s", json.dumps(annotation.model_dump(), ensure_ascii=False))
             transaction.set(doc_ref_annotation, annotation.model_dump())
             logger.info("Annotation saved to DB: %s", annotation_id)
     except Exception as e:

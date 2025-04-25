@@ -58,8 +58,8 @@ class TestValidAnnotationModel:
         assert model.title == "Test Annotation with Alignment"
         assert model.type == AnnotationType.ALIGNMENT
         assert model.aligned_to is not None
-        assert str(model.aligned_to.pecha_id) == "I87654321"
-        assert model.aligned_to.alignment_id == "ALIGN001"
+        assert model.model_dump()["aligned_to"]["pecha_id"] == "I87654321"
+        assert model.model_dump()["aligned_to"]["alignment_id"] == "ALIGN001"
 
     def test_valid_annotation_from_dict(self):
         """Test creating a valid annotation from a dictionary."""
