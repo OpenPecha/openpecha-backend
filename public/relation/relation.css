@@ -1,11 +1,28 @@
 :root {
-    --version-color: #4e79a7;
-    --commentary-color: #f28e2c;
-    --translation-color: #e15759;
-    --selected-color: #76b7b2;
-    --node-stroke: #fff;
-    --link-color: #999;
-    --text-color: #333;
+    --primary-color: #673ab7;
+    --secondary-color: #ffc107;
+    --accent-color: #ff4081;
+    --background-color: #f5f5f5;
+    --card-color: #ffffff;
+    --text-color: #333333;
+    --border-color: #e0e0e0;
+    --hover-color: #ede7f6;
+    
+    /* Define relationship colors with new, more distinguishable colors */
+    --version-color: #00a4e4;      /* Blue (more vibrant) */
+    --commentary-color: #ff5722;    /* Deep orange (more distinct) */
+    --translation-color: #8bc34a;   /* Light green (more distinct) */
+    --selected-color: #673ab7;      /* Purple for selected node */
+    --link-color: #757575;          /* Default link color */
+    
+    --node-fill: white;
+    --node-stroke: #424242;
+    
+    /* Other colors */
+    --success-color: #4caf50;
+    --error-color: #f44336;
+    --warning-color: #ff9800;
+    --info-color: #2196f3;
 }
 
 .relation-container {
@@ -17,7 +34,7 @@
 
 .selection-panel {
     flex: 0 0 300px;
-    background-color: var(--card-bg);
+    background-color: var(--card-color);
     border-radius: 1rem;
     padding: 1.5rem;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
@@ -28,11 +45,11 @@
 .selection-panel h2 {
     font-size: 1.5rem;
     margin-bottom: 0.5rem;
-    color: var(--text-primary);
+    color: var(--text-color);
 }
 
 .selection-panel p {
-    color: var(--text-secondary);
+    color: var(--text-color);
     margin-bottom: 1.5rem;
 }
 
@@ -75,7 +92,7 @@
     top: 50%;
     transform: translateY(-50%);
     pointer-events: none;
-    color: var(--text-secondary);
+    color: var(--text-color);
 }
 
 #select-spinner {
@@ -89,7 +106,7 @@
 
 .visualization-panel {
     flex: 1;
-    background-color: var(--card-bg);
+    background-color: var(--card-color);
     border-radius: 1rem;
     box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -2px rgba(0, 0, 0, 0.1);
     position: relative;
@@ -145,75 +162,107 @@
 
 .no-data-message p {
     font-size: 1.2rem;
-    color: var(--text-secondary);
+    color: var(--text-color);
     text-align: center;
     padding: 2rem;
 }
 
 .legend {
-    margin-top: auto;
-    margin-bottom: 1.5rem;
+    margin-top: 1.5rem;
+    padding: 1rem;
+    background-color: var(--background-color);
+    border-radius: 0.5rem;
+    border: 1px solid var(--border-color);
 }
 
-.legend h3 {
-    font-size: 1.1rem;
-    margin-bottom: 0.75rem;
+.legend-title {
+    font-weight: 600;
+    margin-bottom: 0.8rem;
+    color: var(--text-color);
+}
+
+.legend-items {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
 }
 
 .legend-item {
     display: flex;
     align-items: center;
-    margin-bottom: 0.5rem;
 }
 
 .legend-color {
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    margin-right: 0.5rem;
+    width: 18px;
+    height: 18px;
+    margin-right: 0.8rem;
+    border-radius: 4px;
+    background-color: white;
 }
 
 .legend-color.version {
-    background-color: var(--version-color);
+    border: 3px solid var(--version-color);
 }
 
 .legend-color.commentary {
-    background-color: var(--commentary-color);
+    border: 3px solid var(--commentary-color);
 }
 
 .legend-color.translation {
-    background-color: var(--translation-color);
+    border: 3px solid var(--translation-color);
 }
 
 .legend-color.selected {
-    background-color: var(--selected-color);
+    border: 3px solid var(--selected-color);
+}
+
+.help-text {
+    margin-top: 1.5rem;
+    font-size: 0.9rem;
+    color: #666;
 }
 
 .controls {
-    display: flex;
-    flex-direction: column;
-    gap: 0.75rem;
+    margin-top: 1.5rem;
+    padding: 1rem;
+    background-color: var(--background-color);
+    border-radius: 0.5rem;
+    border: 1px solid var(--border-color);
 }
 
-.zoom-controls {
+.controls-title {
+    font-weight: 600;
+    margin-bottom: 0.8rem;
+    color: var(--text-color);
+}
+
+.zoom-buttons {
     display: flex;
-    gap: 0.5rem;
+    gap: 8px;
+    justify-content: space-between;
 }
 
 .zoom-button {
     flex: 1;
-    padding: 0.5rem;
-    background-color: var(--background);
+    padding: 6px 10px;
+    background-color: var(--card-color);
     border: 1px solid var(--border-color);
-    border-radius: 0.5rem;
-    font-size: 1.2rem;
-    font-weight: bold;
+    border-radius: 4px;
+    font-size: 0.9rem;
     cursor: pointer;
-    transition: background-color 0.2s ease;
+    transition: background-color 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 5px;
 }
 
 .zoom-button:hover {
-    background-color: var(--border-color);
+    background-color: var(--hover-color);
+}
+
+.zoom-button i {
+    font-size: 0.8rem;
 }
 
 /* D3 specific styles */
@@ -229,26 +278,71 @@
     font-weight: 500;
 }
 
-.node-selected {
-    stroke: #000;
-    stroke-width: 2px;
-}
-
+/* Link styles for the relationship arrows */
 .link {
     stroke: var(--link-color);
-    stroke-opacity: 0.6;
+    stroke-opacity: 0.9;
+    stroke-width: 3px;
+    fill: none;
 }
 
-.link-version {
+.link-version_of {
     stroke: var(--version-color);
 }
 
-.link-commentary {
+.link-commentary_of {
     stroke: var(--commentary-color);
 }
 
-.link-translation {
+.link-translation_of {
     stroke: var(--translation-color);
+}
+
+/* Node styles */
+.node-rect {
+    stroke-width: 3px;
+    fill: white;
+}
+
+.node-rect.version {
+    stroke: var(--version-color);
+    stroke-width: 4px;
+}
+
+.node-rect.commentary {
+    stroke: var(--commentary-color);
+    stroke-width: 4px;
+}
+
+.node-rect.translation {
+    stroke: var(--translation-color);
+    stroke-width: 4px;
+}
+
+.node-rect.selected {
+    stroke: var(--selected-color);
+    stroke-width: 4px;
+}
+
+.node-id {
+    font-weight: bold;
+    font-size: 12px;
+}
+
+.node-title {
+    font-size: 10px;
+}
+
+/* Root node text styling */
+.node-id.root {
+    fill: var(--selected-color);
+    font-weight: bold;
+    font-size: 15px;
+}
+
+.node-selected {
+    stroke: #000;
+    stroke-width: 2px;
 }
 
 .node-tooltip {
@@ -260,7 +354,7 @@
     font-size: 12px;
     pointer-events: none;
     z-index: 100;
-    max-width: 200px;
+    max-width: 300px;
     word-wrap: break-word;
 }
 

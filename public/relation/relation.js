@@ -29,9 +29,9 @@ class PechaRelationship {
 
         // D3 color scale for relationship types
         this.relationshipColors = {
-            'version_of': getComputedStyle(document.documentElement).getPropertyValue('--version-color').trim(),
-            'commentary_of': getComputedStyle(document.documentElement).getPropertyValue('--commentary-color').trim(),
-            'translation_of': getComputedStyle(document.documentElement).getPropertyValue('--translation-color').trim(),
+            'version_of': '#00a4e4',    // Blue (more vibrant)
+            'commentary_of': '#ff5722',  // Deep orange (more distinct)
+            'translation_of': '#8bc34a',  // Light green (more distinct)
             'selected': getComputedStyle(document.documentElement).getPropertyValue('--selected-color').trim()
         };
 
@@ -163,6 +163,10 @@ class PechaRelationship {
         return pecha.title[lang] || 'Untitled';
     }
 
+    findPecha(data, id) {
+        return data[id] || null;
+    }
+
     // Fetch relationship data for a specific pecha
     async fetchRelationshipData(pechaId) {
         this.toggleLoading(true);
@@ -180,13 +184,20 @@ class PechaRelationship {
                 throw new Error(`Failed to fetch relationship data: ${response.statusText}`);
             }
             
-            const data = await response.json();
+            let data = await response.json();
             console.log("Relationship data:", data);
             
             this.toggleLoading(false);
             
-            // Check if data is empty or has no relationships
-            if (!data || Object.keys(data).length === 0) {
+            // For testing, if data is object format, convert to array format
+            if (!Array.isArray(data) && typeof data === 'object') {
+                console.log("Converting object data to array format");
+                data = this.convertToArrayFormat(data, pechaId);
+            }
+            
+            // Check if data is empty
+            if (!data || (Array.isArray(data) && data.length === 0) || 
+                (!Array.isArray(data) && Object.keys(data).length === 0)) {
                 this.toggleNoDataMessage(true);
                 return null;
             }
@@ -200,6 +211,57 @@ class PechaRelationship {
             return null;
         }
     }
+    
+    // Convert object format to array format for testing
+    convertToArrayFormat(data, selectedPechaId) {
+        const result = [];
+        
+        // Add the selected pecha
+        const selectedPecha = {
+            id: selectedPechaId,
+            title: data[selectedPechaId]?.title || {}
+        };
+        result.push(selectedPecha);
+        
+        // Process related pechas
+        Object.entries(data).forEach(([pechaId, pechaData]) => {
+            if (pechaId === selectedPechaId) return;
+            
+            const pecha = {
+                id: pechaId,
+                title: pechaData.title || {}
+            };
+            
+            // Add relationship properties
+            if (pechaData.version_of === selectedPechaId) {
+                // This is a version of the selected pecha
+                pecha.version_of = selectedPechaId;
+            } else if (data[selectedPechaId]?.version_of === pechaId) {
+                // Selected pecha is a version of this pecha
+                selectedPecha.version_of = pechaId;
+            }
+            
+            if (pechaData.commentary_of === selectedPechaId) {
+                // This is a commentary on the selected pecha
+                pecha.commentary_of = selectedPechaId;
+            } else if (data[selectedPechaId]?.commentary_of === pechaId) {
+                // Selected pecha is a commentary on this pecha
+                selectedPecha.commentary_of = pechaId;
+            }
+            
+            if (pechaData.translation_of === selectedPechaId) {
+                // This is a translation of the selected pecha
+                pecha.translation_of = selectedPechaId;
+            } else if (data[selectedPechaId]?.translation_of === pechaId) {
+                // Selected pecha is a translation of this pecha
+                selectedPecha.translation_of = pechaId;
+            }
+            
+            result.push(pecha);
+        });
+        
+        return result;
+    }
 
     // Process the API response into a format suitable for D3 visualization
     processRelationshipData(data, selectedPechaId) {
@@ -207,85 +269,139 @@ class PechaRelationship {
         const nodes = [];
         const links = [];
         const nodeMap = new Map(); // To track nodes we've already added
-
-        // Add the selected pecha as the central node
-        const selectedNode = {
-            id: selectedPechaId,
-            name: selectedPechaId,
-            title: data[selectedPechaId]?.title || {},
-            group: 'selected',
-            isSelected: true
-        };
         
-        nodes.push(selectedNode);
-        nodeMap.set(selectedPechaId, selectedNode); // Store the node object itself, not the index
-
-        // Process each pecha in the data
-        Object.entries(data).forEach(([pechaId, pechaData]) => {
-            // Skip if this is the selected pecha (already added)
-            if (pechaId === selectedPechaId) return;
-
-            // Add this pecha as a node if not already added
-            if (!nodeMap.has(pechaId)) {
+        console.log("Processing data format:", data);
+        
+        // Check if the data is an array (the format from the sample)
+        if (Array.isArray(data)) {
+            // Find the root/selected pecha in the array
+            const selectedNode = data.find(item => item.id === selectedPechaId);
+            
+            if (!selectedNode) {
+                console.error("Selected pecha not found in data");
+                return { nodes: [], links: [] };
+            }
+            
+            // First, add all nodes to the map
+            data.forEach(item => {
+                if (!nodeMap.has(item.id)) {
+                    const node = {
+                        id: item.id,
+                        title: item.title || {},
+                        group: 'related' // Default group
+                    };
+                    
+                    // Set the selected node
+                    if (item.id === selectedPechaId) {
+                        node.group = 'selected';
+                    }
+                    
+                    nodeMap.set(item.id, node);
+                }
+            });
+            
+            // Then create links based on relationships
+            data.forEach(item => {
+                // Handle version relationship
+                if (item.version_of) {
+                    const sourceNode = nodeMap.get(item.version_of);
+                    const targetNode = nodeMap.get(item.id);
+                    
+                    if (sourceNode && targetNode) {
+                        targetNode.group = 'version';
+                        
+                        links.push({
+                            source: item.version_of,
+                            target: item.id,
+                            type: 'version_of'
+                        });
+                    }
+                }
+                
+                // Handle commentary relationship
+                if (item.commentary_of) {
+                    const sourceNode = nodeMap.get(item.commentary_of);
+                    const targetNode = nodeMap.get(item.id);
+                    
+                    if (sourceNode && targetNode) {
+                        targetNode.group = 'commentary';
+                        
+                        links.push({
+                            source: item.commentary_of,
+                            target: item.id,
+                            type: 'commentary_of'
+                        });
+                    }
+                }
+                
+                // Handle translation relationship
+                if (item.translation_of) {
+                    const sourceNode = nodeMap.get(item.translation_of);
+                    const targetNode = nodeMap.get(item.id);
+                    
+                    if (sourceNode && targetNode) {
+                        targetNode.group = 'translation';
+                        
+                        links.push({
+                            source: item.translation_of,
+                            target: item.id,
+                            type: 'translation_of'
+                        });
+                    }
+                }
+            });
+            
+            // Convert the node map to an array for D3
+            return { 
+                nodes: Array.from(nodeMap.values()), 
+                links: links 
+            };
+        } else {
+            // Original implementation for object format (keeping as fallback)
+            // Add the selected pecha as the central node
+            const selectedNode = {
+                id: selectedPechaId,
+                name: selectedPechaId,
+                title: data[selectedPechaId]?.title || {},
+                group: 'selected',
+            };
+            
+            nodes.push(selectedNode);
+            nodeMap.set(selectedPechaId, selectedNode);
+            
+            // Process related pechas
+            const relatedPechas = data[selectedPechaId]?.relations || [];
+            
+            for (const relation of relatedPechas) {
+                const pechaId = relation.id;
+                const relationType = relation.type;
+                
+                // Skip if we've already added this node
+                if (nodeMap.has(pechaId)) continue;
+                
+                // Create node for the related pecha
                 const node = {
                     id: pechaId,
                     name: pechaId,
-                    title: pechaData.title || {},
-                    group: 'related'
+                    title: data[pechaId]?.title || {},
+                    group: relationType.split('_')[0], // e.g., 'version' from 'version_of'
                 };
+                
                 nodes.push(node);
-                nodeMap.set(pechaId, node); // Store the node object itself, not the index
-            }
-
-            // Process relationships
-            const relationships = ['version_of', 'commentary_of', 'translation_of'];
-            relationships.forEach(relType => {
-                if (pechaData[relType]) {
-                    // Get the related pecha ID
-                    const relatedId = pechaData[relType];
-                    
-                    // Add the related pecha as a node if not already added
-                    if (!nodeMap.has(relatedId)) {
-                        const node = {
-                            id: relatedId,
-                            name: relatedId,
-                            title: data[relatedId]?.title || {},
-                            group: 'related'
-                        };
-                        nodes.push(node);
-                        nodeMap.set(relatedId, node); // Store the node object itself, not the index
-                    }
-                    
-                    // Add a link between this pecha and the related pecha
+                nodeMap.set(pechaId, node);
+                
+                // Create link from selected pecha to this related pecha
+                if (relationType) {
                     links.push({
-                        source: nodeMap.get(pechaId),
-                        target: nodeMap.get(relatedId),
-                        type: relType
+                        source: nodeMap.get(selectedPechaId),
+                        target: nodeMap.get(pechaId),
+                        type: relationType
                     });
                 }
-            });
-
-            // Add a link between the selected pecha and this pecha if directly related
-            if (data[selectedPechaId]) {
-                relationships.forEach(relType => {
-                    if (data[selectedPechaId][relType] === pechaId) {
-                        links.push({
-                            source: nodeMap.get(selectedPechaId),
-                            target: nodeMap.get(pechaId),
-                            type: relType
-                        });
-                    }
-                });
             }
-        });
-
-        // Make sure all referenced nodes in links exist
-        const validLinks = links.filter(link => 
-            link.source && link.target && 
-            typeof link.source === 'object' && typeof link.target === 'object'
-        );
-
-        return { nodes, links: validLinks };
+            
+            return { nodes, links };
+        }
     }
 
     // Initialize the D3 graph visualization
@@ -339,23 +455,55 @@ class PechaRelationship {
     renderGraph(data) {
         if (!data) return;
         
+        console.log('Rendering graph with nodes:', data.nodes.length, 'links:', data.links.length);
+        
         const { svg, g, tooltip } = this.initializeGraph();
+        
+        // Find the selected/root pecha node
+        const rootNode = data.nodes.find(n => n.group === 'selected');
+        if (rootNode) {
+            // Pin the root node to the top center
+            rootNode.fx = this.state.width / 2;
+            rootNode.fy = this.state.height / 5; // Position at 1/5 from the top for better visibility
+            console.log('Pinned root node:', rootNode.id);
+        }
         
         // Create force simulation
         const simulation = d3.forceSimulation(data.nodes)
-            .force('link', d3.forceLink(data.links).id(d => d.id).distance(100))
-            .force('charge', d3.forceManyBody().strength(-300))
+            .force('link', d3.forceLink(data.links).id(d => d.id).distance(220)) // Increased distance for better visibility
+            .force('charge', d3.forceManyBody().strength(-1000)) // Stronger repulsion
             .force('center', d3.forceCenter(this.state.width / 2, this.state.height / 2))
-            .force('collision', d3.forceCollide().radius(60));
+            .force('collision', d3.forceCollide().radius(130)) // Larger collision radius
+            .force('y', d3.forceY().strength(0.08)); // Slightly stronger vertical force
             
-        // Create links
+        // Create arrow marker definitions for the links
+        svg.append('defs').selectAll('marker')
+            .data(['version', 'commentary', 'translation', 'related'])
+            .enter().append('marker')
+            .attr('id', d => `arrow-${d}`)
+            .attr('viewBox', '0 -5 10 10')
+            .attr('refX', 30) // Position the arrow away from the node
+            .attr('refY', 0)
+            .attr('markerWidth', 6)
+            .attr('markerHeight', 6)
+            .attr('orient', 'auto')
+            .append('path')
+            .attr('d', 'M0,-5L10,0L0,5')
+            .attr('fill', d => {
+                if (d === 'version') return this.relationshipColors.version_of;
+                if (d === 'commentary') return this.relationshipColors.commentary_of;
+                if (d === 'translation') return this.relationshipColors.translation_of;
+                return '#555';
+            });
+            
+        // Create links - using paths with arrows instead of simple lines
         const link = g.append('g')
             .attr('class', 'links')
-            .selectAll('line')
+            .selectAll('path')
             .data(data.links)
-            .enter().append('line')
+            .enter().append('path')
             .attr('class', d => `link link-${d.type}`)
-            .attr('stroke-width', 2);
+            .attr('marker-end', d => `url(#arrow-${d.type.split('_')[0]})`);
             
         // Create nodes
         const node = g.append('g')
@@ -368,59 +516,104 @@ class PechaRelationship {
                 .on('start', this.dragstarted.bind(this, simulation))
                 .on('drag', this.dragged.bind(this))
                 .on('end', this.dragended.bind(this, simulation)));
-                
-        // Add circles to nodes
-        node.append('circle')
-            .attr('r', d => d.isSelected ? 20 : 15)
-            .attr('fill', d => d.isSelected ? this.relationshipColors.selected : this.getNodeColor(d, data.links))
-            .attr('stroke', 'white')
-            .attr('stroke-width', 2);
-            
-        // Add text labels to nodes
-        node.append('text')
-            .attr('dy', 30)
-            .text(d => d.name)
-            .attr('text-anchor', 'middle');
-            
-        // Add hover effects and tooltip
-        node.on('mouseover', (event, d) => {
-                tooltip.transition()
-                    .duration(200)
-                    .style('opacity', .9);
-                    
-                // Get title in any available language
-                let title = '';
-                if (d.title) {
-                    if (d.title.en) title = d.title.en;
-                    else if (Object.keys(d.title).length > 0) {
-                        const lang = Object.keys(d.title)[0];
-                        title = d.title[lang];
-                    }
+        
+        // Get title for a node
+        const getNodeTitle = (d) => {
+            if (d.title) {
+                if (d.title.en) return d.title.en;
+                else if (Object.keys(d.title).length > 0) {
+                    const lang = Object.keys(d.title)[0];
+                    return d.title[lang];
                 }
-                
-                const tooltipContent = `
-                    <strong>ID:</strong> ${d.id}<br>
-                    <strong>Title:</strong> ${title || 'Untitled'}
-                `;
-                
-                tooltip.html(tooltipContent)
-                    .style('left', (event.pageX + 10) + 'px')
-                    .style('top', (event.pageY - 28) + 'px');
-            })
-            .on('mouseout', () => {
-                tooltip.transition()
-                    .duration(500)
-                    .style('opacity', 0);
-            });
+            }
+            return 'Untitled';
+        };
+        
+        // Calculate node dimensions based on text length
+        const calculateNodeDimensions = (d) => {
+            const idLength = d.id.length;
+            const titleText = d.title;
+            const titleLength = titleText.length;
+            // Ensure the width is at least enough to show the full ID
+            const width = Math.max(idLength * 9, titleLength * 6, 150);
+            return {
+                width: width,
+                height: 50,
+                title: titleText
+            };
+        };
+        
+        // Add rectangles to nodes
+        node.each(function(d) {
+            const dimensions = calculateNodeDimensions(d);
+            d.width = dimensions.width;
+            d.height = dimensions.height;
+            d.fullTitle = dimensions.title;
             
+            d3.select(this).append('rect')
+                .attr('class', `node-rect ${d.group}`)
+                .attr('width', d.width)
+                .attr('height', d.height)
+                .attr('rx', 10)
+                .attr('ry', 10)
+                .attr('x', -d.width / 2)
+                .attr('y', -d.height / 2);
+        });
+        
+        // Add ID text labels to nodes
+        node.append('text')
+            .attr('class', 'node-id')
+            .attr('dy', -5)
+            .text(d => d.id)
+            .attr('text-anchor', 'middle');
+        
+        // Add title text labels to nodes with ellipsis if needed
+        node.append('text')
+            .attr('class', 'node-title')
+            .attr('dy', 10)
+            .text(d => {
+                const title = d.fullTitle;
+                const maxLength = Math.floor(d.width / 6);
+                if (title.length > maxLength) {
+                    return title.substring(0, maxLength - 3) + '...';
+                }
+                return title;
+            })
+            .attr('text-anchor', 'middle');
+        
+        // Add tooltip
+        node.on('mouseover', (event, d) => {
+            tooltip.transition()
+                .duration(200)
+                .style('opacity', .9);
+            
+            const tooltipContent = `
+                <strong>ID:</strong> ${d.id}<br>
+                <strong>Title:</strong> ${d.fullTitle || 'Untitled'}
+            `;
+            
+            tooltip.html(tooltipContent)
+                .style('left', (event.pageX + 10) + 'px')
+                .style('top', (event.pageY - 28) + 'px');
+        })
+        .on('mouseout', () => {
+            tooltip.transition()
+                .duration(500)
+                .style('opacity', 0);
+        });
+        
         // Update positions on each tick of the simulation
         simulation.on('tick', () => {
-            link
-                .attr('x1', d => d.source.x)
-                .attr('y1', d => d.source.y)
-                .attr('x2', d => d.target.x)
-                .attr('y2', d => d.target.y);
+            // Create curved paths for links
+            link.attr('d', function(d) {
+                const dx = d.target.x - d.source.x;
+                const dy = d.target.y - d.source.y;
+                const dr = Math.sqrt(dx * dx + dy * dy);
                 
+                // Return a curved path
+                return `M${d.source.x},${d.source.y}A${dr},${dr} 0 0,1 ${d.target.x},${d.target.y}`;
+            });
+            
             node
                 .attr('transform', d => `translate(${d.x},${d.y})`);
         });

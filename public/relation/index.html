@@ -40,46 +40,53 @@
         <!-- Main Content -->
         <section class="relation-container">
             <div class="selection-panel">
-                <h2>Pecha Relationship Visualization</h2>
-                <p>Select a pecha to visualize its relationships with other texts</p>
+                <h2>Pecha Relationship Graph</h2>
+                <p>Select a pecha to view its relationships</p>
                 
                 <div class="pecha-select-container">
-                    <label for="pecha-select">Select Pecha:</label>
-                    <div class="select-wrapper">
+                    <div class="select-container">
                         <select id="pecha-select" class="pecha-select">
-                            <option value="">Select a pecha...</option>
-                            <!-- Pechas will be loaded dynamically -->
+                            <option value="" disabled selected>Select a Pecha</option>
                         </select>
-                        <div class="loading-spinner" id="select-spinner" style="display: none;"></div>
+                        <div id="select-spinner" class="select-spinner" style="display: none;">
+                            <i class="fas fa-spinner fa-spin"></i>
+                        </div>
                     </div>
                 </div>
 
                 <div class="legend">
-                    <h3>Relationship Types</h3>
-                    <div class="legend-item">
-                        <span class="legend-color version"></span>
-                        <span>Version</span>
+                    <div class="legend-title">Relationship Types</div>
+                    <div class="legend-items">
+                        <div class="legend-item">
+                            <div class="legend-color version"></div>
+                            <span>Version</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color commentary"></div>
+                            <span>Commentary</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color translation"></div>
+                            <span>Translation</span>
+                        </div>
+                        <div class="legend-item">
+                            <div class="legend-color selected"></div>
+                            <span>Selected Pecha</span>
+                        </div>
                     </div>
-                    <div class="legend-item">
-                        <span class="legend-color commentary"></span>
-                        <span>Commentary</span>
-                    </div>
-                    <div class="legend-item">
-                        <span class="legend-color translation"></span>
-                        <span>Translation</span>
-                    </div>
-                    <div class="legend-item">
-                        <span class="legend-color selected"></span>
-                        <span>Selected Pecha</span>
+                </div>
+                
+                <div class="controls">
+                    <div class="controls-title">Zoom Controls</div>
+                    <div class="zoom-buttons">
+                        <button id="zoom-in" class="zoom-button"><i class="fas fa-search-plus"></i> In</button>
+                        <button id="zoom-out" class="zoom-button"><i class="fas fa-search-minus"></i> Out</button>
+                        <button id="reset-view" class="zoom-button"><i class="fas fa-sync-alt"></i> Reset</button>
                     </div>
                 </div>
 
-                <div class="controls">
-                    <button id="reset-zoom" class="action-button">Reset View</button>
-                    <div class="zoom-controls">
-                        <button id="zoom-in" class="zoom-button">+</button>
-                        <button id="zoom-out" class="zoom-button">-</button>
-                    </div>
+                <div class="help-text">
+                    <p><i class="fas fa-info-circle"></i> Hover over nodes to see details. Drag nodes to rearrange.</p>
                 </div>
             </div>
 
@@ -88,12 +95,12 @@
                     <div class="loading-spinner"></div>
                     <p>Loading relationship data...</p>
                 </div>
+                
                 <div id="no-data-message" class="no-data-message" style="display: none;">
-                    <p>No relationship data found for the selected pecha.</p>
+                    <p>No relationship data found for this pecha.</p>
                 </div>
-                <div id="graph-container" class="graph-container">
-                    <!-- D3.js graph will be rendered here -->
-                </div>
+                
+                <div id="graph-container" class="graph-container"></div>
             </div>
         </section>
     </main>
