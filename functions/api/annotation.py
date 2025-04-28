@@ -47,7 +47,9 @@ def post_annotation():
         raise DataConflict(f"Document '{annotation_data["document_id"]}' already used to annotate: {duplicate_key}")
 
     pecha = retrieve_pecha(pecha_id=annotation_data["pecha_id"])
+    logger.info("Pecha retrieved: %s", pecha.id)
     metadatas = [md for _, md in get_metadata_chain(pecha_id=annotation_data["pecha_id"])]
+    logger.info("Metadata chain retrieved: %s", metadatas)
 
     new_pecha, annotation_path = DocxAnnotationParser().add_annotation(
         pecha=pecha,
