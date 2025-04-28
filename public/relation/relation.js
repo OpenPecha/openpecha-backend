@@ -32,7 +32,7 @@ class PechaRelationship {
             'version_of': '#00a4e4',    // Blue (more vibrant)
             'commentary_of': '#ff5722',  // Deep orange (more distinct)
             'translation_of': '#8bc34a',  // Light green (more distinct)
-            'selected': getComputedStyle(document.documentElement).getPropertyValue('--selected-color').trim()
+            'root': getComputedStyle(document.documentElement).getPropertyValue('--selected-color').trim()
         };
 
         // Initialize the application
@@ -155,8 +155,8 @@ class PechaRelationship {
     getTitle(pecha) {
         if (!pecha.title) return 'Untitled';
         
-        // Try to get English title first
-        if (pecha.title.en) return pecha.title.en;
+        // Try to get Tibetan title first
+        if (pecha.title.bo) return pecha.title.bo;
         
         // Otherwise get the first available title
         const lang = Object.keys(pecha.title)[0];
@@ -168,12 +168,13 @@ class PechaRelationship {
     }
 
     // Fetch relationship data for a specific pecha
-    async fetchRelationshipData(pechaId) {
+    async fetchRelationshipData(pechaId, traversal = 'full_tree', relationships =[]) {
         this.toggleLoading(true);
         this.toggleNoDataMessage(false);
         
         try {
-            const response = await fetch(`${this.API_ENDPOINT}/metadata/${pechaId}/related?traversal=full_tree`, {
+            const url = `${this.API_ENDPOINT}/metadata/${pechaId}/related?traversal=${traversal}${relationships.length > 0 ? `&relationships=${relationships.join(',')}` : ''}`;
+            const response = await fetch(url, {
                 method: 'GET',
                 headers: {
                     'accept': 'application/json'
@@ -185,15 +186,8 @@ class PechaRelationship {
             }
             
             let data = await response.json();
-            console.log("Relationship data:", data);
             
             this.toggleLoading(false);
-            
-            // For testing, if data is object format, convert to array format
-            if (!Array.isArray(data) && typeof data === 'object') {
-                console.log("Converting object data to array format");
-                data = this.convertToArrayFormat(data, pechaId);
-            }
             
             // Check if data is empty
             if (!data || (Array.isArray(data) && data.length === 0) || 
@@ -212,57 +206,6 @@ class PechaRelationship {
         }
     }
     
-    // Convert object format to array format for testing
-    convertToArrayFormat(data, selectedPechaId) {
-        const result = [];
-        
-        // Add the selected pecha
-        const selectedPecha = {
-            id: selectedPechaId,
-            title: data[selectedPechaId]?.title || {}
-        };
-        result.push(selectedPecha);
-        
-        // Process related pechas
-        Object.entries(data).forEach(([pechaId, pechaData]) => {
-            if (pechaId === selectedPechaId) return;
-            
-            const pecha = {
-                id: pechaId,
-                title: pechaData.title || {}
-            };
-            
-            // Add relationship properties
-            if (pechaData.version_of === selectedPechaId) {
-                // This is a version of the selected pecha
-                pecha.version_of = selectedPechaId;
-            } else if (data[selectedPechaId]?.version_of === pechaId) {
-                // Selected pecha is a version of this pecha
-                selectedPecha.version_of = pechaId;
-            }
-            
-            if (pechaData.commentary_of === selectedPechaId) {
-                // This is a commentary on the selected pecha
-                pecha.commentary_of = selectedPechaId;
-            } else if (data[selectedPechaId]?.commentary_of === pechaId) {
-                // Selected pecha is a commentary on this pecha
-                selectedPecha.commentary_of = pechaId;
-            }
-            
-            if (pechaData.translation_of === selectedPechaId) {
-                // This is a translation of the selected pecha
-                pecha.translation_of = selectedPechaId;
-            } else if (data[selectedPechaId]?.translation_of === pechaId) {
-                // Selected pecha is a translation of this pecha
-                selectedPecha.translation_of = pechaId;
-            }
-            
-            result.push(pecha);
-        });
-        
-        return result;
-    }
-
     // Process the API response into a format suitable for D3 visualization
     processRelationshipData(data, selectedPechaId) {
         // Create nodes and links arrays for D3
@@ -281,20 +224,15 @@ class PechaRelationship {
                 console.error("Selected pecha not found in data");
                 return { nodes: [], links: [] };
             }
-            
-            // First, add all nodes to the map
-            data.forEach(item => {
-                if (!nodeMap.has(item.id)) {
-                    const node = {
+                // First, add all nodes to the map
+                data.forEach(item => {
+                    if (!nodeMap.has(item.id)) {
+                        const node = {
                         id: item.id,
                         title: item.title || {},
-                        group: 'related' // Default group
+                        group: 'root',
+                        isSelected: item.id === selectedPechaId
                     };
-                    
-                    // Set the selected node
-                    if (item.id === selectedPechaId) {
-                        node.group = 'selected';
-                    }
                     
                     nodeMap.set(item.id, node);
                 }
@@ -350,57 +288,14 @@ class PechaRelationship {
                     }
                 }
             });
-            
             // Convert the node map to an array for D3
             return { 
                 nodes: Array.from(nodeMap.values()), 
                 links: links 
             };
         } else {
-            // Original implementation for object format (keeping as fallback)
-            // Add the selected pecha as the central node
-            const selectedNode = {
-                id: selectedPechaId,
-                name: selectedPechaId,
-                title: data[selectedPechaId]?.title || {},
-                group: 'selected',
-            };
-            
-            nodes.push(selectedNode);
-            nodeMap.set(selectedPechaId, selectedNode);
-            
-            // Process related pechas
-            const relatedPechas = data[selectedPechaId]?.relations || [];
-            
-            for (const relation of relatedPechas) {
-                const pechaId = relation.id;
-                const relationType = relation.type;
-                
-                // Skip if we've already added this node
-                if (nodeMap.has(pechaId)) continue;
-                
-                // Create node for the related pecha
-                const node = {
-                    id: pechaId,
-                    name: pechaId,
-                    title: data[pechaId]?.title || {},
-                    group: relationType.split('_')[0], // e.g., 'version' from 'version_of'
-                };
-                
-                nodes.push(node);
-                nodeMap.set(pechaId, node);
-                
-                // Create link from selected pecha to this related pecha
-                if (relationType) {
-                    links.push({
-                        source: nodeMap.get(selectedPechaId),
-                        target: nodeMap.get(pechaId),
-                        type: relationType
-                    });
-                }
-            }
-            
-            return { nodes, links };
+            console.log("Invalid data format", data);
+            return null;
         }
     }
 
@@ -454,13 +349,13 @@ class PechaRelationship {
     // Render the graph with the provided data
     renderGraph(data) {
         if (!data) return;
-        
+        console.log(JSON.stringify(data, null, 2));
         console.log('Rendering graph with nodes:', data.nodes.length, 'links:', data.links.length);
         
         const { svg, g, tooltip } = this.initializeGraph();
         
         // Find the selected/root pecha node
-        const rootNode = data.nodes.find(n => n.group === 'selected');
+        const rootNode = data.nodes.find(n => n.group === 'root');
         if (rootNode) {
             // Pin the root node to the top center
             rootNode.fx = this.state.width / 2;
@@ -478,7 +373,7 @@ class PechaRelationship {
             
         // Create arrow marker definitions for the links
         svg.append('defs').selectAll('marker')
-            .data(['version', 'commentary', 'translation', 'related'])
+            .data(['version', 'commentary', 'translation', 'root'])
             .enter().append('marker')
             .attr('id', d => `arrow-${d}`)
             .attr('viewBox', '0 -5 10 10')
@@ -490,9 +385,11 @@ class PechaRelationship {
             .append('path')
             .attr('d', 'M0,-5L10,0L0,5')
             .attr('fill', d => {
+                console.log("d",d)
                 if (d === 'version') return this.relationshipColors.version_of;
                 if (d === 'commentary') return this.relationshipColors.commentary_of;
                 if (d === 'translation') return this.relationshipColors.translation_of;
+                if (d === 'root') return this.relationshipColors.root;
                 return '#555';
             });
             
@@ -709,7 +606,6 @@ class PechaRelationship {
         // Fetch and render relationship data
         const relationshipData = await this.fetchRelationshipData(selectedPechaId);
         this.state.relationshipData = relationshipData;
-        
         if (relationshipData) {
             this.renderGraph(relationshipData);
         }

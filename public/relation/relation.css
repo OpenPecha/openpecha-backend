@@ -13,6 +13,7 @@
     --commentary-color: #ff5722;    /* Deep orange (more distinct) */
     --translation-color: #8bc34a;   /* Light green (more distinct) */
     --selected-color: #673ab7;      /* Purple for selected node */
+    --root-color:#000;
     --link-color: #757575;          /* Default link color */
     
     --node-fill: white;
@@ -193,11 +194,9 @@
 }
 
 .legend-color {
-    width: 18px;
-    height: 18px;
+    width: 25px;
     margin-right: 0.8rem;
     border-radius: 4px;
-    background-color: white;
 }
 
 .legend-color.version {
