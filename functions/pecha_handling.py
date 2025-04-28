@@ -6,12 +6,12 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import Any
 
-from annotation_model import AnnotationModel
 from exceptions import DataNotFound
 from firebase_admin import firestore
 from google.cloud.firestore_v1.base_query import FieldFilter, Or
 from metadata_model import MetadataModel
 from openpecha.pecha import Pecha
+from openpecha.pecha.annotations import AnnotationModel
 from openpecha.pecha.parsers.docx import DocxParser
 from openpecha.pecha.parsers.ocr import BdrcParser
 from openpecha.pecha.serializers.pecha_db import Serializer

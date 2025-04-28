@@ -1,9 +1,10 @@
 import os
 
-from annotation_model import AnnotationModel
 from filter_model import FilterModel
 from flask import Blueprint, jsonify, send_file
 from metadata_model import MetadataModel
+
+from openpecha.pecha.annotations import AnnotationModel
 
 schema_bp = Blueprint("schema", __name__)
 

@@ -1,11 +1,11 @@
 import json
 import logging
 
-from annotation_model import AnnotationModel
 from exceptions import DataConflict, InvalidRequest
 from firebase_admin import firestore
 from flask import Blueprint, jsonify, request
 from openpecha.pecha.parsers.docx.annotation import DocxAnnotationParser
+from openpecha.pecha.annotations import AnnotationModel
 from pecha_handling import get_metadata_chain, retrieve_pecha
 from storage import Storage
 
