@@ -46,8 +46,8 @@ def post_annotation():
 
     logger.info(f"Annotation data successfully retrieved: {annotation_data}")
 
-    if duplicate_key := get_duplicate_key(annotation_data["document_id"]):
-        raise DataConflict(f"Document '{annotation_data["document_id"]}' already used to annotate: {duplicate_key}")
+    # if duplicate_key := get_duplicate_key(annotation_data["document_id"]):
+    #     raise DataConflict(f"Document '{annotation_data["document_id"]}' already used to annotate: {duplicate_key}")
 
     pecha = retrieve_pecha(pecha_id=annotation_data["pecha_id"])
     logger.info("Pecha retrieved: %s", pecha.id)
