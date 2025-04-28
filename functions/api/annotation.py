@@ -44,8 +44,8 @@ def post_annotation():
     if not annotation_data:
         raise InvalidRequest("Missing JSON object")
 
-    logger.info("Annotation data successfully retrieved.")
-    
+    logger.info(f"Annotation data successfully retrieved: {annotation_data}")
+
     if duplicate_key := get_duplicate_key(annotation_data["document_id"]):
         raise DataConflict(f"Document '{annotation_data["document_id"]}' already used to annotate: {duplicate_key}")
 
