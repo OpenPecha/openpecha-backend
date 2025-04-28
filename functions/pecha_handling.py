@@ -236,6 +236,7 @@ def process_pecha(text: FileStorage, metadata: dict[str, Any], pecha_id: str | N
         pecha_id=pecha.id,
         document_id=text.filename,
         title="Default display",
+        path=annotation_path
     )
 
     storage = Storage()
