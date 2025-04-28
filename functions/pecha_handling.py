@@ -257,8 +257,8 @@ def process_pecha(text: FileStorage, metadata: dict[str, Any], pecha_id: str | N
             transaction.set(doc_ref_metadata, metadata)
             logger.info("Metadata saved to DB: %s", pecha.id)
 
-            logger.info("Saving annotation to DB: %s", json.dumps(annotation.model_dump(), ensure_ascii=False))
-            transaction.set(doc_ref_annotation, annotation.model_dump())
+            logger.info("Saving annotation to DB: %s", json.dumps(annotation.model_dump(mode="json"), ensure_ascii=False))
+            transaction.set(doc_ref_annotation, annotation.model_dump(mode="json"))
             logger.info("Annotation saved to DB: %s", doc_ref_annotation.id)
     except Exception as e:
         logger.error("Error saving to DB: %s", e)
