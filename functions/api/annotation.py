@@ -35,6 +35,7 @@ def get_annotation(pecha_id: str):
 @annotation_bp.route("/", methods=["POST"])
 def post_annotation():
     document = request.files.get("document")
+    logger.info("Document file successfully retrieved.")
 
     if not document:
         raise InvalidRequest("Missing document")
@@ -43,6 +44,8 @@ def post_annotation():
     if not annotation_data:
         raise InvalidRequest("Missing JSON object")
 
+    logger.info("Annotation data successfully retrieved.")
+    
     if duplicate_key := get_duplicate_key(annotation_data["document_id"]):
         raise DataConflict(f"Document '{annotation_data["document_id"]}' already used to annotate: {duplicate_key}")
 
