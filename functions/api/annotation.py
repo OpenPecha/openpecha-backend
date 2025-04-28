@@ -49,6 +49,9 @@ def post_annotation():
     # if duplicate_key := get_duplicate_key(annotation_data["document_id"]):
     #     raise DataConflict(f"Document '{annotation_data["document_id"]}' already used to annotate: {duplicate_key}")
 
+    pecha_id = annotation_data["pecha_id"]
+    logger.info(f"Retrieving Pecha {pecha_id}")
+    
     pecha = retrieve_pecha(pecha_id=annotation_data["pecha_id"])
     logger.info("Pecha retrieved: %s", pecha.id)
     metadatas = [md for _, md in get_metadata_chain(pecha_id=annotation_data["pecha_id"])]
