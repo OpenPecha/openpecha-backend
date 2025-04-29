@@ -69,6 +69,6 @@ def post_annotation():
     annotation = AnnotationModel.model_validate(annotation_data)
 
     db = firestore.client()
-    doc_ref = db.collection("annotations").add(annotation.model_dump())
+    doc_ref = db.collection("annotation").add(annotation.model_dump())
 
     return jsonify({"message": "Annotation created successfully", "title": annotation.title, "id": doc_ref[1].id}), 201
