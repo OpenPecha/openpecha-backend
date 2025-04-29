@@ -66,7 +66,7 @@ def post_annotation():
     storage.store_pecha_opf(new_pecha)
 
     annotation_data["path"] = annotation_path
-    annotation = AnnotationModel.model_validate(json.loads(annotation_data))
+    annotation = AnnotationModel.model_validate(annotation_data)
 
     db = firestore.client()
     doc_ref = db.collection("annotations").add(annotation.model_dump())
