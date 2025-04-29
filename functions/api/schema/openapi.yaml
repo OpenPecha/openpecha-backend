@@ -748,6 +748,86 @@ paths:
           $ref: '#/components/responses/InvalidRequest'
         "500":
           $ref: '#/components/responses/ServerError'
+  /annotation/{pecha_id}:
+      get:
+        summary: Get annotations for a Pecha
+        description: Returns all annotations associated with the specified pecha ID
+        tags:
+          - Annotation
+        parameters:
+          - name: pecha_id
+            in: path
+            required: true
+            schema:
+              type: string
+              pattern: '^I[0-9A-F]{8}$'
+            description: Pecha ID in the format I followed by 8 hexadecimal characters
+            example: I12345678
+        responses:
+          "200":
+            description: Successful operation
+            content:
+              application/json:
+                schema:
+                  type: array
+                  description: List of annotation objects
+                  items:
+                    $ref: "https://pecha-backend.web.app/schema/annotation"
+          "404":
+            $ref: '#/components/responses/NotFound'
+          "500":
+            $ref: '#/components/responses/ServerError'
+  /annotation:
+    post:
+      summary: Create annotation
+      description: Creates a new annotation for a Pecha with an uploaded document
+      tags:
+        - Annotation
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - document
+                - annotation
+              properties:
+                document:
+                  type: string
+                  format: binary
+                  description: Document file in DOCX format
+                annotation:
+                  type: string
+                  format: json
+                  description: Annotation in JSON format
+      responses:
+        "201":
+          description: Annotation created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Annotation created successfully"
+                  id:
+                    type: string
+                    example: "A12345678"
+                  title:
+                    type: string
+                    example: "Test Annotation"
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "409":
+          $ref: '#/components/responses/ConflictError'
+        "422":
+          $ref: '#/components/responses/ValidationError'
+        "500":
+          $ref: '#/components/responses/ServerError'
 components:
   responses:
     InvalidRequest:

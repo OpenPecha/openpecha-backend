@@ -216,7 +216,6 @@ def filter_metadata():
         metadata = doc.to_dict()
         metadata["id"] = doc.id
         results.append(metadata)
-        logger.info("Appended to results: %s", doc.id)
 
     pagination = {
         "page": page,

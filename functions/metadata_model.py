@@ -11,14 +11,6 @@ class SourceType(str, Enum):
     BDRC = "bdrc"
 
 
-class PechaId(RootModel[str]):
-    root: str = Field(
-        ...,
-        description="ID pattern that starts with 'I' followed by 8 uppercase hex characters",
-        pattern="^I[A-F0-9]{8}$",
-    )
-
-
 class LocalizedString(RootModel[Mapping[str, NonEmptyStr]]):
     root: Mapping[str, NonEmptyStr] = Field(
         ...,
@@ -65,21 +57,10 @@ class MetadataModel(BaseModel):
         description="Dictionary with language codes as keys and corresponding strings as values",
     )
     alt_titles: Sequence[LocalizedString] | None = Field(None, min_length=1)
-    commentary_of: str | None = Field(
-        None,
-        description="ID pattern that starts with 'I' followed by 8 uppercase hex characters",
-        pattern="^I[A-F0-9]{8}$",
-    )
-    version_of: str | None = Field(
-        None,
-        description="ID pattern that starts with 'I' followed by 8 uppercase hex characters",
-        pattern="^I[A-F0-9]{8}$",
-    )
-    translation_of: str | None = Field(
-        None,
-        description="ID pattern that starts with 'I' followed by 8 uppercase hex characters",
-        pattern="^I[A-F0-9]{8}$",
-    )
+    commentary_of: str | None = Field(None, pattern="^I[A-F0-9]{8}$")
+    version_of: str | None = Field(None, pattern="^I[A-F0-9]{8}$")
+    translation_of: str | None = Field(None, pattern="^I[A-F0-9]{8}$")
+
     language: str = Field(..., pattern="^[a-z]{2}(-[A-Z]{2})?$")
     category: str | None = Field(
         None,

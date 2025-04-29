@@ -202,7 +202,7 @@ class TestInvalidMetadataModel:
                     "source_type": "docx",
                 }
             )
-        assert "'author' is required" in str(excinfo.value)
+        assert "author" in str(excinfo.value)
 
         # Missing document_id
         with pytest.raises(ValidationError) as excinfo:

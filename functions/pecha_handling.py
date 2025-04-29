@@ -11,6 +11,8 @@ from firebase_admin import firestore
 from google.cloud.firestore_v1.base_query import FieldFilter, Or
 from metadata_model import MetadataModel
 from openpecha.pecha import Pecha
+from openpecha.pecha.annotations import AnnotationModel
+from openpecha.pecha.layer import LayerEnum
 from openpecha.pecha.parsers.docx import DocxParser
 from openpecha.pecha.parsers.ocr import BdrcParser
 from openpecha.pecha.serializers.pecha_db import Serializer
@@ -227,8 +229,17 @@ def process_pecha(text: FileStorage, metadata: dict[str, Any], pecha_id: str | N
     Raises:
         - Exception if an error occurs during processing.
     """
-    pecha = parse(docx_file=text, pecha_id=pecha_id, metadata=metadata)
+    pecha, annotation_path = parse(docx_file=text, pecha_id=pecha_id, metadata=metadata)
     logger.info("Pecha created: %s %s", pecha.id, pecha.pecha_path)
+    logger.info("Annotation path: %s", annotation_path)
+
+    annotation = AnnotationModel(
+        pecha_id=pecha.id,
+        document_id=text.filename,
+        title="Default display",
+        path=annotation_path,
+        type=LayerEnum.segmentation,
+    )
 
     storage = Storage()
 
@@ -242,11 +253,15 @@ def process_pecha(text: FileStorage, metadata: dict[str, Any], pecha_id: str | N
     try:
         with db.transaction() as transaction:
             doc_ref_metadata = db.collection("metadata").document(pecha.id)
-            # doc_ref_alignment = db.collection("alignment").document(pecha.id)
+            doc_ref_annotation = db.collection("annotation").document()
 
             logger.info("Saving metadata to DB: %s", json.dumps(metadata, ensure_ascii=False))
             transaction.set(doc_ref_metadata, metadata)
             logger.info("Metadata saved to DB: %s", pecha.id)
+
+            logger.info("Saving annotation to DB: %s", json.dumps(annotation.model_dump(mode="json"), ensure_ascii=False))
+            transaction.set(doc_ref_annotation, annotation.model_dump(mode="json"))
+            logger.info("Annotation saved to DB: %s", doc_ref_annotation.id)
     except Exception as e:
         logger.error("Error saving to DB: %s", e)
         try:

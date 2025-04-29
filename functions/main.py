@@ -1,4 +1,5 @@
 import firebase_admin
+from api.annotation import annotation_bp
 from api.api import api_bp
 from api.category import categories_bp
 from api.languages import languages_bp
@@ -37,6 +38,7 @@ def create_app(testing=False):
     app.register_blueprint(api_bp, url_prefix="/api")
     app.register_blueprint(text_bp, url_prefix="/text")
     app.register_blueprint(categories_bp, url_prefix="/categories")
+    app.register_blueprint(annotation_bp, url_prefix="/annotation")
 
     @app.errorhandler(Exception)
     def handle_exception(e):
