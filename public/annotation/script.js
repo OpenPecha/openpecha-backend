@@ -10,6 +10,7 @@ class AnnotationForm {
         this.googleDocsUrl = document.getElementById('googleDocsUrl');
         this.toastContainer = document.getElementById('toastContainer');
         this.pechaLoadingSpinner = document.getElementById('pechaLoadingSpinner');
+        this.formLoadingSpinner = document.getElementById('formLoadingSpinner');
 
         // Search-related elements
         this.searchContainers = document.querySelectorAll('.select-search-container');
@@ -208,6 +209,14 @@ class AnnotationForm {
                 const pechaId = this.metadata.commentary_of;
                 this.pechaDropdown.value = pechaId;
             }
+            this.segmentationLayer.innerHTML = '<option value="">Select Segmentation Layer</option>';
+            this.segmentationLayer.remove(1)
+            this.annotations.forEach(annotation => {
+                const option = document.createElement('option');
+                option.value = annotation.path;
+                option.textContent = annotation.title;
+                this.segmentationLayer.appendChild(option);
+            });            
         }
         
         // Reset validation state
@@ -230,6 +239,7 @@ class AnnotationForm {
             }
 
             const metadata = await response.json();
+            console.log("meta ",metadata)
             return metadata;
         } catch (error) {
             console.error('Error fetching metadata:', error);
@@ -238,8 +248,48 @@ class AnnotationForm {
         }
     }
 
+    async getAnnotation(pechaId) {
+        const url = `${this.API_ENDPOINT}/annotation/${pechaId}`;
+      
+        try {
+          const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+              'accept': 'application/json',
+            },
+          });
+      
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+      
+          const data = await response.json();
+          console.log(data); // You can modify this to return data instead of logging
+          return data;
+        } catch (error) {
+          console.error('Error fetching annotation:', error);
+          throw error;
+        }
+      }
+
+    extractAnnotations(data) {
+    return Object.entries(data).map(([id, details]) => ({
+        path: details.path,
+        title: details.title
+    }));
+    }
+
     async onPechaSelect(pechaId) {
         this.metadata = await this.fetchMetadata(pechaId);
+        console.log("metadata fetched : ",this.metadata)
+        const isCommentaryOrTranslation = ('translation_of' in this.metadata && this.metadata.translation_of !== null) || ('commentary_of' in this.metadata && this.metadata.commentary_of !== null);
+        const isAlignment = this.annotationSelect?.value === 'Alignment';
+        if (isCommentaryOrTranslation && isAlignment) {
+            
+        const annotations = await this.getAnnotation(this.metadata.commentary_of);
+        this.annotations = this.extractAnnotations(annotations);
+        console.log("annotation:",this.annotations)
+        }
         this.toggleConditionalFields();
     }
 
@@ -361,16 +411,16 @@ class AnnotationForm {
 
         // Format the data according to the required structure
         const formattedData = {
-            pecha: data.pecha,
-            annotation_type: data.annotation_type,
-            annotation_title: data.annotation_title,
-            google_docs_id: this.extractGoogleDocsId(data.google_docs_id)
+            pecha_id: data.pecha,
+            type: data.annotation_type,
+            title: data.annotation_title,
+            document_id: this.extractGoogleDocsId(data.google_docs_id)
         };
 
         // Handle pecha_aligned_to based on whether it's a root pecha or not
-        formattedData.pecha_aligned_to = data.pechaDropdown ? {
+        formattedData.aligned_to = data.pechaDropdown ? {
                 pecha_id: data.pechaDropdown,
-                alignment_annotation: data.segmentationLayer || null
+                alignment_id: data.segmentationLayer || null
             } : null;
 
         return formattedData;
@@ -382,13 +432,10 @@ class AnnotationForm {
         return match && match[1] ? match[1] : url;
     }
 
-    async submitAnnotation(data) {
+    async submitAnnotation(formData) {
         const response = await fetch(`${this.API_ENDPOINT}/annotation/`, {
             method: 'POST',
-            headers: {
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(data)
+            body: formData
         });
 
         if (!response.ok) {
@@ -400,22 +447,50 @@ class AnnotationForm {
 
     async handleSubmit(event) {
         event.preventDefault();
-
+        // Disable submit button and show spinner inside
+        const submitBtn = document.getElementById('submitAnnotationBtn');
+        const btnText = submitBtn?.querySelector('.btn-text');
+        const btnSpinner = submitBtn?.querySelector('.btn-spinner');
+        if (submitBtn) submitBtn.disabled = true;
+        if (btnText) btnText.style.display = 'none';
+        if (btnSpinner) btnSpinner.style.display = 'inline-block';
         try {
             const data = this.getFormData();
             console.log("data ::: ", data)
             const isValid = this.validateForm(data);
             if (!isValid) {
+                if (submitBtn) submitBtn.disabled = false;
+                if (btnText) btnText.style.display = '';
+                if (btnSpinner) btnSpinner.style.display = 'none';
                 return;
             }
-            await this.submitAnnotation(data);
+            // Fetch document and prepare form data concurrently
+            const blob = await downloadDoc(data.document_id).catch(err => {
+                throw new Error(`Download failed: ${err.message}`);
+            });
+
+            const formData = await this.prepareFormData(blob, data);
+            const response = await this.submitAnnotation(formData);
+            console.log("response:::", response);
 
             this.showToast('Annotation added successfully!', 'success');
             this.resetForm();
         } catch (error) {
             this.showToast(error.message, 'error');
-            console.error('Error submitting form:', error);
+            console.error('Error adding annotation:', error);
+        } finally {
+            if (submitBtn) submitBtn.disabled = false;
+            if (btnText) btnText.style.display = '';
+            if (btnSpinner) btnSpinner.style.display = 'none';
         }
+    }
+
+    // Helper methods to publish
+    async prepareFormData(blob, annotation) {
+        const formData = new FormData();
+        formData.append("document", blob, `document_${annotation.document_id}.docx`);
+        formData.append("annotation", JSON.stringify(annotation));
+        return formData;
     }
 
     showToast(message, type = 'info') {
@@ -445,28 +520,35 @@ class AnnotationForm {
     }
 
     validateForm(data) {
-        if (!data.pecha) {
+        if (!data.pecha_id) {
             this.highlightError(this.pechaSelect);
             this.showToast('Pecha is required', 'error');
             return false;
         }
-        // if (!data.annotation_type) {
-        //     this.highlightError(this.annotationSelect);
-        //     this.showToast('Annotation Type is required', 'error');
-        //     return false;
-        // }
+        const isCommentaryOrTranslation = ('translation_of' in this.metadata && this.metadata.translation_of !== null) || ('commentary_of' in this.metadata && this.metadata.commentary_of !== null);
 
-        if (!data.annotation_title) {
+        const isAlignment = this.annotationSelect?.value === 'alignment';
+
+        if (isCommentaryOrTranslation && isAlignment) {
+            if (!data.aligned_to.alignment_annotation) {
+                this.highlightError(this.segmentationLayer);
+                this.showToast('Alignment annotation is required', 'error');
+                return false;
+            }
+        }
+        
+        if (!data.title) {
             this.highlightError(this.annotationTitle);
             this.showToast('Annotation Title is required', 'error');
             return false;
         }
 
-        if (!data.google_docs_id) {
+        if (!data.document_id) {
             this.highlightError(this.googleDocsUrl);
             this.showToast('Google Docs URL is required', 'error');
             return false;
         }
+
         return true;
     }
 
