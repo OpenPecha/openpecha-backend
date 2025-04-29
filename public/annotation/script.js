@@ -183,7 +183,7 @@ class AnnotationForm {
     async toggleConditionalFields() {
         const isCommentaryOrTranslation = ('translation_of' in this.metadata && this.metadata.translation_of !== null) || ('commentary_of' in this.metadata && this.metadata.commentary_of !== null);
 
-        const isAlignment = this.annotationSelect?.value === 'alignment';
+        const isAlignment = this.annotationSelect?.value === 'Alignment';
 
         if (!isCommentaryOrTranslation || !isAlignment) {
             this.pechaDropdown.value = "";
@@ -209,6 +209,14 @@ class AnnotationForm {
                 const pechaId = this.metadata.commentary_of;
                 this.pechaDropdown.value = pechaId;
             }
+            this.segmentationLayer.innerHTML = '<option value="">Select Segmentation Layer</option>';
+            this.segmentationLayer.remove(1)
+            this.annotations.forEach(annotation => {
+                const option = document.createElement('option');
+                option.value = annotation.path;
+                option.textContent = annotation.title;
+                this.segmentationLayer.appendChild(option);
+            });            
         }
         
         // Reset validation state
@@ -240,8 +248,48 @@ class AnnotationForm {
         }
     }
 
+    async getAnnotation(pechaId) {
+        const url = `${this.API_ENDPOINT}/annotation/${pechaId}`;
+      
+        try {
+          const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+              'accept': 'application/json',
+            },
+          });
+      
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+      
+          const data = await response.json();
+          console.log(data); // You can modify this to return data instead of logging
+          return data;
+        } catch (error) {
+          console.error('Error fetching annotation:', error);
+          throw error;
+        }
+      }
+
+    extractAnnotations(data) {
+    return Object.entries(data).map(([id, details]) => ({
+        path: details.path,
+        title: details.title
+    }));
+    }
+
     async onPechaSelect(pechaId) {
         this.metadata = await this.fetchMetadata(pechaId);
+        console.log("metadata fetched : ",this.metadata)
+        const isCommentaryOrTranslation = ('translation_of' in this.metadata && this.metadata.translation_of !== null) || ('commentary_of' in this.metadata && this.metadata.commentary_of !== null);
+        const isAlignment = this.annotationSelect?.value === 'Alignment';
+        if (isCommentaryOrTranslation && isAlignment) {
+            
+        const annotations = await this.getAnnotation(this.metadata.commentary_of);
+        this.annotations = this.extractAnnotations(annotations);
+        console.log("annotation:",this.annotations)
+        }
         this.toggleConditionalFields();
     }
 
@@ -372,7 +420,7 @@ class AnnotationForm {
         // Handle pecha_aligned_to based on whether it's a root pecha or not
         formattedData.aligned_to = data.pechaDropdown ? {
                 pecha_id: data.pechaDropdown,
-                alignment_annotation: data.segmentationLayer || null
+                alignment_id: data.segmentationLayer || null
             } : null;
 
         return formattedData;
