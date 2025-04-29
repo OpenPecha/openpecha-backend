@@ -12,6 +12,7 @@ from google.cloud.firestore_v1.base_query import FieldFilter, Or
 from metadata_model import MetadataModel
 from openpecha.pecha import Pecha
 from openpecha.pecha.annotations import AnnotationModel
+from openpecha.pecha.layer import LayerEnum
 from openpecha.pecha.parsers.docx import DocxParser
 from openpecha.pecha.parsers.ocr import BdrcParser
 from openpecha.pecha.serializers.pecha_db import Serializer
@@ -236,7 +237,8 @@ def process_pecha(text: FileStorage, metadata: dict[str, Any], pecha_id: str | N
         pecha_id=pecha.id,
         document_id=text.filename,
         title="Default display",
-        path=annotation_path
+        path=annotation_path,
+        type=LayerEnum.segmentation,
     )
 
     storage = Storage()
