@@ -1,7 +1,6 @@
 import json
 
 import pytest
-# from annotation_model import AnnotationModel, AnnotationType
 from openpecha.pecha.annotations import AnnotationModel
 from openpecha.pecha.layer import LayerEnum
 from pydantic import ValidationError
