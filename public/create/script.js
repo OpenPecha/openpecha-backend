@@ -12,6 +12,7 @@ class LocalizedForm {
             this.setupEventListeners();
             await this.fetchLanguages();
             await this.fetchPechaOptions();
+            this.initializeSearchUI();
         } catch (error) {
             console.error('Initialization error:', error);
             this.showToast('Failed to initialize. Please refresh the page.', 'error');
@@ -30,17 +31,25 @@ class LocalizedForm {
         this.sourceUrl = document.getElementById("sourceUrl");
         this.source = document.getElementById("source");
         this.addAltTitleButton = document.getElementById("addAltTitle");
-        this.pechaOptionsContainer = document.getElementById(
-            "pechaOptionsContainer"
-        );
+        this.searchContainers = document.querySelectorAll('.select-search-container');
+        this.pechaOptionsContainer = document.getElementById("pechaOptionsContainer");
+        this.pechaSelect = document.getElementById("pecha");
+        this.pechaLoadingSpinner = document.getElementById("pechaLoadingSpinner");
         this.typeRadios = document.querySelectorAll(
             'input[name="documentType"]'
         );
+
+        this.annotationAlignmentSelect = document.getElementById("annotationAlignment");
+        this.annotationOptionsContainer = document.getElementById("annotationAlignmentContainer");
+        this.annotationLoadingSpinner = document.getElementById("annotationLoadingSpinner");
         this.createButton = document.getElementById("createButton")
         this.createBtnText = document.querySelector(".create-button-text");
         this.creatingSpinner = createButton.querySelector(".spinner")
         this.creating = false;
         this.languageOptions = [];
+
+        // this.initializeSearchUI = this.initializeSearchUI.bind(this);
+
     }
 
     setupEventListeners() {
@@ -80,13 +89,14 @@ class LocalizedForm {
         // Type Radio Selection
         this.typeRadios.forEach((radio) => {
             radio.addEventListener("change", () => {
-                console.log("value:::", radio.value);
+                console.log("value:::", radio.value, radio.checked);
                 if (radio.checked) {
-                    this.pechaOptionsContainer.classList.add("visible");
                     this.fetchPechaOptions(radio.value);
                 }
             });
         });
+        // Pecha Selection
+        this.pechaSelect.addEventListener('change', (e) => this.onPechaSelect(e.target.value));
         // Copy Pecha ID Button
         this.copyPechaIdButton.addEventListener("click", () => {
             this.copyPechIdAndTitle();
@@ -130,6 +140,123 @@ class LocalizedForm {
                     });
                 }
             });
+    }
+
+    initializeSearchUI() {
+        this.searchContainers.forEach(container => {
+            const select = container.querySelector('select');
+            const searchOverlay = container.querySelector('.search-overlay');
+            const searchInput = container.querySelector('.search-input');
+            const searchResults = container.querySelector('.search-results');
+
+            // Prevent the native dropdown from showing
+            select.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                searchOverlay.classList.toggle('active');
+                if (searchOverlay.classList.contains('active')) {
+                    searchInput.focus();
+                    this.populateSearchResults(select, searchResults, searchInput.value);
+                }
+            });
+
+            // Close search overlay when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!container.contains(e.target)) {
+                    searchOverlay.classList.remove('active');
+                }
+            });
+
+            // Search functionality
+            searchInput.addEventListener('input', () => {
+                this.populateSearchResults(select, searchResults, searchInput.value);
+            });
+
+            // Select an option from search results
+            searchResults.addEventListener('click', (e) => {
+                if (e.target.classList.contains('search-item')) {
+                    const value = e.target.dataset.value;
+                    select.value = value;
+
+                    // Trigger change event
+                    const changeEvent = new Event('change', { bubbles: true });
+                    select.dispatchEvent(changeEvent);
+
+                    searchOverlay.classList.remove('active');
+                }
+            });
+
+            // Handle keyboard navigation
+            searchInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    searchOverlay.classList.remove('active');
+                } else if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    this.navigateSearchResults(searchResults, 'down');
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    this.navigateSearchResults(searchResults, 'up');
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const selectedItem = searchResults.querySelector('.search-item.selected');
+                    if (selectedItem) {
+                        const value = selectedItem.dataset.value;
+                        select.value = value;
+
+                        // Trigger change event
+                        const changeEvent = new Event('change', { bubbles: true });
+                        select.dispatchEvent(changeEvent);
+
+                        searchOverlay.classList.remove('active');
+                    }
+                }
+            });
+        });
+    }
+
+    // Helper method to populate search results
+    populateSearchResults(select, resultsContainer, searchTerm) {
+        searchTerm = searchTerm.toLowerCase();
+        resultsContainer.innerHTML = '';
+        Array.from(select.options).forEach(option => {
+            if (option.value && (searchTerm === '' || option.text.toLowerCase().includes(searchTerm))) {
+                const item = document.createElement('div');
+                item.className = 'search-item';
+                item.textContent = option.text;
+                item.dataset.value = option.value;
+
+                if (option.value === select.value) {
+                    item.classList.add('selected');
+                }
+
+                resultsContainer.appendChild(item);
+            }
+        });
+        if(resultsContainer.innerHTML === '') {
+            resultsContainer.innerHTML = '<div class="search-item" value="">No results found</div>';
+        }
+    }
+
+    // Helper method for keyboard navigation in search results
+    navigateSearchResults(resultsContainer, direction) {
+        const items = resultsContainer.querySelectorAll('.search-item');
+        if (items.length === 0) return;
+
+        const selectedItem = resultsContainer.querySelector('.search-item.selected');
+        let nextIndex = 0;
+
+        if (selectedItem) {
+            const currentIndex = Array.from(items).indexOf(selectedItem);
+            selectedItem.classList.remove('selected');
+
+            if (direction === 'down') {
+                nextIndex = (currentIndex + 1) % items.length;
+            } else {
+                nextIndex = (currentIndex - 1 + items.length) % items.length;
+            }
+        }
+
+        items[nextIndex].classList.add('selected');
+        items[nextIndex].scrollIntoView({ block: 'nearest' });
     }
 
     createLocalizationInput(container, language, isFirst = false, isRequired = false, isTitle = false) {
@@ -327,9 +454,9 @@ class LocalizedForm {
             }
         };
 
-        body.filter = filters[filterBy] || {};
+        body.filter = {};
         try {
-            this.handleSpinner(this.pechaOptionsContainer, true);
+            this.toggleLoadingSpinner(true, this.pechaOptionsContainer, this.pechaLoadingSpinner);
             
             let allPechas = [];
             let currentPage = 1;
@@ -358,20 +485,74 @@ class LocalizedForm {
                 currentPage++;
             }
             
-            this.handleSpinner(this.pechaOptionsContainer, false);
-            this.updatePechaOptions(allPechas);
+            this.toggleLoadingSpinner(false, this.pechaOptionsContainer, this.pechaLoadingSpinner);
+            this.populatePechaDropdown(allPechas);
         } catch (error) {
-            this.handleSpinner(this.pechaOptionsContainer, false);
+            this.toggleLoadingSpinner(false, this.pechaOptionsContainer, this.pechaLoadingSpinner);
             console.error("Error loading pecha options:", error);
             this.showToast("Unable to load pecha options. Please try again later.", "error");
         }
     }
 
-    updatePechaOptions(pechas) {
-        this.pechaOptionsContainer.innerHTML = "";
-        new CustomSearchableDropdown(this.pechaOptionsContainer, pechas, "selectedPecha" );
+    populatePechaDropdown(pechas) {
+        while (this.pechaSelect.options.length > 1) {
+            this.pechaSelect.remove(1);
+        }
+        pechas.forEach(pecha => {
+            const title = pecha.title.bo ?? pecha.title[pecha.language];
+            const option = new Option(`${pecha.id} - ${title}`, pecha.id);
+            this.pechaSelect.add(option.cloneNode(true));
+        });
     }
 
+    async getAnnotation(pechaId) {
+        const url = `${this.API_ENDPOINT}/annotation/${pechaId}`;
+      
+        try {
+            this.toggleLoadingSpinner(true, this.annotationOptionsContainer, this.annotationLoadingSpinner);
+          const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+              'accept': 'application/json',
+            },
+          });
+      
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+      
+          const data = await response.json();
+          return data;
+        } catch (error) {
+          console.error('Error fetching annotation:', error);
+          throw error;
+        } finally {
+            this.toggleLoadingSpinner(false, this.annotationOptionsContainer, this.annotationLoadingSpinner);
+        }
+    }
+
+    extractAnnotations(data) {
+        return Object.entries(data).map(([id, details]) => ({
+            id,
+            title: details.title
+        }));
+    }
+
+    populateAnnotationDropdowns(annotations) {
+        while (this.annotationAlignmentSelect.options.length > 1) {
+            this.annotationAlignmentSelect.remove(1);
+        }
+        annotations.forEach(annotation => {
+            const option = new Option(`${annotation.title}`, annotation.id);
+            this.annotationAlignmentSelect.add(option.cloneNode(true));
+        });
+    }
+
+    async onPechaSelect(pechaId) {
+        const annotations = await this.getAnnotation(pechaId);
+        const extractedAnnotations = this.extractAnnotations(annotations);
+        this.populateAnnotationDropdowns(extractedAnnotations);
+    }
     async fetchLanguages() {
         this.baseLanguageSelect.style.display = "none";
         this.baseLanguageLoader.style.display = "inline-block";
@@ -404,8 +585,11 @@ class LocalizedForm {
     }
 
     collectFormData() {
-        const metadata = {
-            language: this.baseLanguageSelect.value,
+        const formData = {
+            metadata:{
+                language: this.baseLanguageSelect.value,
+            },
+            annotation_type:"segmentation"
         }
         // Collect localized fields
         document.querySelectorAll(".form-group[data-field]").forEach(group => {
@@ -423,7 +607,7 @@ class LocalizedForm {
             });
 
             if (Object.keys(localizations).length > 0) {
-                metadata[fieldName] = localizations;
+                formData.metadata[fieldName] = localizations;
             }
         });
         // collect alternate titles
@@ -457,28 +641,36 @@ class LocalizedForm {
         });
 
         if (alt_titles.length > 0)
-            metadata.alt_titles = alt_titles;
+            formData.metadata.alt_titles = alt_titles;
         // Collect non-localized fields
         const selectedDate = document.getElementById("selectedDate").innerHTML;
         if (selectedDate && selectedDate !== "No date selected") {
-            metadata.date = selectedDate;
+            formData.metadata.date = selectedDate;
         }
-        metadata.source_url = this.sourceUrl.value || null;
-        metadata.source = this.source.value || null;
+        formData.metadata.source_url = this.sourceUrl.value || null;
+        formData.metadata.source = this.source.value || null;
 
         // Collect document type and pecha
-        const selectedType = document.querySelector('input[name="documentType"]:checked');
-        this.selectedPecha = document.getElementById("selectedPecha");
-        if (selectedType && this.selectedPecha.dataset.value) {
-            metadata[selectedType.value] = this.selectedPecha.dataset.value;
-        }
-        // Collect Google Docs id 
-        metadata.document_id = this.extractDocIdFromLink(document.querySelector('input[placeholder="Google docs URL"]').value);
+        const selectedType = document.querySelector('input[name="documentType"]:checked').value;
+        this.selectedPecha = this.pechaOptionsContainer.querySelector('select').value;
 
-        return metadata
+        if (selectedType && this.selectedPecha) {
+            formData.metadata[selectedType] = this.selectedPecha;
+        }
+        //collect annotation alignment value
+        const annotation_alignment = this.annotationAlignmentSelect.value;
+        if(selectedType && this.selectedPecha && annotation_alignment){
+            formData.annotation_type = 'alignment'
+        }
+
+        // Collect Google Docs id 
+        formData.metadata.document_id = this.extractDocIdFromLink(document.querySelector('input[placeholder="Google docs URL"]').value);
+
+        return formData
     }
 
-    validateRequiredFields(metadata) {
+    validateRequiredFields(formData) {
+        const metadata = formData.metadata;
         function isValidURL(url) {
             try {
                 new URL(url);
@@ -618,19 +810,21 @@ class LocalizedForm {
     async handleCreatePecha() {
         try {
             this.clearErrors();
-            const metadata = this.collectFormData();
-            if (!this.validateRequiredFields(metadata)) 
+            const pechaData = this.collectFormData();
+            console.log("data", pechaData);
+            
+            if (!this.validateRequiredFields(pechaData)) 
                 return;
 
             this.setCreatingState(true);
             // Fetch document and prepare form data concurrently
             const [blob] = await Promise.all([
-                downloadDoc(metadata.document_id).catch(err => {
+                downloadDoc(pechaData.metadata.document_id).catch(err => {
                     throw new Error(`Download failed: ${err.message}`);
                 })
             ]);
 
-            const formData = await this.prepareFormData(blob, metadata);
+            const formData = await this.prepareFormData(blob, pechaData);
 
             const response = await this.submitFormData(formData);
 
@@ -655,10 +849,11 @@ class LocalizedForm {
     }
 
     // Helper methods to publish
-    async prepareFormData(blob, metadata) {
+    async prepareFormData(blob, pechaData) {
         const formData = new FormData();
-        formData.append("text", blob, `text_${metadata.document_id}.docx`);
-        formData.append("metadata", JSON.stringify(metadata));
+        formData.append("text", blob, `text_${pechaData.metadata.document_id}.docx`);
+        formData.append("metadata", JSON.stringify(pechaData.metadata));
+        formData.append("annotation_type", pechaData.annotation_type);
         return formData;
     }
 
@@ -685,12 +880,14 @@ class LocalizedForm {
         });
     }
 
-    handleSpinner(parentNode, show) {
-        parentNode.innerHTML = '';
-        const spinner = document.createElement('div');
-        spinner.className = 'spinner';
-        spinner.style.display = show ? 'inline-block' : 'none';
-        parentNode.appendChild(spinner);
+    toggleLoadingSpinner(isLoading, loadingContainer, loader) {
+        if (isLoading) {
+            loader.classList.add('active');
+            loadingContainer.classList.add('loading');
+        } else {
+            loader.classList.remove('active');
+            loadingContainer.classList.remove('loading');
+        }
     }
 
     handleSourceInput(event) {
@@ -768,9 +965,6 @@ class LocalizedForm {
         this.typeRadios.forEach(radio => {
             radio.checked = false;
         });
-
-        // Hide and reset pecha options
-        this.pechaOptionsContainer.classList.remove('visible');
 
         // Clear any error states
         this.clearErrors();
