@@ -2,8 +2,9 @@ import logging
 from typing import Any, Generator
 
 import yaml
+from category_model import CategoryModel
+from database import Database
 from exceptions import InvalidRequest
-from firebase_admin import firestore
 from flask import Blueprint, jsonify, request
 from werkzeug.datastructures import FileStorage
 
@@ -26,26 +27,20 @@ def process_categories(
 ) -> Generator[dict[str, Any], None, None]:
     """Process categories recursively and yield category data with parent references."""
     for category in categories:
-        category_id = category.get("id")
-        if not category_id:
+        if not (category_id := category.get("id")):
             raise ValueError("Category ID is required")
 
-        category_data = {
-            "name": category.get("name", {}),
-            "description": category.get("description", {}),
-            "short_description": category.get("short_description", {}),
-        }
+        category_model = CategoryModel(
+            name=category.get("name"),
+            description=category.get("description"),
+            short_description=category.get("short_description"),
+            parent=parent_id,
+        )
 
-        category_data["parent"] = parent_id
+        Database().set_category(category_id, category_model)
 
-        # Store category and get its ID
-        db = firestore.client()
-        db.collection("category").document(category_id).set(category_data)
         logger.info("Created category %s", category_id)
 
-        yield category_data
-
-        # Process subcategories if any
         if "subcategories" in category:
             yield from process_categories(category["subcategories"], category_id)
 
@@ -72,10 +67,7 @@ def upload_categories():
 
 def build_category_tree() -> list[dict[str, Any]]:
     """Build a tree structure of categories from Firestore documents."""
-    db = firestore.client()
-    categories = {
-        doc.id: {"id": doc.id, **doc.to_dict(), "subcategories": []} for doc in db.collection("category").stream()
-    }
+    categories = Database().get_all_categories()
 
     root_categories = []
     for category in categories.values():

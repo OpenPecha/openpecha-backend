@@ -1,4 +1,3 @@
-import json
 import logging
 import tempfile
 import zipfile
@@ -6,10 +5,9 @@ from enum import Enum, auto
 from pathlib import Path
 from typing import Any
 
-from exceptions import DataNotFound
-from firebase_admin import firestore
-from google.cloud.firestore_v1.base_query import FieldFilter, Or
-from metadata_model import MetadataModel
+from category_model import CategoryModel
+from database import Database
+from metadata_model import MetadataModel, Relationship
 from openpecha.pecha import Pecha
 from openpecha.pecha.annotations import AnnotationModel
 from openpecha.pecha.layer import LayerEnum
@@ -28,12 +26,6 @@ class TraversalMode(Enum):
     FULL_TREE = auto()
 
 
-class Relationship(Enum):
-    COMMENTARY = "commentary_of"
-    VERSION = "version_of"
-    TRANSLATION = "translation_of"
-
-
 def validate_relationship(metadata: MetadataModel, parent: MetadataModel, relationship: Relationship) -> bool:
     if parent is None:
         return True
@@ -50,20 +42,12 @@ def validate_relationship(metadata: MetadataModel, parent: MetadataModel, relati
             return parent.language != metadata.language
 
 
-def db_get_metadata(pecha_id: str) -> dict[str, Any]:
-    db = firestore.client()
-    doc = db.collection("metadata").document(pecha_id).get()
-    if not doc.exists:
-        raise DataNotFound(f"Metadata not found for ID: {pecha_id}")
-    return doc.to_dict()
-
-
 def get_metadata_chain(
     pecha_id: str | None = None,
-    metadata: dict[str, Any] | None = None,
+    metadata: MetadataModel | None = None,
     traversal_mode: TraversalMode = TraversalMode.UPWARD,
     relationships: list[Relationship] | None = None,
-) -> list[tuple[str, dict[str, Any]]]:
+) -> list[tuple[str, MetadataModel]]:
     logger.info("Getting metadata chain for: id: %s, metadata: %s", pecha_id, metadata)
 
     if metadata is None and pecha_id is None:
@@ -72,21 +56,22 @@ def get_metadata_chain(
     if relationships is None:
         relationships = list(Relationship)
 
+    database = Database()
+
     if pecha_id is None:
         logger.info("Pecha ID not provided, using metadata")
     else:
         logger.info("Pecha ID provided: %s getting metadata from DB", pecha_id)
-        metadata = db_get_metadata(pecha_id)
+        metadata = database.get_metadata(pecha_id)
 
-    ref_fields = [r.value for r in relationships]
     chain = [(pecha_id or "", metadata)]
 
     logger.info("Following forward references")
     current = metadata
-    while next_id := next((current.get(field) for field in ref_fields if current.get(field)), None):
-        if next_metadata := db_get_metadata(next_id):
-            chain.append((next_id, next_metadata))
-            current = next_metadata
+    while parent_id := current.parent:
+        parent_metadata = database.get_metadata(parent_id)
+        chain.append((parent_id, parent_metadata))
+        current = parent_metadata
 
     if traversal_mode is TraversalMode.FULL_TREE:
         root_id = chain[-1][0]
@@ -97,21 +82,13 @@ def get_metadata_chain(
         while to_process:
             current_id = to_process.pop(0)  # Get next ID to process
 
-            db = firestore.client()
-            # Find all metadata that reference current_id
-            docs = (
-                db.collection("metadata")
-                .where(filter=Or([FieldFilter(f, "==", current_id) for f in ref_fields]))
-                .stream()
-            )
+            children = database.get_children_metadata(current_id, relationships)
 
-            for doc in docs:
-                if doc.id not in processed:
-                    metadata = doc.to_dict()
-                    if metadata is not None:
-                        chain.insert(0, (doc.id, metadata))  # Add to start to maintain order
-                    processed.add(doc.id)
-                    to_process.append(doc.id)  # Add to queue for processing
+            for child_id, child_metadata in children.items():
+                if child_id not in processed:
+                    chain.insert(0, (child_id, child_metadata))  # Add to start to maintain order
+                    processed.add(child_id)
+                    to_process.append(child_id)  # Add to queue for processing
 
     logger.info("Metadata chain: %s", chain)
     return chain
@@ -169,19 +146,14 @@ def parse_bdrc(data: FileStorage, metadata: dict[str, Any], pecha_id: str | None
     )
 
 
-def get_category_chain(category_id: str) -> list[dict[str, Any]]:
-    db = firestore.client()
+def get_category_chain(category_id: str) -> list[CategoryModel]:
     categories = []
     current_id = category_id
 
     while current_id:
-        category_doc = db.collection("category").document(current_id).get()
-        if not category_doc.exists:
-            raise ValueError(f"Category with ID {current_id} not found")
-
-        category_data = category_doc.to_dict()
-        categories.insert(0, category_data)
-        current_id = category_data.get("parent")
+        category = Database().get_category(category_id=current_id)
+        categories.insert(0, category)
+        current_id = category.parent
 
     return categories
 
@@ -206,7 +178,6 @@ def serialize(pecha: Pecha, reserialize: bool, annotation: AnnotationModel) -> d
     if category_id is None:
         raise ValueError("No category found in metadata")
 
-    # Build the category chain from the given category to the root
     category_chain = get_category_chain(category_id)
     logger.info("Category chain retrieved with %d categories", len(category_chain))
 
@@ -217,12 +188,15 @@ def serialize(pecha: Pecha, reserialize: bool, annotation: AnnotationModel) -> d
     logger.info("Pechas: %s", [pecha.id for pecha in pecha_chain])
 
     return Serializer().serialize(
-        pechas=pecha_chain, metadatas=metadatas, pecha_category=category_chain, annotation_path=annotation.path
+        pechas=pecha_chain,
+        metadatas=metadatas,
+        pecha_category=[CategoryModel.model_dump(c) for c in category_chain],
+        annotation_path=annotation.path,
     )
 
 
 def process_pecha(
-    text: FileStorage, metadata: dict[str, Any], annotation_type: LayerEnum, pecha_id: str | None = None
+    text: FileStorage, metadata: MetadataModel, annotation_type: LayerEnum, pecha_id: str | None = None
 ) -> str:
     """
     Handles Pecha processing: parsing, alignment, serialization, storage, and database transactions.
@@ -233,7 +207,7 @@ def process_pecha(
     Raises:
         - Exception if an error occurs during processing.
     """
-    pecha, annotation_path = parse(docx_file=text, pecha_id=pecha_id, metadata=metadata)
+    pecha, annotation_path = parse(docx_file=text, pecha_id=pecha_id, metadata=metadata.model_dump())
     logger.info("Pecha created: %s %s", pecha.id, pecha.pecha_path)
     logger.info("Annotation path: %s", annotation_path)
 
@@ -252,33 +226,14 @@ def process_pecha(
     storage.store_pecha_doc(pecha_id=pecha.id, doc=stream)
     storage.store_pecha_opf(pecha)
 
-    db = firestore.client()
-
-    try:
-        with db.transaction() as transaction:
-            doc_ref_metadata = db.collection("metadata").document(pecha.id)
-            doc_ref_annotation = db.collection("annotation").document()
-
-            logger.info("Saving metadata to DB: %s", json.dumps(metadata, ensure_ascii=False))
-            transaction.set(doc_ref_metadata, metadata)
-            logger.info("Metadata saved to DB: %s", pecha.id)
-
-            logger.info("Saving annotation to DB: %s", json.dumps(annotation.model_dump(), ensure_ascii=False))
-            transaction.set(doc_ref_annotation, annotation.model_dump())
-            logger.info("Annotation saved to DB: %s", doc_ref_annotation.id)
-    except Exception as e:
-        logger.error("Error saving to DB: %s", e)
-        try:
-            storage.delete_pecha_opf(pecha_id=pecha.id)
-        except Exception as rollback_error:
-            logger.error("Rollback failed: %s", rollback_error)
-
-        raise
+    database = Database()
+    database.set_metadata(pecha_id=pecha.id, metadata=metadata)
+    database.set_annotation(pecha_id=pecha.id, annotation=annotation)
 
     return pecha.id
 
 
-def process_bdrc_pecha(data: FileStorage, metadata: dict[str, Any], pecha_id: str | None = None) -> str:
+def process_bdrc_pecha(data: FileStorage, metadata: MetadataModel, pecha_id: str | None = None) -> str:
     pecha = parse_bdrc(data=data, metadata=metadata, pecha_id=pecha_id)
     logger.info("Pecha created: %s %s", pecha.id, pecha.pecha_path)
 
@@ -289,22 +244,6 @@ def process_bdrc_pecha(data: FileStorage, metadata: dict[str, Any], pecha_id: st
     storage.store_bdrc_data(pecha_id=pecha.id, bdrc_data=stream)
     storage.store_pecha_opf(pecha)
 
-    db = firestore.client()
-    try:
-        with db.transaction() as transaction:
-            doc_ref_metadata = db.collection("metadata").document(pecha.id)
-            # doc_ref_alignment = db.collection("alignment").document(pecha.id)
-
-            logger.info("Saving metadata to DB: %s", json.dumps(metadata, ensure_ascii=False))
-            transaction.set(doc_ref_metadata, metadata)
-            logger.info("Metadata saved to DB: %s", pecha.id)
-    except Exception as e:
-        logger.error("Error saving to DB: %s", e)
-        try:
-            storage.delete_pecha_opf(pecha_id=pecha.id)
-        except Exception as rollback_error:
-            logger.error("Rollback failed: %s", rollback_error)
-
-        raise
+    Database().set_metadata(pecha_id=pecha.id, metadata=metadata)
 
     return pecha.id

@@ -4,8 +4,8 @@ import logging
 from exceptions import DataConflict, InvalidRequest
 from firebase_admin import firestore
 from flask import Blueprint, jsonify, request
-from openpecha.pecha.parsers.docx.annotation import DocxAnnotationParser
 from openpecha.pecha.annotations import AnnotationModel
+from openpecha.pecha.parsers.docx.annotation import DocxAnnotationParser
 from pecha_handling import get_metadata_chain, retrieve_pecha
 from storage import Storage
 
@@ -45,10 +45,10 @@ def post_annotation():
         raise InvalidRequest("Missing JSON object")
 
     annotation_data = json.loads(annotation_data)
-    logger.info(f"Annotation data successfully retrieved: {annotation_data}")
+    logger.info("Annotation data successfully retrieved: %s", annotation_data)
 
     if duplicate_key := get_duplicate_key(annotation_data["document_id"]):
-        raise DataConflict(f"Document '{annotation_data["document_id"]}' already used to annotate: {duplicate_key}")    
+        raise DataConflict(f"Document '{annotation_data["document_id"]}' already used to annotate: {duplicate_key}")
 
     pecha = retrieve_pecha(pecha_id=annotation_data["pecha_id"])
     logger.info("Pecha retrieved: %s", pecha.id)

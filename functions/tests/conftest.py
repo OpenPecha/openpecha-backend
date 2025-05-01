@@ -54,7 +54,7 @@ class MockBlob:
 
 
 class MockStorage:
-    def bucket(self, *args, **kwargs):
+    def bucket(self):
         return MockStorageBucket()
 
 

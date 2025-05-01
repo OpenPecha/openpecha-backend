@@ -1,11 +1,10 @@
 import logging
 from typing import Any
 
+from database import Database
 from exceptions import DataNotFound, InvalidRequest
-from filter_model import AndFilter, Condition, FilterModel, OrFilter
-from firebase_admin import firestore
+from filter_model import FilterModel
 from flask import Blueprint, jsonify, request
-from google.cloud.firestore_v1.base_query import FieldFilter, Or
 from metadata_model import MetadataModel
 from pecha_handling import Relationship, TraversalMode, get_metadata_chain, retrieve_pecha
 from storage import Storage
@@ -22,29 +21,20 @@ def extract_short_info(pecha_id: str, metadata: dict[str, Any]) -> dict[str, str
     }
 
 
-def format_metadata_chain(chain: list[tuple[str, dict[str, Any]]]) -> list[dict[str, str]]:
-    """Transform metadata chain into simplified format with references.
-
-    Args:
-        chain: List of (id, metadata) tuples from get_metadata_chain
-
-    Returns:
-        List of dicts with id, title and reference information
-    """
-    ref_fields = ["commentary_of", "version_of", "translation_of"]
-    formatted = []
-
-    for pecha_id, metadata in chain:
-        entry = {"id": pecha_id, "title": metadata.get("title", {}).get(metadata.get("language", "en"), "")}
-
-        for field in ref_fields:
-            if ref_id := metadata.get(field):
-                entry[field] = ref_id
-                break
-
-        formatted.append(entry)
-
-    return formatted
+def format_metadata_chain(chain: list[tuple[str, MetadataModel]]) -> list[dict[str, str]]:
+    """Transform metadata chain into simplified format with references."""
+    return [
+        {
+            "id": pecha_id,
+            "title": metadata.title.root.get(metadata.language, ""),
+            **{
+                field: getattr(metadata, field)
+                for field in ["commentary_of", "version_of", "translation_of"]
+                if getattr(metadata, field, None)
+            },
+        }
+        for pecha_id, metadata in chain
+    ]
 
 
 @metadata_bp.after_request
@@ -58,13 +48,8 @@ def add_no_cache_headers(response):
 
 @metadata_bp.route("/<string:pecha_id>", methods=["GET"], strict_slashes=False)
 def get_metadata(pecha_id):
-    db = firestore.client()
-    doc = db.collection("metadata").document(pecha_id).get()
-
-    if not doc.exists:
-        raise DataNotFound(f"Metadata with ID '{pecha_id}' not found")
-
-    return jsonify(doc.to_dict()), 200
+    metadata = Database().get_metadata(pecha_id)
+    return jsonify(metadata.model_dump()), 200
 
 
 @metadata_bp.route("/<string:pecha_id>/related", methods=["GET"], strict_slashes=False)
@@ -72,8 +57,7 @@ def get_related_metadata(pecha_id):
     if not pecha_id:
         raise InvalidRequest("Missing Pecha ID")
 
-    db = firestore.client()
-    if not db.collection("metadata").document(pecha_id).get().exists:
+    if not Database().metadata_exists(pecha_id):
         raise DataNotFound(f"Metadata with ID '{pecha_id}' not found")
 
     traversal = request.args.get("traversal", "full_tree").upper()
@@ -112,8 +96,7 @@ def put_metadata(pecha_id: str):
     if not pecha_id:
         raise InvalidRequest("Missing Pecha ID")
 
-    db = firestore.client()
-    if not db.collection("metadata").document(pecha_id).get().exists:
+    if not Database().metadata_exists(pecha_id):
         raise DataNotFound(f"Metadata with ID '{pecha_id}' not found")
 
     data = request.get_json()
@@ -132,17 +115,13 @@ def put_metadata(pecha_id: str):
 
     logger.info("Updated Pecha stored successfully")
 
-    db = firestore.client()
-    doc_ref = db.collection("metadata").document(pecha_id)
-    doc = doc_ref.get()
+    database = Database()
+    stored_metadata = database.get_metadata(pecha_id)
 
-    if not doc.exists:
-        raise DataNotFound(f"Metadata with ID '{pecha_id}' not found")
-
-    if doc.to_dict().get("document_id") != metadata.document_id:
+    if stored_metadata.document_id != metadata.document_id:
         raise InvalidRequest("Document ID '{metadata.document_id}' does not match the existing metadata")
 
-    doc_ref.set(metadata.model_dump())
+    database.set_metadata(pecha_id, metadata)
 
     return jsonify({"message": "Metadata updated successfully", "id": pecha_id}), 200
 
@@ -158,16 +137,15 @@ def set_category(pecha_id: str):
     if not category_id:
         raise InvalidRequest("Missing category ID")
 
-    db = firestore.client()
+    database = Database()
 
-    if not db.collection("category").document(category_id).get().exists:
+    if not database.category_exists(category_id):
         raise DataNotFound(f"Category with ID '{category_id}' not found")
 
-    doc_ref = db.collection("metadata").document(pecha_id)
-    if not doc_ref.get().exists:
+    if not database.metadata_exists(pecha_id):
         raise DataNotFound(f"Metadata with ID '{pecha_id}' not found")
 
-    doc_ref.update({"category": category_id})
+    database.update_metadata(pecha_id, {"category": category_id})
 
     return jsonify({"message": "Category updated successfully", "id": pecha_id}), 200
 
@@ -186,36 +164,19 @@ def filter_metadata():
 
     offset = (page - 1) * limit
 
-    db = firestore.client()
-    query = db.collection("metadata")
+    filter_model = None
 
-    if filter_json:
+    if filter_json is not None:
         filter_model = FilterModel.model_validate(filter_json)
         logger.info("Parsed filter: %s", filter_model.model_dump())
 
-        if not (f := filter_model.root):
-            raise InvalidRequest("Invalid filters provided")
+    database = Database()
 
-        if isinstance(f, OrFilter):
-            query = query.where(filter=Or([FieldFilter(c.field, c.operator, c.value) for c in f.conditions]))
-        elif isinstance(f, AndFilter):
-            for c in f.conditions:
-                query = query.where(filter=FieldFilter(c.field, c.operator, c.value))
-        elif isinstance(f, Condition):
-            query = query.where(f.field, f.operator, f.value)
-        else:
-            raise InvalidRequest("No valid filters provided")
+    total_count = database.count_metadata()
+    model_results = database.filter_metadata(filter_model, offset, limit)
 
-    total_count = query.count().get()[0][0].value
-    logger.info("Total count: %s", total_count)
-
-    query = query.limit(limit).offset(offset)
-
-    results = []
-    for doc in query.stream():
-        metadata = doc.to_dict()
-        metadata["id"] = doc.id
-        results.append(metadata)
+    # This can be changed to return the model_results directly
+    results = [{**model.model_dump(), "id": pecha_id} for pecha_id, model in model_results.items()]
 
     pagination = {
         "page": page,

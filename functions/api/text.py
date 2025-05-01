@@ -1,8 +1,8 @@
 import logging
 import os
 
-from exceptions import DataNotFound, InvalidRequest
-from firebase_admin import firestore
+from database import Database
+from exceptions import InvalidRequest
 from flask import Blueprint, jsonify, request
 from openpecha.pecha.layer import LayerEnum
 from pecha_handling import process_pecha
@@ -39,19 +39,10 @@ def put_text(pecha_id: str):
 
     validate_docx_file(text)
 
-    db = firestore.client()
-    doc = db.collection("metadata").document(pecha_id).get()
-
-    if not doc.exists:
-        raise DataNotFound(f"Metadata with ID '{pecha_id}' not found")
-
-    metadata = doc.to_dict()
-
+    metadata = Database().get_metadata(pecha_id)
     annotation_type = LayerEnum(request.form.get("annotation_type"))
     if not annotation_type:
         raise InvalidRequest("Annotation type is required")
-
-    db.collection("annotation").where("pecha_id", "==", pecha_id).get()
 
     _ = process_pecha(text=text, metadata=metadata, pecha_id=pecha_id, annotation_type=annotation_type)
 

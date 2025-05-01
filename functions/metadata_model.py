@@ -6,6 +6,12 @@ from pydantic import AnyUrl, BaseModel, ConfigDict, Field, RootModel, field_seri
 NonEmptyStr = Annotated[str, Field(min_length=1)]
 
 
+class Relationship(str, Enum):
+    COMMENTARY = "commentary_of"
+    VERSION = "version_of"
+    TRANSLATION = "translation_of"
+
+
 class SourceType(str, Enum):
     DOCX = "docx"
     BDRC = "bdrc"

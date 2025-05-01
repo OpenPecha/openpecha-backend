@@ -2,11 +2,10 @@ import json
 import logging
 
 from api.text import validate_bdrc_file, validate_docx_file
-from exceptions import DataConflict, DataNotFound, InvalidRequest
-from firebase_admin import firestore
+from database import Database
+from exceptions import DataConflict, InvalidRequest
 from flask import Blueprint, jsonify, request, send_file
 from metadata_model import MetadataModel, SourceType
-from openpecha.pecha.annotations import AnnotationModel
 from openpecha.pecha.layer import LayerEnum
 from pecha_handling import process_bdrc_pecha, process_pecha, retrieve_pecha, serialize
 from pecha_uploader.config import Destination_url
@@ -28,9 +27,10 @@ def add_no_cache_headers(response):
 
 
 def get_duplicate_key(document_id: str):
-    db = firestore.client()
-    docs = db.collection("metadata").where("document_id", "==", document_id).limit(1).get()
-    return docs[0].id if docs else None
+    metadata = Database().get_metadata_by_field("document_id", document_id)
+    if metadata:
+        return metadata[0].id
+    return None
 
 
 @pecha_bp.route("/", methods=["POST"], strict_slashes=False)
@@ -62,7 +62,7 @@ def post_pecha():
 
     if text:
         validate_docx_file(text)
-        pecha_id = process_pecha(text=text, metadata=metadata.model_dump(), annotation_type=annotation_type)
+        pecha_id = process_pecha(text=text, metadata=metadata, annotation_type=annotation_type)
         logger.info("Processed text file: %s", text.filename)
     else:  # data file (BDRC)
         validate_bdrc_file(data)
@@ -88,11 +88,6 @@ def get_pecha(pecha_id: str):
 
 @pecha_bp.route("/<string:pecha_id>", methods=["DELETE"], strict_slashes=False)
 def delete_pecha(pecha_id: str):
-    db = firestore.client()
-    doc_ref = db.collection("metadata").document(pecha_id)
-    if not doc_ref.get().exists:
-        raise DataNotFound(f"Pecha with ID '{pecha_id}' not found")
-
     try:
         storage = Storage()
         storage.delete_pecha_doc(pecha_id=pecha_id)
@@ -101,7 +96,7 @@ def delete_pecha(pecha_id: str):
     except Exception as e:
         logger.warning("Failed to delete Pecha %s: %s", pecha_id, e)
 
-    doc_ref.delete()
+    Database().delete_metadata(pecha_id)
     return jsonify({"message": "Pecha deleted successfully", "id": pecha_id}), 200
 
 
@@ -127,13 +122,9 @@ def publish(pecha_id: str):
     destination_url = getattr(Destination_url, destination.upper())
     logger.info("Destination URL: %s", destination_url)
 
-    annotation_doc = firestore.client().collection("annotation").document(annotation_id).get()
-    if not annotation_doc.exists:
-        raise DataNotFound(f"Annotation with ID '{annotation_id}' not found")
+    annotation = Database().get_annotation(annotation_id)
 
-    annotation_model = AnnotationModel.model_validate(annotation_doc.to_dict())
-
-    serialized = serialize(pecha=pecha, reserialize=reserialize, annotation=annotation_model)
+    serialized = serialize(pecha=pecha, reserialize=reserialize, annotation=annotation)
     logger.info("Successfully serialized Pecha %s", pecha_id)
 
     Storage().store_pechaorg_json(pecha_id=pecha_id, json_dict=serialized)
