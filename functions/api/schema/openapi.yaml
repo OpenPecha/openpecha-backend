@@ -39,6 +39,10 @@ paths:
                   type: string
                   format: json
                   description: JSON-encoded metadata describing the document. The structure follows [metadata schema](https://pecha-backend.web.app/schema/metadata).
+                annotation_type:
+                  type: string
+                  enum: [citation, sabche]
+                  description: The type of annotation to be created for this Pecha.
       responses:
         "200":
           description: Successfully published the text document.
@@ -173,6 +177,11 @@ paths:
                   type: boolean
                   default: false
                   description: Whether to re-serialize the Pecha before publishing.
+                annotation_id:
+                  type: string
+                  description: The ID of the annotation to use when serializing the Pecha.
+                  example: A12345678
+                  pattern: '^A[0-9A-F]{8}$'
       responses:
         "200":
           description: Pecha published successfully.
@@ -601,17 +610,25 @@ paths:
           multipart/form-data:
             schema:
               type: object
+              required:
+                - text
+                - annotation_type
               properties:
-                docx:
+                text:
                   type: string
                   format: binary
-                  description: The docx file containing the updated Pecha content.
+                  description: The updated DOCX file containing the Pecha content.
+                annotation_type:
+                  type: string
+                  enum: [citation, sabche]
+                  description: The type of annotation to be applied to the text.
             examples:
-              valid_docx:
-                summary: Valid docx file upload
-                description: A valid docx file to update a Pecha.
+              valid_update:
+                summary: Valid text update with annotation type
+                description: A valid DOCX file with annotation type to update a Pecha.
                 value:
-                  docx: (binary content of a DOCX file)
+                  text: (binary content of a DOCX file)
+                  annotation_type: citation
       responses:
         "201":
           description: Successfully updated the Pecha.
@@ -623,7 +640,7 @@ paths:
                   message:
                     type: string
                     examples:
-                      - Pecha updated successfully
+                      - Text updated successfully
                   id:
                     type: string
                     examples:

@@ -186,7 +186,7 @@ def get_category_chain(category_id: str) -> list[dict[str, Any]]:
     return categories
 
 
-def serialize(pecha: Pecha, reserialize: bool) -> dict[str, Any]:
+def serialize(pecha: Pecha, reserialize: bool, annotation: AnnotationModel) -> dict[str, Any]:
     metadata_chain = get_metadata_chain(pecha_id=pecha.id)
     metadatas = [md for _, md in metadata_chain]
 
@@ -216,10 +216,14 @@ def serialize(pecha: Pecha, reserialize: bool) -> dict[str, Any]:
     pecha_chain = get_pecha_chain(pecha_ids=id_chain)
     logger.info("Pechas: %s", [pecha.id for pecha in pecha_chain])
 
-    return Serializer().serialize(pechas=pecha_chain, metadatas=metadatas, pecha_category=category_chain)
+    return Serializer().serialize(
+        pechas=pecha_chain, metadatas=metadatas, pecha_category=category_chain, annotation_path=annotation.path
+    )
 
 
-def process_pecha(text: FileStorage, metadata: dict[str, Any], pecha_id: str | None = None) -> str:
+def process_pecha(
+    text: FileStorage, metadata: dict[str, Any], annotation_type: LayerEnum, pecha_id: str | None = None
+) -> str:
     """
     Handles Pecha processing: parsing, alignment, serialization, storage, and database transactions.
 
@@ -238,7 +242,7 @@ def process_pecha(text: FileStorage, metadata: dict[str, Any], pecha_id: str | N
         document_id=text.filename,
         title="Default display",
         path=annotation_path,
-        type=LayerEnum.segmentation,
+        type=annotation_type,
     )
 
     storage = Storage()

@@ -6,6 +6,8 @@ from exceptions import DataConflict, DataNotFound, InvalidRequest
 from firebase_admin import firestore
 from flask import Blueprint, jsonify, request, send_file
 from metadata_model import MetadataModel, SourceType
+from openpecha.pecha.annotations import AnnotationModel
+from openpecha.pecha.layer import LayerEnum
 from pecha_handling import process_bdrc_pecha, process_pecha, retrieve_pecha, serialize
 from pecha_uploader.config import Destination_url
 from pecha_uploader.pipeline import upload
@@ -41,6 +43,10 @@ def post_pecha():
     if text and data:
         raise InvalidRequest("Both text and data cannot be uploaded together")
 
+    annotation_type = LayerEnum(request.form.get("annotation_type"))
+    if not annotation_type:
+        raise InvalidRequest("Annotation type is required")
+
     metadata_json = request.form.get("metadata")
     if not metadata_json:
         raise InvalidRequest("Missing metadata")
@@ -56,7 +62,7 @@ def post_pecha():
 
     if text:
         validate_docx_file(text)
-        pecha_id = process_pecha(text=text, metadata=metadata.model_dump())
+        pecha_id = process_pecha(text=text, metadata=metadata.model_dump(), annotation_type=annotation_type)
         logger.info("Processed text file: %s", text.filename)
     else:  # data file (BDRC)
         validate_bdrc_file(data)
@@ -104,6 +110,7 @@ def publish(pecha_id: str):
     data = request.get_json()
     destination = data.get("destination", "staging")
     reserialize = data.get("reserialize", False)
+    annotation_id = data.get("annotation_id")
 
     if not pecha_id:
         raise InvalidRequest("Missing Pecha ID")
@@ -111,13 +118,22 @@ def publish(pecha_id: str):
     if destination not in ["staging", "production"]:
         raise InvalidRequest(f"Invalid destination '{destination}'")
 
+    if not annotation_id:
+        raise InvalidRequest("Missing Annotation ID")
+
     pecha = retrieve_pecha(pecha_id=pecha_id)
     logger.info("Successfully retrieved Pecha %s from storage", pecha_id)
 
     destination_url = getattr(Destination_url, destination.upper())
     logger.info("Destination URL: %s", destination_url)
 
-    serialized = serialize(pecha=pecha, reserialize=reserialize)
+    annotation_doc = firestore.client().collection("annotation").document(annotation_id).get()
+    if not annotation_doc.exists:
+        raise DataNotFound(f"Annotation with ID '{annotation_id}' not found")
+
+    annotation_model = AnnotationModel.model_validate(annotation_doc.to_dict())
+
+    serialized = serialize(pecha=pecha, reserialize=reserialize, annotation=annotation_model)
     logger.info("Successfully serialized Pecha %s", pecha_id)
 
     Storage().store_pechaorg_json(pecha_id=pecha_id, json_dict=serialized)

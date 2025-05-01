@@ -4,6 +4,7 @@ import os
 from exceptions import DataNotFound, InvalidRequest
 from firebase_admin import firestore
 from flask import Blueprint, jsonify, request
+from openpecha.pecha.layer import LayerEnum
 from pecha_handling import process_pecha
 from werkzeug.datastructures import FileStorage
 
@@ -46,6 +47,12 @@ def put_text(pecha_id: str):
 
     metadata = doc.to_dict()
 
-    _ = process_pecha(text=text, metadata=metadata, pecha_id=pecha_id)
+    annotation_type = LayerEnum(request.form.get("annotation_type"))
+    if not annotation_type:
+        raise InvalidRequest("Annotation type is required")
+
+    db.collection("annotation").where("pecha_id", "==", pecha_id).get()
+
+    _ = process_pecha(text=text, metadata=metadata, pecha_id=pecha_id, annotation_type=annotation_type)
 
     return jsonify({"message": "Text updated successfully", "id": pecha_id}), 201
