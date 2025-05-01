@@ -4,7 +4,7 @@ import os
 from database import Database
 from exceptions import InvalidRequest
 from flask import Blueprint, jsonify, request
-from openpecha.pecha.layer import LayerEnum
+from openpecha.pecha.layer import AnnotationType
 from pecha_handling import process_pecha
 from werkzeug.datastructures import FileStorage
 
@@ -40,7 +40,7 @@ def put_text(pecha_id: str):
     validate_docx_file(text)
 
     metadata = Database().get_metadata(pecha_id)
-    annotation_type = LayerEnum(request.form.get("annotation_type"))
+    annotation_type = AnnotationType(request.form.get("annotation_type"))
     if not annotation_type:
         raise InvalidRequest("Annotation type is required")
 

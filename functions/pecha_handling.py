@@ -10,7 +10,7 @@ from database import Database
 from metadata_model import MetadataModel, Relationship
 from openpecha.pecha import Pecha
 from openpecha.pecha.annotations import AnnotationModel
-from openpecha.pecha.layer import LayerEnum
+from openpecha.pecha.layer import AnnotationType
 from openpecha.pecha.parsers.docx import DocxParser
 from openpecha.pecha.parsers.ocr import BdrcParser
 from openpecha.pecha.serializers.pecha_db import Serializer
@@ -112,7 +112,9 @@ def create_tmp() -> Path:
         return Path(temp.name)
 
 
-def parse(docx_file: FileStorage, metadata: dict[str, Any], pecha_id: str | None = None) -> Pecha:
+def parse(
+    docx_file: FileStorage, annotation_type: AnnotationType, metadata: dict[str, Any], pecha_id: str | None = None
+) -> Pecha:
     if not docx_file.filename:
         raise ValueError("Docx file has no filename")
 
@@ -127,6 +129,7 @@ def parse(docx_file: FileStorage, metadata: dict[str, Any], pecha_id: str | None
         docx_file=path,
         metadatas=metadatas,
         pecha_id=pecha_id,
+        annotation_type=annotation_type,
     )
 
 
@@ -196,7 +199,7 @@ def serialize(pecha: Pecha, reserialize: bool, annotation: AnnotationModel) -> d
 
 
 def process_pecha(
-    text: FileStorage, metadata: MetadataModel, annotation_type: LayerEnum, pecha_id: str | None = None
+    text: FileStorage, metadata: MetadataModel, annotation_type: AnnotationType, pecha_id: str | None = None
 ) -> str:
     """
     Handles Pecha processing: parsing, alignment, serialization, storage, and database transactions.
@@ -207,7 +210,9 @@ def process_pecha(
     Raises:
         - Exception if an error occurs during processing.
     """
-    pecha, annotation_path = parse(docx_file=text, pecha_id=pecha_id, metadata=metadata.model_dump())
+    pecha, annotation_path = parse(
+        docx_file=text, annotation_type=annotation_type, pecha_id=pecha_id, metadata=metadata.model_dump()
+    )
     logger.info("Pecha created: %s %s", pecha.id, pecha.pecha_path)
     logger.info("Annotation path: %s", annotation_path)
 

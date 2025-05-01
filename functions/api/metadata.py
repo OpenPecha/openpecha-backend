@@ -166,7 +166,7 @@ def filter_metadata():
 
     filter_model = None
 
-    if filter_json is not None:
+    if filter_json:
         filter_model = FilterModel.model_validate(filter_json)
         logger.info("Parsed filter: %s", filter_model.model_dump())
 

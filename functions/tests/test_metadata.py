@@ -379,6 +379,24 @@ class TestFilterMetadata:
         assert data["pagination"]["page"] == 1
         assert data["pagination"]["limit"] == 20
 
+    def test_filter_metadata_empty_filter_with_pagination(self, mock_db, client):
+        """Test filtering with empty filter object but custom pagination."""
+        payload = {
+            "filter": {},
+            "page": 1,
+            "limit": 100
+        }
+        
+        response = client.post("/metadata/filter", json=payload)
+        
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert "metadata" in data
+        assert "pagination" in data
+        assert len(data["metadata"]) >= 7  # All metadata documents
+        assert data["pagination"]["page"] == 1
+        assert data["pagination"]["limit"] == 100
+
     def test_filter_metadata_by_language(self, mock_db, client):
         """Test filtering metadata by language field."""
         filter_data = {"filter": {"field": "language", "operator": "==", "value": "bo"}}
