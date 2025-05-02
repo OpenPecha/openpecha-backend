@@ -451,9 +451,34 @@ class UpdateMetaData {
             this.showErrorState(error.message);
         }
     }
+   
+    async getPublishDistination() {
+        try {
+            const firebaseConfigResponse = await fetch('/__/firebase/init.json', {
+                headers: {
+                    'Accept': 'application/json',
+                    'Cache-Control': 'no-cache'
+                },
+                cache: 'no-store'
+            });
+            if (!firebaseConfigResponse.ok) {
+                throw new Error("Failed to fetch Firebase init file");
+            }
+            const firebaseConfig = await firebaseConfigResponse.json();
+            const projectId = firebaseConfig.projectId;
+            if (projectId === 'pecha-backend') {
+                return 'production';
+            } else if (projectId === 'pecha-backend-dev') {
+                return 'staging';
+            }
+        } catch (error) {
+            console.warn("Failed to fetch Firebase init file:", error);
+            return null;
+        }
+    }
+    
 
-
-    validateFields() {
+    async validateFields() {
         if (!this.metadata.category) {
             this.showToast('This pecha does not have category', 'error');
             return false;
@@ -469,7 +494,7 @@ class UpdateMetaData {
             this.showToast('Please select the annotation alignment', 'error');
             return false;
         }
-        const publishDestination = document.querySelector('input[name="destination"]:checked')?.value;
+        const publishDestination = await this.getPublishDistination();
         if(!publishDestination) {
             this.showToast('Please select the publish destination', 'error');
             return false;
@@ -484,7 +509,7 @@ class UpdateMetaData {
     }
 
     async handlePublish() {
-        const validatedData = this.validateFields();
+        const validatedData = await this.validateFields();
         if (!validatedData) return;
 
         this.setLoading(true);
