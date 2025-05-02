@@ -145,6 +145,11 @@ main {
     border-left: var(--border);
 }
 
+.select-wrapper {
+    min-height: 48px;
+    border: var(--border);
+    border-radius: var(--border-radius);
+}
 /* Button styles */
 
 .remove-btn {
@@ -395,14 +400,8 @@ select.error {
 }
 
 .form-content.visible,
-#pechaOptionsContainer.visible,
 .popup-container.visible {
     display: block;
-}
-
-#pechaOptionsContainer {
-    display: block;
-    margin-top: var(--spacing-lg);
 }
 
 /* disabled */
