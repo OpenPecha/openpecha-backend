@@ -113,7 +113,7 @@ def create_tmp() -> Path:
 
 
 def parse(
-    docx_file: FileStorage, annotation_type: AnnotationType, metadata: dict[str, Any], pecha_id: str | None = None
+    docx_file: FileStorage, annotation_type: AnnotationType, metadata: MetadataModel, pecha_id: str | None = None
 ) -> Pecha:
     if not docx_file.filename:
         raise ValueError("Docx file has no filename")
@@ -123,7 +123,7 @@ def parse(
     path = create_tmp()
     docx_file.save(path)
 
-    metadatas = [md for _, md in get_metadata_chain(pecha_id=pecha_id, metadata=metadata)]
+    metadatas = [md.model_dump() for _, md in get_metadata_chain(pecha_id=pecha_id, metadata=metadata)]
 
     return DocxParser().parse(
         docx_file=path,
@@ -211,7 +211,7 @@ def process_pecha(
         - Exception if an error occurs during processing.
     """
     pecha, annotation_path = parse(
-        docx_file=text, annotation_type=annotation_type, pecha_id=pecha_id, metadata=metadata.model_dump()
+        docx_file=text, annotation_type=annotation_type, pecha_id=pecha_id, metadata=metadata
     )
     logger.info("Pecha created: %s %s", pecha.id, pecha.pecha_path)
     logger.info("Annotation path: %s", annotation_path)
