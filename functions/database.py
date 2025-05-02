@@ -1,5 +1,6 @@
 from typing import Any
 
+from category_model import CategoryModel
 from exceptions import DataNotFound, InvalidRequest
 from filter_model import AndFilter, Condition, FilterModel, OrFilter
 from firebase_admin import firestore
@@ -81,11 +82,11 @@ class Database:
         doc = self.category_ref.document(category_id).get()
         return doc.exists
 
-    def get_category(self, category_id: str):
+    def get_category(self, category_id: str) -> CategoryModel:
         doc = self.category_ref.document(category_id).get()
         if not doc.exists:
             raise DataNotFound(f"Category with ID '{category_id}' not found")
-        return doc.to_dict()
+        return CategoryModel.model_validate(doc.to_dict())
 
     def set_category(self, category_id: str, category: dict[str, Any]):
         doc_ref = self.category_ref.document(category_id)
