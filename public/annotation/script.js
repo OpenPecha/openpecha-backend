@@ -183,7 +183,7 @@ class AnnotationForm {
     async toggleConditionalFields() {
         const isCommentaryOrTranslation = ('translation_of' in this.metadata && this.metadata.translation_of !== null) || ('commentary_of' in this.metadata && this.metadata.commentary_of !== null);
 
-        const isAlignment = this.annotationSelect?.value === 'Alignment';
+        const isAlignment = this.annotationSelect?.value === 'alignment';
 
         if (!isCommentaryOrTranslation || !isAlignment) {
             this.pechaDropdown.value = "";
@@ -283,7 +283,7 @@ class AnnotationForm {
         this.metadata = await this.fetchMetadata(pechaId);
         console.log("metadata fetched : ",this.metadata)
         const isCommentaryOrTranslation = ('translation_of' in this.metadata && this.metadata.translation_of !== null) || ('commentary_of' in this.metadata && this.metadata.commentary_of !== null);
-        const isAlignment = this.annotationSelect?.value === 'Alignment';
+        const isAlignment = this.annotationSelect?.value === 'alignment';
         if (isCommentaryOrTranslation && isAlignment) {
             
         const annotations = await this.getAnnotation(this.metadata.commentary_of);
