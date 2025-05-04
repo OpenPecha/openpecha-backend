@@ -26,10 +26,10 @@ def add_no_cache_headers(response):
     return response
 
 
-def get_duplicate_key(document_id: str):
-    metadata = Database().get_metadata_by_field("document_id", document_id)
-    if metadata:
-        return metadata[0].id
+def get_duplicate_key(document_id: str) -> str | None:
+    results = Database().get_metadata_by_field("document_id", document_id)
+    if results:
+        return list(results.keys())[0]
     return None
 
 
@@ -60,13 +60,16 @@ def post_pecha():
     if duplicate_key:
         raise DataConflict(f"Document '{metadata.document_id}' is already published as: {duplicate_key}")
 
+    pecha_id = None
+
     if text:
         validate_docx_file(text)
         pecha_id = process_pecha(text=text, metadata=metadata, annotation_type=annotation_type)
         logger.info("Processed text file: %s", text.filename)
-    else:  # data file (BDRC)
+
+    if data:  # data file (BDRC)
         validate_bdrc_file(data)
-        pecha_id = process_bdrc_pecha(data=data, metadata=metadata.model_dump())
+        pecha_id = process_bdrc_pecha(data=data, metadata=metadata)
         logger.info("Processed data file: %s", data.filename)
 
     title = metadata.title[metadata.language] or metadata.title["en"]

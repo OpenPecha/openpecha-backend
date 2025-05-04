@@ -50,9 +50,6 @@ def get_metadata_chain(
 ) -> list[tuple[str, MetadataModel]]:
     logger.info("Getting metadata chain for: id: %s, metadata: %s", pecha_id, metadata)
 
-    if metadata is None and pecha_id is None:
-        raise ValueError("Either metadata or pecha_id must be provided")
-
     if relationships is None:
         relationships = list(Relationship)
 
@@ -63,6 +60,9 @@ def get_metadata_chain(
     else:
         logger.info("Pecha ID provided: %s getting metadata from DB", pecha_id)
         metadata = database.get_metadata(pecha_id)
+
+    if metadata is None:
+        raise ValueError("Either metadata or pecha_id must be provided")
 
     chain = [(pecha_id or "", metadata)]
 
@@ -133,7 +133,7 @@ def parse(
     )
 
 
-def parse_bdrc(data: FileStorage, metadata: dict[str, Any], pecha_id: str | None = None) -> Pecha:
+def parse_bdrc(data: FileStorage, metadata: MetadataModel, pecha_id: str | None = None) -> Pecha:
     if not data.filename:
         raise ValueError("Data has no filename")
 
@@ -144,14 +144,14 @@ def parse_bdrc(data: FileStorage, metadata: dict[str, Any], pecha_id: str | None
 
     return BdrcParser().parse(
         input=path,
-        metadata=metadata,
+        metadata=metadata.model_dump(),
         pecha_id=pecha_id,
     )
 
 
 def get_category_chain(category_id: str) -> list[CategoryModel]:
-    categories = []
-    current_id = category_id
+    categories: list[CategoryModel] = []
+    current_id: str | None = category_id
 
     while current_id:
         category = Database().get_category(category_id=current_id)
@@ -177,7 +177,7 @@ def serialize(pecha: Pecha, reserialize: bool, annotation: AnnotationModel) -> d
 
     logger.info("Serialized Pecha %s doesn't exist, starting serialize", pecha.id)
 
-    category_id = metadatas[0].get("category")
+    category_id = metadatas[0].category
     if category_id is None:
         raise ValueError("No category found in metadata")
 
@@ -233,7 +233,9 @@ def process_pecha(
 
     database = Database()
     database.set_metadata(pecha_id=pecha.id, metadata=metadata)
-    database.set_annotation(pecha_id=pecha.id, annotation=annotation)
+    annotation_id = database.add_annotation(annotation=annotation)
+
+    logger.info("Annotation added successfully: %s", annotation_id)
 
     return pecha.id
 

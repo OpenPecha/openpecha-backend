@@ -381,14 +381,10 @@ class TestFilterMetadata:
 
     def test_filter_metadata_empty_filter_with_pagination(self, mock_db, client):
         """Test filtering with empty filter object but custom pagination."""
-        payload = {
-            "filter": {},
-            "page": 1,
-            "limit": 100
-        }
-        
+        payload = {"filter": {}, "page": 1, "limit": 100}
+
         response = client.post("/metadata/filter", json=payload)
-        
+
         assert response.status_code == 200
         data = json.loads(response.data)
         assert "metadata" in data
@@ -419,9 +415,7 @@ class TestFilterMetadata:
         assert len(data["metadata"]) == 1
         assert data["metadata"][0]["id"] == "I77777777"
 
-    @pytest.mark.skip(
-        reason="This test requires metadata changes that commentary of, etc are a propert of the metadata, because Firebase doesn't handle combining != nulls"
-    )
+    @pytest.mark.skip(reason="This test requires metadata changes, because Firebase doesn't handle combining != nulls")
     def test_filter_metadata_with_and_conditions(self, mock_db, client):
         """Test filtering metadata with AND conditions."""
         filter_data = {

@@ -2,7 +2,7 @@ import logging
 from typing import Any, Generator
 
 import yaml
-from category_model import CategoryModel
+from category_model import CategoryModel, LocalizedString
 from database import Database
 from exceptions import InvalidRequest
 from flask import Blueprint, jsonify, request
@@ -31,9 +31,9 @@ def process_categories(
             raise ValueError("Category ID is required")
 
         category_model = CategoryModel(
-            name=category.get("name"),
-            description=category.get("description"),
-            short_description=category.get("short_description"),
+            name=LocalizedString(category.get("name") or {}),
+            description=LocalizedString(category.get("description") or {}),
+            short_description=LocalizedString(category.get("short_description") or {}),
             parent=parent_id,
         )
 

@@ -1,8 +1,8 @@
 import json
 import logging
 
+from database import Database
 from exceptions import DataConflict, InvalidRequest
-from firebase_admin import firestore
 from flask import Blueprint, jsonify, request
 from openpecha.pecha.annotations import AnnotationModel
 from openpecha.pecha.parsers.docx.annotation import DocxAnnotationParser
@@ -14,20 +14,20 @@ logger = logging.getLogger(__name__)
 annotation_bp = Blueprint("annotation", __name__)
 
 
-def get_duplicate_key(document_id: str):
-    db = firestore.client()
-    doc = db.collection("annotation").where("document_id", "==", document_id).limit(1).get()
-    return doc[0].id if doc else None
+def get_duplicate_key(document_id: str) -> str | None:
+    results = Database().get_annotation_by_field("document_id", document_id)
+    if results:
+        return list(results.keys())[0]
+    return None
 
 
 @annotation_bp.route("/<string:pecha_id>", methods=["GET"])
 def get_annotation(pecha_id: str):
-    db = firestore.client()
-    docs = db.collection("annotation").where("pecha_id", "==", pecha_id).stream()
+    results = Database().get_annotation_by_field("pecha_id", pecha_id)
 
     annotation_dict = {}
-    for annotation in docs:
-        annotation_dict[annotation.id] = annotation.to_dict()
+    for annotation_id, annotation in results.items():
+        annotation_dict[annotation_id] = annotation.model_dump()
 
     return jsonify(annotation_dict), 200
 
@@ -40,11 +40,11 @@ def post_annotation():
     if not document:
         raise InvalidRequest("Missing document")
 
-    annotation_data = request.form.get("annotation")
-    if not annotation_data:
+    annotation_json = request.form.get("annotation")
+    if not annotation_json:
         raise InvalidRequest("Missing JSON object")
 
-    annotation_data = json.loads(annotation_data)
+    annotation_data = json.loads(annotation_json)
     logger.info("Annotation data successfully retrieved: %s", annotation_data)
 
     if duplicate_key := get_duplicate_key(annotation_data["document_id"]):
@@ -68,7 +68,6 @@ def post_annotation():
     annotation_data["path"] = annotation_path
     annotation = AnnotationModel.model_validate(annotation_data)
 
-    db = firestore.client()
-    doc_ref = db.collection("annotation").add(annotation.model_dump())
+    annotation_id = Database().add_annotation(annotation)
 
-    return jsonify({"message": "Annotation created successfully", "title": annotation.title, "id": doc_ref[1].id}), 201
+    return jsonify({"message": "Annotation created successfully", "title": annotation.title, "id": annotation_id}), 201

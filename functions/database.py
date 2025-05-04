@@ -30,10 +30,10 @@ class Database:
             raise DataNotFound(f"Metadata with ID '{pecha_id}' not found")
         return MetadataModel.model_validate(doc.to_dict())
 
-    def get_metadata_by_field(self, field: str, value: Any) -> list[MetadataModel]:
-        query = self.metadata_ref.where(field, "==", value)
+    def get_metadata_by_field(self, field: str, value: Any) -> dict[str, MetadataModel]:
+        query = self.metadata_ref.where(filter=FieldFilter(field, "==", value))
         docs = query.stream()
-        return [MetadataModel.model_validate(doc.to_dict()) for doc in docs]
+        return {doc.id: MetadataModel.model_validate(doc.to_dict()) for doc in docs}
 
     def set_metadata(self, pecha_id: str, metadata: MetadataModel):
         self.metadata_ref.document(pecha_id).set(metadata.model_dump())
@@ -66,7 +66,7 @@ class Database:
                 for c in f.conditions:
                     query = query.where(filter=FieldFilter(c.field, c.operator, c.value))
             elif isinstance(f, Condition):
-                query = query.where(f.field, f.operator, f.value)
+                query = query.where(filter=FieldFilter(f.field, f.operator, f.value))
             else:
                 raise InvalidRequest("No valid filters provided")
 
@@ -88,13 +88,13 @@ class Database:
             raise DataNotFound(f"Category with ID '{category_id}' not found")
         return CategoryModel.model_validate(doc.to_dict())
 
-    def set_category(self, category_id: str, category: dict[str, Any]):
+    def set_category(self, category_id: str, category: CategoryModel):
         doc_ref = self.category_ref.document(category_id)
         doc = doc_ref.get()
         if not doc.exists:
             raise DataNotFound(f"Category with ID '{category_id}' not found")
 
-        doc_ref.set(category)
+        doc_ref.set(category.model_dump())
 
     def get_all_categories(self) -> dict[str, dict[str, Any]]:
         return {doc.id: doc.to_dict() for doc in self.category_ref.stream()}
@@ -109,5 +109,11 @@ class Database:
             raise DataNotFound(f"Annotation with ID '{annotation_id}' not found")
         return AnnotationModel.model_validate(doc.to_dict())
 
-    def set_annotation(self, pecha_id: str, annotation: AnnotationModel):
-        self.annotation_ref.document(pecha_id).set(annotation.model_dump())
+    def get_annotation_by_field(self, field: str, value: Any) -> dict[str, AnnotationModel]:
+        query = self.annotation_ref.where(filter=FieldFilter(field, "==", value))
+        docs = query.stream()
+        return {doc.id: AnnotationModel.model_validate(doc.to_dict()) for doc in docs}
+
+    def add_annotation(self, annotation: AnnotationModel) -> str:
+        doc_ref = self.annotation_ref.add(annotation.model_dump())
+        return doc_ref[1].id

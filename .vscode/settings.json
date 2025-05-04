@@ -8,6 +8,10 @@
         "--disable=too-few-public-methods",
         "--max-line-length=120",
     ],
+    "mypy-type-checker.args": [
+        "--disable-error-code=import-untyped",
+        "--check-untyped-defs",
+    ],
     "black-formatter.args": [
         "--line-length",
         "120"
