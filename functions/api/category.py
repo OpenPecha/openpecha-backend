@@ -70,7 +70,9 @@ def build_category_tree() -> list[dict[str, Any]]:
     categories = Database().get_all_categories()
 
     root_categories = []
-    for category in categories.values():
+    for category_id, category in categories.items():
+        category["id"] = category_id
+
         parent_id = category.pop("parent", None)
         if parent_id:
             if "subcategories" not in categories[parent_id]:
