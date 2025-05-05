@@ -286,7 +286,7 @@ class AnnotationForm {
         const isAlignment = this.annotationSelect?.value === 'alignment';
         if (isCommentaryOrTranslation && isAlignment) {
             
-        const annotations = await this.getAnnotation(this.metadata.commentary_of);
+        const annotations = await this.getAnnotation(this.metadata.commentary_of ?? this.metadata.translation_of);
         this.annotations = this.extractAnnotations(annotations);
         console.log("annotation:",this.annotations)
         }
