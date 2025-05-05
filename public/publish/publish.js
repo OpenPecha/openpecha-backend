@@ -3,7 +3,13 @@ class UpdateMetaData {
         this.elements = {
             form: document.getElementById('publishForm'),
             pechaOptionsContainer: document.getElementById('pechaOptionsContainer'),
-            pechaSelect: document.getElementById('pechaOptions'),
+            searchContainers: document.querySelectorAll('.select-search-container'),
+            pechaLoadingSpinner: document.getElementById('pechaLoadingSpinner'),
+            pechaOptionsContainer: document.getElementById('pechaOptionsContainer'),
+            annotationAlignmentContainer: document.getElementById('annotationAlignmentContainer'),
+            annotationLoadingSpinner: document.getElementById('annotationLoadingSpinner'),
+            annotationAlignmentSelect: document.getElementById('annotationAlignment'),
+            pechaSelect: document.getElementById('pecha'),
             publishButton: document.getElementById('publishButton'),
             toastContainer: document.getElementById('toastContainer'),
             metadataContainer: document.querySelector('.metadata-container')
@@ -18,6 +24,7 @@ class UpdateMetaData {
         try {
             this.API_ENDPOINT = await getApiEndpoint();
             await this.fetchPechaOptions();
+            this.initializeSearchUI();
             this.setupEventListeners();
             this.showInitialMetadataState();
         } catch (error) {
@@ -26,19 +33,128 @@ class UpdateMetaData {
         }
     }
 
+    initializeSearchUI() {
+        this.elements.searchContainers.forEach(container => {
+            const select = container.querySelector('select');
+            const searchOverlay = container.querySelector('.search-overlay');
+            const searchInput = container.querySelector('.search-input');
+            const searchResults = container.querySelector('.search-results');
+            // Toggle search overlay when clicking on the select
+            select.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                searchOverlay.classList.toggle('active');
+                if (searchOverlay.classList.contains('active')) {
+                    searchInput.focus();
+                    this.populateSearchResults(select, searchResults, searchInput.value);
+                }
+            });
+
+            // Close overlay when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!container.contains(e.target)) {
+                    searchOverlay.classList.remove('active');
+                }
+            });
+
+            // Filter results when typing
+            searchInput.addEventListener('input', () => {
+                this.populateSearchResults(select, searchResults, searchInput.value);
+            });
+
+            // Handle item selection
+            searchResults.addEventListener('click', (e) => {
+                if (e.target.classList.contains('search-item')) {
+                    const value = e.target.dataset.value;
+                    select.value = value;
+
+                    const changeEvent = new Event('change', { bubbles: true });
+                    select.dispatchEvent(changeEvent);
+
+                    searchOverlay.classList.remove('active');
+                }
+            });
+
+            // Keyboard navigation
+            searchInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    searchOverlay.classList.remove('active');
+                } else if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    this.navigateSearchResults(searchResults, 'down');
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    this.navigateSearchResults(searchResults, 'up');
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const selectedItem = searchResults.querySelector('.search-item.selected');
+                    if (selectedItem) {
+                        const value = selectedItem.dataset.value;
+                        select.value = value;
+
+                        const changeEvent = new Event('change', { bubbles: true });
+                        select.dispatchEvent(changeEvent);
+
+                        searchOverlay.classList.remove('active');
+                    }
+                }
+            });
+        });
+    }
+
+    populateSearchResults(select, resultsContainer, searchTerm) {
+        resultsContainer.innerHTML = '';
+        const options = Array.from(select.options).slice(1); // Skip the placeholder
+        const lowercaseSearchTerm = searchTerm.toLowerCase();
+        
+        options.forEach(option => {
+            if (!searchTerm || option.text.toLowerCase().includes(lowercaseSearchTerm)) {
+                const item = document.createElement('div');
+                item.className = 'search-item';
+                item.textContent = option.text;
+                item.dataset.value = option.value;
+                resultsContainer.appendChild(item);
+            }
+        });
+        
+        // Select the first item by default
+        const firstItem = resultsContainer.querySelector('.search-item');
+        if (firstItem) {
+            firstItem.classList.add('selected');
+        }
+    }
+
+    navigateSearchResults(resultsContainer, direction) {
+        const items = resultsContainer.querySelectorAll('.search-item');
+        if (items.length === 0) return;
+
+        const selectedItem = resultsContainer.querySelector('.search-item.selected');
+        let nextIndex = 0;
+
+        if (selectedItem) {
+            const currentIndex = Array.from(items).indexOf(selectedItem);
+            selectedItem.classList.remove('selected');
+
+            if (direction === 'down') {
+                nextIndex = (currentIndex + 1) % items.length;
+            } else {
+                nextIndex = (currentIndex - 1 + items.length) % items.length;
+            }
+        }
+
+        items[nextIndex].classList.add('selected');
+        items[nextIndex].scrollIntoView({ block: 'nearest' });
+    }
 
     setupEventListeners() {
-
-        // Listen for changes on the custom dropdown
-        this.elements.pechaOptionsContainer.addEventListener('customDropdownChange', () => {
-            this.handlePechaSelect();
-        });
-
+        // Listen for changes on pecha selection
+        this.elements.pechaSelect.addEventListener('change', () => this.handlePechaSelect());
+        
         this.elements.form.addEventListener('submit', (e) => {
             e.preventDefault();
             this.handlePublish();
         });
     }
+    
 
     setLoading(isLoading) {
         this.isLoading = isLoading;
@@ -55,20 +171,8 @@ class UpdateMetaData {
         }
     }
 
-    showSelectLoading(isLoading) {
-        this.elements.pechaSelect.disabled = isLoading;
-        this.elements.publishButton.disabled = isLoading;
-        if (isLoading) {
-            const loadingOption = document.createElement('option');
-            loadingOption.value = '';
-            loadingOption.textContent = 'Loading pechas...';
-            this.elements.pechaSelect.innerHTML = '';
-            this.elements.pechaSelect.appendChild(loadingOption);
-        }
-    }
-
     async fetchPechaOptions() {
-        this.showSelectLoading(true);
+        this.toggleLoadingSpinner(true);
         console.log(this.API_ENDPOINT);
         try {
             let allPechas = [];
@@ -97,20 +201,90 @@ class UpdateMetaData {
                 hasMorePages = pechas.metadata.length === limit;
                 currentPage++;
             }
-            this.updatePechaOptions(allPechas);
+            this.populatePechaDropdown(allPechas);
         } catch (error) {
             console.error('Error loading pecha options:', error);
             this.showToast('Unable to load pecha options. Please try again later.', 'error');
         } finally {
-            this.showSelectLoading(false);
+            this.toggleLoadingSpinner(false);
         }
     }
 
+    toggleLoadingSpinner(isLoading) {
+        if (isLoading) {
+            this.elements.pechaLoadingSpinner.classList.add('active');
+            this.elements.pechaOptionsContainer.classList.add('loading');
+        } else {
+            this.elements.pechaLoadingSpinner.classList.remove('active');
+            this.elements.pechaOptionsContainer.classList.remove('loading');
+        }
+    }
 
-    updatePechaOptions(pechas) {
-        console.log("pechas ",pechas)
-        this.elements.pechaSelect.style.display = 'none';
-        new CustomSearchableDropdown(this.elements.pechaOptionsContainer, pechas, "selectedPecha");
+    populatePechaDropdown(pechas) {
+        while (this.elements.pechaSelect.options.length > 1) {
+            this.elements.pechaSelect.remove(1);
+        }
+        pechas.forEach(pecha => {
+            const title = pecha.title.bo ?? pecha.title[pecha.language];
+            const option = new Option(`${pecha.id} - ${title}`, pecha.id);
+            this.elements.pechaSelect.add(option.cloneNode(true));
+        });
+    }
+
+    async fetchAnnotations(pechaId) {
+        try {
+            const response = await fetch(`${this.API_ENDPOINT}/annotation/${pechaId}`, {
+                method: 'GET',
+                headers: {
+                    'accept': 'application/json'
+                }
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const annotations = await response.json();
+            return annotations;
+        } catch (error) {
+            console.error('Error fetching annotations:', error);
+            this.showToast('Unable to fetch annotations. Please try again later.', 'error');
+            return {};
+        }
+    }
+
+    extractAnnotations(data) {
+        return Object.entries(data).map(([id, details]) => ({
+            id,
+            title: details.title
+        }));
+    }
+
+    populateAnnotationDropdown(annotations) {
+        // Clear existing options except the first one
+        while (this.elements.annotationAlignmentSelect.options.length > 1) {
+            this.elements.annotationAlignmentSelect.remove(1);
+        }
+        
+        // if (annotations.length === 0) {
+        //     this.elements.annotationAlignmentGroup.style.display = 'none';
+        //     return;
+        // }
+        
+        annotations.forEach(annotation => {
+            const option = new Option(annotation.title, annotation.id);
+            this.elements.annotationAlignmentSelect.add(option.cloneNode(true));
+        });
+    }
+
+    toggleAnnotationLoadingSpinner(isLoading) {
+        if (isLoading) {
+            this.elements.annotationAlignmentContainer.style.display = 'none';
+            this.elements.annotationLoadingSpinner.style.display = 'flex';
+        } else {
+            this.elements.annotationAlignmentContainer.style.display = 'block';
+            this.elements.annotationLoadingSpinner.style.display = 'none';
+        }
     }
 
     async fetchMetadata(pechaId) {
@@ -243,38 +417,84 @@ class UpdateMetaData {
     }
     
     async handlePechaSelect() {
-        this.selectedPecha = document.getElementById("selectedPecha");
-        const pechaId = this.selectedPecha.dataset.value;
+
+        const pechaId = this.elements.pechaSelect.value;
 
         if (!pechaId) {
+            // this.hideInputs();
             this.showInitialMetadataState();
             return;
         }
 
         try {
             this.showLoadingState();
+            
+            // Fetch and populate annotation alignments
+            this.toggleAnnotationLoadingSpinner(true);
             const metadata = await this.fetchMetadata(pechaId);
             this.displayMetadata(metadata);
+            // this.showInputs();
+            
+            try {
+                const annotations = await this.fetchAnnotations(pechaId);
+                const extractedAnnotations = this.extractAnnotations(annotations);
+                this.populateAnnotationDropdown(extractedAnnotations);
+            } catch (error) {
+                console.error('Error fetching annotations:', error);
+                this.elements.annotationAlignmentGroup.style.display = 'none';
+            } finally {
+                this.toggleAnnotationLoadingSpinner(false);
+            }
+            
         } catch (error) {
-            console.error('Error in handlePechaSelect:', error);
-            this.showToast('Unable to fetch metadata. Please try again later.', 'error');
-            this.showErrorState('Failed to load metadata. Please try again.');
+            console.error('Error fetching metadata:', error);
+            this.showErrorState(error.message);
         }
     }
+   
+    async getPublishDistination() {
+        try {
+            const firebaseConfigResponse = await fetch('/__/firebase/init.json', {
+                headers: {
+                    'Accept': 'application/json',
+                    'Cache-Control': 'no-cache'
+                },
+                cache: 'no-store'
+            });
+            if (!firebaseConfigResponse.ok) {
+                throw new Error("Failed to fetch Firebase init file");
+            }
+            const firebaseConfig = await firebaseConfigResponse.json();
+            const projectId = firebaseConfig.projectId;
+            if (projectId === 'pecha-backend') {
+                return 'production';
+            } else if (projectId === 'pecha-backend-dev') {
+                return 'staging';
+            }
+        } catch (error) {
+            console.warn("Failed to fetch Firebase init file:", error);
+            return null;
+        }
+    }
+    
 
-
-    validateFields() {
+    async validateFields() {
         if (!this.metadata.category) {
             this.showToast('This pecha does not have category', 'error');
             return false;
         }
-        this.selectedPecha = document.getElementById("selectedPecha");
-        const publishTextId = this.selectedPecha.dataset.value;
+        const publishTextId = this.elements.pechaSelect.value;
         if (!publishTextId) {
             this.showToast('Please select the pecha OPF', 'error');
             return false;
         }
-        const publishDestination = document.querySelector('input[name="destination"]:checked')?.value;
+
+        const annotation_id = this.elements.annotationAlignmentSelect.value;
+        if (!annotation_id) {
+            this.showToast('Please select the annotation alignment', 'error');
+            return false;
+        }
+        const publishDestination = await this.getPublishDistination();
         if(!publishDestination) {
             this.showToast('Please select the publish destination', 'error');
             return false;
@@ -285,23 +505,24 @@ class UpdateMetaData {
             return false;
         }
 
-        return { publishTextId, publishDestination, reserialize: reserialize === 'true' };
+        return { publishTextId, publishDestination, reserialize: reserialize === 'true', annotation_id };
     }
 
     async handlePublish() {
-        const validatedData = this.validateFields();
+        const validatedData = await this.validateFields();
         if (!validatedData) return;
 
         this.setLoading(true);
 
         try {
-            const { publishTextId, publishDestination, reserialize } = validatedData;
+            const { publishTextId, publishDestination, reserialize, annotation_id } = validatedData;
+            console.log("validatedData",validatedData)
             const response = await fetch(`${this.API_ENDPOINT}/pecha/${publishTextId}/publish`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ destination: publishDestination, reserialize })
+                body: JSON.stringify({ destination: publishDestination, reserialize, annotation_id })
             });
             if (!response.ok){
                 console.log(response)
