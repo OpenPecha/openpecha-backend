@@ -1,56 +1,72 @@
+# pylint: disable=redefined-outer-name
 import sys
 from unittest.mock import MagicMock, patch
 
 import pytest
+from firebase_admin import storage
 from main import create_app
 from mockfirestore import MockFirestore
 from mockfirestore.collection import CollectionReference
 from mockfirestore.query import Query
 
 
-# Mock Firebase modules before they're imported elsewhere
 class MockStorageBucket:
+    _storage = {}  # class-level dict to persist files by path
+
     def __init__(self, *args, **kwargs):
         pass
 
-    def blob(self):
-        return MockBlob()
+    def blob(self, path: str):
+        return MockBlob(path, self._storage)
 
-    def get_blob(self):
-        return MockBlob()
+    def get_blob(self, path: str):
+        # Mimics GCS get_blob, returns None if not found
+        if path in self._storage:
+            return MockBlob(path, self._storage)
+        return None
 
 
 class MockBlob:
-    def __init__(self, *args, **kwargs):
-        pass
+    def __init__(self, path: str, storage: dict):
+        self.path = path
+        self._storage = storage
 
-    def upload_from_string(self):
+    def upload_from_string(self, data, *args, **kwargs):
+        if isinstance(data, str):
+            data = data.encode("utf-8")
+        self._storage[self.path] = data
         return None
 
-    def upload_from_filename(self):
+    def upload_from_filename(self, filename, *args, **kwargs):
+        with open(filename, "rb") as f:
+            self._storage[self.path] = f.read()
         return None
 
     def download_as_string(self):
-        return b"mock content"
+        # Returns bytes
+        return self._storage.get(self.path, b"")
 
     def download_as_bytes(self):
-        return b"mock content"
+        return self.download_as_string()
 
-    def download_to_filename(self):
+    def download_to_filename(self, filename, *args, **kwargs):
+        data = self._storage.get(self.path, b"")
+        with open(filename, "wb") as f:
+            f.write(data)
         return None
+
+    def exists(self, *args, **kwargs):
+        return self.path in self._storage
+
+    @property
+    def name(self):
+        return self.path
 
     def generate_signed_url(self):
         return "https://mockurl.com/signed"
 
     def reload(self):
         pass
-
-    def exists(self):
-        return True
-
-    @property
-    def name(self):
-        return "mock_blob_name"
 
 
 class MockStorage:
@@ -59,15 +75,11 @@ class MockStorage:
 
 
 @pytest.fixture(autouse=True)
-def mock_firebase_services():
-    sys.modules["google.cloud.logging"] = MagicMock()
+def mock_storage():
+    mock_storage_bucket = MockStorageBucket()
 
-    storage_patch = patch("storage.storage", MockStorage())
-    storage_patch.start()
-
-    yield
-
-    storage_patch.stop()
+    with patch("firebase_admin.storage.bucket", return_value=mock_storage_bucket):
+        yield mock_storage_bucket
 
 
 @pytest.fixture(autouse=True)
@@ -103,12 +115,6 @@ def patch_mockfirestore():
     # Patch the classes
     CollectionReference.count = count_method
     Query.count = count_method
-
-
-@pytest.fixture
-def mock_db():
-    """Provides a MockFirestore instance for tests."""
-    return MockFirestore()
 
 
 @pytest.fixture(autouse=True)

@@ -233,6 +233,34 @@ class TestPutMetadata:
 
     @patch("api.metadata.Storage")
     @patch("api.metadata.retrieve_pecha")
+    def test_put_metadata_incorrect(self, mock_retrieve_pecha, mock_storage, mock_db, client):
+        """Test successfully updating metadata."""
+        # Setup mocks
+        mock_pecha = MagicMock()
+        mock_retrieve_pecha.return_value = mock_pecha
+
+        # Valid metadata for update
+        update_data = {
+            "metadata": {
+                "title": {"en": "Updated Book One", "bo": "དེབ་དང་པོ་བསྐྱར་བཅོས།"},
+                "document_id": "DOC001",  # Same as existing
+                "language": "en",
+                "author": {"en": "New Author", "bo": "རྩོམ་པ་པོ་གསར་པ།"},
+                "long_title": {"en": "Complete Updated Book One", "bo": "དེབ་དང་པོ་བསྐྱར་བཅོས་ཆ་ཚང་།"},
+                "source": "Updated Source",
+                "source_url": "",
+            }
+        }
+
+        response = client.put("/metadata/I12345678", json=update_data)
+
+        assert response.status_code == 422
+        data = json.loads(response.data)
+        assert "error" in data
+        assert "Validation error" in data["error"]
+
+    @patch("api.metadata.Storage")
+    @patch("api.metadata.retrieve_pecha")
     def test_put_metadata_invalid_document_id(self, mock_retrieve_pecha, mock_storage, mock_db, client):
         """Test updating metadata with mismatched document ID."""
         # Setup mocks
@@ -345,10 +373,22 @@ class TestPutMetadata:
 class TestSetCategory:
     """Tests for the PUT /metadata/<pecha_id>/category endpoint."""
 
+    def test_set_category_success(self, mock_db, client):
+        """Test successful category update."""
+        # CAT001 exists for I55555555 in mock_db
+        response = client.put("/metadata/I55555555/category", json={"category_id": "CAT001"})
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert "message" in data
+        assert data["message"] == "Category updated successfully"
+        assert data["id"] == "I55555555"
+        # Verify the category was actually updated in the mock_db
+        updated_doc = mock_db.collection("metadata").document("I55555555").get().to_dict()
+        assert updated_doc["category"] == "CAT001"
+
     def test_set_category_nonexistent_category(self, mock_db, client):
         """Test setting a category that doesn't exist."""
         response = client.put("/metadata/I12345678/category", json={"category_id": "NONEXISTENT"})
-
         assert response.status_code == 404
         data = json.loads(response.data)
         assert "error" in data
@@ -357,11 +397,26 @@ class TestSetCategory:
     def test_set_category_nonexistent_pecha(self, mock_db, client):
         """Test setting category for a pecha that doesn't exist."""
         response = client.put("/metadata/I99999999/category", json={"category_id": "CAT001"})
-
         assert response.status_code == 404
         data = json.loads(response.data)
         assert "error" in data
         assert "Metadata with ID 'I99999999' not found" in data["error"]
+
+    def test_set_category_missing_category_id(self, mock_db, client):
+        """Test missing category_id in request body."""
+        response = client.put("/metadata/I12345678/category", json={})
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert "error" in data
+        assert "Missing category ID" in data["error"]
+
+    def test_set_category_null_category_id(self, mock_db, client):
+        """Test category_id explicitly set to None."""
+        response = client.put("/metadata/I12345678/category", json={"category_id": None})
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert "error" in data
+        assert "Missing category ID" in data["error"]
 
 
 class TestFilterMetadata:

@@ -1,5 +1,4 @@
 import logging
-from typing import Any
 
 from database import Database
 from exceptions import DataNotFound, InvalidRequest
@@ -12,13 +11,6 @@ from storage import Storage
 metadata_bp = Blueprint("metadata", __name__)
 
 logger = logging.getLogger(__name__)
-
-
-def extract_short_info(pecha_id: str, metadata: dict[str, Any]) -> dict[str, str]:
-    return {
-        "id": pecha_id,
-        "title": metadata.get("title", {}).get(metadata.get("language", "en"), ""),
-    }
 
 
 def format_metadata_chain(chain: list[tuple[str, MetadataModel]]) -> list[dict[str, str]]:
@@ -54,9 +46,6 @@ def get_metadata(pecha_id):
 
 @metadata_bp.route("/<string:pecha_id>/related", methods=["GET"], strict_slashes=False)
 def get_related_metadata(pecha_id):
-    if not pecha_id:
-        raise InvalidRequest("Missing Pecha ID")
-
     if not Database().metadata_exists(pecha_id):
         raise DataNotFound(f"Metadata with ID '{pecha_id}' not found")
 
@@ -85,17 +74,11 @@ def get_related_metadata(pecha_id):
 
     related_metadata = get_metadata_chain(pecha_id, traversal_mode=traversal_mode, relationships=relationships)
 
-    if not related_metadata:
-        raise DataNotFound(f"Metadata with ID '{pecha_id}' not found")
-
     return jsonify(format_metadata_chain(related_metadata)), 200
 
 
 @metadata_bp.route("/<string:pecha_id>", methods=["PUT"], strict_slashes=False)
 def put_metadata(pecha_id: str):
-    if not pecha_id:
-        raise InvalidRequest("Missing Pecha ID")
-
     if not Database().metadata_exists(pecha_id):
         raise DataNotFound(f"Metadata with ID '{pecha_id}' not found")
 
@@ -128,9 +111,6 @@ def put_metadata(pecha_id: str):
 
 @metadata_bp.route("/<string:pecha_id>/category", methods=["PUT"], strict_slashes=False)
 def set_category(pecha_id: str):
-    if not pecha_id:
-        raise InvalidRequest("Missing Pecha ID")
-
     data = request.get_json()
     category_id = data.get("category_id")
 

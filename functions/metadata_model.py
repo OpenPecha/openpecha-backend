@@ -107,7 +107,9 @@ class MetadataModel(BaseModel):
         return self.commentary_of or self.version_of or self.translation_of
 
     @field_serializer("source_url")
-    def serialize_url(self, source_url: AnyUrl):
+    def serialize_url(self, source_url: AnyUrl | None):
+        if source_url is None:
+            return None
         return str(source_url)
 
     @model_validator(mode="after")

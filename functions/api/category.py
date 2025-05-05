@@ -73,6 +73,8 @@ def build_category_tree() -> list[dict[str, Any]]:
     for category in categories.values():
         parent_id = category.pop("parent", None)
         if parent_id:
+            if "subcategories" not in categories[parent_id]:
+                categories[parent_id]["subcategories"] = []
             categories[parent_id]["subcategories"].append(category)
         else:
             root_categories.append(category)

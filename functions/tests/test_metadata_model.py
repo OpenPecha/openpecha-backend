@@ -399,6 +399,23 @@ class TestInvalidMetadataModel:
             )
         assert "Either 'source' or 'source_url' must be provided" in str(excinfo.value)
 
+    def test_empty_source_url(self):
+        """Test validation error when both source and source_url are missing."""
+        with pytest.raises(ValidationError) as excinfo:
+            MetadataModel.model_validate(
+                {
+                    "author": {"en": "Author"},
+                    "document_id": "DOC123",
+                    "title": {"en": "Title", "bo": "འགོ་བརྗོད།"},
+                    "long_title": {"en": "Long Title"},
+                    "language": "en",
+                    "source_url": "",
+                    "source": "Source",
+                    # Missing both source and source_url
+                }
+            )
+        assert "Input should be a valid URL" in str(excinfo.value)
+
     def test_invalid_url_format(self):
         """Test validation error with invalid URL format."""
         with pytest.raises(ValidationError) as excinfo:
@@ -536,3 +553,22 @@ class TestMetadataModelSerialization:
         # Check URL is serialized as string, not AnyUrl object
         assert isinstance(serialized["source_url"], str)
         assert serialized["source_url"] == "https://example.com/document"
+        
+    def test_null_url_serialization(self):
+        """Test that null URL is serialized as null, not as string 'None'."""
+        metadata = MetadataModel(
+            author={"en": "John Doe"},
+            document_id="DOC123",
+            source="Source of pecha",  # Using source instead of source_url
+            source_url=None,  # Explicitly set to None
+            title={"en": "Title", "bo": "འགོ་བརྗོད།"},
+            long_title={"en": "Long Title"},
+            language="en",
+        )
+
+        serialized = json.loads(metadata.model_dump_json())
+        dumped = metadata.model_dump()
+        
+        # Check null URL is serialized as null, not as string 'None'
+        assert serialized["source_url"] is None
+        assert dumped["source_url"] is None
