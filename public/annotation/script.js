@@ -286,7 +286,7 @@ class AnnotationForm {
         const isAlignment = this.annotationSelect?.value === 'alignment';
         if (isCommentaryOrTranslation && isAlignment) {
             
-        const annotations = await this.getAnnotation(this.metadata.commentary_of);
+        const annotations = await this.getAnnotation(this.metadata.commentary_of ?? this.metadata.translation_of);
         this.annotations = this.extractAnnotations(annotations);
         console.log("annotation:",this.annotations)
         }
@@ -400,7 +400,6 @@ class AnnotationForm {
         // Create FormData from the form (this won't include disabled fields)
         const formData = new FormData(this.form);
         const data = Object.fromEntries(formData.entries());
-        
         // Manually add values from disabled fields
         const disabledFields = this.form.querySelectorAll('input:disabled, select:disabled, textarea:disabled');
         disabledFields.forEach(field => {
@@ -408,7 +407,7 @@ class AnnotationForm {
                 data[field.name] = field.value;
             }
         });
-
+        // const annotationType = document.getElementById('annotation').value;
         // Format the data according to the required structure
         const formattedData = {
             pecha_id: data.pecha,
@@ -456,7 +455,6 @@ class AnnotationForm {
         if (btnSpinner) btnSpinner.style.display = 'inline-block';
         try {
             const data = this.getFormData();
-            console.log("data ::: ", data)
             const isValid = this.validateForm(data);
             if (!isValid) {
                 if (submitBtn) submitBtn.disabled = false;
@@ -530,7 +528,7 @@ class AnnotationForm {
         const isAlignment = this.annotationSelect?.value === 'alignment';
 
         if (isCommentaryOrTranslation && isAlignment) {
-            if (!data.aligned_to.alignment_annotation) {
+            if (!data.aligned_to.alignment_id) {
                 this.highlightError(this.segmentationLayer);
                 this.showToast('Alignment annotation is required', 'error');
                 return false;
