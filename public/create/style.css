@@ -125,7 +125,9 @@ main {
     cursor: pointer;
     transition: all 0.3s ease;
 }
-
+.base-language select.loading{
+    display: none;
+}
 .base-language select option {
     padding: 10px;
     font-size: 14px;
@@ -395,7 +397,6 @@ select.error {
 }
 /* Visibility utilities */
 .form-content {
-    display: none;
     margin-top: var(--spacing-lg);
 }
 

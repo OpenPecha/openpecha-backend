@@ -11,7 +11,6 @@ class LocalizedForm {
             this.setupElements();
             this.setupEventListeners();
             await this.fetchLanguages();
-            await this.fetchPechaOptions();
             this.initializeSearchUI();
         } catch (error) {
             console.error('Initialization error:', error);
@@ -47,6 +46,10 @@ class LocalizedForm {
         this.creatingSpinner = createButton.querySelector(".spinner")
         this.creating = false;
         this.languageOptions = [];
+        
+        // Initially hide pecha selection and annotation alignment
+        this.pechaOptionsContainer.style.display = "none";
+        this.annotationOptionsContainer.parentElement.style.display = "none";
 
         // this.initializeSearchUI = this.initializeSearchUI.bind(this);
 
@@ -57,10 +60,11 @@ class LocalizedForm {
         this.baseLanguageSelect.addEventListener("change", () => {
             const baseLanguage = this.baseLanguageSelect.value;
             if (baseLanguage) {
-                this.formContent.classList.add("visible");
-                this.initializeFields(this.baseLanguageSelect.value);
-            } else {
-                this.formContent.classList.remove("visible");
+                // Form is already visible from language loading
+                this.formContent.style.display = "block";
+                this.initializeFields(baseLanguage);
+            }else{
+                this.formContent.style.display = "none";
             }
             // will remove the alternate titles if the base language is changed
             const altTitles = document.getElementById("alt-titles");
@@ -89,14 +93,37 @@ class LocalizedForm {
         // Type Radio Selection
         this.typeRadios.forEach((radio) => {
             radio.addEventListener("change", () => {
-                console.log("value:::", radio.value, radio.checked);
-                if (radio.checked) {
+                if (radio.checked && radio.value) {
+                    // Show pecha selection only when a valid relation type is selected
                     this.fetchPechaOptions(radio.value);
+                    
+                    // Reset and hide annotation alignment when changing document type
+                    this.annotationAlignmentSelect.innerHTML = '<option value="">Select annotation alignment</option>';
+                    this.annotationOptionsContainer.parentElement.style.display = "none";
+                } else {
+                    // Hide and reset pecha selection when "None" is selected
+                    this.pechaOptionsContainer.style.display = "none";
+                    this.pechaSelect.innerHTML = '<option value="">Select pecha</option>';
+                    
+                    // Hide and reset annotation alignment
+                    this.annotationAlignmentSelect.innerHTML = '<option value="">Select annotation alignment</option>';
+                    this.annotationOptionsContainer.parentElement.style.display = "none";
                 }
             });
         });
         // Pecha Selection
-        this.pechaSelect.addEventListener('change', (e) => this.onPechaSelect(e.target.value));
+        this.pechaSelect.addEventListener('change', (e) => {
+            const pechaId = e.target.value;
+            if (pechaId) {
+                // Show annotation alignment only when a pecha is selected
+                this.annotationOptionsContainer.parentElement.style.display = "block";
+                this.onPechaSelect(pechaId);
+            } else {
+                // Hide and reset annotation alignment when pecha is deselected
+                this.annotationAlignmentSelect.innerHTML = '<option value="">Select annotation alignment</option>';
+                this.annotationOptionsContainer.parentElement.style.display = "none";
+            }
+        });
         // Copy Pecha ID Button
         this.copyPechaIdButton.addEventListener("click", () => {
             this.copyPechIdAndTitle();
@@ -218,7 +245,7 @@ class LocalizedForm {
         searchTerm = searchTerm.toLowerCase();
         resultsContainer.innerHTML = '';
         Array.from(select.options).forEach(option => {
-            if (option.value && (searchTerm === '' || option.text.toLowerCase().includes(searchTerm))) {
+            if ( (searchTerm === '' || option.text.toLowerCase().includes(searchTerm))) {
                 const item = document.createElement('div');
                 item.className = 'search-item';
                 item.textContent = option.text;
@@ -456,6 +483,8 @@ class LocalizedForm {
 
         body.filter = {};
         try {
+            this.pechaOptionsContainer.style.display = "none";
+
             this.toggleLoadingSpinner(true, this.pechaOptionsContainer, this.pechaLoadingSpinner);
             
             let allPechas = [];
@@ -486,6 +515,7 @@ class LocalizedForm {
             }
             
             this.toggleLoadingSpinner(false, this.pechaOptionsContainer, this.pechaLoadingSpinner);
+            this.pechaOptionsContainer.style.display = "block";
             this.populatePechaDropdown(allPechas);
         } catch (error) {
             this.toggleLoadingSpinner(false, this.pechaOptionsContainer, this.pechaLoadingSpinner);
@@ -554,9 +584,8 @@ class LocalizedForm {
         this.populateAnnotationDropdowns(extractedAnnotations);
     }
     async fetchLanguages() {
-        this.baseLanguageSelect.style.display = "none";
-        this.baseLanguageLoader.style.display = "inline-block";
         try {
+            this.toggleLoadingSpinner(true, this.baseLanguageSelect, this.baseLanguageLoader);
             const response = await fetch(`${this.API_ENDPOINT}/languages`, {
                 method: 'GET',
                 headers: {
@@ -572,15 +601,22 @@ class LocalizedForm {
             this.languageOptions = data;
             let temp = `<option value="">Language</option>`;
             this.languageOptions.forEach(lang => {
-                temp += `<option value="${lang.code}">${lang.name}</option>`;
+                temp += `<option value="${lang.code}" ${lang.code === 'bo' ? 'selected' : ''}>${lang.name}</option>`;
             });
             this.baseLanguageSelect.innerHTML = temp;
+            
+            // Initialize form with Tibetan as default
+            const defaultLanguage = 'bo';
+            this.baseLanguageSelect.value = defaultLanguage;
+            this.formContent.classList.add("visible");
+            this.initializeFields(defaultLanguage);
+            
             return data;
         } catch (error) {
             console.error('Error fetching languages:', error);
+            this.showToast('Failed to load languages. Please refresh the page.', 'error');
         } finally {
-            this.baseLanguageSelect.style.display = "inline-block";
-            this.baseLanguageLoader.style.display = "none";
+            this.toggleLoadingSpinner(false, this.baseLanguageSelect, this.baseLanguageLoader);
         }
     }
 
@@ -827,7 +863,6 @@ class LocalizedForm {
             const formData = await this.prepareFormData(blob, pechaData);
 
             const response = await this.submitFormData(formData);
-
             if (!response.ok) {
                 const json = await response.text();
                 console.log("json:::", json)
