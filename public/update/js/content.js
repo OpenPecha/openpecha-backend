@@ -194,7 +194,7 @@ class UpdateMetaData {
         // }
         
         annotations.forEach(annotation => {
-            const option = new Option(annotation.title, annotation.path);
+            const option = new Option(annotation.title, annotation.id);
             this.elements.annotationAlignmentSelect.add(option.cloneNode(true));
         });
     }
@@ -290,7 +290,7 @@ class UpdateMetaData {
 
     extractAnnotations(data) {
         return Object.entries(data).map(([id, details]) => ({
-            path:details.path,
+            id,
             title: details.title
         }));
     }
@@ -460,20 +460,23 @@ class UpdateMetaData {
     validateFields() {
         const pechaId = this.elements.pechaSelect.value;
         const googleDocLink = this.elements.docsInput.value.trim();
-        const annotation_path = this.elements.annotationAlignmentSelect.value;
-
+        const annotation_id = this.elements.annotationAlignmentSelect.value;
+        
         if (!pechaId) {
             this.showToast('Please select the published text', 'warning');
             return false;
         }
-
+        if(!annotation_id){
+            this.showToast('Please select an annotation', 'warning');
+            return false;
+        }
         const docId = this.extractDocIdFromLink(googleDocLink);
         if (!docId) {
             this.showToast('Enter valid Google Docs link', 'warning');
             return false;
         }
 
-        return { pechaId, docId, annotation_path };
+        return { pechaId, docId, annotation_id };
     }
 
     async handleSubmit(e) {
@@ -482,14 +485,14 @@ class UpdateMetaData {
         this.setLoadingState(true);
         
         try {
-            const { pechaId, docId, annotation_path } = validatedData;
+            const { pechaId, docId, annotation_id } = validatedData;
             const blob = await downloadDoc(docId);
             if (!blob) {
                 this.showToast("Failed to download document", "error");
                 throw new Error('Failed to download document');
             }
             
-            await this.uploadDocument(pechaId, blob, docId, annotation_path);
+            await this.uploadDocument(pechaId, blob, docId, annotation_id);
             this.showToast('Document updated successfully!', 'success');
             this.elements.form.reset();
             this.showInitialMetadataState();
@@ -503,12 +506,12 @@ class UpdateMetaData {
         }
     }
 
-    async uploadDocument(pechaId, blob, docId, annotation_path) {
+    async uploadDocument(pechaId, blob, docId, annotation_id) {
         const formData = new FormData();
         formData.append('text', blob, `text_${docId}.docx`);
         
-        if (annotation_path) {
-            formData.append('annotation_type', 'alignment');
+        if (annotation_id) {
+            formData.append('annotation_id', annotation_id);
         }
         
         const response = await fetch(`${this.API_ENDPOINT}/text/${pechaId}`, {
