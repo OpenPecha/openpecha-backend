@@ -26,11 +26,7 @@
     ],
     "rewrites": [
       {
-        "source": "/schema/metadata",
-        "function": "api"
-      },
-      {
-        "source": "/schema/filter",
+        "source": "/schema/**",
         "function": "api"
       }
     ],

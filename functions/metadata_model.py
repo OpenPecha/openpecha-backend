@@ -6,23 +6,20 @@ from pydantic import AnyUrl, BaseModel, ConfigDict, Field, RootModel, field_seri
 NonEmptyStr = Annotated[str, Field(min_length=1)]
 
 
+class Relationship(str, Enum):
+    COMMENTARY = "commentary_of"
+    VERSION = "version_of"
+    TRANSLATION = "translation_of"
+
+
 class SourceType(str, Enum):
     DOCX = "docx"
     BDRC = "bdrc"
 
 
-class PechaId(RootModel[str]):
-    root: str = Field(
-        ...,
-        description="ID pattern that starts with 'I' followed by 8 uppercase hex characters",
-        pattern="^I[A-F0-9]{8}$",
-    )
-
-
 class LocalizedString(RootModel[Mapping[str, NonEmptyStr]]):
     root: Mapping[str, NonEmptyStr] = Field(
-        ...,
-        description="Dictionary with language codes as keys and corresponding strings as values",
+        ..., description="Dictionary with language codes as keys and corresponding strings as values", min_length=1
     )
 
     def __getitem__(self, item):
@@ -65,21 +62,10 @@ class MetadataModel(BaseModel):
         description="Dictionary with language codes as keys and corresponding strings as values",
     )
     alt_titles: Sequence[LocalizedString] | None = Field(None, min_length=1)
-    commentary_of: str | None = Field(
-        None,
-        description="ID pattern that starts with 'I' followed by 8 uppercase hex characters",
-        pattern="^I[A-F0-9]{8}$",
-    )
-    version_of: str | None = Field(
-        None,
-        description="ID pattern that starts with 'I' followed by 8 uppercase hex characters",
-        pattern="^I[A-F0-9]{8}$",
-    )
-    translation_of: str | None = Field(
-        None,
-        description="ID pattern that starts with 'I' followed by 8 uppercase hex characters",
-        pattern="^I[A-F0-9]{8}$",
-    )
+    commentary_of: str | None = Field(None, pattern="^I[A-F0-9]{8}$")
+    version_of: str | None = Field(None, pattern="^I[A-F0-9]{8}$")
+    translation_of: str | None = Field(None, pattern="^I[A-F0-9]{8}$")
+
     language: str = Field(..., pattern="^[a-z]{2}(-[A-Z]{2})?$")
     category: str | None = Field(
         None,
@@ -120,7 +106,9 @@ class MetadataModel(BaseModel):
         return self.commentary_of or self.version_of or self.translation_of
 
     @field_serializer("source_url")
-    def serialize_url(self, source_url: AnyUrl):
+    def serialize_url(self, source_url: AnyUrl | None):
+        if source_url is None:
+            return None
         return str(source_url)
 
     @model_validator(mode="after")

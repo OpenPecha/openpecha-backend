@@ -125,7 +125,9 @@ main {
     cursor: pointer;
     transition: all 0.3s ease;
 }
-
+.base-language select.loading{
+    display: none;
+}
 .base-language select option {
     padding: 10px;
     font-size: 14px;
@@ -145,6 +147,11 @@ main {
     border-left: var(--border);
 }
 
+.select-wrapper {
+    min-height: 48px;
+    border: var(--border);
+    border-radius: var(--border-radius);
+}
 /* Button styles */
 
 .remove-btn {
@@ -390,19 +397,12 @@ select.error {
 }
 /* Visibility utilities */
 .form-content {
-    display: none;
     margin-top: var(--spacing-lg);
 }
 
 .form-content.visible,
-#pechaOptionsContainer.visible,
 .popup-container.visible {
     display: block;
-}
-
-#pechaOptionsContainer {
-    display: block;
-    margin-top: var(--spacing-lg);
 }
 
 /* disabled */

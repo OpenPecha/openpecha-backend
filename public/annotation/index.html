@@ -65,10 +65,10 @@
             <label for="annotation">Annotation Type</label>
             <select id="annotation" name="annotation_type" disabled>
               <option value="">Select Annotation Type</option>
-              <option value="Commentary">Commentary</option>
-              <option value="Translation">Translation</option>
-              <option value="Segmentation">Segmentation</option>
-              <option value="Alignment" selected>Alignment</option>
+              <option value="commentary">Commentary</option>
+              <option value="translation">Translation</option>
+              <option value="segmentation">Segmentation</option>
+              <option value="alignment" selected>Alignment</option>
             </select>
           </div>
 
@@ -116,7 +116,16 @@
             />
           </div>
 
-          <button type="submit" class="submit-button">Add Annotation</button>
+          <button type="submit" class="submit-button" id="submitAnnotationBtn">
+            <span class="btn-text">Add Annotation</span>
+            <span class="btn-spinner" style="display:none;">
+              <i class="fas fa-spinner fa-spin"></i> Creating annotation...
+            </span>
+          </button>
+          <!-- Loading spinner for form submission -->
+          <!-- <div id="formLoadingSpinner" class="loading-spinner" style="display:none; margin-top:10px; text-align:center;">
+            <i class="fas fa-spinner fa-spin"></i> Adding annotation...
+          </div> -->
         </form>
       </div>
     </main>
@@ -125,5 +134,17 @@
     <script src="script.js"></script>
     <script src="../config.js"></script>
     <script src="../google_drive.js"></script>
+    <script
+      async
+      defer
+      src="https://apis.google.com/js/api.js"
+      onload="gapiLoaded()"
+    ></script>
+    <script
+      async
+      defer
+      src="https://accounts.google.com/gsi/client"
+      onload="gisLoaded()"
+    ></script>
   </body>
 </html>

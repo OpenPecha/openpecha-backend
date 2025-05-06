@@ -2,7 +2,6 @@
 let config;
 async function loadConfiguration() {
     config = await loadConfig();
-    console.log("Config loaded:", config);
     return config;
 }
 
