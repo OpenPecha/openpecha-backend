@@ -1,8 +1,8 @@
 import logging
-from typing import Any, Generator
+from typing import Any
 
 import yaml
-from category_model import CategoryModel, LocalizedString
+from category_model import CategoryModel
 from database import Database
 from exceptions import InvalidRequest
 from flask import Blueprint, jsonify, request
@@ -22,11 +22,11 @@ def add_no_cache_headers(response):
     return response
 
 
-def process_categories(
-    categories: list[dict[str, Any]], parent_id: str | None = None
-) -> None:
-    """Process categories recursively with parent references."""
+def process_categories(categories: list[dict[str, Any]], parent_id: str | None = None) -> int:
+    """Process categories recursively with parent references and return the count."""
+    count = 0
     for category in categories:
+        count += 1
         if not (category_id := category.get("id")):
             raise ValueError("Category ID is required")
 
@@ -44,7 +44,9 @@ def process_categories(
         logger.info("Created category %s", category_id)
 
         if "subcategories" in category:
-            process_categories(category["subcategories"], category_id)
+            count += process_categories(category["subcategories"], category_id)
+
+    return count
 
 
 @categories_bp.route("/", methods=["PUT"], strict_slashes=False)
@@ -61,10 +63,10 @@ def upload_categories():
     if not isinstance(content, dict) or "categories" not in content:
         raise InvalidRequest("Invalid file structure. Expected a dictionary with 'categories' key")
 
-    categories = list(process_categories(content["categories"]))
-    logger.info("Processed %d categories", len(categories))
+    category_count = process_categories(content["categories"])
+    logger.info("Processed %d categories", category_count)
 
-    return jsonify({"message": "Categories uploaded successfully", "count": len(categories)}), 201
+    return jsonify({"message": "Categories uploaded successfully", "count": category_count}), 201
 
 
 def build_category_tree() -> list[dict[str, Any]]:
