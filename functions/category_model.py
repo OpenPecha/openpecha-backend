@@ -4,8 +4,8 @@ from pydantic import BaseModel, ConfigDict, Field
 
 class CategoryModel(BaseModel):
     name: LocalizedString = Field(..., description="Category name")
-    description: LocalizedString = Field(..., description="Category description")
-    short_description: LocalizedString = Field(..., description="Category short description")
+    description: LocalizedString | None = Field(None, description="Category description")
+    short_description: LocalizedString | None = Field(None, description="Category short description")
     parent: str | None = Field(None, description="Parent category ID")
 
     model_config = ConfigDict(
