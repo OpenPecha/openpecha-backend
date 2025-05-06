@@ -24,17 +24,19 @@ def add_no_cache_headers(response):
 
 def process_categories(
     categories: list[dict[str, Any]], parent_id: str | None = None
-) -> Generator[dict[str, Any], None, None]:
-    """Process categories recursively and yield category data with parent references."""
+) -> None:
+    """Process categories recursively with parent references."""
     for category in categories:
         if not (category_id := category.get("id")):
             raise ValueError("Category ID is required")
 
-        category_model = CategoryModel(
-            name=LocalizedString(category.get("name") or {}),
-            description=LocalizedString(category.get("description") or {}),
-            short_description=LocalizedString(category.get("short_description") or {}),
-            parent=parent_id,
+        category_model = CategoryModel.model_validate(
+            {
+                "name": category.get("name"),
+                "parent": parent_id,
+                "description": category.get("description"),
+                "short_description": category.get("short_description"),
+            }
         )
 
         Database().set_category(category_id, category_model)
@@ -42,7 +44,7 @@ def process_categories(
         logger.info("Created category %s", category_id)
 
         if "subcategories" in category:
-            yield from process_categories(category["subcategories"], category_id)
+            process_categories(category["subcategories"], category_id)
 
 
 @categories_bp.route("/", methods=["PUT"], strict_slashes=False)

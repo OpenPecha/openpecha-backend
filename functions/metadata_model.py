@@ -19,8 +19,7 @@ class SourceType(str, Enum):
 
 class LocalizedString(RootModel[Mapping[str, NonEmptyStr]]):
     root: Mapping[str, NonEmptyStr] = Field(
-        ...,
-        description="Dictionary with language codes as keys and corresponding strings as values",
+        ..., description="Dictionary with language codes as keys and corresponding strings as values", min_length=1
     )
 
     def __getitem__(self, item):
