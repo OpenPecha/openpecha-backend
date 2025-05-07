@@ -54,7 +54,49 @@
                     </div>
                 </div>
 
-                <div class="legend">
+                <!-- Traversal and Relationship Filters -->
+                <div class="filter-container">
+                    <div class="filter-section">
+                        <label for="traversal-select">Traversal Type:</label>
+                        <select id="traversal-select" class="filter-select">
+                            <option value="full_tree" selected>Full Tree</option>
+                            <option value="upward">Upward</option>
+                        </select>
+                    </div>
+                    
+                    <div class="filter-section">
+                        <div class="filter-title">Relationship Types:</div>
+                        <div class="checkbox-group">
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="commentary-checkbox" checked>
+                                <label for="commentary-checkbox">Commentary</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="version-checkbox" checked>
+                                <label for="version-checkbox">Version</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="translation-checkbox" checked>
+                                <label for="translation-checkbox">Translation</label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button id="apply-filters-btn" class="apply-filters-btn">
+                        <i class="fas fa-filter"></i> Apply Filters
+                    </button>
+                </div>
+            </div>
+
+            <div class="visualization-panel">
+                <!-- Legend moved to visualization panel with toggle button -->
+                <div class="visualization-controls">
+                    <button id="toggle-legend" class="control-btn" title="Toggle Legend">
+                        <i class="fas fa-info-circle"></i>
+                    </button>
+                </div>
+                
+                <div id="visualization-legend" class="legend visualization-legend">
                     <div class="legend-title">Relationship Types</div>
                     <div class="legend-items">
                         <div class="legend-item">
@@ -75,9 +117,7 @@
                         </div>
                     </div>
                 </div>
-            </div>
-
-            <div class="visualization-panel">
+                
                 <div id="loading-container" class="loading-container">
                     <div class="loading-spinner"></div>
                     <p>Loading relationship data...</p>

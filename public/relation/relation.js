@@ -10,7 +10,15 @@ class PechaRelationship {
             resetZoomButton: document.getElementById('reset-zoom'),
             zoomInButton: document.getElementById('zoom-in'),
             zoomOutButton: document.getElementById('zoom-out'),
-            toastContainer: document.getElementById('toastContainer')
+            toastContainer: document.getElementById('toastContainer'),
+            traversalSelect: document.getElementById('traversal-select'),
+            commentaryCheckbox: document.getElementById('commentary-checkbox'),
+            versionCheckbox: document.getElementById('version-checkbox'),
+            translationCheckbox: document.getElementById('translation-checkbox'),
+            applyFiltersBtn: document.getElementById('apply-filters-btn'),
+            // Add references to legend elements
+            toggleLegendBtn: document.getElementById('toggle-legend'),
+            visualizationLegend: document.getElementById('visualization-legend')
         };
 
         // Initialize state
@@ -24,7 +32,11 @@ class PechaRelationship {
             zoom: null,
             currentZoom: null,
             width: 0,
-            height: 0
+            height: 0,
+            filters: {
+                traversal: 'full_tree',
+                relationships: ['commentary', 'version', 'translation']
+            }
         };
 
         // D3 color scale for relationship types
@@ -591,7 +603,7 @@ class PechaRelationship {
     }
 
     // Handle pecha selection change
-    async handlePechaChange() {
+    async handlePechaChange(applyFilters = false) {
         const selectedPechaId = this.elements.pechaSelect.value;
         
         if (!selectedPechaId) {
@@ -603,18 +615,52 @@ class PechaRelationship {
         
         this.state.selectedPecha = selectedPechaId;
         
-        // Fetch and render relationship data
-        const relationshipData = await this.fetchRelationshipData(selectedPechaId);
+        // Only update filters if explicitly requested (via Apply Filters button)
+        if (applyFilters) {
+            this.updateFilterState();
+        }
+        
+        // Use the current filter state
+        const traversal = this.state.filters.traversal;
+        const relationships = this.state.filters.relationships;
+        
+        // Show a toast notification when filters are applied
+        if (applyFilters) {
+            const relationshipText = relationships.length > 0 ? 
+                relationships.join(', ') : 'none';
+            this.showToast(`Applying filters: Traversal: ${traversal}, Relationships: ${relationshipText}`, 'info');
+        }
+        
+        // Fetch and render relationship data with traversal and relationship filters
+        const relationshipData = await this.fetchRelationshipData(selectedPechaId, traversal, relationships);
         this.state.relationshipData = relationshipData;
         if (relationshipData) {
             this.renderGraph(relationshipData);
         }
     }
+    
+    // Update filter state from UI controls
+    updateFilterState() {
+        // Update traversal type
+        this.state.filters.traversal = this.elements.traversalSelect?.value || 'full_tree';
+        
+        // Update relationship types
+        const relationships = [];
+        if (this.elements.commentaryCheckbox?.checked) relationships.push('commentary');
+        if (this.elements.versionCheckbox?.checked) relationships.push('version');
+        if (this.elements.translationCheckbox?.checked) relationships.push('translation');
+        
+        this.state.filters.relationships = relationships;
+    }
 
     // Setup event listeners
     setupEventListeners() {
         // Pecha select change
-        this.elements.pechaSelect.addEventListener('change', () => this.handlePechaChange());
+        this.elements.pechaSelect.addEventListener('change', () => {
+            // When pecha changes, we want to immediately apply current filters
+            this.updateFilterState();
+            this.handlePechaChange(false);
+        });
         
         // Reset zoom button
         this.elements.resetZoomButton.addEventListener('click', () => this.resetZoom());
@@ -623,12 +669,61 @@ class PechaRelationship {
         this.elements.zoomInButton.addEventListener('click', () => this.zoomIn());
         this.elements.zoomOutButton.addEventListener('click', () => this.zoomOut());
         
+        // Apply filters button - explicit filter application
+        this.elements.applyFiltersBtn?.addEventListener('click', () => this.handlePechaChange(true));
+        
+        // Toggle legend button
+        this.elements.toggleLegendBtn?.addEventListener('click', () => this.toggleLegend());
+        
+        // Filter change events - we'll update the state but not trigger a fetch
+        // until the Apply Filters button is clicked
+        const filterControls = [
+            this.elements.traversalSelect,
+            this.elements.commentaryCheckbox,
+            this.elements.versionCheckbox,
+            this.elements.translationCheckbox
+        ];
+        
+        filterControls.forEach(control => {
+            if (control) {
+                control.addEventListener('change', () => {
+                    // Update the filter state but don't apply yet
+                    this.updateFilterState();
+                    
+                    // Highlight the apply button to indicate changes are pending
+                    if (this.elements.applyFiltersBtn) {
+                        this.elements.applyFiltersBtn.classList.add('highlight');
+                        setTimeout(() => {
+                            this.elements.applyFiltersBtn.classList.remove('highlight');
+                        }, 300);
+                    }
+                });
+            }
+        });
+        
         // Handle window resize
         window.addEventListener('resize', this.debounce(() => {
             if (this.state.relationshipData) {
                 this.renderGraph(this.state.relationshipData);
             }
         }, 250));
+    }
+    
+    // Toggle legend visibility
+    toggleLegend() {
+        if (this.elements.visualizationLegend) {
+            this.elements.visualizationLegend.classList.toggle('hidden');
+            
+            // Update button icon based on legend visibility
+            const isHidden = this.elements.visualizationLegend.classList.contains('hidden');
+            if (this.elements.toggleLegendBtn) {
+                this.elements.toggleLegendBtn.innerHTML = isHidden ? 
+                    '<i class="fas fa-info-circle"></i>' : 
+                    '<i class="fas fa-times"></i>';
+                
+                this.elements.toggleLegendBtn.title = isHidden ? 'Show Legend' : 'Hide Legend';
+            }
+        }
     }
 
     // Debounce function for resize handling
@@ -647,6 +742,9 @@ class PechaRelationship {
         try {
             // Load API endpoint from config
             this.API_ENDPOINT = await getApiEndpoint();
+            
+            // Initialize filter state from UI controls
+            this.updateFilterState();
             
             // Fetch pecha list and populate dropdown
             const pechas = await this.fetchPechaList();
