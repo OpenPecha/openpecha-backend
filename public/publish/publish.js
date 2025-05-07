@@ -373,6 +373,8 @@ class UpdateMetaData {
     displayMetadata(metadata) {
         const reorderedMetadata = this.reorderMetadata(metadata);
         const metadataHTML = Object.entries(reorderedMetadata).map(([key, value]) => {
+            if (!value)
+                return
             const formattedKey = key.replace(/_/g, ' ').toUpperCase();
             const formattedValue = this.formatMetadataValue(value);
             return `
@@ -395,16 +397,16 @@ class UpdateMetaData {
             "version_of",
             "commentary_of",
             "translation_of",
+            "language",
             "author",
             "category",
+            "source",
             "long_title",
+            "document_id",
             "usage_title",
             "alt_titles",
-            "language",
-            "source",
             "presentation",
-            "date",
-            "document_id"
+            "date"
         ];
     
         const reorderedMetadata = {};
