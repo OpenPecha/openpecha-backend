@@ -50,6 +50,13 @@ class LocalizedForm {
         // Initially hide pecha selection and annotation alignment
         this.pechaOptionsContainer.style.display = "none";
         this.annotationOptionsContainer.parentElement.style.display = "none";
+        
+        // Hide translation option by default as Tibetan is the default language
+        const translationRadio = document.querySelector('input[value="translation_of"]');
+        const translationLabel = translationRadio ? translationRadio.closest('.radio-option') : null;
+        if (translationLabel) {
+            translationLabel.style.display = 'none';
+        }
 
         // this.initializeSearchUI = this.initializeSearchUI.bind(this);
 
@@ -63,7 +70,29 @@ class LocalizedForm {
                 // Form is already visible from language loading
                 this.formContent.style.display = "block";
                 this.initializeFields(baseLanguage);
-            }else{
+                
+                // Hide translation option if Tibetan language is selected
+                const translationRadio = document.querySelector('input[value="translation_of"]');
+                const translationLabel = translationRadio ? translationRadio.closest('.radio-option') : null;
+                
+                if (translationLabel) {
+                    if (baseLanguage === 'bo') {
+                        translationLabel.style.display = 'none';
+                        // If translation was selected, reset to 'None'
+                        if (translationRadio.checked) {
+                            document.querySelector('input[value=""]').checked = true;
+                            // Hide pecha selection
+                            this.pechaOptionsContainer.style.display = "none";
+                            this.pechaSelect.innerHTML = '<option value="">Select pecha</option>';
+                            // Hide annotation selection
+                            this.annotationOptionsContainer.parentElement.style.display = "none";
+                            this.annotationAlignmentSelect.innerHTML = '<option value="">Select annotation</option>';
+                        }
+                    } else {
+                        translationLabel.style.display = '';
+                    }
+                }
+            } else {
                 this.formContent.style.display = "none";
             }
             // will remove the alternate titles if the base language is changed
@@ -98,7 +127,7 @@ class LocalizedForm {
                     this.fetchPechaOptions(radio.value);
                     
                     // Reset and hide annotation alignment when changing document type
-                    this.annotationAlignmentSelect.innerHTML = '<option value="">Select annotation alignment</option>';
+                    this.annotationAlignmentSelect.innerHTML = '<option value="">Select annotation</option>';
                     this.annotationOptionsContainer.parentElement.style.display = "none";
                 } else {
                     // Hide and reset pecha selection when "None" is selected
@@ -106,7 +135,7 @@ class LocalizedForm {
                     this.pechaSelect.innerHTML = '<option value="">Select pecha</option>';
                     
                     // Hide and reset annotation alignment
-                    this.annotationAlignmentSelect.innerHTML = '<option value="">Select annotation alignment</option>';
+                    this.annotationAlignmentSelect.innerHTML = '<option value="">Select annotation</option>';
                     this.annotationOptionsContainer.parentElement.style.display = "none";
                 }
             });
@@ -120,7 +149,7 @@ class LocalizedForm {
                 this.onPechaSelect(pechaId);
             } else {
                 // Hide and reset annotation alignment when pecha is deselected
-                this.annotationAlignmentSelect.innerHTML = '<option value="">Select annotation alignment</option>';
+                this.annotationAlignmentSelect.innerHTML = '<option value="">Select annotation</option>';
                 this.annotationOptionsContainer.parentElement.style.display = "none";
             }
         });
