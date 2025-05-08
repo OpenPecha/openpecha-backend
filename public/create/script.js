@@ -38,6 +38,10 @@ class LocalizedForm {
             'input[name="documentType"]'
         );
 
+        // Additional Fields collapsible elements
+        this.additionalFieldsToggle = document.getElementById("additionalFieldsToggle");
+        this.additionalFieldsContent = document.getElementById("additionalFieldsContent");
+
         this.annotationAlignmentSelect = document.getElementById("annotationAlignment");
         this.annotationOptionsContainer = document.getElementById("annotationAlignmentContainer");
         this.annotationLoadingSpinner = document.getElementById("annotationLoadingSpinner");
@@ -175,6 +179,11 @@ class LocalizedForm {
         // Publish Button
         this.createButton.addEventListener("click", () => {
             this.handleCreatePecha();
+        });
+        // Additional Fields collapsible section
+        this.additionalFieldsToggle.addEventListener("click", () => {
+            this.additionalFieldsToggle.classList.toggle("active");
+            this.additionalFieldsContent.classList.toggle("active");
         });
     }
 
@@ -337,17 +346,9 @@ class LocalizedForm {
         const inputWrapper = document.createElement("div");
         inputWrapper.className = "input-wrapper";
 
-        const isTextarea = container.closest(".form-group")?.dataset.field === "presentation";
-        let input;
-
-        if (isTextarea) {
-            input = document.createElement("textarea");
-            input.placeholder = "Enter text";
-        } else {
-            input = document.createElement("input");
-            input.type = "text";
-            input.placeholder = "Enter text";
-        }
+        const input = document.createElement("input");
+        input.type = "text";
+        input.placeholder = "Enter text";
 
         input.setAttribute("required", "");
         const langSelect = document.createElement("select");
