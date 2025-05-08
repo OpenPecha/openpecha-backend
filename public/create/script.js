@@ -375,7 +375,8 @@ class LocalizedForm {
             const removeButton = document.createElement("button");
             removeButton.type = "button";
             removeButton.className = "remove-btn";
-            removeButton.innerHTML = '<i class="fas fa-times"></i>';
+            removeButton.title = "remove";
+            removeButton.innerHTML = '<i class="fa fa-minus" aria-hidden="true"></i>';
             removeButton.addEventListener("click", () => {
                 inputContainer.remove();
             });
