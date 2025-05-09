@@ -260,7 +260,7 @@ class UpdateMetaData {
             this.elements.pechaSelect.remove(1);
         }
         pechas.forEach(pecha => {
-            const title = pecha.title.bo ?? pecha.title[pecha.language];
+            const title = pecha.title[pecha.language] ?? pecha.title.bo;
             const option = new Option(`${pecha.id} - ${title}`, pecha.id);
             this.elements.pechaSelect.add(option.cloneNode(true));
         });
