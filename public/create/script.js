@@ -1016,7 +1016,9 @@ class LocalizedForm {
         const formData = new FormData();
         formData.append("text", blob, `text_${pechaData.metadata.document_id}.docx`);
         formData.append("metadata", JSON.stringify(pechaData.metadata));
-        formData.append("annotation_id", pechaData.annotation_id);
+        if(pechaData.annotation_id){
+            formData.append("annotation_id", pechaData.annotation_id);
+        }
         return formData;
     }
 
