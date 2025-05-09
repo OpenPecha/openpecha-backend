@@ -977,7 +977,6 @@ class LocalizedForm {
             this.clearErrors();
             const pechaData = this.collectFormData();
             console.log("data", pechaData);
-            return
             if (!this.validateRequiredFields(pechaData)) 
                 return;
 
