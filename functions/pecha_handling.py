@@ -233,10 +233,12 @@ def process_pecha(
 
     if annotation is None:
         logger.info("Annotation not set, creating default segmentation annotation")
+
+        annotation_type_name = "alignment" if annotation_type == AnnotationType.ALIGNMENT else "segmentation"
         annotation = AnnotationModel(
             pecha_id=pecha.id,
             document_id=text.filename,
-            title="Default display",
+            title=f"Default display - {annotation_type_name}",
             path=annotation_path,
             type=annotation_type,
         )
