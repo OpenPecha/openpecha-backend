@@ -107,6 +107,14 @@ def get_pecha_chain(pecha_ids: list[str]) -> list[Pecha]:
     return [retrieve_pecha(pecha_id=pecha_id) for pecha_id in pecha_ids]
 
 
+def get_annotation_chain(pecha_ids: list[str]) -> dict[str, list[AnnotationModel]]:
+    annotations = dict[str, list[AnnotationModel]]()
+    for pecha_id in pecha_ids:
+        annotations_dict = Database().get_annotation_by_field("pecha_id", pecha_id)
+        annotations[pecha_id] = list(annotations_dict.values())
+    return annotations
+
+
 def create_tmp() -> Path:
     with tempfile.NamedTemporaryFile(delete=False) as temp:
         return Path(temp.name)
@@ -190,16 +198,20 @@ def serialize(pecha: Pecha, reserialize: bool, annotation: AnnotationModel) -> d
     pecha_chain = get_pecha_chain(pecha_ids=id_chain)
     logger.info("Pechas: %s", [pecha.id for pecha in pecha_chain])
 
+    annotations = get_annotation_chain(pecha_ids=id_chain)
+    logger.info("Annotations: %s", [ann.id for pecha_id, anns in annotations.items() for ann in anns])
+
     return Serializer().serialize(
         pechas=pecha_chain,
         metadatas=metadatas,
+        annotations=annotations,
         pecha_category=[CategoryModel.model_dump(c) for c in category_chain],
         annotation_path=annotation.path,
     )
 
 
 def process_pecha(
-    text: FileStorage, metadata: MetadataModel, annotation_type: AnnotationType, pecha_id: str | None = None
+    text: FileStorage, metadata: MetadataModel, annotation: AnnotationModel | None = None, pecha_id: str | None = None
 ) -> str:
     """
     Handles Pecha processing: parsing, alignment, serialization, storage, and database transactions.
@@ -209,20 +221,25 @@ def process_pecha(
 
     Raises:
         - Exception if an error occurs during processing.
+
     """
+
+    annotation_type = annotation.type if annotation else AnnotationType.SEGMENTATION
     pecha, annotation_path = parse(
         docx_file=text, annotation_type=annotation_type, pecha_id=pecha_id, metadata=metadata
     )
     logger.info("Pecha created: %s %s", pecha.id, pecha.pecha_path)
     logger.info("Annotation path: %s", annotation_path)
 
-    annotation = AnnotationModel(
-        pecha_id=pecha.id,
-        document_id=text.filename,
-        title="Default display",
-        path=annotation_path,
-        type=annotation_type,
-    )
+    if annotation is None:
+        logger.info("Annotation not set, creating default segmentation annotation")
+        annotation = AnnotationModel(
+            pecha_id=pecha.id,
+            document_id=text.filename,
+            title="Default display",
+            path=annotation_path,
+            type=annotation_type,
+        )
 
     storage = Storage()
 
