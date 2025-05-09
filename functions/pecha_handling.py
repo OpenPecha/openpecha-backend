@@ -224,7 +224,7 @@ def process_pecha(
 
     """
 
-    annotation_type = annotation.type if annotation else AnnotationType.SEGMENTATION
+    annotation_type = AnnotationType.ALIGNMENT if annotation else AnnotationType.SEGMENTATION
     pecha, annotation_path = parse(
         docx_file=text, annotation_type=annotation_type, pecha_id=pecha_id, metadata=metadata
     )
