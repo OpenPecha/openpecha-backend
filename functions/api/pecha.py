@@ -6,7 +6,6 @@ from database import Database
 from exceptions import DataConflict, InvalidRequest
 from flask import Blueprint, jsonify, request, send_file
 from metadata_model import MetadataModel, SourceType
-from openpecha.pecha.annotations import AnnotationModel
 from pecha_handling import process_bdrc_pecha, process_pecha, retrieve_pecha, serialize
 from pecha_uploader.config import Destination_url
 from pecha_uploader.pipeline import upload
@@ -63,7 +62,7 @@ def post_pecha():
 
     if text:
         validate_docx_file(text)
-        pecha_id = process_pecha(text=text, metadata=metadata, annotation=annotation)
+        pecha_id = process_pecha(text=text, metadata=metadata, aligned_to=annotation)
         logger.info("Processed text file: %s", text.filename)
 
     if data:  # data file (BDRC)

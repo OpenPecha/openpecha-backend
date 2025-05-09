@@ -9,7 +9,7 @@ from category_model import CategoryModel
 from database import Database
 from metadata_model import MetadataModel, Relationship
 from openpecha.pecha import Pecha
-from openpecha.pecha.annotations import AnnotationModel
+from openpecha.pecha.annotations import AnnotationModel, PechaAlignment
 from openpecha.pecha.layer import AnnotationType
 from openpecha.pecha.parsers.docx import DocxParser
 from openpecha.pecha.parsers.ocr import BdrcParser
@@ -211,37 +211,28 @@ def serialize(pecha: Pecha, reserialize: bool, annotation: AnnotationModel) -> d
 
 
 def process_pecha(
-    text: FileStorage, metadata: MetadataModel, annotation: AnnotationModel | None = None, pecha_id: str | None = None
+    text: FileStorage, metadata: MetadataModel, aligned_to: AnnotationModel | None = None, pecha_id: str | None = None
 ) -> str:
     """
     Handles Pecha processing: parsing, alignment, serialization, storage, and database transactions.
-
-    Returns:
-        - `pecha.id` if successful.
-
-    Raises:
-        - Exception if an error occurs during processing.
-
     """
-
-    annotation_type = AnnotationType.ALIGNMENT if annotation else AnnotationType.SEGMENTATION
+    logger.info("Processing pecha with aligned to: %s", aligned_to)
+    annotation_type = AnnotationType.ALIGNMENT if aligned_to else AnnotationType.SEGMENTATION
     pecha, annotation_path = parse(
         docx_file=text, annotation_type=annotation_type, pecha_id=pecha_id, metadata=metadata
     )
     logger.info("Pecha created: %s %s", pecha.id, pecha.pecha_path)
     logger.info("Annotation path: %s", annotation_path)
 
-    if annotation is None:
-        logger.info("Annotation not set, creating default segmentation annotation")
-
-        annotation_type_name = "alignment" if annotation_type == AnnotationType.ALIGNMENT else "segmentation"
-        annotation = AnnotationModel(
-            pecha_id=pecha.id,
-            document_id=text.filename,
-            title=f"Default display - {annotation_type_name}",
-            path=annotation_path,
-            type=annotation_type,
-        )
+    annotation_type_name = "alignment" if annotation_type == AnnotationType.ALIGNMENT else "segmentation"
+    annotation = AnnotationModel(
+        pecha_id=pecha.id,
+        document_id=text.filename,
+        title=f"Default display - {annotation_type_name}",
+        path=annotation_path,
+        type=annotation_type,
+        aligned_to=PechaAlignment(pecha_id=pecha.id, alignment_id=aligned_to.id) if aligned_to else None,
+    )
 
     storage = Storage()
 
