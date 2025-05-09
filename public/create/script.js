@@ -754,7 +754,7 @@ class LocalizedForm {
             metadata:{
                 language: this.baseLanguageSelect.value,
             },
-            annotation_type:"segmentation"
+            annotation_id:null
         }
         // Collect localized fields
         document.querySelectorAll(".form-group[data-field]").forEach(group => {
@@ -825,7 +825,7 @@ class LocalizedForm {
         //collect annotation alignment value
         const annotation_alignment = this.annotationAlignmentSelect.value;
         if(selectedType && this.selectedPecha && annotation_alignment){
-            formData.annotation_type = 'alignment'
+            formData.annotation_id = annotation_alignment
         }
 
         // Collect Google Docs id 
@@ -977,7 +977,7 @@ class LocalizedForm {
             this.clearErrors();
             const pechaData = this.collectFormData();
             console.log("data", pechaData);
-            
+            return
             if (!this.validateRequiredFields(pechaData)) 
                 return;
 
@@ -1017,7 +1017,7 @@ class LocalizedForm {
         const formData = new FormData();
         formData.append("text", blob, `text_${pechaData.metadata.document_id}.docx`);
         formData.append("metadata", JSON.stringify(pechaData.metadata));
-        formData.append("annotation_type", pechaData.annotation_type);
+        formData.append("annotation_id", pechaData.annotation_id);
         return formData;
     }
 
