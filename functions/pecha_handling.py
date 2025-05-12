@@ -199,7 +199,7 @@ def serialize(pecha: Pecha, reserialize: bool, annotation: AnnotationModel) -> d
     logger.info("Pechas: %s", [pecha.id for pecha in pecha_chain])
 
     annotations = get_annotation_chain(pecha_ids=id_chain)
-    logger.info("Annotations: %s", [ann.id for pecha_id, anns in annotations.items() for ann in anns])
+    logger.info("Annotations: %s", [f"{pecha_id} {ann.title}" for pecha_id, anns in annotations.items() for ann in anns])
 
     return Serializer().serialize(
         pechas=pecha_chain,
