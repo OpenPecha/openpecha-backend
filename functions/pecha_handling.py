@@ -231,7 +231,7 @@ def process_pecha(
         title=f"Default display - {annotation_type_name}",
         path=annotation_path,
         type=annotation_type,
-        aligned_to=PechaAlignment(pecha_id=pecha.id, alignment_id=aligned_to.id) if aligned_to else None,
+        aligned_to=PechaAlignment(pecha_id=aligned_to.pecha_id, alignment_id=aligned_to.path) if aligned_to else None,
     )
 
     storage = Storage()
