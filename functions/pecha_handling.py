@@ -191,6 +191,7 @@ def serialize(pecha: Pecha, reserialize: bool, annotation: AnnotationModel) -> d
 
     category_chain = get_category_chain(category_id)
     logger.info("Category chain retrieved with %d categories", len(category_chain))
+    logger.info("Category Chain: %s", category_chain)
 
     id_chain = [id for id, _ in metadata_chain]
     logger.info("Pecha IDs: %s", ", ".join(id_chain))
