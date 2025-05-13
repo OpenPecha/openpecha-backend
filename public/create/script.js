@@ -7,7 +7,6 @@ class LocalizedForm {
     async initialize() {
         try {
             this.API_ENDPOINT = await getApiEndpoint();
-            // this.API_ENDPOINT = config.API_ENDPOINT;
             this.setupElements();
             this.setupEventListeners();
             await this.fetchLanguages();
@@ -54,15 +53,6 @@ class LocalizedForm {
         // Initially hide pecha selection and annotation alignment
         this.pechaOptionsContainer.style.display = "none";
         this.annotationOptionsContainer.parentElement.style.display = "none";
-        
-        // Hide translation option by default as Tibetan is the default language
-        const translationRadio = document.querySelector('input[value="translation_of"]');
-        const translationLabel = translationRadio ? translationRadio.closest('.radio-option') : null;
-        if (translationLabel) {
-            translationLabel.style.display = 'none';
-        }
-
-        // this.initializeSearchUI = this.initializeSearchUI.bind(this);
 
     }
 
@@ -74,37 +64,6 @@ class LocalizedForm {
                 // Form is already visible from language loading
                 this.formContent.style.display = "block";
                 this.initializeFields(baseLanguage);
-                
-                // Hide translation option if Tibetan language is selected
-                const translationRadio = document.querySelector('input[value="translation_of"]');
-                const translationLabel = translationRadio ? translationRadio.closest('.radio-option') : null;
-                
-                if (translationLabel) {
-                    if (baseLanguage === 'bo') {
-                        translationLabel.style.display = 'none';
-                        // If translation was selected, reset to 'None'
-                        if (translationRadio.checked) {
-                            document.querySelector('input[name="documentType"][value=""]').checked = true;
-                            // Hide pecha selection
-                            this.pechaOptionsContainer.style.display = "none";
-                            this.pechaSelect.innerHTML = '<option value="">Select pecha</option>';
-                            // Hide annotation selection
-                            this.annotationOptionsContainer.parentElement.style.display = "none";
-                            this.annotationAlignmentSelect.innerHTML = '<option value="">Select annotation</option>';
-                        }
-                    } else {
-                        translationLabel.style.display = '';
-                    }
-                }
-                
-                // Check if there's a selected pecha with translation_of document type
-                const selectedType = document.querySelector('input[name="documentType"]:checked').value;
-                const selectedPechaId = this.pechaSelect.value;
-                
-                if (selectedType === 'translation_of' && selectedPechaId) {
-                    // Re-fetch and populate metadata with the new language setting
-                    this.fetchAndPopulatePechaMetadata(selectedPechaId);
-                }
             } else {
                 this.formContent.style.display = "none";
             }
