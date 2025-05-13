@@ -100,10 +100,17 @@ class LocalizedForm {
                     // Show pecha selection only when a valid relation type is selected
                     this.fetchPechaOptions(radio.value);
                     
+                    // If baselanguage is 'zh', add 'bo' title
+                    if (this.baseLanguageSelect.value === "zh") {
+                        this.addTitle('bo');
+                    }
                     // Reset and hide annotation alignment when changing document type
                     this.annotationAlignmentSelect.innerHTML = '<option value="">Select annotation</option>';
                     this.annotationOptionsContainer.parentElement.style.display = "none";
                 } else {
+                    if(this.baseLanguageSelect.value === "zh") {
+                        this.removeTitle('bo');
+                    }
                     // Hide and reset pecha selection when "None" is selected
                     this.pechaOptionsContainer.style.display = "none";
                     this.pechaSelect.innerHTML = '<option value="">Select pecha</option>';
@@ -163,6 +170,9 @@ class LocalizedForm {
                     
                     // Add mandatory localizations for title
                     const requiredLangs = new Set(["bo", "en", baseLanguage]);
+                    if (baseLanguage === "zh") {
+                        requiredLangs.delete("bo");
+                    }
                     const uniqueLangs = Array.from(requiredLangs);
                     
                     uniqueLangs.forEach((lang, index) => {
@@ -346,6 +356,33 @@ class LocalizedForm {
         container.appendChild(inputContainer);
     }
 
+    addTitle(language) {
+        const container = document.querySelector(`.form-group[data-field="title"]`);
+        const localizationsDiv = container.querySelector(".localizations");
+        const inputContainers = localizationsDiv.querySelectorAll(`.input-container`);
+        let isTibetanField = false;
+        inputContainers.forEach(inputContainer => {
+            const langSelect = inputContainer.querySelector('select');
+            if (langSelect.value === 'bo') {
+                isTibetanField = true;
+            }
+        });
+        if (!isTibetanField) {
+            this.createLocalizationInput(localizationsDiv, language, false, true, true);
+        }
+    }
+
+    removeTitle(language) {
+        const container = document.querySelector(`.form-group[data-field="title"]`);
+        const localizationsDiv = container.querySelector(".localizations");
+        const inputContainers = localizationsDiv.querySelectorAll(`.input-container`);
+        inputContainers.forEach(inputContainer => {
+            const langSelect = inputContainer.querySelector('select');
+            if (langSelect.value === language) {
+                inputContainer.remove();
+            }
+        });
+    }
     setCreatingState(creating) {
         this.creating = creating;
         this.createButton.disabled = creating;
@@ -846,7 +883,10 @@ class LocalizedForm {
         }
 
         // Get all required languages for title
-        const requiredLangs = new Set([baseLanguage, "bo", "en"]);
+        const requiredLangs = new Set(['bo','en',baseLanguage]);
+        if (baseLanguage === "zh" && !(metadata.translation_of||metadata.commentary_of)) {
+            requiredLangs.delete("bo");
+        }
         const missingLangs = [];
 
         // Check each required language
