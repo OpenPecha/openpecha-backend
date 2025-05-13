@@ -131,7 +131,7 @@ def parse(
     path = create_tmp()
     docx_file.save(path)
 
-    metadatas = [md.model_dump() for _, md in get_metadata_chain(pecha_id=pecha_id, metadata=metadata)]
+    metadatas = [md for _, md in get_metadata_chain(pecha_id=pecha_id, metadata=metadata)]
 
     return DocxParser().parse(
         docx_file=path,
