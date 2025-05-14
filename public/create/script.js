@@ -101,14 +101,14 @@ class LocalizedForm {
                     this.fetchPechaOptions(radio.value);
                     
                     // If baselanguage is 'zh', add 'bo' title
-                    if (this.baseLanguageSelect.value === "zh") {
+                    if (this.baseLanguageSelect.value === "zh" || this.baseLanguageSelect.value === 'lzh') {
                         this.addTitle('bo');
                     }
                     // Reset and hide annotation alignment when changing document type
                     this.annotationAlignmentSelect.innerHTML = '<option value="">Select annotation</option>';
                     this.annotationOptionsContainer.parentElement.style.display = "none";
                 } else {
-                    if(this.baseLanguageSelect.value === "zh") {
+                    if(this.baseLanguageSelect.value === "zh" || this.baseLanguageSelect.value === 'lzh') {
                         this.removeTitle('bo');
                     }
                     // Hide and reset pecha selection when "None" is selected
@@ -170,7 +170,7 @@ class LocalizedForm {
                     
                     // Add mandatory localizations for title
                     const requiredLangs = new Set(["bo", "en", baseLanguage]);
-                    if (baseLanguage === "zh") {
+                    if (baseLanguage === "zh" || baseLanguage === 'lzh') {
                         requiredLangs.delete("bo");
                     }
                     const uniqueLangs = Array.from(requiredLangs);
