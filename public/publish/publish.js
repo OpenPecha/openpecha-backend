@@ -601,7 +601,7 @@ class UpdateMetaData {
 
         const env = await this.getEnvironment();
         const publishDestination = publish_to === 'fodian' ? this.Destination_url.FODIAN : `${this.Destination_url[`PECHA_${env.toUpperCase()}`]}`;
-        const base_language = publish_to === 'fodian' ? 'zh' : "bo";
+        const base_language = publish_to === 'fodian' ? 'lzh' : "bo";
         return { publishTextId, publishDestination, annotation_id,  base_language};
     }
     
@@ -620,7 +620,7 @@ class UpdateMetaData {
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ destination: publishDestination, annotation_id, base_language })
+                body: JSON.stringify({ destination_url: publishDestination, annotation_id, base_language })
             });
             if (!response.ok) {
                 console.log(response);
