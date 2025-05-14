@@ -18,6 +18,11 @@ class UpdateMetaData {
 
         this.isLoading = false;
         this.metadata = null
+        this.Destination_url = {
+            PECHA_PROD: "https://pecha.org/",
+            PECHA_DEV: "https://staging.pecha.org/",
+            FODIAN: "https://fodian.org/"
+        };
         this.initialize();
     }
 
@@ -545,7 +550,7 @@ class UpdateMetaData {
         }
     }
 
-    async getPublishDistination() {
+    async getEnvironment() {
         try {
             const firebaseConfigResponse = await fetch('/__/firebase/init.json', {
                 headers: {
@@ -560,9 +565,9 @@ class UpdateMetaData {
             const firebaseConfig = await firebaseConfigResponse.json();
             const projectId = firebaseConfig.projectId;
             if (projectId === 'pecha-backend') {
-                return 'production';
+                return 'prod';
             } else if (projectId === 'pecha-backend-dev') {
-                return 'staging';
+                return 'dev';
             }
         } catch (error) {
             console.warn("Failed to fetch Firebase init file:", error);
@@ -586,11 +591,6 @@ class UpdateMetaData {
             this.showToast('Please select the annotation alignment', 'error');
             return false;
         }
-        const publishDestination = await this.getPublishDistination();
-        if (!publishDestination) {
-            this.showToast('Please select the publish destination', 'error');
-            return false;
-        }
 
         // Get the selected publish_to value from radio buttons
         const publish_to = document.querySelector('input[name="publish_to"]:checked').value;
@@ -599,24 +599,28 @@ class UpdateMetaData {
             return false;
         }
 
-        return { publishTextId, publishDestination, reserialize: true, annotation_id, publish_to };
+        const env = await this.getEnvironment();
+        const publishDestination = publish_to === 'fodian' ? this.Destination_url.FODIAN : `${this.Destination_url[`PECHA_${env.toUpperCase()}`]}`;
+        const base_language = publish_to === 'fodian' ? 'zh' : "bo";
+        return { publishTextId, publishDestination, annotation_id,  base_language};
     }
-
+    
     async handlePublish() {
         const validatedData = await this.validateFields();
+        console.log("validation ", validatedData)
         if (!validatedData) return;
 
         this.setLoading(true);
 
         try {
-            const { publishTextId, publishDestination, reserialize, annotation_id, publish_to } = validatedData;
+            const { publishTextId, publishDestination, annotation_id, base_language } = validatedData;
             console.log("validatedData", validatedData);
             const response = await fetch(`${this.API_ENDPOINT}/pecha/${publishTextId}/publish`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ destination: publishDestination, reserialize, annotation_id, publish_to: publish_to }) // Fix: Added publish_to to the request body
+                body: JSON.stringify({ destination: publishDestination, annotation_id, base_language })
             });
             if (!response.ok) {
                 console.log(response);
