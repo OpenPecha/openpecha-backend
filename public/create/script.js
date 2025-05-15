@@ -100,10 +100,7 @@ class LocalizedForm {
                     // Show pecha selection only when a valid relation type is selected
                     this.fetchPechaOptions(radio.value);
                     
-                    // If baselanguage is 'zh', add 'bo' title
-                    if (this.baseLanguageSelect.value === "zh" || this.baseLanguageSelect.value === 'lzh') {
-                        this.addTitle('bo');
-                    }
+                   
                     // Reset and hide annotation alignment when changing document type
                     this.annotationAlignmentSelect.innerHTML = '<option value="">Select annotation</option>';
                     this.annotationOptionsContainer.parentElement.style.display = "none";
@@ -125,10 +122,19 @@ class LocalizedForm {
         this.pechaSelect.addEventListener('change', (e) => {
             const pechaId = e.target.value;
             if (pechaId) {
+                 // If baselanguage is 'zh', add 'bo' title
+                 if (this.baseLanguageSelect.value === "zh" || this.baseLanguageSelect.value === 'lzh') {
+                    this.addTitle('bo');
+                }
                 // Show annotation alignment only when a pecha is selected
                 this.annotationOptionsContainer.parentElement.style.display = "block";
                 this.onPechaSelect(pechaId);
             } else {
+
+                // If baselanguage is 'zh', remove 'bo' title
+                if (this.baseLanguageSelect.value === "zh" || this.baseLanguageSelect.value === 'lzh') {
+                    this.removeTitle('bo');
+                }
                 // Hide and reset annotation alignment when pecha is deselected
                 this.annotationAlignmentSelect.innerHTML = '<option value="">Select annotation</option>';
                 this.annotationOptionsContainer.parentElement.style.display = "none";
@@ -887,8 +893,10 @@ class LocalizedForm {
         if (baseLanguage === "zh" && !(metadata.translation_of||metadata.commentary_of)) {
             requiredLangs.delete("bo");
         }
+        if (baseLanguage === "lzh" && !(metadata.translation_of||metadata.commentary_of)) {
+            requiredLangs.delete("bo");
+        }
         const missingLangs = [];
-
         // Check each required language
         for (const lang of requiredLangs) {
             if (!metadata.title[lang]) {
@@ -906,7 +914,6 @@ class LocalizedForm {
                     langPositions[select.value] = index;
                 }
             });
-
             // Highlight the first missing language field
             const firstMissing = missingLangs[0];
             const index = langPositions[firstMissing] || 0;
