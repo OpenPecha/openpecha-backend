@@ -6,7 +6,6 @@ from database import Database
 from exceptions import DataConflict, InvalidRequest
 from flask import Blueprint, jsonify, request, send_file
 from metadata_model import MetadataModel, SourceType
-from openpecha.pecha.layer import AnnotationType
 from pecha_handling import process_bdrc_pecha, process_pecha, retrieve_pecha, serialize
 from pecha_uploader.config import Destination_url
 from pecha_uploader.pipeline import upload
@@ -43,9 +42,8 @@ def post_pecha():
     if text and data:
         raise InvalidRequest("Both text and data cannot be uploaded together")
 
-    annotation_type = AnnotationType(request.form.get("annotation_type"))
-    if not annotation_type:
-        raise InvalidRequest("Annotation type is required")
+    annotation_id = request.form.get("annotation_id")
+    annotation = Database().get_annotation(annotation_id) if annotation_id else None
 
     metadata_json = request.form.get("metadata")
     if not metadata_json:
@@ -64,7 +62,7 @@ def post_pecha():
 
     if text:
         validate_docx_file(text)
-        pecha_id = process_pecha(text=text, metadata=metadata, annotation_type=annotation_type)
+        pecha_id = process_pecha(text=text, metadata=metadata, aligned_to=annotation)
         logger.info("Processed text file: %s", text.filename)
 
     if data:  # data file (BDRC)

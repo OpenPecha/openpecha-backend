@@ -38,6 +38,10 @@ class LocalizedForm {
             'input[name="documentType"]'
         );
 
+        // Additional Fields collapsible elements
+        this.additionalFieldsToggle = document.getElementById("additionalFieldsToggle");
+        this.additionalFieldsContent = document.getElementById("additionalFieldsContent");
+
         this.annotationAlignmentSelect = document.getElementById("annotationAlignment");
         this.annotationOptionsContainer = document.getElementById("annotationAlignmentContainer");
         this.annotationLoadingSpinner = document.getElementById("annotationLoadingSpinner");
@@ -50,6 +54,13 @@ class LocalizedForm {
         // Initially hide pecha selection and annotation alignment
         this.pechaOptionsContainer.style.display = "none";
         this.annotationOptionsContainer.parentElement.style.display = "none";
+        
+        // Hide translation option by default as Tibetan is the default language
+        const translationRadio = document.querySelector('input[value="translation_of"]');
+        const translationLabel = translationRadio ? translationRadio.closest('.radio-option') : null;
+        if (translationLabel) {
+            translationLabel.style.display = 'none';
+        }
 
         // this.initializeSearchUI = this.initializeSearchUI.bind(this);
 
@@ -63,7 +74,38 @@ class LocalizedForm {
                 // Form is already visible from language loading
                 this.formContent.style.display = "block";
                 this.initializeFields(baseLanguage);
-            }else{
+                
+                // Hide translation option if Tibetan language is selected
+                const translationRadio = document.querySelector('input[value="translation_of"]');
+                const translationLabel = translationRadio ? translationRadio.closest('.radio-option') : null;
+                
+                if (translationLabel) {
+                    if (baseLanguage === 'bo') {
+                        translationLabel.style.display = 'none';
+                        // If translation was selected, reset to 'None'
+                        if (translationRadio.checked) {
+                            document.querySelector('input[name="documentType"][value=""]').checked = true;
+                            // Hide pecha selection
+                            this.pechaOptionsContainer.style.display = "none";
+                            this.pechaSelect.innerHTML = '<option value="">Select pecha</option>';
+                            // Hide annotation selection
+                            this.annotationOptionsContainer.parentElement.style.display = "none";
+                            this.annotationAlignmentSelect.innerHTML = '<option value="">Select annotation</option>';
+                        }
+                    } else {
+                        translationLabel.style.display = '';
+                    }
+                }
+                
+                // Check if there's a selected pecha with translation_of document type
+                const selectedType = document.querySelector('input[name="documentType"]:checked').value;
+                const selectedPechaId = this.pechaSelect.value;
+                
+                if (selectedType === 'translation_of' && selectedPechaId) {
+                    // Re-fetch and populate metadata with the new language setting
+                    this.fetchAndPopulatePechaMetadata(selectedPechaId);
+                }
+            } else {
                 this.formContent.style.display = "none";
             }
             // will remove the alternate titles if the base language is changed
@@ -93,12 +135,14 @@ class LocalizedForm {
         // Type Radio Selection
         this.typeRadios.forEach((radio) => {
             radio.addEventListener("change", () => {
+                // Clear any populated title fields when changing document type
+                this.clearTitleFields();
                 if (radio.checked && radio.value) {
                     // Show pecha selection only when a valid relation type is selected
                     this.fetchPechaOptions(radio.value);
                     
                     // Reset and hide annotation alignment when changing document type
-                    this.annotationAlignmentSelect.innerHTML = '<option value="">Select annotation alignment</option>';
+                    this.annotationAlignmentSelect.innerHTML = '<option value="">Select annotation</option>';
                     this.annotationOptionsContainer.parentElement.style.display = "none";
                 } else {
                     // Hide and reset pecha selection when "None" is selected
@@ -106,7 +150,7 @@ class LocalizedForm {
                     this.pechaSelect.innerHTML = '<option value="">Select pecha</option>';
                     
                     // Hide and reset annotation alignment
-                    this.annotationAlignmentSelect.innerHTML = '<option value="">Select annotation alignment</option>';
+                    this.annotationAlignmentSelect.innerHTML = '<option value="">Select annotation</option>';
                     this.annotationOptionsContainer.parentElement.style.display = "none";
                 }
             });
@@ -120,8 +164,9 @@ class LocalizedForm {
                 this.onPechaSelect(pechaId);
             } else {
                 // Hide and reset annotation alignment when pecha is deselected
-                this.annotationAlignmentSelect.innerHTML = '<option value="">Select annotation alignment</option>';
+                this.annotationAlignmentSelect.innerHTML = '<option value="">Select annotation</option>';
                 this.annotationOptionsContainer.parentElement.style.display = "none";
+                this.clearTitleFields();
             }
         });
         // Copy Pecha ID Button
@@ -134,6 +179,11 @@ class LocalizedForm {
         // Publish Button
         this.createButton.addEventListener("click", () => {
             this.handleCreatePecha();
+        });
+        // Additional Fields collapsible section
+        this.additionalFieldsToggle.addEventListener("click", () => {
+            this.additionalFieldsToggle.classList.toggle("active");
+            this.additionalFieldsContent.classList.toggle("active");
         });
     }
 
@@ -153,7 +203,7 @@ class LocalizedForm {
                     localizationsDiv.innerHTML = ""; // Clear existing
                     
                     // Add mandatory localizations for title
-                    const requiredLangs = new Set([baseLanguage, "bo", "en"]);
+                    const requiredLangs = new Set(["bo", "en", baseLanguage]);
                     const uniqueLangs = Array.from(requiredLangs);
                     
                     uniqueLangs.forEach((lang, index) => {
@@ -296,17 +346,9 @@ class LocalizedForm {
         const inputWrapper = document.createElement("div");
         inputWrapper.className = "input-wrapper";
 
-        const isTextarea = container.closest(".form-group")?.dataset.field === "presentation";
-        let input;
-
-        if (isTextarea) {
-            input = document.createElement("textarea");
-            input.placeholder = "Enter text";
-        } else {
-            input = document.createElement("input");
-            input.type = "text";
-            input.placeholder = "Enter text";
-        }
+        const input = document.createElement("input");
+        input.type = "text";
+        input.placeholder = "Enter text";
 
         input.setAttribute("required", "");
         const langSelect = document.createElement("select");
@@ -333,7 +375,8 @@ class LocalizedForm {
             const removeButton = document.createElement("button");
             removeButton.type = "button";
             removeButton.className = "remove-btn";
-            removeButton.innerHTML = '<i class="fas fa-times"></i>';
+            removeButton.title = "remove";
+            removeButton.innerHTML = '<i class="fa fa-minus" aria-hidden="true"></i>';
             removeButton.addEventListener("click", () => {
                 inputContainer.remove();
             });
@@ -459,6 +502,78 @@ class LocalizedForm {
         altTitles.appendChild(altTitleGroup);
     }
 
+    async fetchAndPopulatePechaMetadata(pechaId) {
+        if (!pechaId) return;
+        
+        try {
+            const response = await fetch(`${this.API_ENDPOINT}/metadata/${pechaId}`, {
+                method: 'GET',
+                headers: {
+                    'accept': 'application/json'
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const metadata = await response.json();
+            this.populateTitlesForTranslation(metadata);
+            return metadata;
+        } catch (error) {
+            console.error('Error fetching pecha metadata:', error);
+            this.showToast('Failed to load source pecha metadata', 'error');
+        }
+    }
+    
+    clearTitleFields() {
+        // Clear all title input fields
+        const titleGroup = document.querySelector('.form-group[data-field="title"]');
+        if (titleGroup) {
+            const inputs = titleGroup.querySelectorAll('input[type="text"]');
+            inputs.forEach(input => {
+                input.value = '';
+                input.removeAttribute('readonly');
+                input.placeholder = 'Enter text';
+            });
+        }
+    }
+    
+    populateTitlesForTranslation(metadata) {
+        if (!metadata || !metadata.title) return;
+        
+        const baseLanguage = this.baseLanguageSelect.value;
+        const titleGroup = document.querySelector('.form-group[data-field="title"]');
+        
+        if (!titleGroup) return;
+        
+        // Get all title inputs
+        const titleContainers = titleGroup.querySelectorAll('.input-container');
+        
+        titleContainers.forEach(container => {
+            const input = container.querySelector('input');
+            const select = container.querySelector('select');
+            
+            if (!input || !select) return;
+            
+            const lang = select.value;
+            
+            // Only process English and Tibetan titles
+            if (lang !== 'en' && lang !== 'bo') return;
+            
+            // If this is the base language, leave it empty for user to fill
+            if (lang === baseLanguage) {
+                input.value = '';
+                input.removeAttribute('readonly');
+                input.placeholder = 'Enter title';
+            } else if (metadata.title && metadata.title[lang]) {
+                // Otherwise populate from source pecha
+                input.value = metadata.title[lang];
+                input.setAttribute('readonly', 'readonly');
+            }
+        });
+    }
+    
     async fetchPechaOptions(filterBy) {
         let body = {filter: {} };
         const filters = {
@@ -529,7 +644,7 @@ class LocalizedForm {
             this.pechaSelect.remove(1);
         }
         pechas.forEach(pecha => {
-            const title = pecha.title.bo ?? pecha.title[pecha.language];
+            const title = pecha.title[pecha.language] ?? pecha.title.bo;
             const option = new Option(`${pecha.id} - ${title}`, pecha.id);
             this.pechaSelect.add(option.cloneNode(true));
         });
@@ -579,10 +694,24 @@ class LocalizedForm {
     }
 
     async onPechaSelect(pechaId) {
-        const annotations = await this.getAnnotation(pechaId);
-        const extractedAnnotations = this.extractAnnotations(annotations);
-        this.populateAnnotationDropdowns(extractedAnnotations);
+        try {
+            // Get annotations for alignment
+            const annotations = await this.getAnnotation(pechaId);
+            const extractedAnnotations = this.extractAnnotations(annotations);
+            this.populateAnnotationDropdowns(extractedAnnotations);
+            
+            // Check if this is a translation relationship
+            const selectedType = document.querySelector('input[name="documentType"]:checked').value;
+            if (selectedType === 'translation_of') {
+                // Fetch and populate metadata for translation
+                await this.fetchAndPopulatePechaMetadata(pechaId);
+            }
+        } catch (error) {
+            console.error('Error in onPechaSelect:', error);
+            this.showToast('Failed to load pecha information', 'error');
+        }
     }
+
     async fetchLanguages() {
         try {
             this.toggleLoadingSpinner(true, this.baseLanguageSelect, this.baseLanguageLoader);
@@ -625,7 +754,7 @@ class LocalizedForm {
             metadata:{
                 language: this.baseLanguageSelect.value,
             },
-            annotation_type:"segmentation"
+            annotation_id:null
         }
         // Collect localized fields
         document.querySelectorAll(".form-group[data-field]").forEach(group => {
@@ -696,7 +825,7 @@ class LocalizedForm {
         //collect annotation alignment value
         const annotation_alignment = this.annotationAlignmentSelect.value;
         if(selectedType && this.selectedPecha && annotation_alignment){
-            formData.annotation_type = 'alignment'
+            formData.annotation_id = annotation_alignment
         }
 
         // Collect Google Docs id 
@@ -848,7 +977,6 @@ class LocalizedForm {
             this.clearErrors();
             const pechaData = this.collectFormData();
             console.log("data", pechaData);
-            
             if (!this.validateRequiredFields(pechaData)) 
                 return;
 
@@ -888,7 +1016,9 @@ class LocalizedForm {
         const formData = new FormData();
         formData.append("text", blob, `text_${pechaData.metadata.document_id}.docx`);
         formData.append("metadata", JSON.stringify(pechaData.metadata));
-        formData.append("annotation_type", pechaData.annotation_type);
+        if(pechaData.annotation_id){
+            formData.append("annotation_id", pechaData.annotation_id);
+        }
         return formData;
     }
 

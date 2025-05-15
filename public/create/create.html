@@ -95,10 +95,10 @@
             </div>
 
             <div class="form-group">
-              <label>Annotation Alignment</label>
+              <label>Annotation</label>
                 <div id="annotationAlignmentContainer" class="select-search-container">
                   <select id="annotationAlignment" name="annotationAlignment">
-                    <option value="">Select annotation alignment</option>
+                    <option value="">Select annotation</option>
                   </select>
                   <div class="search-overlay">
                     <input
@@ -168,86 +168,93 @@
               </div>
             </div>
 
-            <div class="form-group" data-field="presentation">
-              <label>Presentation</label>
-              <div class="localizations"></div>
-              <button type="button" class="add-localization">
-                <i class="fas fa-plus-circle"></i>
-                Add Presentation
+            <!-- Additional Fields Section (Collapsible) -->
+            <div class="form-group additional-fields-header">
+              <button type="button" class="collapsible-header" id="additionalFieldsToggle">
+                <span>Additional Fields</span>
+                <i class="fas fa-chevron-down"></i>
               </button>
-            </div>
-
-            <div class="form-group" data-field="usage_title">
-              <label>Usage Title</label>
-              <div class="localizations"></div>
-              <button type="button" class="add-localization">
-                <i class="fas fa-plus-circle"></i>
-                Add Usage Title
-              </button>
-            </div>
-
-            
-
-            <div class="form-group">
-              <label>Alternate Titles</label>
-              <div class="alt-titles" id="alt-titles"></div>
-              <button type="button" class="add-alt-title" id="addAltTitle">
-                <i class="fas fa-plus-circle"></i>
-                <!-- <i class="fa-solid fa-plus"></i> -->
-                Add alternate title
-              </button>
-            </div>
-
-            <!-- // custom date picker -->
-            <div class="form-group">
-              <label>Composition Date</label>
-              <div class="date-display" id="selectedDate">No date selected</div>
-              <div class="date-picker-container" id="datePickerContainer">
-                <div class="era-selector">
-                  <label>Era: </label>
-                  <select id="eraSelect" class="era-select">
-                    <option value="Standard">Standard</option>
-                    <option value="BCE">BCE</option>
-                    <option value="CE">CE</option>
-                  </select>
+              <div class="additional-fields-content" id="additionalFieldsContent">
+                <div class="form-group">
+                  <label>Alternate Titles</label>
+                  <div class="alt-titles" id="alt-titles"></div>
+                  <button type="button" class="add-alt-title" id="addAltTitle">
+                    <i class="fas fa-plus-circle"></i>
+                    <!-- <i class="fa-solid fa-plus"></i> -->
+                    Add alternate title
+                  </button>
+                </div>
+                
+                <div class="form-group" data-field="presentation">
+                  <label>Presentation</label>
+                  <div class="localizations"></div>
+                  <button type="button" class="add-localization">
+                    <i class="fas fa-plus-circle"></i>
+                    Add Presentation
+                  </button>
                 </div>
 
-                <div id="standardPicker">
-                  <div class="calendar-header">
-                    <button type="button" id="prevYear">◄◄</button>
-                    <button type="button" id="prevMonth">◄</button>
-                    <!-- <span id="currentMonth">January 2024</span> -->
-                    <div class="month-year-container">
-                      <span id="currentMonth">January 2024</span>
-                      <input class="year-select-input" aria-label="Select Year" type="number" min="1" max="9999" id="yearInput"/>
+                <div class="form-group" data-field="usage_title">
+                  <label>Usage Title</label>
+                  <div class="localizations"></div>
+                  <button type="button" class="add-localization">
+                    <i class="fas fa-plus-circle"></i>
+                    Add Usage Title
+                  </button>
+                </div>
+
+                <!-- // custom date picker -->
+                <div class="form-group">
+                  <label>Composition Date</label>
+                  <div class="date-display" id="selectedDate">No date selected</div>
+                  <div class="date-picker-container" id="datePickerContainer">
+                    <div class="era-selector">
+                      <label>Era: </label>
+                      <select id="eraSelect" class="era-select">
+                        <option value="Standard">Standard</option>
+                        <option value="BCE">BCE</option>
+                        <option value="CE">CE</option>
+                      </select>
                     </div>
-                    <button type="button" id="nextMonth">►</button>
-                    <button type="button" id="nextYear">►►</button>
-                  </div>
 
-                  <div class="calendar-grid" id="calendarGrid">
-                    <!-- Calendar will be generated here -->
-                  </div>
-                </div>
+                    <div id="standardPicker">
+                      <div class="calendar-header">
+                        <button type="button" id="prevYear">◄◄</button>
+                        <button type="button" id="prevMonth">◄</button>
+                        <!-- <span id="currentMonth">January 2024</span> -->
+                        <div class="month-year-container">
+                          <span id="currentMonth">January 2024</span>
+                          <input class="year-select-input" aria-label="Select Year" type="number" min="1" max="9999" id="yearInput"/>
+                        </div>
+                        <button type="button" id="nextMonth">►</button>
+                        <button type="button" id="nextYear">►►</button>
+                      </div>
 
-                <div id="historicalPicker" class="hidden">
-                  <div class="year-selector">
-                    <label>From: </label>
-                    <input
-                      type="number"
-                      id="historicalYearStart"
-                      class="year-input"
-                      min="1"
-                    />
-                    <label>To: </label>
-                    <input
-                      type="number"
-                      id="historicalYearEnd"
-                      class="year-input"
-                      min="1"
-                    />
+                      <div class="calendar-grid" id="calendarGrid">
+                        <!-- Calendar will be generated here -->
+                      </div>
+                    </div>
+
+                    <div id="historicalPicker" class="hidden">
+                      <div class="year-selector">
+                        <label>From: </label>
+                        <input
+                          type="number"
+                          id="historicalYearStart"
+                          class="year-input"
+                          min="1"
+                        />
+                        <label>To: </label>
+                        <input
+                          type="number"
+                          id="historicalYearEnd"
+                          class="year-input"
+                          min="1"
+                        />
+                      </div>
+                      <span class="historical-year-note">* for specific year only first one</span>
+                    </div>
                   </div>
-                  <span class="historical-year-note">* for specific year only first one</span>
                 </div>
               </div>
             </div>

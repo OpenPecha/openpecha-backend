@@ -9,7 +9,7 @@ from category_model import CategoryModel
 from database import Database
 from metadata_model import MetadataModel, Relationship
 from openpecha.pecha import Pecha
-from openpecha.pecha.annotations import AnnotationModel
+from openpecha.pecha.annotations import AnnotationModel, PechaAlignment
 from openpecha.pecha.layer import AnnotationType
 from openpecha.pecha.parsers.docx import DocxParser
 from openpecha.pecha.parsers.ocr import BdrcParser
@@ -107,6 +107,14 @@ def get_pecha_chain(pecha_ids: list[str]) -> list[Pecha]:
     return [retrieve_pecha(pecha_id=pecha_id) for pecha_id in pecha_ids]
 
 
+def get_annotation_chain(pecha_ids: list[str]) -> dict[str, list[AnnotationModel]]:
+    annotations = dict[str, list[AnnotationModel]]()
+    for pecha_id in pecha_ids:
+        annotations_dict = Database().get_annotation_by_field("pecha_id", pecha_id)
+        annotations[pecha_id] = list(annotations_dict.values())
+    return annotations
+
+
 def create_tmp() -> Path:
     with tempfile.NamedTemporaryFile(delete=False) as temp:
         return Path(temp.name)
@@ -123,7 +131,7 @@ def parse(
     path = create_tmp()
     docx_file.save(path)
 
-    metadatas = [md.model_dump() for _, md in get_metadata_chain(pecha_id=pecha_id, metadata=metadata)]
+    metadatas = [md for _, md in get_metadata_chain(pecha_id=pecha_id, metadata=metadata)]
 
     return DocxParser().parse(
         docx_file=path,
@@ -183,6 +191,7 @@ def serialize(pecha: Pecha, reserialize: bool, annotation: AnnotationModel) -> d
 
     category_chain = get_category_chain(category_id)
     logger.info("Category chain retrieved with %d categories", len(category_chain))
+    logger.info("Category Chain: %s", category_chain)
 
     id_chain = [id for id, _ in metadata_chain]
     logger.info("Pecha IDs: %s", ", ".join(id_chain))
@@ -190,38 +199,40 @@ def serialize(pecha: Pecha, reserialize: bool, annotation: AnnotationModel) -> d
     pecha_chain = get_pecha_chain(pecha_ids=id_chain)
     logger.info("Pechas: %s", [pecha.id for pecha in pecha_chain])
 
+    annotations = get_annotation_chain(pecha_ids=id_chain)
+    logger.info("Annotations: %s", [f"{pecha_id} {ann.title}" for pecha_id, anns in annotations.items() for ann in anns])
+
     return Serializer().serialize(
         pechas=pecha_chain,
         metadatas=metadatas,
+        annotations=annotations,
         pecha_category=[CategoryModel.model_dump(c) for c in category_chain],
         annotation_path=annotation.path,
     )
 
 
 def process_pecha(
-    text: FileStorage, metadata: MetadataModel, annotation_type: AnnotationType, pecha_id: str | None = None
+    text: FileStorage, metadata: MetadataModel, aligned_to: AnnotationModel | None = None, pecha_id: str | None = None
 ) -> str:
     """
     Handles Pecha processing: parsing, alignment, serialization, storage, and database transactions.
-
-    Returns:
-        - `pecha.id` if successful.
-
-    Raises:
-        - Exception if an error occurs during processing.
     """
+    logger.info("Processing pecha with aligned to: %s", aligned_to)
+    annotation_type = AnnotationType.ALIGNMENT if aligned_to else AnnotationType.SEGMENTATION
     pecha, annotation_path = parse(
         docx_file=text, annotation_type=annotation_type, pecha_id=pecha_id, metadata=metadata
     )
     logger.info("Pecha created: %s %s", pecha.id, pecha.pecha_path)
     logger.info("Annotation path: %s", annotation_path)
 
+    annotation_type_name = "alignment" if annotation_type == AnnotationType.ALIGNMENT else "segmentation"
     annotation = AnnotationModel(
         pecha_id=pecha.id,
         document_id=text.filename,
-        title="Default display",
+        title=f"Default display - {annotation_type_name}",
         path=annotation_path,
         type=annotation_type,
+        aligned_to=PechaAlignment(pecha_id=aligned_to.pecha_id, alignment_id=aligned_to.path) if aligned_to else None,
     )
 
     storage = Storage()

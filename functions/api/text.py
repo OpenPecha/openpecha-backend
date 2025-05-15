@@ -53,7 +53,8 @@ def put_text(pecha_id: str):
     path = create_tmp()
     text.save(path)
 
-    metadatas = get_metadata_chain(pecha_id=pecha_id)
+    metadata_chain = get_metadata_chain(pecha_id=pecha_id)
+    metadatas = [md for _, md in metadata_chain]
 
     updated_pecha = DocxAnnotationUpdate().update_annotation(
         pecha=pecha, annotation_path=annotation.path, docx_file=path, metadatas=metadatas
