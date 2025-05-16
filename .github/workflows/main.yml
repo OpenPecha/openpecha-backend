@@ -26,6 +26,7 @@ jobs:
         run: |
           cd functions
           python3.12 -m venv venv
+          export PYTHON_PATH=$(which python)
           source venv/bin/activate
           pip install -r requirements.txt
 
