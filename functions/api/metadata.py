@@ -5,7 +5,7 @@ from exceptions import DataNotFound, InvalidRequest
 from filter_model import FilterModel
 from flask import Blueprint, jsonify, request
 from metadata_model import MetadataModel
-from pecha_handling import Relationship, TraversalMode, get_metadata_chain, retrieve_pecha
+from pecha_handling import Relationship, TraversalMode, get_metadata_tree, retrieve_pecha
 from storage import Storage
 
 metadata_bp = Blueprint("metadata", __name__)
@@ -72,7 +72,7 @@ def get_related_metadata(pecha_id):
     if rel_param and len(relationships) != len(rel_param.split(",")):
         raise InvalidRequest("Invalid relationship type. Use 'commentary', 'version', or 'translation'")
 
-    related_metadata = get_metadata_chain(pecha_id, traversal_mode=traversal_mode, relationships=relationships)
+    related_metadata = get_metadata_tree(pecha_id, traversal_mode=traversal_mode, relationships=relationships)
 
     return jsonify(format_metadata_chain(related_metadata)), 200
 

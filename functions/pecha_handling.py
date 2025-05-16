@@ -14,7 +14,6 @@ from openpecha.pecha.layer import AnnotationType
 from openpecha.pecha.parsers.docx import DocxParser
 from openpecha.pecha.parsers.ocr import BdrcParser
 from openpecha.pecha.serializers.pecha_db import Serializer
-from openpecha.pecha.serializers.pecha_db.updated_opf_serializer import update_serialize_json
 from storage import Storage
 from werkzeug.datastructures import FileStorage
 
@@ -42,7 +41,7 @@ def validate_relationship(metadata: MetadataModel, parent: MetadataModel, relati
             return parent.language != metadata.language
 
 
-def get_metadata_chain(
+def get_metadata_tree(
     pecha_id: str | None = None,
     metadata: MetadataModel | None = None,
     traversal_mode: TraversalMode = TraversalMode.UPWARD,
@@ -76,8 +75,9 @@ def get_metadata_chain(
     if traversal_mode is TraversalMode.FULL_TREE:
         root_id = chain[-1][0]
         logger.info("Starting collection of all related pechas from root: %s", root_id)
+        # Initialize processed with all IDs already in the chain to avoid duplicates
+        processed = {id for id, _ in chain if id}
         to_process = [root_id]  # Queue of IDs to process
-        processed = {root_id}  # Track processed IDs to avoid cycles
 
         while to_process:
             current_id = to_process.pop(0)  # Get next ID to process
@@ -103,8 +103,8 @@ def retrieve_pecha(pecha_id) -> Pecha:
     return Pecha.from_path(extract_path)
 
 
-def get_pecha_chain(pecha_ids: list[str]) -> list[Pecha]:
-    return [retrieve_pecha(pecha_id=pecha_id) for pecha_id in pecha_ids]
+def get_pecha_chain(pecha_ids: list[str]) -> dict[str, Pecha]:
+    return {pecha_id: retrieve_pecha(pecha_id=pecha_id) for pecha_id in pecha_ids}
 
 
 def get_annotation_chain(pecha_ids: list[str]) -> dict[str, list[AnnotationModel]]:
@@ -131,7 +131,7 @@ def parse(
     path = create_tmp()
     docx_file.save(path)
 
-    metadatas = [md for _, md in get_metadata_chain(pecha_id=pecha_id, metadata=metadata)]
+    metadatas = [md for _, md in get_metadata_tree(pecha_id=pecha_id, metadata=metadata)]
 
     return DocxParser().parse(
         docx_file=path,
@@ -169,21 +169,14 @@ def get_category_chain(category_id: str) -> list[CategoryModel]:
     return categories
 
 
-def serialize(pecha: Pecha, reserialize: bool, annotation: AnnotationModel) -> dict[str, Any]:
-    metadata_chain = get_metadata_chain(pecha_id=pecha.id)
+def serialize(pecha: Pecha, annotation: AnnotationModel, base_language: str) -> dict[str, Any]:
+    metadata_chain = get_metadata_tree(pecha_id=pecha.id, traversal_mode=TraversalMode.FULL_TREE)
     metadatas = [md for _, md in metadata_chain]
 
     if metadatas is None:
         raise ValueError("No metadata found for Pecha")
 
-    storage = Storage()
-    if storage.pechaorg_json_exists(pecha_id=pecha.id) and not reserialize:
-        pecha_json = storage.retrieve_pechaorg_json(pecha_id=pecha.id)
-
-        logger.info("Serialized Pecha %s already exist, updating the json", pecha.id)
-        return update_serialize_json(pecha=pecha, metadatas=metadatas, json=pecha_json)
-
-    logger.info("Serialized Pecha %s doesn't exist, starting serialize", pecha.id)
+    logger.info("Starting to serialize pecha %s", pecha.id)
 
     category_id = metadatas[0].category
     if category_id is None:
@@ -193,21 +186,22 @@ def serialize(pecha: Pecha, reserialize: bool, annotation: AnnotationModel) -> d
     logger.info("Category chain retrieved with %d categories", len(category_chain))
     logger.info("Category Chain: %s", category_chain)
 
-    id_chain = [id for id, _ in metadata_chain]
-    logger.info("Pecha IDs: %s", ", ".join(id_chain))
+    ids = [id for id, _ in metadata_chain]
+    logger.info("Pecha IDs: %s", ", ".join(ids))
 
-    pecha_chain = get_pecha_chain(pecha_ids=id_chain)
-    logger.info("Pechas: %s", [pecha.id for pecha in pecha_chain])
+    pechas = get_pecha_chain(pecha_ids=ids)
+    logger.info("Pechas: %s", list(pechas.keys()))
 
-    annotations = get_annotation_chain(pecha_ids=id_chain)
+    annotations = get_annotation_chain(pecha_ids=ids)
     logger.info("Annotations: %s", [f"{pecha_id} {ann.title}" for pecha_id, anns in annotations.items() for ann in anns])
 
     return Serializer().serialize(
-        pechas=pecha_chain,
+        pechas=pechas,
         metadatas=metadatas,
         annotations=annotations,
         pecha_category=[CategoryModel.model_dump(c) for c in category_chain],
         annotation_path=annotation.path,
+        base_language=base_language,
     )
 
 

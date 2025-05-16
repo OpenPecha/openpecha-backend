@@ -5,7 +5,7 @@ from database import Database
 from exceptions import DataNotFound, InvalidRequest
 from flask import Blueprint, jsonify, request
 from openpecha.pecha.parsers.docx.update import DocxAnnotationUpdate
-from pecha_handling import create_tmp, get_metadata_chain, retrieve_pecha
+from pecha_handling import create_tmp, get_metadata_tree, retrieve_pecha
 from storage import Storage
 from werkzeug.datastructures import FileStorage
 
@@ -53,7 +53,7 @@ def put_text(pecha_id: str):
     path = create_tmp()
     text.save(path)
 
-    metadata_chain = get_metadata_chain(pecha_id=pecha_id)
+    metadata_chain = get_metadata_tree(pecha_id=pecha_id)
     metadatas = [md for _, md in metadata_chain]
 
     updated_pecha = DocxAnnotationUpdate().update_annotation(

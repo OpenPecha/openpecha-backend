@@ -6,7 +6,7 @@ from exceptions import DataConflict, InvalidRequest
 from flask import Blueprint, jsonify, request
 from openpecha.pecha.annotations import AnnotationModel
 from openpecha.pecha.parsers.docx.annotation import DocxAnnotationParser
-from pecha_handling import get_metadata_chain, retrieve_pecha
+from pecha_handling import get_metadata_tree, retrieve_pecha
 from storage import Storage
 
 logger = logging.getLogger(__name__)
@@ -55,7 +55,7 @@ def post_annotation():
     logger.info("Pecha retrieved: %s", pecha.id)
 
     logger.info("Retrieving metadata chain for pecha_id: %s", annotation_data["pecha_id"])
-    metadatas = [md for _, md in get_metadata_chain(pecha_id=annotation_data["pecha_id"])]
+    metadatas = [md for _, md in get_metadata_tree(pecha_id=annotation_data["pecha_id"])]
     logger.info("Metadata chain retrieved: %s", metadatas)
 
     new_pecha, annotation_path = DocxAnnotationParser().add_annotation(

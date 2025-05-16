@@ -123,18 +123,18 @@ class MetadataModel(BaseModel):
 
         return self
 
-    @model_validator(mode="after")
-    def check_required_localizations(self):
-        """Ensure title has both English and Tibetan localizations."""
-        if self.source_type == SourceType.BDRC:
-            return self
+    # @model_validator(mode="after")
+    # def check_required_localizations(self):
+    #     """Ensure title has both English and Tibetan localizations."""
+    #     if self.source_type == SourceType.BDRC:
+    #         return self
 
-        try:
-            if self.title["en"] is not None and self.title["bo"] is not None:
-                return self
-            raise ValueError("Title values cannot be empty")
-        except (TypeError, KeyError) as e:
-            raise ValueError("Title must have both 'en' and 'bo' localizations.") from e
+    #     try:
+    #         if self.title["en"] is not None and self.title["bo"] is not None:
+    #             return self
+    #         raise ValueError("Title values cannot be empty")
+    #     except (TypeError, KeyError) as e:
+    #         raise ValueError("Title must have both 'en' and 'bo' localizations.") from e
 
     @model_validator(mode="after")
     def check_mutually_exclusive_fields(self):
