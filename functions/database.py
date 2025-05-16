@@ -83,10 +83,8 @@ class Database:
         return doc.exists
 
     def delete_all_categories(self):
-        docs = self.category_ref.stream()
-        for doc in docs:
-            doc.reference.delete()
-        
+        self.category_ref.delete()
+
     def get_category(self, category_id: str) -> CategoryModel:
         doc = self.category_ref.document(category_id).get()
         if not doc.exists:
