@@ -82,6 +82,9 @@ class Database:
         doc = self.category_ref.document(category_id).get()
         return doc.exists
 
+    def delete_all_categories(self):
+        self.category_ref.delete()
+
     def get_category(self, category_id: str) -> CategoryModel:
         doc = self.category_ref.document(category_id).get()
         if not doc.exists:
