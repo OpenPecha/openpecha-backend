@@ -459,6 +459,7 @@ class PechaRelationship {
             d.height = dimensions.height;
             d.fullTitle = dimensions.title;
             
+            // Create the main rectangle for the node
             d3.select(this).append('rect')
                 .attr('class', `node-rect ${d.group}`)
                 .attr('width', d.width)
@@ -467,6 +468,18 @@ class PechaRelationship {
                 .attr('ry', 10)
                 .attr('x', -d.width / 2)
                 .attr('y', -d.height / 2);
+                
+            // Add an additional outline for selected nodes to make them more visible
+            if (d.group === 'selected' || d.group === 'root') {
+                d3.select(this).append('rect')
+                    .attr('class', `node-selected-outline`)
+                    .attr('width', d.width + 4) // Slightly larger than the main rectangle
+                    .attr('height', d.height + 4)
+                    .attr('rx', 12)
+                    .attr('ry', 12)
+                    .attr('x', -(d.width + 4) / 2)
+                    .attr('y', -(d.height + 4) / 2);
+            }
         });
         
         // Add ID text labels to nodes

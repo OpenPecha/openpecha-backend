@@ -12,6 +12,10 @@
     <link rel="stylesheet" href="../toast_style.css" />
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+    />
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
     <!-- D3.js for graph visualization -->
     <script src="https://d3js.org/d3.v7.min.js"></script>
@@ -85,37 +89,48 @@
                     <button id="apply-filters-btn" class="apply-filters-btn">
                         <i class="fas fa-filter"></i> Apply Filters
                     </button>
+                    
+                    <!-- Legend moved to sidebar for space efficiency -->
+                    <div id="visualization-legend" class="legend sidebar-legend">
+                        <div class="legend-title">Legend</div>
+                        <div class="legend-items">
+                            <div class="legend-item">
+                                <div class="legend-color version"></div>
+                                <span>Version</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color commentary"></div>
+                                <span>Commentary</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color translation"></div>
+                                <span>Translation</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color selected animated-legend"></div>
+                                <span>Selected</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color root-legend"></div>
+                                <span>Root</span>
+                            </div>
+                        </div>
+                    </div>
                 </div>
             </div>
 
             <div class="visualization-panel">
-                <!-- Legend moved to visualization panel with toggle button -->
+                <!-- Visualization controls -->
                 <div class="visualization-controls">
-                    <button id="toggle-legend" class="control-btn" title="Toggle Legend">
-                        <i class="fas fa-info-circle"></i>
+                    <button id="zoom-in" class="control-btn" title="Zoom In">
+                        <i class="fas fa-search-plus" aria-hidden="true"></i>
                     </button>
-                </div>
-                
-                <div id="visualization-legend" class="legend visualization-legend">
-                    <div class="legend-title">Relationship Types</div>
-                    <div class="legend-items">
-                        <div class="legend-item">
-                            <div class="legend-color version"></div>
-                            <span>Version</span>
-                        </div>
-                        <div class="legend-item">
-                            <div class="legend-color commentary"></div>
-                            <span>Commentary</span>
-                        </div>
-                        <div class="legend-item">
-                            <div class="legend-color translation"></div>
-                            <span>Translation</span>
-                        </div>
-                        <div class="legend-item">
-                            <div class="legend-color selected"></div>
-                            <span>Selected Pecha</span>
-                        </div>
-                    </div>
+                    <button id="zoom-out" class="control-btn" title="Zoom Out">
+                        <i class="fas fa-search-minus"></i>
+                    </button>
+                    <button id="reset-zoom" class="control-btn" title="Reset View">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
                 </div>
                 
                 <div id="loading-container" class="loading-container">

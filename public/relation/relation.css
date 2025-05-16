@@ -117,6 +117,7 @@
     z-index: 20;
     display: flex;
     gap: 0.5rem;
+    background-color: transparent;
 }
 
 .control-btn {
@@ -125,7 +126,7 @@
     border-radius: 50%;
     background-color: var(--bg-primary);
     border: 1px solid var(--border-color);
-    color: var(--text-primary);
+    color: white;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -136,19 +137,28 @@
 
 .control-btn:hover {
     background-color: var(--accent-color);
-    color: white;
+    color: rgb(34, 26, 26);
     transform: translateY(-2px);
     box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
 }
 
+.control-btn:hover i{
+    color:white
+}
 .control-btn:active {
     transform: translateY(0);
 }
 
+.control-btn i {
+    font-size: 1rem;
+    color: var(--accent-color);
+
+}
+/* Visualization legend (original, now unused) */
 .visualization-legend {
     position: absolute;
     top: 1rem;
-    right: 4rem; /* Moved to the right of the control button */
+    right: 4rem;
     margin-top: 0;
     z-index: 10;
     padding: 0.75rem 1rem;
@@ -161,16 +171,27 @@
     transition: opacity 0.3s ease, transform 0.3s ease;
 }
 
+/* Sidebar legend (new, space-efficient) */
+.sidebar-legend {
+    margin-top: 1rem;
+    margin-bottom: 1rem;
+    padding: 0.75rem;
+    background-color: var(--bg-primary);
+    border-radius: 6px;
+    border: 1px solid var(--border-color);
+}
+
 .visualization-legend.hidden {
     opacity: 0;
     transform: translateX(20px);
     pointer-events: none;
 }
 
-.visualization-legend .legend-title {
+.legend .legend-title {
     font-size: 0.9rem;
-    margin-bottom: 0.75rem;
+    margin-bottom: 0.5rem;
     font-weight: 500;
+    color: var(--text-primary);
 }
 
 .visualization-legend .legend-items {
@@ -267,7 +288,7 @@
 .legend-item {
     display: flex;
     align-items: center;
-    gap: 0.5rem;
+    gap: 0.4rem;
 }
 
 .legend-color {
@@ -295,6 +316,22 @@
 
 .legend-color.selected {
     background-color: var(--selected-color);
+}
+
+.legend-color.root-legend {
+    background-color: white;
+    border: 2px solid black;
+}
+
+/* Animated legend item for selected pecha */
+.animated-legend {
+    animation: pulse-legend 2s infinite;
+}
+
+@keyframes pulse-legend {
+    0% { box-shadow: 0 0 0 0px rgba(103, 58, 183, 0.4); }
+    50% { box-shadow: 0 0 0 4px rgba(103, 58, 183, 0.4); }
+    100% { box-shadow: 0 0 0 0px rgba(103, 58, 183, 0.4); }
 }
 
 .help-text {
@@ -416,9 +453,34 @@
     stroke-width: 4px;
 }
 
+/* Selected node styling with animation and glow effect */
 .node-rect.selected {
     stroke: var(--selected-color);
-    stroke-width: 4px;
+    stroke-width: 6px;
+    filter: drop-shadow(0 0 6px var(--selected-color));
+    stroke-dasharray: none;
+    animation: pulse-selected 2s infinite;
+}
+
+/* Add an additional outline to create a double border effect */
+.node-selected-outline {
+    stroke: white;
+    stroke-width: 2px;
+    fill: none;
+    stroke-dasharray: none;
+}
+
+/* Animation for selected pecha */
+@keyframes pulse-selected {
+    0% { filter: drop-shadow(0 0 3px var(--selected-color)); }
+    50% { filter: drop-shadow(0 0 8px var(--selected-color)); }
+    100% { filter: drop-shadow(0 0 3px var(--selected-color)); }
+}
+
+/* Root node styling */
+.node-rect.root {
+    stroke: black;
+    stroke-width: 5px;
 }
 
 /* Root node text styling */
@@ -507,6 +569,13 @@
     gap: 0.75rem;
 }
 
+.checkbox-legend-items {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 0.5rem;
+    font-size: 0.85rem;
+}
+
 .checkbox-item {
     display: flex;
     align-items: center;
@@ -534,7 +603,7 @@
     margin-top: 1.25rem;
     padding: 0.75rem;
     background-color: var(--accent-color);
-    color: var(--text-primary);
+    color: var(--bg-primary);
     border: none;
     border-radius: 6px;
     font-size: 0.95rem;
@@ -547,7 +616,7 @@
 }
 
 .apply-filters-btn:hover {
-    background-color: rgba(var(--accent-color-rgb), 1);
+    background-color: var(--accent-color-rgb);
     transform: translateY(-1px);
     box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
 }
