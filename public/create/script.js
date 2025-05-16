@@ -98,16 +98,11 @@ class LocalizedForm {
                 this.clearTitleFields();
                 if (radio.checked && radio.value) {
                     // Show pecha selection only when a valid relation type is selected
-                    this.fetchPechaOptions(radio.value);
-                    
-                   
+                    this.fetchPechaOptions(radio.value);                    
                     // Reset and hide annotation alignment when changing document type
                     this.annotationAlignmentSelect.innerHTML = '<option value="">Select annotation</option>';
                     this.annotationOptionsContainer.parentElement.style.display = "none";
                 } else {
-                    if(this.baseLanguageSelect.value === "zh" || this.baseLanguageSelect.value === 'lzh') {
-                        this.removeTitle('bo');
-                    }
                     // Hide and reset pecha selection when "None" is selected
                     this.pechaOptionsContainer.style.display = "none";
                     this.pechaSelect.innerHTML = '<option value="">Select pecha</option>';
@@ -122,19 +117,10 @@ class LocalizedForm {
         this.pechaSelect.addEventListener('change', (e) => {
             const pechaId = e.target.value;
             if (pechaId) {
-                 // If baselanguage is 'zh', add 'bo' title
-                 if (this.baseLanguageSelect.value === "zh" || this.baseLanguageSelect.value === 'lzh') {
-                    this.addTitle('bo');
-                }
                 // Show annotation alignment only when a pecha is selected
                 this.annotationOptionsContainer.parentElement.style.display = "block";
                 this.onPechaSelect(pechaId);
             } else {
-
-                // If baselanguage is 'zh', remove 'bo' title
-                if (this.baseLanguageSelect.value === "zh" || this.baseLanguageSelect.value === 'lzh') {
-                    this.removeTitle('bo');
-                }
                 // Hide and reset annotation alignment when pecha is deselected
                 this.annotationAlignmentSelect.innerHTML = '<option value="">Select annotation</option>';
                 this.annotationOptionsContainer.parentElement.style.display = "none";
@@ -172,23 +158,41 @@ class LocalizedForm {
                         true
                     );
                 } else if (group.dataset.field === "title") {
-                    localizationsDiv.innerHTML = ""; // Clear existing
+                    // For title field, keep existing fields if any
+                    const existingFields = {};
+                    const existingInputs = localizationsDiv.querySelectorAll('.input-container');
+                    
+                    // Store existing field values before clearing
+                    existingInputs.forEach(container => {
+                        const input = container.querySelector('input');
+                        const select = container.querySelector('select');
+                        if (input && select && select.value) {
+                            existingFields[select.value] = input.value;
+                        }
+                    });
+                    
+                    localizationsDiv.innerHTML = ""; // Clear existing UI elements
                     
                     // Add mandatory localizations for title
-                    const requiredLangs = new Set(["bo", "en", baseLanguage]);
-                    if (baseLanguage === "zh" || baseLanguage === 'lzh') {
-                        requiredLangs.delete("bo");
-                    }
+                    const requiredLangs = new Set(["bo", "en", "lzh", baseLanguage]);
                     const uniqueLangs = Array.from(requiredLangs);
                     
                     uniqueLangs.forEach((lang, index) => {
-                        this.createLocalizationInput(
+                        const container = this.createLocalizationInput(
                             localizationsDiv,
                             lang,
                             index === 0,
                             true,
                             true // isTitle parameter
                         );
+                        
+                        // Restore value if it existed before
+                        if (existingFields[lang]) {
+                            const input = container.querySelector('input');
+                            if (input) {
+                                input.value = existingFields[lang];
+                            }
+                        }
                     });
                 }
             });
@@ -360,6 +364,9 @@ class LocalizedForm {
 
         inputContainer.appendChild(inputGroup);
         container.appendChild(inputContainer);
+        
+        // Return the created container for further modification if needed
+        return inputContainer;
     }
 
     addTitle(language) {
@@ -534,7 +541,7 @@ class LocalizedForm {
         if (titleGroup) {
             const inputs = titleGroup.querySelectorAll('input[type="text"]');
             inputs.forEach(input => {
-                input.value = '';
+                // input.value = '';
                 input.removeAttribute('readonly');
                 input.placeholder = 'Enter text';
             });
@@ -561,7 +568,7 @@ class LocalizedForm {
             const lang = select.value;
             
             // Only process English and Tibetan titles
-            if (lang !== 'en' && lang !== 'bo') return;
+            if (lang !== 'en' && lang !== 'bo' && lang !== 'lzh') return;
             
             // If this is the base language, leave it empty for user to fill
             if (lang === baseLanguage) {
@@ -578,27 +585,6 @@ class LocalizedForm {
     
     async fetchPechaOptions(filterBy) {
         let body = {filter: {} };
-        const filters = {
-            "commentary_of": {
-                "and": [
-                    { "field": "commentary_of", "operator": "==", "value": null },
-                    { "field": "translation_of", "operator": "==", "value": null }
-                ]
-            },
-            "version_of": {
-                "and": [
-                    { "field": "commentary_of", "operator": "==", "value": null },
-                    { "field": "version_of", "operator": "==", "value": null } 
-                ]
-            },
-            "translation_of": {
-                "field": "language",
-                "operator": "==",
-                "value": "bo"
-            }
-        };
-
-        body.filter = {};
         try {
             this.pechaOptionsContainer.style.display = "none";
 
@@ -889,15 +875,10 @@ class LocalizedForm {
         }
 
         // Get all required languages for title
-        const requiredLangs = new Set(['bo','en',baseLanguage]);
-        if (baseLanguage === "zh" && !(metadata.translation_of||metadata.commentary_of)) {
-            requiredLangs.delete("bo");
-        }
-        if (baseLanguage === "lzh" && !(metadata.translation_of||metadata.commentary_of)) {
-            requiredLangs.delete("bo");
-        }
+        const requiredLangs = new Set(['bo','en', 'lzh', baseLanguage]);
         const missingLangs = [];
         // Check each required language
+        console.log("require langs", requiredLangs)
         for (const lang of requiredLangs) {
             if (!metadata.title[lang]) {
                 missingLangs.push(lang);
@@ -923,6 +904,7 @@ class LocalizedForm {
             const langNames = {
                 'bo': 'Tibetan',
                 'en': 'English',
+                'lzh': 'Literal Chinese',
                 [baseLanguage]: `base language (${baseLanguage})`
             };
             const missingNames = missingLangs.map(lang => langNames[lang] || lang);
