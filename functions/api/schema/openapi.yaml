@@ -169,14 +169,15 @@ paths:
             schema:
               type: object
               properties:
-                destination:
+                destination_url:
                   type: string
-                  enum: [staging, production]
-                  description: The destination to publish the Pecha to.
-                reserialize:
-                  type: boolean
-                  default: false
-                  description: Whether to re-serialize the Pecha before publishing.
+                  format: uri
+                  description: The destination URL to publish the Pecha to.
+                  example: "https://staging.openpecha.org"
+                base_language:
+                  type: string
+                  description: The base language of the Pecha.
+                  default: bo
                 annotation_id:
                   type: string
                   description: The ID of the annotation to use when serializing the Pecha.
