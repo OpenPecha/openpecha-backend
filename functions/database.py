@@ -95,10 +95,6 @@ class Database:
 
     def set_category(self, category_id: str, category: CategoryModel):
         doc_ref = self.category_ref.document(category_id)
-        doc = doc_ref.get()
-        if not doc.exists:
-            raise DataNotFound(f"Category with ID '{category_id}' not found")
-
         doc_ref.set(category.model_dump())
 
     def get_all_categories(self) -> dict[str, dict[str, Any]]:
