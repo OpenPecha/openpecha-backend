@@ -13,6 +13,7 @@ from openpecha.pecha.annotations import AnnotationModel, PechaAlignment
 from openpecha.pecha.layer import AnnotationType
 from openpecha.pecha.parsers.docx import DocxParser
 from openpecha.pecha.parsers.ocr import BdrcParser
+from openpecha.pecha.serializers import SerializerLogicHandler
 from openpecha.pecha.serializers.pecha_db import Serializer
 from storage import Storage
 from werkzeug.datastructures import FileStorage
@@ -193,11 +194,13 @@ def serialize(pecha: Pecha, annotation: AnnotationModel, base_language: str) -> 
     logger.info("Pechas: %s", list(pechas.keys()))
 
     annotations = get_annotation_chain(pecha_ids=ids)
-    logger.info("Annotations: %s", [f"{pecha_id} {ann.title}" for pecha_id, anns in annotations.items() for ann in anns])
+    logger.info(
+        "Annotations: %s", [f"{pecha_id} {ann.title}" for pecha_id, anns in annotations.items() for ann in anns]
+    )
 
-    return Serializer().serialize(
-        pechas=pechas,
-        metadatas=metadatas,
+    return SerializerLogicHandler().serialize(
+        pechatree=pechas,
+        metadatatree=metadatas,
         annotations=annotations,
         pecha_category=[CategoryModel.model_dump(c) for c in category_chain],
         annotation_path=annotation.path,
