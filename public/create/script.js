@@ -63,6 +63,7 @@ class LocalizedForm {
             if (baseLanguage) {
                 // Form is already visible from language loading
                 this.formContent.style.display = "block";
+                this.clearDocumentField()
                 this.initializeFields(baseLanguage);
             } else {
                 this.formContent.style.display = "none";
@@ -96,6 +97,7 @@ class LocalizedForm {
             radio.addEventListener("change", () => {
                 // Clear any populated title fields when changing document type
                 this.clearTitleFields();
+                this.clearDocumentField()
                 if (radio.checked && radio.value) {
                     // Show pecha selection only when a valid relation type is selected
                     this.fetchPechaOptions(radio.value);                    
@@ -158,6 +160,12 @@ class LocalizedForm {
                         true
                     );
                 } else if (group.dataset.field === "title") {
+                    const selectedType = document.querySelector('input[name="documentType"]:checked').value;
+                    const selectedPechaId = this.pechaSelect.value;
+                    if(selectedType === "translation_of"){
+                        this.fetchAndPopulatePechaMetadata(selectedPechaId);
+                        return;
+                    }
                     // For title field, keep existing fields if any
                     const existingFields = {};
                     const existingInputs = localizationsDiv.querySelectorAll('.input-container');
@@ -541,13 +549,19 @@ class LocalizedForm {
         if (titleGroup) {
             const inputs = titleGroup.querySelectorAll('input[type="text"]');
             inputs.forEach(input => {
-                // input.value = '';
+                input.value = '';
                 input.removeAttribute('readonly');
                 input.placeholder = 'Enter text';
             });
         }
     }
-    
+    clearDocumentField(){
+        const documentIdInput = document.querySelector('input[placeholder="Google docs URL"]');
+        if (documentIdInput) {
+            documentIdInput.value = '';
+        }
+
+    }
     populateTitlesForTranslation(metadata) {
         if (!metadata || !metadata.title) return;
         
