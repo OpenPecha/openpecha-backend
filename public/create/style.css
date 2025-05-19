@@ -125,7 +125,9 @@ main {
     cursor: pointer;
     transition: all 0.3s ease;
 }
-
+.base-language select.loading{
+    display: none;
+}
 .base-language select option {
     padding: 10px;
     font-size: 14px;
@@ -142,22 +144,75 @@ main {
 }
 
 .input-wrapper select {
+    margin-right: var(--spacing-md);
     border-left: var(--border);
+    cursor: pointer;
 }
 
+.select-wrapper {
+    min-height: 48px;
+    border: var(--border);
+    border-radius: var(--border-radius);
+}
 /* Button styles */
 
 .remove-btn {
     position: absolute;
     right: 0;
-    transform: translateX(100%);
+    height: 100%;
     border: none;
     cursor: pointer;
     transition: all 0.3s ease;
     padding: var(--spacing-sm);
-    background: none;
-    color: var(--color-error);
+    background: var(--color-primary);
+    color: var(--color-white);
     font-size: 18px;
+    border-radius: 0 var(--border-radius) var(--border-radius) 0;
+}
+
+/* Collapsible Additional Fields styles */
+.additional-fields-header {
+    margin-bottom: var(--spacing-md);
+}
+
+.collapsible-header {
+    width: 100%;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: var(--spacing-md);
+    background-color: var(--color-hover-bg);
+    border: var(--border);
+    border-radius: var(--border-radius);
+    cursor: pointer;
+    font-weight: 500;
+    color: var(--color-text);
+    transition: all 0.3s ease;
+}
+
+.collapsible-header:hover {
+    background-color: #e9ecef;
+}
+
+.collapsible-header i {
+    transition: transform 0.3s ease;
+}
+
+.collapsible-header.active i {
+    transform: rotate(180deg);
+}
+
+.additional-fields-content {
+    display: none;
+    padding: var(--spacing-md);
+    border: var(--border);
+    border-top: none;
+    border-radius: 0 0 var(--border-radius) var(--border-radius);
+    margin-top: -1px;
+}
+
+.additional-fields-content.active {
+    display: block;
 }
 
 .add-localization,
@@ -266,19 +321,25 @@ main {
 .alt-title-group {
     position: relative;
     border: var(--border);
-    padding: 15px;
+    padding: 20px 25px 15px 15px;
     margin: 10px 0;
     border-radius: var(--border-radius);
 }
 
 .remove-alt-title {
     position: absolute;
-    top: 1px;
-    right: 1px;
+    top: 0;
+    right: 0;
     background: none;
     border: none;
     color: var(--color-error);
     cursor: pointer;
+    transition: all 0.3s ease;
+    padding: var(--spacing-xs);
+    background: var(--color-primary);
+    color: var(--color-white);
+    font-size: 18px;
+    border-radius: 0 var(--border-radius) 0 0;
 }
 
 /* Error states */
@@ -390,19 +451,12 @@ select.error {
 }
 /* Visibility utilities */
 .form-content {
-    display: none;
     margin-top: var(--spacing-lg);
 }
 
 .form-content.visible,
-#pechaOptionsContainer.visible,
 .popup-container.visible {
     display: block;
-}
-
-#pechaOptionsContainer {
-    display: block;
-    margin-top: var(--spacing-lg);
 }
 
 /* disabled */

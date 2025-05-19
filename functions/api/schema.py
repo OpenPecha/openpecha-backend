@@ -4,6 +4,8 @@ from filter_model import FilterModel
 from flask import Blueprint, jsonify, send_file
 from metadata_model import MetadataModel
 
+from openpecha.pecha.annotations import AnnotationModel
+
 schema_bp = Blueprint("schema", __name__)
 
 
@@ -24,6 +26,15 @@ def get_metadata_schema():
 @schema_bp.route("/filter", methods=["GET"])
 def get_filter_schema():
     return jsonify(FilterModel.model_json_schema()), 200
+
+
+@schema_bp.route("/annotation", methods=["GET"])
+def get_annotation_schema():
+    try:
+        schema = AnnotationModel.model_json_schema()
+        return jsonify(schema), 200
+    except Exception as e:
+        return jsonify({"error": f"Error generating annotation schema: {str(e)}"}), 500
 
 
 @schema_bp.route("/openapi", methods=["GET"])

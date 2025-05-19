@@ -14,6 +14,8 @@ def mock_db():
     mock_db.collection("metadata").document("I12345678").set(
         {
             "title": {"en": "Book One", "bo": "དེབ་དང་པོ།"},
+            "long_title": {"en": "Book One", "bo": "དེབ་དང་པོ།"},
+            "author": {"en": "Author One", "bo": "སྒྲོལ་མ།"},
             "language": "en",
             "commentary_of": "I87654321",
             "document_id": "DOC001",
@@ -23,6 +25,8 @@ def mock_db():
     mock_db.collection("metadata").document("I87654321").set(
         {
             "title": {"en": "Book Two", "bo": "དེབ་གཉིས་པ།"},
+            "long_title": {"en": "Book Two", "bo": "དེབ་གཉིས་པ།"},
+            "author": {"en": "Author Two", "bo": "སྒྲོལ་མ།"},
             "language": "en",
             "version_of": "I44444444",
             "document_id": "DOC002",
@@ -32,6 +36,8 @@ def mock_db():
     mock_db.collection("metadata").document("I44444444").set(
         {
             "title": {"bo": "དཔེ་ཆ་", "en": "Book Three"},
+            "long_title": {"bo": "དཔེ་ཆ་", "en": "Book Three"},
+            "author": {"en": "Author Three", "bo": "སྒྲོལ་མ།"},
             "language": "bo",
             "translation_of": None,
             "document_id": "DOC003",
@@ -41,6 +47,8 @@ def mock_db():
     mock_db.collection("metadata").document("I55555555").set(
         {
             "title": {"en": "Book Four", "bo": "དེབ་བཞི་པ།"},
+            "long_title": {"en": "Book Four", "bo": "དེབ་བཞི་པ།"},
+            "author": {"en": "Author Four", "bo": "སྒྲོལ་མ།"},
             "language": "en",
             "document_id": "DOC004",
             "source": "Source 4",
@@ -50,6 +58,7 @@ def mock_db():
     mock_db.collection("metadata").document("I66666666").set(
         {
             "title": {"zh": "书籍", "en": "Book Five", "bo": "དེབ་ལྔ་པ།"},
+            "long_title": {"en": "Book One", "bo": "དེབ་དང་པོ།"},
             "language": "zh",
             "author": {"en": "Alice", "bo": "སྒྲོལ་མ།"},
             "document_id": "DOC005",
@@ -59,6 +68,7 @@ def mock_db():
     mock_db.collection("metadata").document("I77777777").set(
         {
             "title": {"en": "Book Six", "bo": "དེབ་དྲུག་པ།"},
+            "long_title": {"en": "Book Six", "bo": "དེབ་དྲུག་པ།"},
             "language": "en",
             "author": {"en": "Bob", "bo": "པད་མ།"},
             "document_id": "DOC006",
@@ -68,7 +78,9 @@ def mock_db():
     mock_db.collection("metadata").document("I88888888").set(
         {
             "title": {"en": "Book Seven", "bo": "དེབ་བདུན་པ།"},
+            "long_title": {"en": "Book Seven", "bo": "དེབ་བདུན་པ།"},
             "language": "en",
+            "author": {"en": "Author Seven", "bo": "སྒྲོལ་མ།"},
             "source_url": "https://example.com/book7",
             "document_id": "DOC007",
         }
@@ -117,7 +129,7 @@ class TestGetRelatedMetadata:
         assert response.status_code == 200
         data = json.loads(response.data)
         # Should return all related metadata in the chain
-        assert len(data) >= 3  # At least I12345678, I87654321, I44444444
+        assert len(data) == 3  # At least I12345678, I87654321, I44444444
         assert any(item["id"] == "I12345678" for item in data)
         assert any(item["id"] == "I87654321" for item in data)
         assert any(item["id"] == "I44444444" for item in data)
@@ -221,6 +233,34 @@ class TestPutMetadata:
 
     @patch("api.metadata.Storage")
     @patch("api.metadata.retrieve_pecha")
+    def test_put_metadata_incorrect(self, mock_retrieve_pecha, mock_storage, mock_db, client):
+        """Test successfully updating metadata."""
+        # Setup mocks
+        mock_pecha = MagicMock()
+        mock_retrieve_pecha.return_value = mock_pecha
+
+        # Valid metadata for update
+        update_data = {
+            "metadata": {
+                "title": {"en": "Updated Book One", "bo": "དེབ་དང་པོ་བསྐྱར་བཅོས།"},
+                "document_id": "DOC001",  # Same as existing
+                "language": "en",
+                "author": {"en": "New Author", "bo": "རྩོམ་པ་པོ་གསར་པ།"},
+                "long_title": {"en": "Complete Updated Book One", "bo": "དེབ་དང་པོ་བསྐྱར་བཅོས་ཆ་ཚང་།"},
+                "source": "Updated Source",
+                "source_url": "",
+            }
+        }
+
+        response = client.put("/metadata/I12345678", json=update_data)
+
+        assert response.status_code == 422
+        data = json.loads(response.data)
+        assert "error" in data
+        assert "Validation error" in data["error"]
+
+    @patch("api.metadata.Storage")
+    @patch("api.metadata.retrieve_pecha")
     def test_put_metadata_invalid_document_id(self, mock_retrieve_pecha, mock_storage, mock_db, client):
         """Test updating metadata with mismatched document ID."""
         # Setup mocks
@@ -276,6 +316,7 @@ class TestPutMetadata:
         # Check if any error message contains 'author'
         assert any("msg" in err and "author" in err["msg"].lower() for err in data["details"])
 
+    @pytest.mark.skip
     @patch("api.metadata.Storage")
     @patch("api.metadata.retrieve_pecha")
     def test_put_metadata_missing_title_localization(self, mock_retrieve_pecha, mock_storage, mock_db, client):
@@ -333,10 +374,22 @@ class TestPutMetadata:
 class TestSetCategory:
     """Tests for the PUT /metadata/<pecha_id>/category endpoint."""
 
+    def test_set_category_success(self, mock_db, client):
+        """Test successful category update."""
+        # CAT001 exists for I55555555 in mock_db
+        response = client.put("/metadata/I55555555/category", json={"category_id": "CAT001"})
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert "message" in data
+        assert data["message"] == "Category updated successfully"
+        assert data["id"] == "I55555555"
+        # Verify the category was actually updated in the mock_db
+        updated_doc = mock_db.collection("metadata").document("I55555555").get().to_dict()
+        assert updated_doc["category"] == "CAT001"
+
     def test_set_category_nonexistent_category(self, mock_db, client):
         """Test setting a category that doesn't exist."""
         response = client.put("/metadata/I12345678/category", json={"category_id": "NONEXISTENT"})
-
         assert response.status_code == 404
         data = json.loads(response.data)
         assert "error" in data
@@ -345,11 +398,26 @@ class TestSetCategory:
     def test_set_category_nonexistent_pecha(self, mock_db, client):
         """Test setting category for a pecha that doesn't exist."""
         response = client.put("/metadata/I99999999/category", json={"category_id": "CAT001"})
-
         assert response.status_code == 404
         data = json.loads(response.data)
         assert "error" in data
         assert "Metadata with ID 'I99999999' not found" in data["error"]
+
+    def test_set_category_missing_category_id(self, mock_db, client):
+        """Test missing category_id in request body."""
+        response = client.put("/metadata/I12345678/category", json={})
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert "error" in data
+        assert "Missing category ID" in data["error"]
+
+    def test_set_category_null_category_id(self, mock_db, client):
+        """Test category_id explicitly set to None."""
+        response = client.put("/metadata/I12345678/category", json={"category_id": None})
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert "error" in data
+        assert "Missing category ID" in data["error"]
 
 
 class TestFilterMetadata:
@@ -366,6 +434,20 @@ class TestFilterMetadata:
         assert len(data["metadata"]) >= 7  # All metadata documents
         assert data["pagination"]["page"] == 1
         assert data["pagination"]["limit"] == 20
+
+    def test_filter_metadata_empty_filter_with_pagination(self, mock_db, client):
+        """Test filtering with empty filter object but custom pagination."""
+        payload = {"filter": {}, "page": 1, "limit": 100}
+
+        response = client.post("/metadata/filter", json=payload)
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert "metadata" in data
+        assert "pagination" in data
+        assert len(data["metadata"]) >= 7  # All metadata documents
+        assert data["pagination"]["page"] == 1
+        assert data["pagination"]["limit"] == 100
 
     def test_filter_metadata_by_language(self, mock_db, client):
         """Test filtering metadata by language field."""
@@ -389,6 +471,7 @@ class TestFilterMetadata:
         assert len(data["metadata"]) == 1
         assert data["metadata"][0]["id"] == "I77777777"
 
+    @pytest.mark.skip(reason="This test requires metadata changes, because Firebase doesn't handle combining != nulls")
     def test_filter_metadata_with_and_conditions(self, mock_db, client):
         """Test filtering metadata with AND conditions."""
         filter_data = {

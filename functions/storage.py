@@ -16,10 +16,10 @@ class Storage:
     def __init__(self):
         self.bucket = storage.bucket()
 
-    def store_pechaorg_json(self, pecha_id: str, json_dict: dict[str, Any]) -> str:
+    def store_pecha_json(self, pecha_id: str, base_language: str, json_dict: dict[str, Any]) -> str:
         json_str = json.dumps(json_dict, ensure_ascii=False)
 
-        blob = self._blob(Storage._pechaorg_json_path(pecha_id))
+        blob = self._blob(Storage._pecha_json_path(pecha_id, base_language))
         blob.upload_from_string(json_str, content_type="application/json")
         logger.info("Uploaded to storage: %s", blob.public_url)
         blob.make_public()
@@ -53,11 +53,6 @@ class Storage:
 
         return blob.public_url
 
-    def retrieve_pechaorg_json(self, pecha_id: str) -> dict[str, Any]:
-        json_bytes = self._get_file(Storage._pechaorg_json_path(pecha_id))
-        json_str = json_bytes.decode("utf-8")
-        return json.loads(json_str)
-
     def retrieve_pecha_opf(self, pecha_id: str) -> Path:
         temp_dir = tempfile.gettempdir()
         zip_path = Path(temp_dir) / f"{pecha_id}.zip"
@@ -65,17 +60,14 @@ class Storage:
 
         return zip_path
 
-    def delete_pechaorg_json(self, pecha_id: str):
-        self._delete(Storage._pechaorg_json_path(pecha_id))
+    def delete_pecha_json(self, pecha_id: str):
+        self._delete(f"json/{pecha_id}")
 
     def delete_pecha_opf(self, pecha_id: str):
         self._delete(Storage._pecha_opf_path(pecha_id))
 
     def delete_pecha_doc(self, pecha_id: str):
         self._delete(Storage._pecha_doc_path(pecha_id))
-
-    def pechaorg_json_exists(self, pecha_id: str) -> bool:
-        return self._file_exists(Storage._pechaorg_json_path(pecha_id))
 
     def pecha_opf_exists(self, pecha_id: str) -> bool:
         return self._file_exists(Storage._pecha_opf_path(pecha_id))
@@ -85,8 +77,8 @@ class Storage:
         return f"opf/{pecha_id}.zip"
 
     @staticmethod
-    def _pechaorg_json_path(pecha_id: str) -> str:
-        return f"pechaorg/{pecha_id}.json"
+    def _pecha_json_path(pecha_id: str, base_language: str | None = None) -> str:
+        return f"json/{pecha_id}/{base_language}.json"
 
     @staticmethod
     def _pecha_doc_path(pecha_id: str) -> str:

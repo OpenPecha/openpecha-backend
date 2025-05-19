@@ -57,7 +57,6 @@ form {
 .form-group {
     display: flex;
     flex-direction: column;
-    gap: 10px;
     margin-bottom: var(--form-spacing);
 }
 
@@ -192,19 +191,11 @@ select {
 }
 
 /* Spinners */
-.loading-spinner,
 .button-spinner {
     border-radius: 50%;
     animation: spin 1s linear infinite;
 }
 
-.loading-spinner {
-    width: 40px;
-    height: 40px;
-    margin: 0 auto 16px;
-    border: var(--spinner-border) solid var(--primary-color);
-    border-top: var(--spinner-border) solid #f3f3f3;
-}
 
 .button-spinner {
     width: 16px;

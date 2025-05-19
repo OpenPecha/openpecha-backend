@@ -1,10 +1,12 @@
 import logging
 import os
 
+from database import Database
 from exceptions import DataNotFound, InvalidRequest
-from firebase_admin import firestore
 from flask import Blueprint, jsonify, request
-from pecha_handling import process_pecha
+from openpecha.pecha.parsers.docx.update import DocxAnnotationUpdate
+from pecha_handling import create_tmp, get_metadata_tree, retrieve_pecha
+from storage import Storage
 from werkzeug.datastructures import FileStorage
 
 text_bp = Blueprint("text", __name__)
@@ -38,14 +40,26 @@ def put_text(pecha_id: str):
 
     validate_docx_file(text)
 
-    db = firestore.client()
-    doc = db.collection("metadata").document(pecha_id).get()
+    annotation_id = request.form.get("annotation_id")
+    if not annotation_id:
+        raise InvalidRequest("Missing Annotation ID")
 
-    if not doc.exists:
-        raise DataNotFound(f"Metadata with ID '{pecha_id}' not found")
+    annotation = Database().get_annotation(annotation_id)
 
-    metadata = doc.to_dict()
+    pecha = retrieve_pecha(pecha_id=pecha_id)
+    if not pecha:
+        raise DataNotFound(f"Pecha with ID '{pecha_id}' not found")
 
-    _ = process_pecha(text=text, metadata=metadata, pecha_id=pecha_id)
+    path = create_tmp()
+    text.save(path)
+
+    metadata_chain = get_metadata_tree(pecha_id=pecha_id)
+    metadatas = [md for _, md in metadata_chain]
+
+    updated_pecha = DocxAnnotationUpdate().update_annotation(
+        pecha=pecha, annotation_path=annotation.path, docx_file=path, metadatas=metadatas
+    )
+
+    Storage().store_pecha_opf(updated_pecha)
 
     return jsonify({"message": "Text updated successfully", "id": pecha_id}), 201

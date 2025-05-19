@@ -8,7 +8,6 @@
     <title>Update Pecha</title>
     <link rel="stylesheet" href="./css/index.css" />
     <link rel="stylesheet" href="../toast_style.css"/>
-    <link rel="stylesheet" href="../custom/select/select.css" />
     <link rel="stylesheet" href="../navbar.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
 </head>
@@ -24,6 +23,7 @@
           <a href="/publish/publish" class="nav-link">Publish</a>
           <a href="/update/" class="nav-link active">Update</a>
           <a href="/category/" class="nav-link">Category</a>
+          <a href="/annotation/" class="nav-link">Annotation</a>
         </div>
       </div>
     </nav>
@@ -49,55 +49,8 @@
                 </div>
             </div>
         </div>
-
-        <!-- <div id="updateFormContainer" class="form-container hidden">
-            <form id="updateForm" novalidate>
-                <div class="form-group">
-                    <label for="pechaOptions">Published Pecha</label>
-                    <div id="pechaOptionsContainer">
-                        <select id="pechaOptions" required>
-                            <option value="">Select pecha</option>
-                        </select>
-                    </div>
-                </div>
-                <div class="form-group">
-                    <label for="googleDocsInput">Google Docs Link</label>
-                    <div class="input-wrapper">
-                        <input 
-                            type="url" 
-                            id="googleDocsInput" 
-                            placeholder="Enter Google Docs URL" 
-                            required 
-                            pattern="https://docs\.google\.com/.*"
-                        />
-                    </div>
-                </div>
-                <button type="submit" class="submit-button" id="updateButton">
-                    <span class="button-text">Submit</span>
-                    <div class="spinner"></div>
-                </button>
-            </form>
-        </div>
-        <div class="metadata-container">
-            
-        </div> -->
     </main>
 
-    <!-- Scripts -->
-    <script src="js/update.js"></script>
-    <script src="../google_drive.js"></script>
-    <script src="../custom/select/index.js"></script>
-    <script 
-        src="https://apis.google.com/js/api.js"
-        onload="gapiLoaded()"
-        async 
-        defer
-    ></script>
-    <script 
-        src="https://accounts.google.com/gsi/client"
-        onload="gisLoaded()"
-        async 
-        defer
-    ></script>
+    <script src="../config.js"></script>
 </body>
 </html>

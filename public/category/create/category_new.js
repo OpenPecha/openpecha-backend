@@ -1,17 +1,20 @@
 // Category Node Data Structure
 class CategoryNode {
-    constructor(id, titleEn, titleBo, descEn = '', descBo = '', shortDescEn = '', shortdescBo = '') {
+    constructor(id, titleEn, titleBo, titleLzh, descEn = '', descBo = '', descLzh='', shortDescEn = '', shortdescBo = '',shortDescLzh='') {
         this.id = id;
         this.titleEn = titleEn;
         this.titleBo = titleBo;
+        this.titleLzh = titleLzh;
         this.descEn = descEn;
         this.descBo = descBo;
+        this.descLzh = descLzh;
         this.shortDescEn = shortDescEn;
         this.shortdescBo = shortdescBo;
+        this.shortDescLzh = shortDescLzh;
         this.children = [];
         this.parent = null;
     }
-
+    
     addChild(node) {
         node.parent = this;
         this.children.push(node);
@@ -102,6 +105,7 @@ class CategoryTreeUI {
         .then(data => {
             console.log('CategoryTreeUI: Categories fetched successfully');
             this.categories = data;
+            console.log("data",data)
             this.options = this.extractCategoryNames(data);
             this.elements.categorySelector.innerHTML = '';
             new CustomSearchableDropdown(this.elements.categorySelector, this.options, 'selectedCategory');
@@ -114,10 +118,10 @@ class CategoryTreeUI {
     extractCategoryNames(data) {
         return data.categories.map(category => ({
             id: category.id,
-            name: `${category.name["bo"]} (${category.name["en"]})` 
+            name: `${category.name["bo"]} (${category.name["en"]}) ${category?.name["lzh"]?"("+category?.name["lzh"]+")":""}` 
         }));
     }
-
+    
     handleCategorySelect() {
         const selectedRoot = document.getElementById('selectedCategory').dataset.value;
         console.log(":::",selectedRoot)
@@ -169,10 +173,13 @@ class CategoryTreeUI {
                 categoryData.id,
                 categoryData.name?.en,
                 categoryData.name?.bo,
+                categoryData.name?.lzh,
                 categoryData.description?.en,
                 categoryData.description?.bo,
+                categoryData.description?.lzh,
                 categoryData.short_description?.en,
-                categoryData.short_description?.bo
+                categoryData.short_description?.bo,
+                categoryData.short_description?.lzh
             );
     
             // Recursively process subcategories
@@ -254,36 +261,38 @@ class CategoryTreeUI {
         // Add node title with language-specific class
         const titleSpan = document.createElement('span');
         titleSpan.className = `node-title`;
-        titleSpan.textContent = `${node.titleBo} (${node.titleEn})`;
+        titleSpan.textContent = `${node.titleBo} (${node.titleEn}) ${node?.titleLzh ? `(${node?.titleLzh})` : ''}`;
         contentDiv.appendChild(titleSpan);
-
+        
         // Create popup with improved structure
         const popup = document.createElement('div');
         popup.className = 'node-popup';
 
-        if (node.descBo || node.descEn) {
+        if (node.descBo || node.descEn || node.descLzh) {
             const desc = document.createElement('div');
             desc.className = 'popup-section';
             desc.innerHTML = `
                 <h5>Description</h5>
                 ${node.descBo ? `<p><span class="label">Tibetan:</span> ${node.descBo}</p>` : ''}
                 ${node.descEn ? `<p><span class="label">English:</span> ${node.descEn}</p>` : ''}
+                ${node.descLzh ? `<p><span class="label">Literal Chinese:</span> ${node.descLzh}</p>` : ''}
             `;
             popup.appendChild(desc);
         }
 
-        if (node.shortdescBo || node.shortDescEn) {
+        if (node.shortdescBo || node.shortDescEn || node.shortDescLzh) {
             const shortDesc = document.createElement('div');
             shortDesc.className = 'popup-section';
             shortDesc.innerHTML = `
                 <h5>Short Description</h5>
                 ${node.shortdescBo ? `<p><span class="label">Tibetan:</span> ${node.shortdescBo}</p>` : ''}
                 ${node.shortDescEn ? `<p><span class="label">English:</span> ${node.shortDescEn}</p>` : ''}
+                ${node.shortDescLzh ? `<p><span class="label">Literal Chinese:</span> ${node.shortDescLzh}</p>` : ''}
             `;
             popup.appendChild(shortDesc);
         }
 
-        if (node.descBo || node.descEn || node.shortdescBo || node.shortDescEn) {
+        if (node.descBo || node.descEn || node.descLzh || node.shortdescBo || node.shortDescEn || node.shortDescLzh) {
             contentDiv.appendChild(popup);
         }
 
@@ -609,37 +618,77 @@ class UpdateMetaData {
         if (!this.elements.metadataContent) return;
 
         const reorderedMetadata = this.reorderMetadata(metadata);
-    const metadataHTML = Object.entries(reorderedMetadata).map(([key, value]) => {
-        const formattedKey = key.replace(/_/g, ' ').toUpperCase();
-        const formattedValue = this.formatMetadataValue(value);
-        return `
-            <div class="metadata-item">
-                <div class="metadata-key">${formattedKey}</div>
-                <div class="metadata-value">${formattedValue}</div>
-            </div>
-        `;
-    }).join('');
-
-    this.elements.metadataContent.innerHTML = metadataHTML;
-
+        let metadataHTML = '';
+        
+        // First, create HTML for non-category items
+        for (const [key, value] of Object.entries(reorderedMetadata)) {
+            if (!value || key === 'category') continue;
+            
+            const formattedKey = key.replace(/_/g, ' ').toUpperCase();
+            const formattedValue = this.formatMetadataValue(value);
+            
+            metadataHTML += `
+                <div class="metadata-item">
+                    <div class="metadata-key">${formattedKey}</div>
+                    <div class="metadata-value">${formattedValue}</div>
+                </div>
+            `;
+        }
+        
+        // Handle category separately if it exists
+        if (reorderedMetadata.category) {
+            const formattedKey = 'CATEGORY';
+            const categoryId = reorderedMetadata.category;
+            
+            // Add a placeholder for category with loading indicator
+            metadataHTML += `
+                <div class="metadata-item" id="category-metadata-item">
+                    <div class="metadata-key">${formattedKey}</div>
+                    <div class="metadata-value">
+                        <div class="category-loading">
+                            <div class="loading-spinner small"></div>
+                            <span>Loading category...</span>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+        
+        this.elements.metadataContent.innerHTML = metadataHTML;
+        
+        // Now fetch and update the category chain if needed
+        if (reorderedMetadata.category) {
+            this.getCategoryChain(reorderedMetadata.category).then(categoryChain => {
+                const categoryItem = document.getElementById('category-metadata-item');
+                if (categoryItem) {
+                    categoryItem.querySelector('.metadata-value').innerHTML = categoryChain;
+                }
+            }).catch(error => {
+                console.error('Error updating category chain:', error);
+                const categoryItem = document.getElementById('category-metadata-item');
+                if (categoryItem) {
+                    categoryItem.querySelector('.metadata-value').innerHTML = reorderedMetadata.category;
+                }
+            });
+        }
     }
 
     reorderMetadata(metadata) {
         const order = [
             "title",
-            "category",
             "version_of",
             "commentary_of",
             "translation_of",
+            "language",
             "author",
+            "category",
+            "source",
             "long_title",
+            "document_id",
             "usage_title",
             "alt_titles",
-            "language",
-            "source",
             "presentation",
-            "date",
-            "document_id"
+            "date"
         ];
     
         const reorderedMetadata = {};
@@ -650,6 +699,60 @@ class UpdateMetaData {
     
         return reorderedMetadata;
     }
+
+    async getCategoryChain(categoryId) {
+        try {
+            const response = await fetch(`${this.API_ENDPOINT}/categories`, {
+                method: 'GET',
+                headers: {
+                    'Content-Type': 'application/json'
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error('Network response was not ok');
+            }
+            
+            const data = await response.json();
+            const chain = this.findCategoryChain(data.categories, categoryId);
+            
+            if (chain && chain.length > 0) {
+                return chain.join(' > ');
+            } else {
+                return categoryId; // Return the ID if chain not found
+            }
+        } catch (error) {
+            console.error('Error fetching category chain:', error);
+            return categoryId; // Return the ID if there's an error
+        }
+    }
+    
+    findCategoryChain(data, targetId) {
+        function searchInData(items, currentPath = []) {
+          for (const item of items) {
+            const newPath = [...currentPath, item.name['en']];
+            
+            // If this is our target, return the path
+            if (item.id === targetId) {
+              return newPath;
+            }
+            
+            // If this item has subcategories, search in them
+            if (item.subcategories && item.subcategories.length > 0) {
+              const result = searchInData(item.subcategories, newPath);
+              // If we found the target in the subcategories, return the result
+              if (result) {
+                return result;
+              }
+            }
+          }
+          
+          // If we've examined all items and didn't find the target, return null
+          return null;
+        }
+        return searchInData(data);
+    }
+    
     showTreeState(show = true) {
         if (!this.elements.treeContainer) return;
         this.elements.treeContainer.style.display = show ? 'block' : 'none';

@@ -8,7 +8,7 @@
     <title>Update Pecha</title>
     <link rel="stylesheet" href="./css/content.css" />
     <link rel="stylesheet" href="../toast_style.css"/>
-    <link rel="stylesheet" href="../custom/select/select.css" />
+    <link rel="stylesheet" href="../select.css" />
     <link rel="stylesheet" href="../navbar.css" />
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" />
 </head>
@@ -24,6 +24,7 @@
           <a href="/publish/publish" class="nav-link">Publish</a>
           <a href="/update/" class="nav-link active">Update</a>
           <a href="/category/" class="nav-link">Category</a>
+          <a href="/annotation/" class="nav-link">Annotation</a>
         </div>
       </div>
     </nav>
@@ -38,10 +39,52 @@
             </div>
             <form id="updateForm" novalidate>
                 <div class="form-group">
-                    <label for="pechaOptions">Selecte Pecha</label>
-                    <div id="pechaOptionsContainer">
+                    <label for="pecha">Select Pecha</label>
+                    <div class="select-wrapper">
+                        <div class="select-search-container">
+                          <select id="pecha" name="pecha">
+                            <option value="">Select pecha</option>
+                          </select>
+                          <div class="search-overlay">
+                            <input
+                              type="text"
+                              class="search-input"
+                              placeholder="Search pechas..."
+                            />
+                            <div class="search-results"></div>
+                          </div>
+                        </div>
+                        <!-- Loading spinner for pecha dropdown -->
+                        <div id="pechaLoadingSpinner" class="loading-spinner">
+                          <i class="fas fa-spinner fa-spin"></i> Loading pechas...
+                        </div>
+                      </div>
+                </div>
+                
+                <!-- Annotation Alignment field -->
+                <div class="form-group" id="annotationAlignmentGroup">
+                    <label for="annotationAlignment">Annotation Alignment</label>
+                    <div class="select-wrapper">
+                        <div id="annotationAlignmentContainer" class="select-search-container">
+                          <select id="annotationAlignment" name="annotationAlignment">
+                            <option value="">Select annotation alignment</option>
+                          </select>
+                          <div class="search-overlay">
+                            <input
+                              type="text"
+                              class="search-input"
+                              placeholder="Search annotations..."
+                            />
+                            <div class="search-results"></div>
+                          </div>
+                        </div>
+                        <!-- Loading spinner for annotation dropdown -->
+                        <div id="annotationLoadingSpinner" class="loading-spinner">
+                          <i class="fas fa-spinner fa-spin"></i> Loading annotations...
+                        </div>
                     </div>
                 </div>
+                
                 <div class="form-group" id="googleDocsContainer">
                     <label for="googleDocsInput">Google Docs Link</label>
                     <div class="input-wrapper">
@@ -69,7 +112,6 @@
     <script src="./js/content.js"></script>
     <script src="../config.js"></script>
     <script src="../google_drive.js"></script>
-    <script src="../custom/select/index.js"></script>
     <script 
         src="https://apis.google.com/js/api.js"
         onload="gapiLoaded()"
