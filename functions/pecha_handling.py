@@ -171,15 +171,14 @@ def get_category_chain(category_id: str) -> list[CategoryModel]:
 
 
 def serialize(pecha: Pecha, annotation: AnnotationModel, base_language: str) -> dict[str, Any]:
-    metadata_chain = get_metadata_tree(pecha_id=pecha.id, traversal_mode=TraversalMode.FULL_TREE)
-    metadatas = [md for _, md in metadata_chain]
+    metadatas = get_metadata_tree(pecha_id=pecha.id, traversal_mode=TraversalMode.FULL_TREE)
     logger.info("Metadata chain retrieved with metadatas: %s", metadatas)
     if metadatas is None:
         raise ValueError("No metadata found for Pecha")
 
     logger.info("Starting to serialize pecha %s", pecha.id)
 
-    category_id = metadatas[0].category
+    category_id = metadatas[0][1].category
     if category_id is None:
         raise ValueError("No category found in metadata")
 
@@ -187,35 +186,7 @@ def serialize(pecha: Pecha, annotation: AnnotationModel, base_language: str) -> 
     logger.info("Category chain retrieved with %d categories", len(category_chain))
     logger.info("Category Chain: %s", category_chain)
 
-    ids = [id for id, _ in metadata_chain]
-    logger.info("Pecha IDs: %s", ", ".join(ids))
-
-    pechas = get_pecha_chain(pecha_ids=ids)
-    logger.info("Pechas: %s", list(pechas.keys()))
-
-    annotations = get_annotation_chain(pecha_ids=ids)
-    logger.info(
-        "Annotations: %s", [f"{pecha_id} {ann.title}" for pecha_id, anns in annotations.items() for ann in anns]
-    )
-
-    return SerializerLogicHandler().serialize(
-        pechatree=pechas,
-        metadatatree=metadatas,
-        annotations=annotations,
-        pecha_category=[CategoryModel.model_dump(c) for c in category_chain],
-        annotation_path=annotation.path,
-        base_language=base_language,
-    )
-
-    category_id = metadatas[0].category
-    if category_id is None:
-        raise ValueError("No category found in metadata")
-
-    category_chain = get_category_chain(category_id)
-    logger.info("Category chain retrieved with %d categories", len(category_chain))
-    logger.info("Category Chain: %s", category_chain)
-
-    ids = [id for id, _ in metadata_chain]
+    ids = [id for id, _ in metadatas]
     logger.info("Pecha IDs: %s", ", ".join(ids))
 
     pechas = get_pecha_chain(pecha_ids=ids)
