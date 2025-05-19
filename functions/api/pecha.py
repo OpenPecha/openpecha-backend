@@ -115,7 +115,7 @@ def publish(pecha_id: str):
         raise InvalidRequest("Missing destination URL")
 
     try:
-        destination_url = AnyUrl(destination)
+        temp_url = AnyUrl(destination)
     except ValidationError as exc:
         raise InvalidRequest(f"Invalid destination URL '{destination}'") from exc
 
@@ -133,6 +133,6 @@ def publish(pecha_id: str):
     Storage().store_pecha_json(pecha_id=pecha_id, json_dict=serialized, base_language=base_language)
     logger.info("Successfully saved Pecha %s to storage", pecha_id)
 
-    upload(text=serialized, destination_url=destination_url)
+    upload(text=serialized, destination_url=destination)
 
     return jsonify({"message": "Pecha published successfully", "id": pecha_id}), 200
