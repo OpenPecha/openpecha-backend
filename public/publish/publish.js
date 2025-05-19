@@ -620,7 +620,7 @@ class UpdateMetaData {
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ destination_url: publishDestination, annotation_id, base_language })
+                body: JSON.stringify({ destination: publishDestination, annotation_id, base_language })
             });
             if (!response.ok) {
                 console.log(response);
