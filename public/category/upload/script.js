@@ -22,7 +22,7 @@ class YamlUploadHandler {
     
     async initialize() {
         try {
-            this.API_ENDPOINT = await loadConfig();
+            this.API_ENDPOINT = await getApiEndpoint();
             this.setupEventListeners();
         } catch (error) {
             console.error('Initialization error:', error);
@@ -170,7 +170,7 @@ class YamlUploadHandler {
         })
         .then(data => {
             console.log(data);
-            this.showToast('File uploaded successfully!');
+            this.showToast(data.message);
             this.clearSelection();
         })
         .catch(error => {

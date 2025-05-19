@@ -22,7 +22,7 @@ def mock_db():
     mock_db.collection("language").document("bo").set({"name": "Tibetan"})
     mock_db.collection("language").document("zh").set({"name": "Chinese"})
 
-    with patch("api.languages.db", mock_db):
+    with patch("firebase_admin.firestore.client", return_value=mock_db):
         yield mock_db
 
 
@@ -50,8 +50,7 @@ def test_get_languages_success(client, mock_db):
 
 def test_trailing_slash_handling(client, mock_db):
     """Test that the endpoint works with and without trailing slash."""
-    with patch("firebase_config.db", mock_db):
-        with_slash_data = json.loads(client.get("/languages/").data)
-        without_slash_data = json.loads(client.get("/languages").data)
+    with_slash_data = json.loads(client.get("/languages/").data)
+    without_slash_data = json.loads(client.get("/languages").data)
 
     assert with_slash_data == without_slash_data

@@ -2,13 +2,13 @@ import json
 import logging
 
 from api.text import validate_bdrc_file, validate_docx_file
-from exceptions import DataConflict, DataNotFound, InvalidRequest
-from firebase_config import db
+from database import Database
+from exceptions import DataConflict, InvalidRequest
 from flask import Blueprint, jsonify, request, send_file
-from metadata_model import MetadataModel
+from metadata_model import MetadataModel, SourceType
 from pecha_handling import process_bdrc_pecha, process_pecha, retrieve_pecha, serialize
-from pecha_uploader.config import Destination_url
 from pecha_uploader.pipeline import upload
+from pydantic import AnyUrl, ValidationError
 from storage import Storage
 
 pecha_bp = Blueprint("pecha", __name__)
@@ -25,9 +25,11 @@ def add_no_cache_headers(response):
     return response
 
 
-def get_duplicate_key(document_id: str):
-    docs = db.collection("metadata").where("document_id", "==", document_id).limit(1).get()
-    return docs[0].id if docs else None
+def get_duplicate_key(document_id: str) -> str | None:
+    results = Database().get_metadata_by_field("document_id", document_id)
+    if results:
+        return list(results.keys())[0]
+    return None
 
 
 @pecha_bp.route("/", methods=["POST"], strict_slashes=False)
@@ -40,11 +42,15 @@ def post_pecha():
     if text and data:
         raise InvalidRequest("Both text and data cannot be uploaded together")
 
+    annotation_id = request.form.get("annotation_id")
+    annotation = Database().get_annotation(annotation_id) if annotation_id else None
+
     metadata_json = request.form.get("metadata")
     if not metadata_json:
         raise InvalidRequest("Missing metadata")
 
     metadata_dict = json.loads(metadata_json)
+    metadata_dict["source_type"] = SourceType.DOCX if text else SourceType.BDRC
     metadata = MetadataModel.model_validate(metadata_dict)
     logger.info("Metadata: %s", metadata)
 
@@ -52,13 +58,16 @@ def post_pecha():
     if duplicate_key:
         raise DataConflict(f"Document '{metadata.document_id}' is already published as: {duplicate_key}")
 
+    pecha_id = None
+
     if text:
         validate_docx_file(text)
-        pecha_id = process_pecha(text=text, metadata=metadata.model_dump())
+        pecha_id = process_pecha(text=text, metadata=metadata, aligned_to=annotation)
         logger.info("Processed text file: %s", text.filename)
-    else:  # data file (BDRC)
+
+    if data:  # data file (BDRC)
         validate_bdrc_file(data)
-        pecha_id = process_bdrc_pecha(data=data, metadata=metadata.model_dump())
+        pecha_id = process_bdrc_pecha(data=data, metadata=metadata)
         logger.info("Processed data file: %s", data.filename)
 
     title = metadata.title[metadata.language] or metadata.title["en"]
@@ -80,46 +89,50 @@ def get_pecha(pecha_id: str):
 
 @pecha_bp.route("/<string:pecha_id>", methods=["DELETE"], strict_slashes=False)
 def delete_pecha(pecha_id: str):
-    doc_ref = db.collection("metadata").document(pecha_id)
-    if not doc_ref.get().exists:
-        raise DataNotFound(f"Pecha with ID '{pecha_id}' not found")
-
     try:
         storage = Storage()
         storage.delete_pecha_doc(pecha_id=pecha_id)
         storage.delete_pecha_opf(pecha_id=pecha_id)
-        storage.delete_pechaorg_json(pecha_id=pecha_id)
+        storage.delete_pecha_json(pecha_id=pecha_id)
     except Exception as e:
         logger.warning("Failed to delete Pecha %s: %s", pecha_id, e)
 
-    doc_ref.delete()
+    Database().delete_metadata(pecha_id)
     return jsonify({"message": "Pecha deleted successfully", "id": pecha_id}), 200
 
 
 @pecha_bp.route("/<string:pecha_id>/publish", methods=["POST"], strict_slashes=False)
 def publish(pecha_id: str):
     data = request.get_json()
-    destination = data.get("destination", "staging")
-    reserialize = data.get("reserialize", False)
+    destination = data.get("destination")
+    annotation_id = data.get("annotation_id")
+    base_language = data.get("base_language", "bo")
 
     if not pecha_id:
         raise InvalidRequest("Missing Pecha ID")
 
-    if destination not in ["staging", "production"]:
-        raise InvalidRequest(f"Invalid destination '{destination}'")
+    if not destination:
+        raise InvalidRequest("Missing destination URL")
+
+    try:
+        destination_url = AnyUrl(destination)
+    except ValidationError as exc:
+        raise InvalidRequest(f"Invalid destination URL '{destination}'") from exc
+
+    if not annotation_id:
+        raise InvalidRequest("Missing Annotation ID")
 
     pecha = retrieve_pecha(pecha_id=pecha_id)
     logger.info("Successfully retrieved Pecha %s from storage", pecha_id)
 
-    destination_url = getattr(Destination_url, destination.upper())
-    logger.info("Destination URL: %s", destination_url)
+    annotation = Database().get_annotation(annotation_id)
 
-    serialized = serialize(pecha=pecha, reserialize=reserialize)
+    serialized = serialize(pecha=pecha, annotation=annotation, base_language=base_language)
     logger.info("Successfully serialized Pecha %s", pecha_id)
 
-    Storage().store_pechaorg_json(pecha_id=pecha_id, json_dict=serialized)
+    Storage().store_pecha_json(pecha_id=pecha_id, json_dict=serialized, base_language=base_language)
     logger.info("Successfully saved Pecha %s to storage", pecha_id)
 
-    upload(text=serialized, destination_url=destination_url, overwrite=True)
+    upload(text=serialized, destination_url=destination_url)
 
     return jsonify({"message": "Pecha published successfully", "id": pecha_id}), 200

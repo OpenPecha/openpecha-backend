@@ -1,4 +1,4 @@
-from firebase_config import db
+from database import Database
 from flask import Blueprint, jsonify
 
 languages_bp = Blueprint("languages", __name__)
@@ -6,6 +6,5 @@ languages_bp = Blueprint("languages", __name__)
 
 @languages_bp.route("/", methods=["GET"], strict_slashes=False)
 def get_languages():
-    languages_ref = db.collection("language").stream()
-    languages = [{"code": doc.id, "name": doc.to_dict().get("name")} for doc in languages_ref]
+    languages = Database().get_languages()
     return jsonify(languages), 200

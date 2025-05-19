@@ -1,3 +1,5 @@
+import firebase_admin
+from api.annotation import annotation_bp
 from api.api import api_bp
 from api.category import categories_bp
 from api.languages import languages_bp
@@ -6,9 +8,22 @@ from api.pecha import pecha_bp
 from api.schema import schema_bp
 from api.text import text_bp
 from exceptions import OpenPechaException
+from firebase_admin import credentials
 from firebase_functions import https_fn, options
 from flask import Flask, jsonify, request
+from google.cloud import logging as cloud_logging
 from pydantic import ValidationError
+
+
+def _init_firebase():
+    try:
+        firebase_admin.get_app()  # Check if Firebase is already initialized
+    except ValueError:
+        cred = credentials.ApplicationDefault()
+        firebase_admin.initialize_app(cred)
+
+    logging_client = cloud_logging.Client()
+    logging_client.setup_logging()
 
 
 def create_app(testing=False):
@@ -23,17 +38,19 @@ def create_app(testing=False):
     app.register_blueprint(api_bp, url_prefix="/api")
     app.register_blueprint(text_bp, url_prefix="/text")
     app.register_blueprint(categories_bp, url_prefix="/categories")
+    app.register_blueprint(annotation_bp, url_prefix="/annotation")
 
     @app.errorhandler(Exception)
     def handle_exception(e):
         app.logger.error("Error: %s", e)
         if isinstance(e, ValidationError):
-            return jsonify({"error": "Validation error", "details": e.errors()}), 422
+            # for some reason if ctx is in the error dict, it will break the response, we need to remove it
+            errors = [{k: v for k, v in err.items() if k != "ctx"} for err in e.errors()]
+            return jsonify({"error": "Validation error", "details": errors}), 422
         if isinstance(e, OpenPechaException):
             return jsonify(e.to_dict()), e.status_code
 
-        error = OpenPechaException(str(e))
-        return jsonify(error.to_dict()), error.status_code
+        return jsonify({"error": str(e)}), 500
 
     @app.after_request
     def log_response(response):
@@ -73,6 +90,7 @@ def create_app(testing=False):
     memory=options.MemoryOption.MB_512,
 )
 def api(req: https_fn.Request) -> https_fn.Response:
+    _init_firebase()
     app = create_app()
     with app.request_context(req.environ):
         return app.full_dispatch_request()

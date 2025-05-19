@@ -4,9 +4,12 @@
         "--disable=missing-function-docstring",
         "--disable=missing-module-docstring",
         "--disable=broad-exception-caught",
-        "--disable=too-many-return-statements",
         "--disable=too-few-public-methods",
         "--max-line-length=120",
+    ],
+    "mypy-type-checker.args": [
+        "--disable-error-code=import-untyped",
+        "--check-untyped-defs",
     ],
     "black-formatter.args": [
         "--line-length",
@@ -41,7 +44,7 @@
         "functions",
         "--log-cli-level=DEBUG"
     ],
-    "python.testing.unittestEnabled": true,
+    "python.testing.unittestEnabled": false,
     "python.testing.pytestEnabled": true,
     "python.testing.autoTestDiscoverOnSaveEnabled": true,
     "python.testing.cwd": "${workspaceFolder}",

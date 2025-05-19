@@ -1,9 +1,10 @@
 import logging
-from typing import Any, Generator
+from typing import Any
 
 import yaml
+from category_model import CategoryModel
+from database import Database
 from exceptions import InvalidRequest
-from firebase_config import db
 from flask import Blueprint, jsonify, request
 from werkzeug.datastructures import FileStorage
 
@@ -21,32 +22,31 @@ def add_no_cache_headers(response):
     return response
 
 
-def process_categories(
-    categories: list[dict[str, Any]], parent_id: str | None = None
-) -> Generator[dict[str, Any], None, None]:
-    """Process categories recursively and yield category data with parent references."""
+def process_categories(categories: list[dict[str, Any]], parent_id: str | None = None) -> int:
+    """Process categories recursively with parent references and return the count."""
+    count = 0
     for category in categories:
-        category_id = category.get("id")
-        if not category_id:
+        count += 1
+        if not (category_id := category.get("id")):
             raise ValueError("Category ID is required")
 
-        category_data = {
-            "name": category.get("name", {}),
-            "description": category.get("description", {}),
-            "short_description": category.get("short_description", {}),
-        }
+        category_model = CategoryModel.model_validate(
+            {
+                "name": category.get("name"),
+                "parent": parent_id,
+                "description": category.get("description"),
+                "short_description": category.get("short_description"),
+            }
+        )
 
-        category_data["parent"] = parent_id
+        Database().set_category(category_id, category_model)
 
-        # Store category and get its ID
-        db.collection("category").document(category_id).set(category_data)
         logger.info("Created category %s", category_id)
 
-        yield category_data
-
-        # Process subcategories if any
         if "subcategories" in category:
-            yield from process_categories(category["subcategories"], category_id)
+            count += process_categories(category["subcategories"], category_id)
+
+    return count
 
 
 @categories_bp.route("/", methods=["PUT"], strict_slashes=False)
@@ -63,22 +63,27 @@ def upload_categories():
     if not isinstance(content, dict) or "categories" not in content:
         raise InvalidRequest("Invalid file structure. Expected a dictionary with 'categories' key")
 
-    categories = list(process_categories(content["categories"]))
-    logger.info("Processed %d categories", len(categories))
+    # This should be changed to delete only after the process categories is successfully returning the list of categories
+    Database().delete_all_categories()
 
-    return jsonify({"message": "Categories uploaded successfully", "count": len(categories)}), 201
+    category_count = process_categories(content["categories"])
+    logger.info("Processed %d categories", category_count)
+
+    return jsonify({"message": "Categories uploaded successfully", "count": category_count}), 201
 
 
 def build_category_tree() -> list[dict[str, Any]]:
     """Build a tree structure of categories from Firestore documents."""
-    categories = {
-        doc.id: {"id": doc.id, **doc.to_dict(), "subcategories": []} for doc in db.collection("category").stream()
-    }
+    categories = Database().get_all_categories()
 
     root_categories = []
-    for category in categories.values():
+    for category_id, category in categories.items():
+        category["id"] = category_id
+
         parent_id = category.pop("parent", None)
         if parent_id:
+            if "subcategories" not in categories[parent_id]:
+                categories[parent_id]["subcategories"] = []
             categories[parent_id]["subcategories"].append(category)
         else:
             root_categories.append(category)

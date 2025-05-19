@@ -6,11 +6,11 @@ class LocalizedForm {
 
     async initialize() {
         try {
-            this.API_ENDPOINT = await loadConfig();
+            this.API_ENDPOINT = await getApiEndpoint();
             this.setupElements();
             this.setupEventListeners();
             await this.fetchLanguages();
-            await this.fetchPechaOptions();
+            this.initializeSearchUI();
         } catch (error) {
             console.error('Initialization error:', error);
             this.showToast('Failed to initialize. Please refresh the page.', 'error');
@@ -29,17 +29,31 @@ class LocalizedForm {
         this.sourceUrl = document.getElementById("sourceUrl");
         this.source = document.getElementById("source");
         this.addAltTitleButton = document.getElementById("addAltTitle");
-        this.pechaOptionsContainer = document.getElementById(
-            "pechaOptionsContainer"
-        );
+        this.searchContainers = document.querySelectorAll('.select-search-container');
+        this.pechaOptionsContainer = document.getElementById("pechaOptionsContainer");
+        this.pechaSelect = document.getElementById("pecha");
+        this.pechaLoadingSpinner = document.getElementById("pechaLoadingSpinner");
         this.typeRadios = document.querySelectorAll(
             'input[name="documentType"]'
         );
+
+        // Additional Fields collapsible elements
+        this.additionalFieldsToggle = document.getElementById("additionalFieldsToggle");
+        this.additionalFieldsContent = document.getElementById("additionalFieldsContent");
+
+        this.annotationAlignmentSelect = document.getElementById("annotationAlignment");
+        this.annotationOptionsContainer = document.getElementById("annotationAlignmentContainer");
+        this.annotationLoadingSpinner = document.getElementById("annotationLoadingSpinner");
         this.createButton = document.getElementById("createButton")
         this.createBtnText = document.querySelector(".create-button-text");
         this.creatingSpinner = createButton.querySelector(".spinner")
         this.creating = false;
         this.languageOptions = [];
+        
+        // Initially hide pecha selection and annotation alignment
+        this.pechaOptionsContainer.style.display = "none";
+        this.annotationOptionsContainer.parentElement.style.display = "none";
+
     }
 
     setupEventListeners() {
@@ -47,10 +61,11 @@ class LocalizedForm {
         this.baseLanguageSelect.addEventListener("change", () => {
             const baseLanguage = this.baseLanguageSelect.value;
             if (baseLanguage) {
-                this.formContent.classList.add("visible");
-                this.initializeFields(this.baseLanguageSelect.value);
+                // Form is already visible from language loading
+                this.formContent.style.display = "block";
+                this.initializeFields(baseLanguage);
             } else {
-                this.formContent.classList.remove("visible");
+                this.formContent.style.display = "none";
             }
             // will remove the alternate titles if the base language is changed
             const altTitles = document.getElementById("alt-titles");
@@ -79,12 +94,38 @@ class LocalizedForm {
         // Type Radio Selection
         this.typeRadios.forEach((radio) => {
             radio.addEventListener("change", () => {
-                console.log("value:::", radio.value);
-                if (radio.checked) {
-                    this.pechaOptionsContainer.classList.add("visible");
-                    this.fetchPechaOptions(radio.value);
+                // Clear any populated title fields when changing document type
+                this.clearTitleFields();
+                if (radio.checked && radio.value) {
+                    // Show pecha selection only when a valid relation type is selected
+                    this.fetchPechaOptions(radio.value);                    
+                    // Reset and hide annotation alignment when changing document type
+                    this.annotationAlignmentSelect.innerHTML = '<option value="">Select annotation</option>';
+                    this.annotationOptionsContainer.parentElement.style.display = "none";
+                } else {
+                    // Hide and reset pecha selection when "None" is selected
+                    this.pechaOptionsContainer.style.display = "none";
+                    this.pechaSelect.innerHTML = '<option value="">Select pecha</option>';
+                    
+                    // Hide and reset annotation alignment
+                    this.annotationAlignmentSelect.innerHTML = '<option value="">Select annotation</option>';
+                    this.annotationOptionsContainer.parentElement.style.display = "none";
                 }
             });
+        });
+        // Pecha Selection
+        this.pechaSelect.addEventListener('change', (e) => {
+            const pechaId = e.target.value;
+            if (pechaId) {
+                // Show annotation alignment only when a pecha is selected
+                this.annotationOptionsContainer.parentElement.style.display = "block";
+                this.onPechaSelect(pechaId);
+            } else {
+                // Hide and reset annotation alignment when pecha is deselected
+                this.annotationAlignmentSelect.innerHTML = '<option value="">Select annotation</option>';
+                this.annotationOptionsContainer.parentElement.style.display = "none";
+                this.clearTitleFields();
+            }
         });
         // Copy Pecha ID Button
         this.copyPechaIdButton.addEventListener("click", () => {
@@ -96,6 +137,11 @@ class LocalizedForm {
         // Publish Button
         this.createButton.addEventListener("click", () => {
             this.handleCreatePecha();
+        });
+        // Additional Fields collapsible section
+        this.additionalFieldsToggle.addEventListener("click", () => {
+            this.additionalFieldsToggle.classList.toggle("active");
+            this.additionalFieldsContent.classList.toggle("active");
         });
     }
 
@@ -112,23 +158,161 @@ class LocalizedForm {
                         true
                     );
                 } else if (group.dataset.field === "title") {
-                    localizationsDiv.innerHTML = ""; // Clear existing
+                    // For title field, keep existing fields if any
+                    const existingFields = {};
+                    const existingInputs = localizationsDiv.querySelectorAll('.input-container');
+                    
+                    // Store existing field values before clearing
+                    existingInputs.forEach(container => {
+                        const input = container.querySelector('input');
+                        const select = container.querySelector('select');
+                        if (input && select && select.value) {
+                            existingFields[select.value] = input.value;
+                        }
+                    });
+                    
+                    localizationsDiv.innerHTML = ""; // Clear existing UI elements
                     
                     // Add mandatory localizations for title
-                    const requiredLangs = new Set([baseLanguage, "bo", "en"]);
+                    const requiredLangs = new Set(["bo", "en", "lzh", baseLanguage]);
                     const uniqueLangs = Array.from(requiredLangs);
                     
                     uniqueLangs.forEach((lang, index) => {
-                        this.createLocalizationInput(
+                        const container = this.createLocalizationInput(
                             localizationsDiv,
                             lang,
                             index === 0,
                             true,
                             true // isTitle parameter
                         );
+                        
+                        // Restore value if it existed before
+                        if (existingFields[lang]) {
+                            const input = container.querySelector('input');
+                            if (input) {
+                                input.value = existingFields[lang];
+                            }
+                        }
                     });
                 }
             });
+    }
+
+    initializeSearchUI() {
+        this.searchContainers.forEach(container => {
+            const select = container.querySelector('select');
+            const searchOverlay = container.querySelector('.search-overlay');
+            const searchInput = container.querySelector('.search-input');
+            const searchResults = container.querySelector('.search-results');
+
+            // Prevent the native dropdown from showing
+            select.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                searchOverlay.classList.toggle('active');
+                if (searchOverlay.classList.contains('active')) {
+                    searchInput.focus();
+                    this.populateSearchResults(select, searchResults, searchInput.value);
+                }
+            });
+
+            // Close search overlay when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!container.contains(e.target)) {
+                    searchOverlay.classList.remove('active');
+                }
+            });
+
+            // Search functionality
+            searchInput.addEventListener('input', () => {
+                this.populateSearchResults(select, searchResults, searchInput.value);
+            });
+
+            // Select an option from search results
+            searchResults.addEventListener('click', (e) => {
+                if (e.target.classList.contains('search-item')) {
+                    const value = e.target.dataset.value;
+                    select.value = value;
+
+                    // Trigger change event
+                    const changeEvent = new Event('change', { bubbles: true });
+                    select.dispatchEvent(changeEvent);
+
+                    searchOverlay.classList.remove('active');
+                }
+            });
+
+            // Handle keyboard navigation
+            searchInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    searchOverlay.classList.remove('active');
+                } else if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    this.navigateSearchResults(searchResults, 'down');
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    this.navigateSearchResults(searchResults, 'up');
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const selectedItem = searchResults.querySelector('.search-item.selected');
+                    if (selectedItem) {
+                        const value = selectedItem.dataset.value;
+                        select.value = value;
+
+                        // Trigger change event
+                        const changeEvent = new Event('change', { bubbles: true });
+                        select.dispatchEvent(changeEvent);
+
+                        searchOverlay.classList.remove('active');
+                    }
+                }
+            });
+        });
+    }
+
+    // Helper method to populate search results
+    populateSearchResults(select, resultsContainer, searchTerm) {
+        searchTerm = searchTerm.toLowerCase();
+        resultsContainer.innerHTML = '';
+        Array.from(select.options).forEach(option => {
+            if ( (searchTerm === '' || option.text.toLowerCase().includes(searchTerm))) {
+                const item = document.createElement('div');
+                item.className = 'search-item';
+                item.textContent = option.text;
+                item.dataset.value = option.value;
+
+                if (option.value === select.value) {
+                    item.classList.add('selected');
+                }
+
+                resultsContainer.appendChild(item);
+            }
+        });
+        if(resultsContainer.innerHTML === '') {
+            resultsContainer.innerHTML = '<div class="search-item" value="">No results found</div>';
+        }
+    }
+
+    // Helper method for keyboard navigation in search results
+    navigateSearchResults(resultsContainer, direction) {
+        const items = resultsContainer.querySelectorAll('.search-item');
+        if (items.length === 0) return;
+
+        const selectedItem = resultsContainer.querySelector('.search-item.selected');
+        let nextIndex = 0;
+
+        if (selectedItem) {
+            const currentIndex = Array.from(items).indexOf(selectedItem);
+            selectedItem.classList.remove('selected');
+
+            if (direction === 'down') {
+                nextIndex = (currentIndex + 1) % items.length;
+            } else {
+                nextIndex = (currentIndex - 1 + items.length) % items.length;
+            }
+        }
+
+        items[nextIndex].classList.add('selected');
+        items[nextIndex].scrollIntoView({ block: 'nearest' });
     }
 
     createLocalizationInput(container, language, isFirst = false, isRequired = false, isTitle = false) {
@@ -141,17 +325,9 @@ class LocalizedForm {
         const inputWrapper = document.createElement("div");
         inputWrapper.className = "input-wrapper";
 
-        const isTextarea = container.closest(".form-group")?.dataset.field === "presentation";
-        let input;
-
-        if (isTextarea) {
-            input = document.createElement("textarea");
-            input.placeholder = "Enter text";
-        } else {
-            input = document.createElement("input");
-            input.type = "text";
-            input.placeholder = "Enter text";
-        }
+        const input = document.createElement("input");
+        input.type = "text";
+        input.placeholder = "Enter text";
 
         input.setAttribute("required", "");
         const langSelect = document.createElement("select");
@@ -178,7 +354,8 @@ class LocalizedForm {
             const removeButton = document.createElement("button");
             removeButton.type = "button";
             removeButton.className = "remove-btn";
-            removeButton.innerHTML = '<i class="fas fa-times"></i>';
+            removeButton.title = "remove";
+            removeButton.innerHTML = '<i class="fa fa-minus" aria-hidden="true"></i>';
             removeButton.addEventListener("click", () => {
                 inputContainer.remove();
             });
@@ -187,8 +364,38 @@ class LocalizedForm {
 
         inputContainer.appendChild(inputGroup);
         container.appendChild(inputContainer);
+        
+        // Return the created container for further modification if needed
+        return inputContainer;
     }
 
+    addTitle(language) {
+        const container = document.querySelector(`.form-group[data-field="title"]`);
+        const localizationsDiv = container.querySelector(".localizations");
+        const inputContainers = localizationsDiv.querySelectorAll(`.input-container`);
+        let isTibetanField = false;
+        inputContainers.forEach(inputContainer => {
+            const langSelect = inputContainer.querySelector('select');
+            if (langSelect.value === 'bo') {
+                isTibetanField = true;
+            }
+        });
+        if (!isTibetanField) {
+            this.createLocalizationInput(localizationsDiv, language, false, true, true);
+        }
+    }
+
+    removeTitle(language) {
+        const container = document.querySelector(`.form-group[data-field="title"]`);
+        const localizationsDiv = container.querySelector(".localizations");
+        const inputContainers = localizationsDiv.querySelectorAll(`.input-container`);
+        inputContainers.forEach(inputContainer => {
+            const langSelect = inputContainer.querySelector('select');
+            if (langSelect.value === language) {
+                inputContainer.remove();
+            }
+        });
+    }
     setCreatingState(creating) {
         this.creating = creating;
         this.createButton.disabled = creating;
@@ -304,63 +511,198 @@ class LocalizedForm {
         altTitles.appendChild(altTitleGroup);
     }
 
+    async fetchAndPopulatePechaMetadata(pechaId) {
+        if (!pechaId) return;
+        
+        try {
+            const response = await fetch(`${this.API_ENDPOINT}/metadata/${pechaId}`, {
+                method: 'GET',
+                headers: {
+                    'accept': 'application/json'
+                }
+            });
+            
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+            
+            const metadata = await response.json();
+            this.populateTitlesForTranslation(metadata);
+            return metadata;
+        } catch (error) {
+            console.error('Error fetching pecha metadata:', error);
+            this.showToast('Failed to load source pecha metadata', 'error');
+        }
+    }
+    
+    clearTitleFields() {
+        // Clear all title input fields
+        const titleGroup = document.querySelector('.form-group[data-field="title"]');
+        if (titleGroup) {
+            const inputs = titleGroup.querySelectorAll('input[type="text"]');
+            inputs.forEach(input => {
+                // input.value = '';
+                input.removeAttribute('readonly');
+                input.placeholder = 'Enter text';
+            });
+        }
+    }
+    
+    populateTitlesForTranslation(metadata) {
+        if (!metadata || !metadata.title) return;
+        
+        const baseLanguage = this.baseLanguageSelect.value;
+        const titleGroup = document.querySelector('.form-group[data-field="title"]');
+        
+        if (!titleGroup) return;
+        
+        // Get all title inputs
+        const titleContainers = titleGroup.querySelectorAll('.input-container');
+        
+        titleContainers.forEach(container => {
+            const input = container.querySelector('input');
+            const select = container.querySelector('select');
+            
+            if (!input || !select) return;
+            
+            const lang = select.value;
+            
+            // Only process English and Tibetan titles
+            if (lang !== 'en' && lang !== 'bo' && lang !== 'lzh') return;
+            
+            // If this is the base language, leave it empty for user to fill
+            if (lang === baseLanguage) {
+                input.value = '';
+                input.removeAttribute('readonly');
+                input.placeholder = 'Enter title';
+            } else if (metadata.title && metadata.title[lang]) {
+                // Otherwise populate from source pecha
+                input.value = metadata.title[lang];
+                input.setAttribute('readonly', 'readonly');
+            }
+        });
+    }
+    
     async fetchPechaOptions(filterBy) {
         let body = {filter: {} };
-        const filters = {
-            "commentary_of": {
-                "and": [
-                    { "field": "commentary_of", "operator": "==", "value": null },
-                    { "field": "translation_of", "operator": "==", "value": null }
-                ]
-            },
-            "version_of": {
-                "and": [
-                    { "field": "commentary_of", "operator": "==", "value": null },
-                    { "field": "version_of", "operator": "==", "value": null } 
-                ]
-            },
-            "translation_of": {
-                "field": "language",
-                "operator": "==",
-                "value": "bo"
-            }
-        };
-
-        body.filter = filters[filterBy] || {};
-        body.page=1;
-        body.limit=100;
         try {
-            this.handleSpinner(this.pechaOptionsContainer, true);
-            const response = await fetch(`${this.API_ENDPOINT}/metadata/filter/`, {
-                method: 'POST',
-                headers: {
-                    'accept': 'application/json',
-                    'Content-Type': 'application/json'
-                },
-                body: JSON.stringify(body)
-            });
-            if (!response.ok) {
-                throw new Error(`Failed to fetch data: ${response.statusText}`);
+            this.pechaOptionsContainer.style.display = "none";
+
+            this.toggleLoadingSpinner(true, this.pechaOptionsContainer, this.pechaLoadingSpinner);
+            
+            let allPechas = [];
+            let currentPage = 1;
+            let hasMorePages = true;
+            const limit = 100; // Keep the same limit per request
+            
+            // Loop until we've fetched all pages
+            while (hasMorePages) {
+                body.page = currentPage;
+                body.limit = limit;
+                
+                const response = await fetch(`${this.API_ENDPOINT}/metadata/filter/`, {
+                    method: 'POST',
+                    headers: {
+                        'accept': 'application/json',
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify(body)
+                });
+                if (!response.ok) {
+                    throw new Error(`Failed to fetch data: ${response.statusText}`);
+                }
+                const pechas = await response.json();
+                allPechas = allPechas.concat(pechas.metadata);
+                hasMorePages = pechas.metadata.length === limit;
+                currentPage++;
             }
-            const pechas = await response.json();
-            this.handleSpinner(this.pechaOptionsContainer, false);
-            this.updatePechaOptions(pechas)
+            
+            this.toggleLoadingSpinner(false, this.pechaOptionsContainer, this.pechaLoadingSpinner);
+            this.pechaOptionsContainer.style.display = "block";
+            this.populatePechaDropdown(allPechas);
         } catch (error) {
-            this.handleSpinner(this.pechaOptionsContainer, false);
+            this.toggleLoadingSpinner(false, this.pechaOptionsContainer, this.pechaLoadingSpinner);
             console.error("Error loading pecha options:", error);
-            alert("Unable to load pecha options. Please try again later.");
+            this.showToast("Unable to load pecha options. Please try again later.", "error");
         }
     }
 
-    updatePechaOptions(pechas) {
-        this.pechaOptionsContainer.innerHTML = "";
-        new CustomSearchableDropdown(this.pechaOptionsContainer, pechas, "selectedPecha" );
+    populatePechaDropdown(pechas) {
+        while (this.pechaSelect.options.length > 1) {
+            this.pechaSelect.remove(1);
+        }
+        pechas.forEach(pecha => {
+            const title = pecha.title[pecha.language] ?? pecha.title.bo;
+            const option = new Option(`${pecha.id} - ${title}`, pecha.id);
+            this.pechaSelect.add(option.cloneNode(true));
+        });
+    }
+
+    async getAnnotation(pechaId) {
+        const url = `${this.API_ENDPOINT}/annotation/${pechaId}`;
+      
+        try {
+            this.toggleLoadingSpinner(true, this.annotationOptionsContainer, this.annotationLoadingSpinner);
+          const response = await fetch(url, {
+            method: 'GET',
+            headers: {
+              'accept': 'application/json',
+            },
+          });
+      
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
+      
+          const data = await response.json();
+          return data;
+        } catch (error) {
+          console.error('Error fetching annotation:', error);
+          throw error;
+        } finally {
+            this.toggleLoadingSpinner(false, this.annotationOptionsContainer, this.annotationLoadingSpinner);
+        }
+    }
+
+    extractAnnotations(data) {
+        return Object.entries(data).map(([id, details]) => ({
+            id,
+            title: details.title
+        }));
+    }
+
+    populateAnnotationDropdowns(annotations) {
+        while (this.annotationAlignmentSelect.options.length > 1) {
+            this.annotationAlignmentSelect.remove(1);
+        }
+        annotations.forEach(annotation => {
+            const option = new Option(`${annotation.title}`, annotation.id);
+            this.annotationAlignmentSelect.add(option.cloneNode(true));
+        });
+    }
+
+    async onPechaSelect(pechaId) {
+        try {
+            // Get annotations for alignment
+            const annotations = await this.getAnnotation(pechaId);
+            const extractedAnnotations = this.extractAnnotations(annotations);
+            this.populateAnnotationDropdowns(extractedAnnotations);
+            
+            // Check if this is a translation relationship
+            const selectedType = document.querySelector('input[name="documentType"]:checked').value;
+            if (selectedType === 'translation_of') {
+                // Fetch and populate metadata for translation
+                await this.fetchAndPopulatePechaMetadata(pechaId);
+            }
+        } catch (error) {
+            console.error('Error in onPechaSelect:', error);
+            this.showToast('Failed to load pecha information', 'error');
+        }
     }
 
     async fetchLanguages() {
-        this.baseLanguageSelect.style.display = "none";
-        this.baseLanguageLoader.style.display = "inline-block";
         try {
+            this.toggleLoadingSpinner(true, this.baseLanguageSelect, this.baseLanguageLoader);
             const response = await fetch(`${this.API_ENDPOINT}/languages`, {
                 method: 'GET',
                 headers: {
@@ -376,21 +718,31 @@ class LocalizedForm {
             this.languageOptions = data;
             let temp = `<option value="">Language</option>`;
             this.languageOptions.forEach(lang => {
-                temp += `<option value="${lang.code}">${lang.name}</option>`;
+                temp += `<option value="${lang.code}" ${lang.code === 'bo' ? 'selected' : ''}>${lang.name}</option>`;
             });
             this.baseLanguageSelect.innerHTML = temp;
+            
+            // Initialize form with Tibetan as default
+            const defaultLanguage = 'bo';
+            this.baseLanguageSelect.value = defaultLanguage;
+            this.formContent.classList.add("visible");
+            this.initializeFields(defaultLanguage);
+            
             return data;
         } catch (error) {
             console.error('Error fetching languages:', error);
+            this.showToast('Failed to load languages. Please refresh the page.', 'error');
         } finally {
-            this.baseLanguageSelect.style.display = "inline-block";
-            this.baseLanguageLoader.style.display = "none";
+            this.toggleLoadingSpinner(false, this.baseLanguageSelect, this.baseLanguageLoader);
         }
     }
 
     collectFormData() {
-        const metadata = {
-            language: this.baseLanguageSelect.value,
+        const formData = {
+            metadata:{
+                language: this.baseLanguageSelect.value,
+            },
+            annotation_id:null
         }
         // Collect localized fields
         document.querySelectorAll(".form-group[data-field]").forEach(group => {
@@ -408,7 +760,7 @@ class LocalizedForm {
             });
 
             if (Object.keys(localizations).length > 0) {
-                metadata[fieldName] = localizations;
+                formData.metadata[fieldName] = localizations;
             }
         });
         // collect alternate titles
@@ -442,28 +794,36 @@ class LocalizedForm {
         });
 
         if (alt_titles.length > 0)
-            metadata.alt_titles = alt_titles;
+            formData.metadata.alt_titles = alt_titles;
         // Collect non-localized fields
         const selectedDate = document.getElementById("selectedDate").innerHTML;
         if (selectedDate && selectedDate !== "No date selected") {
-            metadata.date = selectedDate;
+            formData.metadata.date = selectedDate;
         }
-        metadata.source_url = this.sourceUrl.value || null;
-        metadata.source = this.source.value || null;
+        formData.metadata.source_url = this.sourceUrl.value || null;
+        formData.metadata.source = this.source.value || null;
 
         // Collect document type and pecha
-        const selectedType = document.querySelector('input[name="documentType"]:checked');
-        this.selectedPecha = document.getElementById("selectedPecha");
-        if (selectedType && this.selectedPecha.dataset.value) {
-            metadata[selectedType.value] = this.selectedPecha.dataset.value;
-        }
-        // Collect Google Docs id 
-        metadata.document_id = this.extractDocIdFromLink(document.querySelector('input[placeholder="Google docs URL"]').value);
+        const selectedType = document.querySelector('input[name="documentType"]:checked').value;
+        this.selectedPecha = this.pechaOptionsContainer.querySelector('select').value;
 
-        return metadata
+        if (selectedType && this.selectedPecha) {
+            formData.metadata[selectedType] = this.selectedPecha;
+        }
+        //collect annotation alignment value
+        const annotation_alignment = this.annotationAlignmentSelect.value;
+        if(selectedType && this.selectedPecha && annotation_alignment){
+            formData.annotation_id = annotation_alignment
+        }
+
+        // Collect Google Docs id 
+        formData.metadata.document_id = this.extractDocIdFromLink(document.querySelector('input[placeholder="Google docs URL"]').value);
+
+        return formData
     }
 
-    validateRequiredFields(metadata) {
+    validateRequiredFields(formData) {
+        const metadata = formData.metadata;
         function isValidURL(url) {
             try {
                 new URL(url);
@@ -515,10 +875,10 @@ class LocalizedForm {
         }
 
         // Get all required languages for title
-        const requiredLangs = new Set([baseLanguage, "bo", "en"]);
+        const requiredLangs = new Set(['bo','en', 'lzh', baseLanguage]);
         const missingLangs = [];
-
         // Check each required language
+        console.log("require langs", requiredLangs)
         for (const lang of requiredLangs) {
             if (!metadata.title[lang]) {
                 missingLangs.push(lang);
@@ -535,7 +895,6 @@ class LocalizedForm {
                     langPositions[select.value] = index;
                 }
             });
-
             // Highlight the first missing language field
             const firstMissing = missingLangs[0];
             const index = langPositions[firstMissing] || 0;
@@ -545,6 +904,7 @@ class LocalizedForm {
             const langNames = {
                 'bo': 'Tibetan',
                 'en': 'English',
+                'lzh': 'Literal Chinese',
                 [baseLanguage]: `base language (${baseLanguage})`
             };
             const missingNames = missingLangs.map(lang => langNames[lang] || lang);
@@ -603,22 +963,22 @@ class LocalizedForm {
     async handleCreatePecha() {
         try {
             this.clearErrors();
-            const metadata = this.collectFormData();
-            if (!this.validateRequiredFields(metadata)) 
+            const pechaData = this.collectFormData();
+            console.log("data", pechaData);
+            if (!this.validateRequiredFields(pechaData)) 
                 return;
 
             this.setCreatingState(true);
             // Fetch document and prepare form data concurrently
             const [blob] = await Promise.all([
-                downloadDoc(metadata.document_id).catch(err => {
+                downloadDoc(pechaData.metadata.document_id).catch(err => {
                     throw new Error(`Download failed: ${err.message}`);
                 })
             ]);
 
-            const formData = await this.prepareFormData(blob, metadata);
+            const formData = await this.prepareFormData(blob, pechaData);
 
             const response = await this.submitFormData(formData);
-
             if (!response.ok) {
                 const json = await response.text();
                 console.log("json:::", json)
@@ -640,10 +1000,13 @@ class LocalizedForm {
     }
 
     // Helper methods to publish
-    async prepareFormData(blob, metadata) {
+    async prepareFormData(blob, pechaData) {
         const formData = new FormData();
-        formData.append("text", blob, `text_${metadata.document_id}.docx`);
-        formData.append("metadata", JSON.stringify(metadata));
+        formData.append("text", blob, `text_${pechaData.metadata.document_id}.docx`);
+        formData.append("metadata", JSON.stringify(pechaData.metadata));
+        if(pechaData.annotation_id){
+            formData.append("annotation_id", pechaData.annotation_id);
+        }
         return formData;
     }
 
@@ -670,12 +1033,14 @@ class LocalizedForm {
         });
     }
 
-    handleSpinner(parentNode, show) {
-        parentNode.innerHTML = '';
-        const spinner = document.createElement('div');
-        spinner.className = 'spinner';
-        spinner.style.display = show ? 'inline-block' : 'none';
-        parentNode.appendChild(spinner);
+    toggleLoadingSpinner(isLoading, loadingContainer, loader) {
+        if (isLoading) {
+            loader.classList.add('active');
+            loadingContainer.classList.add('loading');
+        } else {
+            loader.classList.remove('active');
+            loadingContainer.classList.remove('loading');
+        }
     }
 
     handleSourceInput(event) {
@@ -753,9 +1118,6 @@ class LocalizedForm {
         this.typeRadios.forEach(radio => {
             radio.checked = false;
         });
-
-        // Hide and reset pecha options
-        this.pechaOptionsContainer.classList.remove('visible');
 
         // Clear any error states
         this.clearErrors();
