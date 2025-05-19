@@ -66,7 +66,7 @@ class MetadataModel(BaseModel):
     version_of: str | None = Field(None, pattern="^I[A-F0-9]{8}$")
     translation_of: str | None = Field(None, pattern="^I[A-F0-9]{8}$")
 
-    language: str = Field(..., pattern="^[a-z]{2}(-[A-Z]{2})?$")
+    language: str = Field(..., pattern="^[a-z]{2,3}(-[A-Z]{2})?$")
     category: str | None = Field(
         None,
         description="An optional ID of the category of this Pecha",
