@@ -653,28 +653,11 @@ class UpdateMetadata {
     }
 
     async fetchRelatedPechas(filterBy) {
-        let body = {filter: {} };
         const filters = {
-            "commentary_of": {
-                "and": [
-                    { "field": "commentary_of", "operator": "==", "value": null },
-                    { "field": "translation_of", "operator": "==", "value": null }
-                ]
-            },
-            "version_of": {
-                "and": [
-                    { "field": "commentary_of", "operator": "==", "value": null },
-                    { "field": "version_of", "operator": "==", "value": null } 
-                ]
-            },
-            "translation_of": {
-                "field": "language",
-                "operator": "==",
-                "value": "bo"
-            }
+            commentary_of: { "field": "commentary_of", "operator": "==", "value": null },
+            translation_of: { "field": "translation_of", "operator": "==", "value": null }
         };
-
-        body.filter = {};
+        const body = { filter: filters[filterBy] || {} };
         try {
             this.pechaOptionsContainer.style.display = "none";
 

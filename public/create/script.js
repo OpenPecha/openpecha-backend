@@ -598,10 +598,13 @@ class LocalizedForm {
     }
     
     async fetchPechaOptions(filterBy) {
-        let body = {filter: {} };
+        const filters = {
+            commentary_of: { "field": "commentary_of", "operator": "==", "value": null },
+            translation_of: { "field": "translation_of", "operator": "==", "value": null }
+        };
+        const body = { filter: filters[filterBy] || {} };
         try {
             this.pechaOptionsContainer.style.display = "none";
-
             this.toggleLoadingSpinner(true, this.pechaOptionsContainer, this.pechaLoadingSpinner);
             
             let allPechas = [];
