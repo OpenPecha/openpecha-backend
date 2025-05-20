@@ -66,7 +66,7 @@ class MetadataModel(BaseModel):
     version_of: str | None = Field(None, pattern="^I[A-F0-9]{8}$")
     translation_of: str | None = Field(None, pattern="^I[A-F0-9]{8}$")
 
-    language: str = Field(..., pattern="^[a-z]{2}(-[A-Z]{2})?$")
+    language: str = Field(..., pattern="^[a-z]{2,3}(-[A-Z]{2})?$")
     category: str | None = Field(
         None,
         description="An optional ID of the category of this Pecha",
@@ -123,18 +123,18 @@ class MetadataModel(BaseModel):
 
         return self
 
-    @model_validator(mode="after")
-    def check_required_localizations(self):
-        """Ensure title has both English and Tibetan localizations."""
-        if self.source_type == SourceType.BDRC:
-            return self
+    # @model_validator(mode="after")
+    # def check_required_localizations(self):
+    #     """Ensure title has both English and Tibetan localizations."""
+    #     if self.source_type == SourceType.BDRC:
+    #         return self
 
-        try:
-            if self.title["en"] is not None and self.title["bo"] is not None:
-                return self
-            raise ValueError("Title values cannot be empty")
-        except (TypeError, KeyError) as e:
-            raise ValueError("Title must have both 'en' and 'bo' localizations.") from e
+    #     try:
+    #         if self.title["en"] is not None and self.title["bo"] is not None:
+    #             return self
+    #         raise ValueError("Title values cannot be empty")
+    #     except (TypeError, KeyError) as e:
+    #         raise ValueError("Title must have both 'en' and 'bo' localizations.") from e
 
     @model_validator(mode="after")
     def check_mutually_exclusive_fields(self):

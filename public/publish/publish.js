@@ -18,9 +18,14 @@ class UpdateMetaData {
 
         this.isLoading = false;
         this.metadata = null
+        this.Destination_url = {
+            PECHA_PROD: "https://pecha.org/",
+            PECHA_DEV: "https://staging.pecha.org/",
+            FODIAN: "https://fodian.org/"
+        };
         this.initialize();
     }
-    
+
     async initialize() {
         try {
             this.API_ENDPOINT = await getApiEndpoint();
@@ -106,7 +111,7 @@ class UpdateMetaData {
         resultsContainer.innerHTML = '';
         const options = Array.from(select.options).slice(1); // Skip the placeholder
         const lowercaseSearchTerm = searchTerm.toLowerCase();
-        
+
         options.forEach(option => {
             if (!searchTerm || option.text.toLowerCase().includes(lowercaseSearchTerm)) {
                 const item = document.createElement('div');
@@ -116,7 +121,7 @@ class UpdateMetaData {
                 resultsContainer.appendChild(item);
             }
         });
-        
+
         // Select the first item by default
         const firstItem = resultsContainer.querySelector('.search-item');
         if (firstItem) {
@@ -149,13 +154,13 @@ class UpdateMetaData {
     setupEventListeners() {
         // Listen for changes on pecha selection
         this.elements.pechaSelect.addEventListener('change', () => this.handlePechaSelect());
-        
+
         this.elements.form.addEventListener('submit', (e) => {
             e.preventDefault();
             this.handlePublish();
         });
     }
-    
+
 
     setLoading(isLoading) {
         this.isLoading = isLoading;
@@ -180,7 +185,7 @@ class UpdateMetaData {
             let currentPage = 1;
             let hasMorePages = true;
             const limit = 100; // Keep the same limit per request
-            
+
             // Loop until we've fetched all pages
             while (hasMorePages) {
                 const response = await fetch(`${this.API_ENDPOINT}/metadata/filter/`, {
@@ -267,12 +272,12 @@ class UpdateMetaData {
         while (this.elements.annotationAlignmentSelect.options.length > 1) {
             this.elements.annotationAlignmentSelect.remove(1);
         }
-        
+
         // if (annotations.length === 0) {
         //     this.elements.annotationAlignmentGroup.style.display = 'none';
         //     return;
         // }
-        
+
         annotations.forEach(annotation => {
             const option = new Option(annotation.title, annotation.id);
             this.elements.annotationAlignmentSelect.add(option.cloneNode(true));
@@ -304,12 +309,12 @@ class UpdateMetaData {
             }
 
             const metadata = await response.json();
-            console.log("metata ",metadata)
+            console.log("metata ", metadata)
             this.metadata = metadata;
             return metadata;
         } catch (error) {
             console.error('Error fetching metadata:', error);
-            throw error; 
+            throw error;
         }
     }
 
@@ -375,14 +380,14 @@ class UpdateMetaData {
     async displayMetadata(metadata) {
         const reorderedMetadata = this.reorderMetadata(metadata);
         let metadataHTML = '';
-        
+
         // First, create HTML for non-category items
         for (const [key, value] of Object.entries(reorderedMetadata)) {
             if (!value || key === 'category') continue;
-            
+
             const formattedKey = key.replace(/_/g, ' ').toUpperCase();
             const formattedValue = this.formatMetadataValue(value);
-            
+
             metadataHTML += `
                 <div class="metadata-item">
                     <div class="metadata-key">${formattedKey}</div>
@@ -390,12 +395,12 @@ class UpdateMetaData {
                 </div>
             `;
         }
-        
+
         // Handle category separately if it exists
         if (reorderedMetadata.category) {
             const formattedKey = 'CATEGORY';
             const categoryId = reorderedMetadata.category;
-            
+
             // Add a placeholder for category with loading indicator
             metadataHTML += `
                 <div class="metadata-item" id="category-metadata-item">
@@ -409,13 +414,13 @@ class UpdateMetaData {
                 </div>
             `;
         }
-        
+
         this.elements.metadataContainer.innerHTML = `
             <div class="metadata-content">
                 ${metadataHTML}
             </div>
         `;
-        
+
         // Now fetch and update the category chain if needed
         if (reorderedMetadata.category) {
             try {
@@ -450,13 +455,13 @@ class UpdateMetaData {
             "presentation",
             "date"
         ];
-    
+
         const reorderedMetadata = {};
-    
+
         order.forEach((key) => {
             reorderedMetadata[key] = metadata.hasOwnProperty(key) ? metadata[key] : null;
         });
-    
+
         return reorderedMetadata;
     }
     async getCategoryChain(categoryId) {
@@ -467,14 +472,14 @@ class UpdateMetaData {
                     'Content-Type': 'application/json'
                 }
             });
-            
+
             if (!response.ok) {
                 throw new Error('Network response was not ok');
             }
-            
+
             const data = await response.json();
             const chain = this.findCategoryChain(data.categories, categoryId);
-            
+
             if (chain && chain.length > 0) {
                 return chain.join(' > ');
             } else {
@@ -485,29 +490,29 @@ class UpdateMetaData {
             return categoryId; // Return the ID if there's an error
         }
     }
-    
+
     findCategoryChain(data, targetId) {
         function searchInData(items, currentPath = []) {
-          for (const item of items) {
-            const newPath = [...currentPath, item.name['en']];
-            
-            // If this is our target, return the path
-            if (item.id === targetId) {
-              return newPath;
+            for (const item of items) {
+                const newPath = [...currentPath, item.name['en']];
+
+                // If this is our target, return the path
+                if (item.id === targetId) {
+                    return newPath;
+                }
+
+                // If this item has subcategories, search in them
+                if (item.subcategories && item.subcategories.length > 0) {
+                    const result = searchInData(item.subcategories, newPath);
+                    // If we found the target in the subcategories, return the result
+                    if (result) {
+                        return result;
+                    }
+                }
             }
-            
-            // If this item has subcategories, search in them
-            if (item.subcategories && item.subcategories.length > 0) {
-              const result = searchInData(item.subcategories, newPath);
-              // If we found the target in the subcategories, return the result
-              if (result) {
-                return result;
-              }
-            }
-          }
-          
-          // If we've examined all items and didn't find the target, return null
-          return null;
+
+            // If we've examined all items and didn't find the target, return null
+            return null;
         }
         return searchInData(data);
     }
@@ -521,11 +526,11 @@ class UpdateMetaData {
         try {
             // Show loading state for metadata
             this.showLoadingState();
-            
+
             // Fetch metadata
             const metadata = await this.fetchMetadata(pechaId);
             this.displayMetadata(metadata);
-            
+
             // Fetch and populate annotation alignments
             this.toggleAnnotationLoadingSpinner(true);
             try {
@@ -538,14 +543,14 @@ class UpdateMetaData {
             } finally {
                 this.toggleAnnotationLoadingSpinner(false);
             }
-            
+
         } catch (error) {
             console.error('Error fetching metadata:', error);
             this.showErrorState(error.message);
         }
     }
-   
-    async getPublishDistination() {
+
+    async getEnvironment() {
         try {
             const firebaseConfigResponse = await fetch('/__/firebase/init.json', {
                 headers: {
@@ -560,16 +565,15 @@ class UpdateMetaData {
             const firebaseConfig = await firebaseConfigResponse.json();
             const projectId = firebaseConfig.projectId;
             if (projectId === 'pecha-backend') {
-                return 'production';
+                return 'prod';
             } else if (projectId === 'pecha-backend-dev') {
-                return 'staging';
+                return 'dev';
             }
         } catch (error) {
             console.warn("Failed to fetch Firebase init file:", error);
             return null;
         }
     }
-    
 
     async validateFields() {
         if (!this.metadata.category) {
@@ -587,33 +591,39 @@ class UpdateMetaData {
             this.showToast('Please select the annotation alignment', 'error');
             return false;
         }
-        const publishDestination = await this.getPublishDistination();
-        if(!publishDestination) {
+
+        // Get the selected publish_to value from radio buttons
+        const publish_to = document.querySelector('input[name="publish_to"]:checked').value;
+        if (!publish_to) {
             this.showToast('Please select the publish destination', 'error');
             return false;
         }
 
-        return { publishTextId, publishDestination, reserialize: true, annotation_id };
+        const env = await this.getEnvironment();
+        const publishDestination = publish_to === 'fodian' ? this.Destination_url.FODIAN : `${this.Destination_url[`PECHA_${env.toUpperCase()}`]}`;
+        const base_language = publish_to === 'fodian' ? 'lzh' : "bo";
+        return { publishTextId, publishDestination, annotation_id,  base_language};
     }
-
+    
     async handlePublish() {
         const validatedData = await this.validateFields();
+        console.log("validation ", validatedData)
         if (!validatedData) return;
 
         this.setLoading(true);
 
         try {
-            const { publishTextId, publishDestination, reserialize, annotation_id } = validatedData;
-            console.log("validatedData",validatedData)
+            const { publishTextId, publishDestination, annotation_id, base_language } = validatedData;
+            console.log("validatedData", validatedData);
             const response = await fetch(`${this.API_ENDPOINT}/pecha/${publishTextId}/publish`, {
                 method: 'POST',
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ destination: publishDestination, reserialize, annotation_id })
+                body: JSON.stringify({ destination: publishDestination, annotation_id, base_language })
             });
-            if (!response.ok){
-                console.log(response)
+            if (!response.ok) {
+                console.log(response);
                 throw new Error(`Unable to publish pecha. Please try again later.`);
             }
 
@@ -653,8 +663,7 @@ class UpdateMetaData {
     clearToasts() {
         this.elements.toastContainer.innerHTML = '';
     }
+
 }
-
-
 
 document.addEventListener('DOMContentLoaded', () => new UpdateMetaData());

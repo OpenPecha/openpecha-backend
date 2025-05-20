@@ -1,8 +1,10 @@
 # pylint: disable=redefined-outer-name, wrong-import-position, unused-argument
 import json
-import pytest
 from unittest.mock import patch
+
+import pytest
 from main import create_app
+
 
 @pytest.fixture
 def client():

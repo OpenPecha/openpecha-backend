@@ -63,6 +63,9 @@ def upload_categories():
     if not isinstance(content, dict) or "categories" not in content:
         raise InvalidRequest("Invalid file structure. Expected a dictionary with 'categories' key")
 
+    # This should be changed to delete only after the process categories is successfully returning the list of categories
+    Database().delete_all_categories()
+
     category_count = process_categories(content["categories"])
     logger.info("Processed %d categories", category_count)
 

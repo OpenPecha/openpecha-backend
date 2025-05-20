@@ -374,9 +374,10 @@ class AnnotationForm {
         }
 
         pechas.forEach(pecha => {
-            const option = new Option(`${pecha.id} - ${pecha.title["bo"]}`, pecha.id);
+            const title = pecha.title[pecha.language] ?? pecha.title.bo;
+            const option = new Option(`${pecha.id} - ${title}`, pecha.id);
             this.pechaSelect.add(option.cloneNode(true));
-            this.pechaDropdown.add(option);
+            this.pechaDropdown.add(option.cloneNode(true));
         });
     }
 

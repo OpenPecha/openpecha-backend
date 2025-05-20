@@ -1,20 +1,14 @@
 # pylint: disable=redefined-outer-name
-import sys
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
-from firebase_admin import storage
 from main import create_app
-from mockfirestore import MockFirestore
 from mockfirestore.collection import CollectionReference
 from mockfirestore.query import Query
 
 
 class MockStorageBucket:
-    _storage = {}  # class-level dict to persist files by path
-
-    def __init__(self, *args, **kwargs):
-        pass
+    _storage: dict[str, bytes] = {}  # class-level dict to persist files by path
 
     def blob(self, path: str):
         return MockBlob(path, self._storage)
@@ -31,13 +25,13 @@ class MockBlob:
         self.path = path
         self._storage = storage
 
-    def upload_from_string(self, data, *args, **kwargs):
+    def upload_from_string(self, data):
         if isinstance(data, str):
             data = data.encode("utf-8")
         self._storage[self.path] = data
         return None
 
-    def upload_from_filename(self, filename, *args, **kwargs):
+    def upload_from_filename(self, filename):
         with open(filename, "rb") as f:
             self._storage[self.path] = f.read()
         return None
@@ -49,24 +43,18 @@ class MockBlob:
     def download_as_bytes(self):
         return self.download_as_string()
 
-    def download_to_filename(self, filename, *args, **kwargs):
+    def download_to_filename(self, filename):
         data = self._storage.get(self.path, b"")
         with open(filename, "wb") as f:
             f.write(data)
         return None
 
-    def exists(self, *args, **kwargs):
+    def exists(self):
         return self.path in self._storage
 
     @property
     def name(self):
         return self.path
-
-    def generate_signed_url(self):
-        return "https://mockurl.com/signed"
-
-    def reload(self):
-        pass
 
 
 class MockStorage:

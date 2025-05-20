@@ -82,6 +82,11 @@ class Database:
         doc = self.category_ref.document(category_id).get()
         return doc.exists
 
+    def delete_all_categories(self):
+        docs = self.category_ref.stream()
+        for doc in docs:
+            self.category_ref.document(doc.id).delete()
+
     def get_category(self, category_id: str) -> CategoryModel:
         doc = self.category_ref.document(category_id).get()
         if not doc.exists:
@@ -90,10 +95,6 @@ class Database:
 
     def set_category(self, category_id: str, category: CategoryModel):
         doc_ref = self.category_ref.document(category_id)
-        doc = doc_ref.get()
-        if not doc.exists:
-            raise DataNotFound(f"Category with ID '{category_id}' not found")
-
         doc_ref.set(category.model_dump())
 
     def get_all_categories(self) -> dict[str, dict[str, Any]]:

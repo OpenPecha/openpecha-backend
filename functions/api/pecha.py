@@ -7,8 +7,8 @@ from exceptions import DataConflict, InvalidRequest
 from flask import Blueprint, jsonify, request, send_file
 from metadata_model import MetadataModel, SourceType
 from pecha_handling import process_bdrc_pecha, process_pecha, retrieve_pecha, serialize
-from pecha_uploader.config import Destination_url
 from pecha_uploader.pipeline import upload
+from pydantic import AnyUrl, ValidationError
 from storage import Storage
 
 pecha_bp = Blueprint("pecha", __name__)
@@ -93,7 +93,7 @@ def delete_pecha(pecha_id: str):
         storage = Storage()
         storage.delete_pecha_doc(pecha_id=pecha_id)
         storage.delete_pecha_opf(pecha_id=pecha_id)
-        storage.delete_pechaorg_json(pecha_id=pecha_id)
+        storage.delete_pecha_json(pecha_id=pecha_id)
     except Exception as e:
         logger.warning("Failed to delete Pecha %s: %s", pecha_id, e)
 
@@ -104,15 +104,20 @@ def delete_pecha(pecha_id: str):
 @pecha_bp.route("/<string:pecha_id>/publish", methods=["POST"], strict_slashes=False)
 def publish(pecha_id: str):
     data = request.get_json()
-    destination = data.get("destination", "staging")
-    reserialize = data.get("reserialize", False)
+    destination = data.get("destination")
     annotation_id = data.get("annotation_id")
+    base_language = data.get("base_language", "bo")
 
     if not pecha_id:
         raise InvalidRequest("Missing Pecha ID")
 
-    if destination not in ["staging", "production"]:
-        raise InvalidRequest(f"Invalid destination '{destination}'")
+    if not destination:
+        raise InvalidRequest("Missing destination URL")
+
+    try:
+        temp_url = AnyUrl(destination)
+    except ValidationError as exc:
+        raise InvalidRequest(f"Invalid destination URL '{destination}'") from exc
 
     if not annotation_id:
         raise InvalidRequest("Missing Annotation ID")
@@ -120,17 +125,14 @@ def publish(pecha_id: str):
     pecha = retrieve_pecha(pecha_id=pecha_id)
     logger.info("Successfully retrieved Pecha %s from storage", pecha_id)
 
-    destination_url = getattr(Destination_url, destination.upper())
-    logger.info("Destination URL: %s", destination_url)
-
     annotation = Database().get_annotation(annotation_id)
 
-    serialized = serialize(pecha=pecha, reserialize=reserialize, annotation=annotation)
+    serialized = serialize(pecha=pecha, annotation=annotation, base_language=base_language)
     logger.info("Successfully serialized Pecha %s", pecha_id)
 
-    Storage().store_pechaorg_json(pecha_id=pecha_id, json_dict=serialized)
+    Storage().store_pecha_json(pecha_id=pecha_id, json_dict=serialized, base_language=base_language)
     logger.info("Successfully saved Pecha %s to storage", pecha_id)
 
-    upload(text=serialized, destination_url=destination_url)
+    upload(text=serialized, destination_url=destination)
 
     return jsonify({"message": "Pecha published successfully", "id": pecha_id}), 200

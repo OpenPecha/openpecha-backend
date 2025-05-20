@@ -42,7 +42,6 @@ class UpdateMetadata {
         this.additionalFieldsToggle = document.getElementById("additionalFieldsToggle");
         this.additionalFieldsContent = document.getElementById("additionalFieldsContent");
 
-        this.annotationAlignmentSelect = document.getElementById("annotationAlignment");
         this.annotationOptionsContainer = document.getElementById("annotationAlignmentContainer");
         this.annotationLoadingSpinner = document.getElementById("annotationLoadingSpinner");
         this.updateButton = document.getElementById("updateButton")
@@ -53,7 +52,6 @@ class UpdateMetadata {
         
         // Initially hide pecha selection and annotation alignment
         this.pechaOptionsContainer.style.display = "none";
-        this.annotationOptionsContainer.parentElement.style.display = "none";
         
 
     }
@@ -94,33 +92,12 @@ class UpdateMetadata {
                 if (radio.checked && radio.value) {
                     // Show pecha selection only when a valid relation type is selected
                     this.fetchRelatedPechas(radio.value);
-                    
-                    // Reset and hide annotation alignment when changing document type
-                    this.annotationAlignmentSelect.innerHTML = '<option value="">Select annotation</option>';
-                    this.annotationOptionsContainer.parentElement.style.display = "none";
                 } else {
                     // Hide and reset pecha selection when "None" is selected
                     this.pechaOptionsContainer.style.display = "none";
                     this.pechaSelect.innerHTML = '<option value="">Select pecha</option>';
-                    
-                    // Hide and reset annotation alignment
-                    this.annotationAlignmentSelect.innerHTML = '<option value="">Select annotation</option>';
-                    this.annotationOptionsContainer.parentElement.style.display = "none";
                 }
             });
-        });
-        // Pecha Selection
-        this.pechaSelect.addEventListener('change', (e) => {
-            const pechaId = e.target.value;
-            if (pechaId) {
-                // Show annotation alignment only when a pecha is selected
-                this.annotationOptionsContainer.parentElement.style.display = "block";
-                this.onPechaSelect(pechaId);
-            } else {
-                // Hide and reset annotation alignment when pecha is deselected
-                this.annotationAlignmentSelect.innerHTML = '<option value="">Select annotation</option>';
-                this.annotationOptionsContainer.parentElement.style.display = "none";
-            }
         });
 
         // Update Button
@@ -517,22 +494,8 @@ class UpdateMetadata {
                 
                 // Fetch related pechas and set the selected one
                 this.fetchRelatedPechas(relationType).then(() => {
-                    this.pechaOptionsContainer.style.display = "block";
-                    if (relatedPechaId) {
-                        this.pechaSelect.value = relatedPechaId;
-                        
-                        // Also fetch annotations for this pecha
-                        this.getAnnotation(relatedPechaId).then(annotations => {
-                            const extractedAnnotations = this.extractAnnotations(annotations);
-                            this.populateAnnotationDropdowns(extractedAnnotations);
-                            this.annotationOptionsContainer.parentElement.style.display = "block";
-                            
-                            // Set the annotation if it exists in metadata
-                            if (metadata.annotation_id) {
-                                this.annotationAlignmentSelect.value = metadata.annotation_id;
-                            }
-                        }).catch(err => console.error('Error fetching annotations:', err));
-                    }
+                    console.log("related pechas fetched", relatedPechaId);
+                    this.pechaSelect.value = relatedPechaId;
                 });
             }
         }
@@ -690,28 +653,11 @@ class UpdateMetadata {
     }
 
     async fetchRelatedPechas(filterBy) {
-        let body = {filter: {} };
         const filters = {
-            "commentary_of": {
-                "and": [
-                    { "field": "commentary_of", "operator": "==", "value": null },
-                    { "field": "translation_of", "operator": "==", "value": null }
-                ]
-            },
-            "version_of": {
-                "and": [
-                    { "field": "commentary_of", "operator": "==", "value": null },
-                    { "field": "version_of", "operator": "==", "value": null } 
-                ]
-            },
-            "translation_of": {
-                "field": "language",
-                "operator": "==",
-                "value": "bo"
-            }
+            commentary_of: { "field": "commentary_of", "operator": "==", "value": null },
+            translation_of: { "field": "translation_of", "operator": "==", "value": null }
         };
-
-        body.filter = {};
+        const body = { filter: filters[filterBy] || {} };
         try {
             this.pechaOptionsContainer.style.display = "none";
 
@@ -765,62 +711,6 @@ class UpdateMetadata {
         });
     }
 
-    async getAnnotation(pechaId) {
-        const url = `${this.API_ENDPOINT}/annotation/${pechaId}`;
-      
-        try {
-            this.toggleLoadingSpinner(true, this.annotationOptionsContainer, this.annotationLoadingSpinner);
-          const response = await fetch(url, {
-            method: 'GET',
-            headers: {
-              'accept': 'application/json',
-            },
-          });
-      
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-      
-          const data = await response.json();
-          return data;
-        } catch (error) {
-          console.error('Error fetching annotation:', error);
-          throw error;
-        } finally {
-            this.toggleLoadingSpinner(false, this.annotationOptionsContainer, this.annotationLoadingSpinner);
-        }
-    }
-
-    extractAnnotations(data) {
-        return Object.entries(data).map(([id, details]) => ({
-            id,
-            title: details.title
-        }));
-    }
-
-    populateAnnotationDropdowns(annotations) {
-        while (this.annotationAlignmentSelect.options.length > 1) {
-            this.annotationAlignmentSelect.remove(1);
-        }
-        annotations.forEach(annotation => {
-            const option = new Option(`${annotation.title}`, annotation.id);
-            this.annotationAlignmentSelect.add(option.cloneNode(true));
-        });
-    }
-
-    async onPechaSelect(pechaId) {
-        try {
-            // Get annotations for alignment
-            const annotations = await this.getAnnotation(pechaId);
-            const extractedAnnotations = this.extractAnnotations(annotations);
-            this.populateAnnotationDropdowns(extractedAnnotations);
-            
-        } catch (error) {
-            console.error('Error in onPechaSelect:', error);
-            this.showToast('Failed to load pecha information', 'error');
-        }
-    }
-
     async fetchLanguages() {
         try {
             this.toggleLoadingSpinner(true, this.baseLanguageSelect, this.baseLanguageLoader);
@@ -856,8 +746,7 @@ class UpdateMetadata {
         const formData = {
             metadata:{
                 language: this.baseLanguageSelect.value,
-            },
-            annotation_id:null
+            }
         }
         // Collect localized fields
         document.querySelectorAll(".form-group[data-field]").forEach(group => {
@@ -924,11 +813,6 @@ class UpdateMetadata {
 
         if (selectedType && this.selectedPecha) {
             formData.metadata[selectedType.value] = this.selectedPecha;
-        }
-        //collect annotation alignment value
-        const annotation_alignment = this.annotationAlignmentSelect.value;
-        if(selectedType && this.selectedPecha && annotation_alignment){
-            formData.annotation_id = annotation_alignment
         }
 
         // Collect Google Docs id 

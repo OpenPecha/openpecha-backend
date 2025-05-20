@@ -1,17 +1,20 @@
 // Category Node Data Structure
 class CategoryNode {
-    constructor(id, titleEn, titleBo, descEn = '', descBo = '', shortDescEn = '', shortdescBo = '') {
+    constructor(id, titleEn, titleBo, titleLzh, descEn = '', descBo = '', descLzh='', shortDescEn = '', shortdescBo = '',shortDescLzh='') {
         this.id = id;
         this.titleEn = titleEn;
         this.titleBo = titleBo;
+        this.titleLzh = titleLzh;
         this.descEn = descEn;
         this.descBo = descBo;
+        this.descLzh = descLzh;
         this.shortDescEn = shortDescEn;
         this.shortdescBo = shortdescBo;
+        this.shortDescLzh = shortDescLzh;
         this.children = [];
         this.parent = null;
     }
-
+    
     addChild(node) {
         node.parent = this;
         this.children.push(node);
@@ -102,6 +105,7 @@ class CategoryTreeUI {
         .then(data => {
             console.log('CategoryTreeUI: Categories fetched successfully');
             this.categories = data;
+            console.log("data",data)
             this.options = this.extractCategoryNames(data);
             this.elements.categorySelector.innerHTML = '';
             new CustomSearchableDropdown(this.elements.categorySelector, this.options, 'selectedCategory');
@@ -114,10 +118,10 @@ class CategoryTreeUI {
     extractCategoryNames(data) {
         return data.categories.map(category => ({
             id: category.id,
-            name: `${category.name["bo"]} (${category.name["en"]})` 
+            name: `${category.name["bo"]} (${category.name["en"]}) ${category?.name["lzh"]?"("+category?.name["lzh"]+")":""}` 
         }));
     }
-
+    
     handleCategorySelect() {
         const selectedRoot = document.getElementById('selectedCategory').dataset.value;
         console.log(":::",selectedRoot)
@@ -169,10 +173,13 @@ class CategoryTreeUI {
                 categoryData.id,
                 categoryData.name?.en,
                 categoryData.name?.bo,
+                categoryData.name?.lzh,
                 categoryData.description?.en,
                 categoryData.description?.bo,
+                categoryData.description?.lzh,
                 categoryData.short_description?.en,
-                categoryData.short_description?.bo
+                categoryData.short_description?.bo,
+                categoryData.short_description?.lzh
             );
     
             // Recursively process subcategories
@@ -254,36 +261,38 @@ class CategoryTreeUI {
         // Add node title with language-specific class
         const titleSpan = document.createElement('span');
         titleSpan.className = `node-title`;
-        titleSpan.textContent = `${node.titleBo} (${node.titleEn})`;
+        titleSpan.textContent = `${node.titleBo} (${node.titleEn}) ${node?.titleLzh ? `(${node?.titleLzh})` : ''}`;
         contentDiv.appendChild(titleSpan);
-
+        
         // Create popup with improved structure
         const popup = document.createElement('div');
         popup.className = 'node-popup';
 
-        if (node.descBo || node.descEn) {
+        if (node.descBo || node.descEn || node.descLzh) {
             const desc = document.createElement('div');
             desc.className = 'popup-section';
             desc.innerHTML = `
                 <h5>Description</h5>
                 ${node.descBo ? `<p><span class="label">Tibetan:</span> ${node.descBo}</p>` : ''}
                 ${node.descEn ? `<p><span class="label">English:</span> ${node.descEn}</p>` : ''}
+                ${node.descLzh ? `<p><span class="label">Literal Chinese:</span> ${node.descLzh}</p>` : ''}
             `;
             popup.appendChild(desc);
         }
 
-        if (node.shortdescBo || node.shortDescEn) {
+        if (node.shortdescBo || node.shortDescEn || node.shortDescLzh) {
             const shortDesc = document.createElement('div');
             shortDesc.className = 'popup-section';
             shortDesc.innerHTML = `
                 <h5>Short Description</h5>
                 ${node.shortdescBo ? `<p><span class="label">Tibetan:</span> ${node.shortdescBo}</p>` : ''}
                 ${node.shortDescEn ? `<p><span class="label">English:</span> ${node.shortDescEn}</p>` : ''}
+                ${node.shortDescLzh ? `<p><span class="label">Literal Chinese:</span> ${node.shortDescLzh}</p>` : ''}
             `;
             popup.appendChild(shortDesc);
         }
 
-        if (node.descBo || node.descEn || node.shortdescBo || node.shortDescEn) {
+        if (node.descBo || node.descEn || node.descLzh || node.shortdescBo || node.shortDescEn || node.shortDescLzh) {
             contentDiv.appendChild(popup);
         }
 

@@ -1,6 +1,7 @@
 // Load configuration asynchronously
 let config;
 async function loadConfiguration() {
+    console.log("inside config")
     config = await loadConfig();
     return config;
 }
