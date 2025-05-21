@@ -49,9 +49,19 @@
                 
                 <div class="pecha-select-container">
                     <div class="select-container">
-                        <select id="pecha-select" class="pecha-select">
-                            <option value="" disabled selected>Select a Pecha</option>
-                        </select>
+                        <div id="pechaOptionsContainer" class="select-search-container">
+                            <select id="pecha-select" class="pecha-select">
+                                <option value="" disabled selected>Select a Pecha</option>
+                            </select>
+                            <div class="search-overlay">
+                                <input
+                                    type="text"
+                                    class="search-input"
+                                    placeholder="Search pechas..."
+                                />
+                                <div class="search-results"></div>
+                            </div>
+                        </div>
                         <div id="select-spinner" class="select-spinner" style="display: none;">
                             <i class="fas fa-spinner fa-spin"></i>
                         </div>
@@ -105,10 +115,6 @@
                             <div class="legend-item">
                                 <div class="legend-color translation"></div>
                                 <span>Translation</span>
-                            </div>
-                            <div class="legend-item">
-                                <div class="legend-color selected animated-legend"></div>
-                                <span>Selected</span>
                             </div>
                             <div class="legend-item">
                                 <div class="legend-color root-legend"></div>

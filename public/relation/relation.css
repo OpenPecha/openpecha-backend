@@ -640,6 +640,80 @@
     100% { transform: scale(1); }
 }
 
+/* Search select functionality */
+.select-search-container {
+    position: relative;
+    width: 100%;
+}
+
+.select-search-container select {
+    width: 100%;
+    padding: 0.75rem 1rem;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    background-color: var(--bg-primary);
+    color: var(--text-primary);
+    font-size: 1rem;
+    appearance: none;
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='16' height='16' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 1rem;
+    transition: border-color 0.2s, box-shadow 0.2s;
+}
+
+.search-overlay {
+    position: absolute;
+    top: 100%;
+    left: 0;
+    width: 100%;
+    display: none;
+    z-index: 100;
+    background-color: white;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.15);
+}
+
+.search-overlay.active {
+    display: block;
+}
+
+.search-input {
+    width: 100%;
+    padding: 8px;
+    border: 1px solid #ddd;
+    border-bottom: none;
+    box-sizing: border-box;
+}
+
+.search-results {
+    max-height: 200px;
+    overflow-y: auto;
+    background: white;
+    border: 1px solid #ddd;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
+}
+
+.search-item {
+    padding: 8px 12px;
+    cursor: pointer;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+}
+
+.search-item:hover {
+    background-color: #f0f0f0;
+}
+
+.search-item.selected {
+    background-color: #e0e0e0;
+}
+
+/* Ensure the select is still clickable */
+.select-search-container select:focus + .search-overlay {
+    display: block;
+}
+
 /* Improve responsive design */
 @media (max-width: 992px) {
     .relation-container {
@@ -653,7 +727,7 @@
     }
 
     .visualization-panel {
-        height: 60vh;
+        height: 80vh;
     }
 }
 
@@ -664,5 +738,8 @@
 @media (max-width: 768px) {
     .container {
         padding: 1rem;
+    }
+    .visualization-panel {
+        height: 80vh;
     }
 }

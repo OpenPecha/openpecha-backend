@@ -18,7 +18,10 @@ class PechaRelationship {
             applyFiltersBtn: document.getElementById('apply-filters-btn'),
             // Add references to legend elements
             toggleLegendBtn: document.getElementById('toggle-legend'),
-            visualizationLegend: document.getElementById('visualization-legend')
+            visualizationLegend: document.getElementById('visualization-legend'),
+            // Search elements
+            pechaOptionsContainer: document.getElementById('pechaOptionsContainer'),
+            searchContainers: document.querySelectorAll('.select-search-container')
         };
 
         // Initialize state
@@ -167,12 +170,11 @@ class PechaRelationship {
     getTitle(pecha) {
         if (!pecha.title) return 'Untitled';
         
-        // Try to get Tibetan title first
-        if (pecha.title.bo) return pecha.title.bo;
+        // Try to get its language title first
+        if (pecha.title[pecha.language]) return pecha.title[pecha.language];
         
-        // Otherwise get the first available title
-        const lang = Object.keys(pecha.title)[0];
-        return pecha.title[lang] || 'Untitled';
+        // Otherwise return tibetan title
+        return pecha.title.bo || 'Untitled';
     }
 
     findPecha(data, id) {
@@ -366,7 +368,7 @@ class PechaRelationship {
         
         const { svg, g, tooltip } = this.initializeGraph();
         
-        // Find the selected/root pecha node
+        // Find the root pecha node
         const rootNode = data.nodes.find(n => n.group === 'root');
         if (rootNode) {
             // Pin the root node to the top center
@@ -503,25 +505,38 @@ class PechaRelationship {
             })
             .attr('text-anchor', 'middle');
         
-        // Add tooltip
+        // Add click-to-copy functionality
+        node.on('click', (event, d) => {
+            // Create a temporary textarea element to copy the text
+            const textarea = document.createElement('textarea');
+            // Copy both ID and title
+            const title = d.fullTitle || 'Untitled';
+            textarea.value = `${d.id} - ${title}`;
+            document.body.appendChild(textarea);
+            textarea.select();
+            
+            try {
+                // Execute the copy command
+                document.execCommand('copy');
+                
+                // Show a toast notification
+                this.showToast(`Copied: ${d.id} - ${title}`, 'success');
+            } catch (err) {
+                console.error('Failed to copy text: ', err);
+                this.showToast('Failed to copy pecha information', 'error');
+            } finally {
+                // Clean up
+                document.body.removeChild(textarea);
+            }
+            
+            // Prevent event propagation
+            event.stopPropagation();
+        });
+        
+        // Add hover effect for better UX
         node.on('mouseover', (event, d) => {
-            tooltip.transition()
-                .duration(200)
-                .style('opacity', .9);
-            
-            const tooltipContent = `
-                <strong>ID:</strong> ${d.id}<br>
-                <strong>Title:</strong> ${d.fullTitle || 'Untitled'}
-            `;
-            
-            tooltip.html(tooltipContent)
-                .style('left', (event.pageX + 10) + 'px')
-                .style('top', (event.pageY - 28) + 'px');
-        })
-        .on('mouseout', () => {
-            tooltip.transition()
-                .duration(500)
-                .style('opacity', 0);
+            // Change cursor to indicate clickable element
+            d3.select(event.currentTarget).style('cursor', 'pointer');
         });
         
         // Update positions on each tick of the simulation
@@ -750,6 +765,127 @@ class PechaRelationship {
         };
     }
 
+    // Initialize search UI functionality
+    initializeSearchUI() {
+        this.elements.searchContainers.forEach(container => {
+            const select = container.querySelector('select');
+            const searchOverlay = container.querySelector('.search-overlay');
+            const searchInput = container.querySelector('.search-input');
+            const searchResults = container.querySelector('.search-results');
+            
+            // Toggle search overlay when clicking on the select
+            select.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                searchOverlay.classList.toggle('active');
+                if (searchOverlay.classList.contains('active')) {
+                    searchInput.focus();
+                    this.populateSearchResults(select, searchResults, searchInput.value);
+                }
+            });
+
+            // Close overlay when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!container.contains(e.target)) {
+                    searchOverlay.classList.remove('active');
+                }
+            });
+
+            // Filter results when typing
+            searchInput.addEventListener('input', () => {
+                this.populateSearchResults(select, searchResults, searchInput.value);
+            });
+
+            // Handle item selection
+            searchResults.addEventListener('click', (e) => {
+                if (e.target.classList.contains('search-item')) {
+                    const value = e.target.dataset.value;
+                    select.value = value;
+
+                    const changeEvent = new Event('change', { bubbles: true });
+                    select.dispatchEvent(changeEvent);
+
+                    searchOverlay.classList.remove('active');
+                }
+            });
+
+            // Keyboard navigation
+            searchInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    searchOverlay.classList.remove('active');
+                } else if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    this.navigateSearchResults(searchResults, 'down');
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    this.navigateSearchResults(searchResults, 'up');
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const selectedItem = searchResults.querySelector('.search-item.selected');
+                    if (selectedItem) {
+                        const value = selectedItem.dataset.value;
+                        select.value = value;
+
+                        const changeEvent = new Event('change', { bubbles: true });
+                        select.dispatchEvent(changeEvent);
+
+                        searchOverlay.classList.remove('active');
+                    }
+                }
+            });
+        });
+    }
+
+    // Populate search results based on search term
+    populateSearchResults(select, resultsContainer, searchTerm) {
+        resultsContainer.innerHTML = '';
+        const options = Array.from(select.options).slice(1); // Skip the placeholder
+        const lowercaseSearchTerm = searchTerm.toLowerCase();
+
+        options.forEach(option => {
+            if (!searchTerm || option.text.toLowerCase().includes(lowercaseSearchTerm)) {
+                const item = document.createElement('div');
+                item.className = 'search-item';
+                item.textContent = option.text;
+                item.dataset.value = option.value;
+                resultsContainer.appendChild(item);
+            }
+        });
+
+        // Select the first item by default
+        const firstItem = resultsContainer.querySelector('.search-item');
+        if (firstItem) {
+            firstItem.classList.add('selected');
+        }
+    }
+
+    // Navigate through search results with keyboard
+    navigateSearchResults(resultsContainer, direction) {
+        const items = resultsContainer.querySelectorAll('.search-item');
+        const selectedItem = resultsContainer.querySelector('.search-item.selected');
+        let index = -1;
+
+        if (selectedItem) {
+            for (let i = 0; i < items.length; i++) {
+                if (items[i] === selectedItem) {
+                    index = i;
+                    break;
+                }
+            }
+        }
+
+        if (direction === 'down') {
+            index = (index + 1) % items.length;
+        } else if (direction === 'up') {
+            index = (index - 1 + items.length) % items.length;
+        }
+
+        if (index >= 0 && items.length > 0) {
+            items.forEach(item => item.classList.remove('selected'));
+            items[index].classList.add('selected');
+            items[index].scrollIntoView({ block: 'nearest' });
+        }
+    }
+
     // Initialize the application
     async init() {
         try {
@@ -762,6 +898,9 @@ class PechaRelationship {
             // Fetch pecha list and populate dropdown
             const pechas = await this.fetchPechaList();
             this.populatePechaSelect(pechas);
+            
+            // Initialize search UI
+            this.initializeSearchUI();
             
             // Setup event listeners
             this.setupEventListeners();
