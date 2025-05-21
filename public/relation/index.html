@@ -1,0 +1,162 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="OpenPecha Pecha Relationship Visualization" />
+    <link rel="shortcut icon" href="../assets/favicon.ico" type="image/x-icon">
+    <title>OpenPecha - Pecha Relationships</title>
+    <link rel="stylesheet" href="../index.css" />
+    <link rel="stylesheet" href="../navbar.css" />
+    <link rel="stylesheet" href="./relation.css" />
+    <link rel="stylesheet" href="../toast_style.css" />
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+    />
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- D3.js for graph visualization -->
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+</head>
+<body>
+    <main class="container">
+        <!-- Navbar -->
+        <nav class="navbar">
+            <div class="nav-container">
+                <a href="../index.html" class="nav-logo">
+                    <img src="../assets/logo.svg" alt="OpenPecha Logo" />
+                    <span>OpenPecha</span>
+                </a>
+                <div class="nav-links">
+                    <a href="../create/create.html" class="nav-link">Create</a>
+                    <a href="../publish/publish.html" class="nav-link">Publish</a>
+                    <a href="../update/" class="nav-link">Update</a>
+                    <a href="../category/" class="nav-link">Category</a>
+                    <a href="../annotation/" class="nav-link">Annotation</a>
+                    <a href="../pechas/" class="nav-link">Pechas</a>
+                    <a href="./index.html" class="nav-link active">Relationships</a>
+                </div>
+            </div>
+        </nav>
+
+        <!-- Main Content -->
+        <section class="relation-container">
+            <div class="selection-panel">
+                <h2>Pecha Relationship Graph</h2>
+                <p>Select a pecha to view its relationships</p>
+                
+                <div class="pecha-select-container">
+                    <div class="select-container">
+                        <div id="pechaOptionsContainer" class="select-search-container">
+                            <select id="pecha-select" class="pecha-select">
+                                <option value="" disabled selected>Select a Pecha</option>
+                            </select>
+                            <div class="search-overlay">
+                                <input
+                                    type="text"
+                                    class="search-input"
+                                    placeholder="Search pechas..."
+                                />
+                                <div class="search-results"></div>
+                            </div>
+                        </div>
+                        <div id="select-spinner" class="select-spinner" style="display: none;">
+                            <i class="fas fa-spinner fa-spin"></i>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Traversal and Relationship Filters -->
+                <div class="filter-container">
+                    <div class="filter-section">
+                        <label for="traversal-select">Traversal Type:</label>
+                        <select id="traversal-select" class="filter-select">
+                            <option value="full_tree" selected>Full Tree</option>
+                            <option value="upward">Upward</option>
+                        </select>
+                    </div>
+                    
+                    <div class="filter-section">
+                        <div class="filter-title">Relationship Types:</div>
+                        <div class="checkbox-group">
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="commentary-checkbox" checked>
+                                <label for="commentary-checkbox">Commentary</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="version-checkbox" checked>
+                                <label for="version-checkbox">Version</label>
+                            </div>
+                            <div class="checkbox-item">
+                                <input type="checkbox" id="translation-checkbox" checked>
+                                <label for="translation-checkbox">Translation</label>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button id="apply-filters-btn" class="apply-filters-btn">
+                        <i class="fas fa-filter"></i> Apply Filters
+                    </button>
+                    
+                    <!-- Legend moved to sidebar for space efficiency -->
+                    <div id="visualization-legend" class="legend sidebar-legend">
+                        <div class="legend-title">Legend</div>
+                        <div class="legend-items">
+                            <div class="legend-item">
+                                <div class="legend-color version"></div>
+                                <span>Version</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color commentary"></div>
+                                <span>Commentary</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color translation"></div>
+                                <span>Translation</span>
+                            </div>
+                            <div class="legend-item">
+                                <div class="legend-color root-legend"></div>
+                                <span>Root</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="visualization-panel">
+                <!-- Visualization controls -->
+                <div class="visualization-controls">
+                    <button id="zoom-in" class="control-btn" title="Zoom In">
+                        <i class="fas fa-search-plus" aria-hidden="true"></i>
+                    </button>
+                    <button id="zoom-out" class="control-btn" title="Zoom Out">
+                        <i class="fas fa-search-minus"></i>
+                    </button>
+                    <button id="reset-zoom" class="control-btn" title="Reset View">
+                        <i class="fas fa-sync-alt"></i>
+                    </button>
+                </div>
+                
+                <div id="loading-container" class="loading-container">
+                    <div class="loading-spinner"></div>
+                    <p>Loading relationship data...</p>
+                </div>
+                
+                <div id="no-data-message" class="no-data-message" style="display: none;">
+                    <p>No relationship data found for this pecha.</p>
+                </div>
+                
+                <div id="graph-container" class="graph-container"></div>
+            </div>
+        </section>
+    </main>
+
+    <!-- Toast for notifications -->
+    <div id="toastContainer" role="alert" aria-live="polite"></div>
+
+    <script src="../config.js"></script>
+    <script src="./relation.js"></script>
+</body>
+</html>
