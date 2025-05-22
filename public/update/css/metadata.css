@@ -203,51 +203,6 @@ main {
     border-radius: 0 var(--border-radius) var(--border-radius) 0;
 }
 
-/* Collapsible Additional Fields styles */
-.additional-fields-header {
-    margin-bottom: var(--spacing-md);
-}
-
-.collapsible-header {
-    width: 100%;
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    padding: var(--spacing-md);
-    background-color: var(--color-hover-bg);
-    border: var(--border);
-    border-radius: var(--border-radius);
-    cursor: pointer;
-    font-weight: 500;
-    color: var(--color-text);
-    transition: all 0.3s ease;
-}
-
-.collapsible-header:hover {
-    background-color: #e9ecef;
-}
-
-.collapsible-header i {
-    transition: transform 0.3s ease;
-}
-
-.collapsible-header.active i {
-    transform: rotate(180deg);
-}
-
-.additional-fields-content {
-    display: none;
-    padding: var(--spacing-md);
-    border: var(--border);
-    border-top: none;
-    border-radius: 0 0 var(--border-radius) var(--border-radius);
-    margin-top: -1px;
-}
-
-.additional-fields-content.active {
-    display: block;
-}
-
 .add-localization,
 .add-alt-title {
     border: none;

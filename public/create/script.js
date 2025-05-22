@@ -63,7 +63,7 @@ class LocalizedForm {
             if (baseLanguage) {
                 // Form is already visible from language loading
                 this.formContent.style.display = "block";
-                this.clearDocumentField()
+                this.resetForm();          
                 this.initializeFields(baseLanguage);
             } else {
                 this.formContent.style.display = "none";
@@ -96,8 +96,7 @@ class LocalizedForm {
         this.typeRadios.forEach((radio) => {
             radio.addEventListener("change", () => {
                 // Clear any populated title fields when changing document type
-                this.clearTitleFields();
-                this.clearDocumentField()
+                this.resetForm()
                 if (radio.checked && radio.value) {
                     // Show pecha selection only when a valid relation type is selected
                     this.fetchPechaOptions(radio.value);                    
@@ -164,7 +163,6 @@ class LocalizedForm {
                     const selectedPechaId = this.pechaSelect.value;
                     if(selectedType === "translation_of"){
                         this.fetchAndPopulatePechaMetadata(selectedPechaId);
-                        return;
                     }
                     // For title field, keep existing fields if any
                     const existingFields = {};
@@ -543,25 +541,6 @@ class LocalizedForm {
         }
     }
     
-    clearTitleFields() {
-        // Clear all title input fields
-        const titleGroup = document.querySelector('.form-group[data-field="title"]');
-        if (titleGroup) {
-            const inputs = titleGroup.querySelectorAll('input[type="text"]');
-            inputs.forEach(input => {
-                input.value = '';
-                input.removeAttribute('readonly');
-                input.placeholder = 'Enter text';
-            });
-        }
-    }
-    clearDocumentField(){
-        const documentIdInput = document.querySelector('input[placeholder="Google docs URL"]');
-        if (documentIdInput) {
-            documentIdInput.value = '';
-        }
-
-    }
     populateTitlesForTranslation(metadata) {
         if (!metadata || !metadata.title) return;
         
@@ -598,10 +577,13 @@ class LocalizedForm {
     }
     
     async fetchPechaOptions(filterBy) {
-        let body = {filter: {} };
+        const filters = {
+            commentary_of: { "field": "commentary_of", "operator": "==", "value": null },
+            translation_of: { "field": "translation_of", "operator": "==", "value": null }
+        };
+        const body = { filter: filters[filterBy] || {} };
         try {
             this.pechaOptionsContainer.style.display = "none";
-
             this.toggleLoadingSpinner(true, this.pechaOptionsContainer, this.pechaLoadingSpinner);
             
             let allPechas = [];
@@ -1095,11 +1077,65 @@ class LocalizedForm {
         }
     }
     
-    clearForm() {
-        const currentLanguage = this.baseLanguageSelect.value;
+    clearTitleFields() {
+        // Clear all title input fields
+        const titleGroup = document.querySelector('.form-group[data-field="title"]');
+        if (titleGroup) {
+            const inputs = titleGroup.querySelectorAll('input[type="text"]');
+            inputs.forEach(input => {
+                input.value = '';
+                input.removeAttribute('readonly');
+                input.placeholder = 'Enter text';
+            });
+        }
+    }
+    clearDocumentField(){
+        const documentIdInput = document.querySelector('input[placeholder="Google docs URL"]');
+        if (documentIdInput) {
+            documentIdInput.value = '';
+        }
+
+    }
+
+    resetForm() {
+        this.clearTitleFields()
+        // Clear author
+        // Clear all author input fields
+        const authorGroup = document.querySelector('.form-group[data-field="author"]');
+        if (authorGroup) {
+            const inputContainers = authorGroup.querySelectorAll('.input-container');
+            inputContainers.forEach(inputContainer => {
+                const input = inputContainer.querySelector('input[type="text"]');
+                const lang = inputContainer.querySelector('select').value;
+                if (lang === this.baseLanguageSelect.value) {
+                    input.value = '';
+                } else {
+                    inputContainer.remove();
+                }
+            });
+        }
+
+        // Clear all long title input fields
+        const longTitleGroup = document.querySelector('.form-group[data-field="long_title"]');
+        if (longTitleGroup) {
+            const inputContainers = longTitleGroup.querySelectorAll('.input-container');
+            inputContainers.forEach(inputContainer => {
+                const input = inputContainer.querySelector('input[type="text"]');
+                const lang = inputContainer.querySelector('select').value;
+                if (lang === this.baseLanguageSelect.value) {
+                    input.value = '';
+                } else {
+                    inputContainer.remove();
+                }
+            });    
+        }
+        
 
         // Clear source URL
         document.querySelector('input[placeholder="https://example.com"]').value = '';
+        
+        // Clear source
+        document.querySelector('input[placeholder="Enter source"]').value = '';
 
         // Clear Google docs URL
         document.querySelector('input[placeholder="Google docs URL"]').value = '';
@@ -1116,6 +1152,35 @@ class LocalizedForm {
             dateDisplay.textContent = 'No date selected';
         }
 
+        // Clear presentation fields
+        const presentationGroup = document.querySelector('.form-group[data-field="presentation"]');
+        if (presentationGroup) {
+            const inputContainers = presentationGroup.querySelectorAll('.input-container');
+            inputContainers.forEach(inputContainer => {
+                const input = inputContainer.querySelector('input[type="text"]');
+                const lang = inputContainer.querySelector('select').value;
+                if (lang === this.baseLanguageSelect.value) {
+                    input.value = ''; 
+                } else {
+                    inputContainer.remove();
+                }
+            });
+        }
+
+        // Clear usage title fields
+        const usageTitleGroup = document.querySelector('.form-group[data-field="usage_title"]');
+        if (usageTitleGroup) {
+            const inputContainers = usageTitleGroup.querySelectorAll('.input-container');
+            inputContainers.forEach(inputContainer => {
+                const input = inputContainer.querySelector('input[type="text"]');
+                const lang = inputContainer.querySelector('select').value;
+                if (lang === this.baseLanguageSelect.value) {
+                    input.value = '';
+                } else {
+                    inputContainer.remove();
+                }
+            });
+        }
         // Reset era select to Standard
         const eraSelect = document.getElementById('eraSelect');
         if (eraSelect) {
@@ -1128,16 +1193,8 @@ class LocalizedForm {
             historicalYearInput.value = '';
         }
 
-        // Uncheck all radio buttons
-        this.typeRadios.forEach(radio => {
-            radio.checked = false;
-        });
-
         // Clear any error states
         this.clearErrors();
-
-        // Reinitialize the form with the current language
-        this.initializeFields(currentLanguage);
     }
 }
 
