@@ -59,6 +59,20 @@
             <div id="pechaLoadingSpinner" class="loading-spinner">
               <i class="fas fa-spinner fa-spin"></i> Loading pechas...
             </div>
+            <!-- Container to display existing annotations -->
+            <div id="existingAnnotationsContainer" class="existing-annotations-container" style="display: none;">
+              <div class="annotations-header">
+                <label>Existing Annotations</label>
+                <button type="button" id="toggleAnnotationsBtn" class="toggle-btn">
+                  <i class="fas fa-chevron-up" id="toggleIcon"></i>
+                </button>
+              </div>
+              <!-- Loading spinner for annotations -->
+              <div id="annotationsLoadingSpinner" class="loading-spinner" style="display:none; margin:10px;">
+                <i class="fas fa-spinner fa-spin"></i> Loading annotations...
+              </div>
+              <div id="existingAnnotationsList" class="existing-annotations-list"></div>
+            </div>
           </div>
 
           <div class="form-group">
@@ -89,11 +103,20 @@
             </div>
           </div>
 
-          <div class="form-group conditional-field" id="segmentationField">
-            <!-- <label for="segmentationLayer">Segmentation Layer</label> -->
-            <select id="segmentationLayer" name="segmentationLayer">
-              <option value="">select alignment annotations</option>
-            </select>
+          <div class="form-group conditional-field" id="parentAnnotationField">
+            <div class="select-search-container">
+              <select id="parentAnnotation" name="parentAnnotation">
+                <option value="">Select Annotation</option>
+              </select>
+              <div class="search-overlay">
+                <input
+                  type="text"
+                  class="search-input"
+                  placeholder="Search annotations..."
+                />
+                <div class="search-results"></div>
+              </div>
+            </div>
           </div>
 
           <div class="form-group" id="titleField">
