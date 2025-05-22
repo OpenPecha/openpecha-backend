@@ -38,10 +38,6 @@ class UpdateMetadata {
             'input[name="documentType"]'
         );
 
-        // Additional Fields collapsible elements
-        this.additionalFieldsToggle = document.getElementById("additionalFieldsToggle");
-        this.additionalFieldsContent = document.getElementById("additionalFieldsContent");
-
         this.annotationOptionsContainer = document.getElementById("annotationAlignmentContainer");
         this.annotationLoadingSpinner = document.getElementById("annotationLoadingSpinner");
         this.updateButton = document.getElementById("updateButton")
@@ -103,11 +99,6 @@ class UpdateMetadata {
         // Update Button
         this.updateButton.addEventListener("click", () => {
             this.handlePechaUpdate();
-        });
-        // Additional Fields collapsible section
-        this.additionalFieldsToggle.addEventListener("click", () => {
-            this.additionalFieldsToggle.classList.toggle("active");
-            this.additionalFieldsContent.classList.toggle("active");
         });
     }
 
@@ -420,7 +411,7 @@ class UpdateMetadata {
             if (titleContainer) {
                 titleContainer.innerHTML = ''; // Clear existing
                 Object.entries(metadata.title).forEach(([lang, value], index) => {
-                    this.createLocalizationInput(titleContainer, lang, index === 0, lang==='bo'|| lang==='en', true);
+                    this.createLocalizationInput(titleContainer, lang, index === 0, lang==='bo'|| lang==='en' || lang ==='lzh', true);
                     const input = titleContainer.querySelector('.input-container:last-child input[type="text"]');
                     if (input) input.value = value;
                 });
@@ -526,11 +517,6 @@ class UpdateMetadata {
                         }
                     }
                 });
-                
-                // Show additional fields section since we have alt titles
-                this.additionalFieldsContent.classList.add('active')
-                const toggleIcon = document.querySelector('#additionalFieldsToggle i');
-                if (toggleIcon) toggleIcon.className = 'fas fa-chevron-up';
             }
         }
         
@@ -577,11 +563,6 @@ class UpdateMetadata {
                         if (yearEndInput) yearEndInput.value = metadata.composition_date.year_end || metadata.composition_date.year_start;
                     }
                 }
-                
-                // Show additional fields section since we have date info
-                this.additionalFieldsContent.classList.add('active');
-                const toggleIcon = document.querySelector('#additionalFieldsToggle i');
-                if (toggleIcon) toggleIcon.className = 'fas fa-chevron-up';
             }
         }
         
