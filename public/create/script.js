@@ -667,15 +667,26 @@ class LocalizedForm {
         }));
     }
 
-    populateAnnotationDropdowns(annotations) {
-        while (this.annotationAlignmentSelect.options.length > 1) {
-            this.annotationAlignmentSelect.remove(1);
-        }
-        annotations.forEach(annotation => {
-            const option = new Option(`${annotation.title}`, annotation.id);
-            this.annotationAlignmentSelect.add(option.cloneNode(true));
-        });
-    }
+ populateAnnotationDropdowns(annotations) {
+     // Remove all options except the first (placeholder)
+     while (this.annotationAlignmentSelect.options.length > 1) {
+         this.annotationAlignmentSelect.remove(1);
+     }
+ 
+     // Add new options from annotations
+     annotations.forEach(annotation => {
+         const option = new Option(annotation.title, annotation.id);
+         this.annotationAlignmentSelect.add(option);
+     });
+ 
+     // If only one annotation, select it
+     if (annotations.length === 1) {
+         this.annotationAlignmentSelect.value = annotations[0].id;
+     } else {
+         // Optionally, reset to placeholder if multiple or none
+         this.annotationAlignmentSelect.selectedIndex = 0;
+     }
+ }
 
     async onPechaSelect(pechaId) {
         try {

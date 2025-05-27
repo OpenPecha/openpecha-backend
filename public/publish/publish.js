@@ -273,16 +273,20 @@ class UpdateMetaData {
             this.elements.annotationAlignmentSelect.remove(1);
         }
 
-        // if (annotations.length === 0) {
-        //     this.elements.annotationAlignmentGroup.style.display = 'none';
-        //     return;
-        // }
-
         annotations.forEach(annotation => {
             const option = new Option(annotation.title, annotation.id);
             this.elements.annotationAlignmentSelect.add(option.cloneNode(true));
         });
+
+        // If only one annotation, select it
+        if (annotations.length === 1) {
+            this.elements.annotationAlignmentSelect.value = annotations[0].id;
+        } else {
+            // Optionally, reset to placeholder if multiple or none
+            this.elements.annotationAlignmentSelect.selectedIndex = 0;
+        }
     }
+    
 
     toggleAnnotationLoadingSpinner(isLoading) {
         if (isLoading) {
