@@ -110,10 +110,10 @@ class UpdateMetaData {
     populateSearchResults(select, resultsContainer, searchTerm) {
         resultsContainer.innerHTML = '';
         const options = Array.from(select.options).slice(1); // Skip the placeholder
-        const lowercaseSearchTerm = searchTerm.toLowerCase();
+        const lowercaseSearchTerm = searchTerm.trim().toLowerCase();
 
         options.forEach(option => {
-            if (!searchTerm || option.text.toLowerCase().includes(lowercaseSearchTerm)) {
+            if (!searchTerm.trim() || option.text.toLowerCase().includes(lowercaseSearchTerm)) {
                 const item = document.createElement('div');
                 item.className = 'search-item';
                 item.textContent = option.text;
