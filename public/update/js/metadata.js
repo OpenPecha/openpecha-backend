@@ -175,10 +175,10 @@ class UpdateMetadata {
 
     // Helper method to populate search results
     populateSearchResults(select, resultsContainer, searchTerm) {
-        searchTerm = searchTerm.toLowerCase();
+        searchTerm = searchTerm.trim().toLowerCase();
         resultsContainer.innerHTML = '';
         Array.from(select.options).forEach(option => {
-            if ( (searchTerm === '' || option.text.toLowerCase().includes(searchTerm))) {
+            if ( (searchTerm.trim() === '' || option.text.toLowerCase().includes(searchTerm))) {
                 const item = document.createElement('div');
                 item.className = 'search-item';
                 item.textContent = option.text;
