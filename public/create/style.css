@@ -426,6 +426,7 @@ select.error {
 }
 
 /* Required field indicators */
+.annotation-label::after,
 [data-field="author"] label::after,
 [data-field="title"] label::after,
 [data-field="long_title"] label::after,
