@@ -938,6 +938,12 @@ class LocalizedForm {
             return false;
         }
 
+        if(!formData.annotation_id){
+            this.annotationAlignmentSelect.classList.add('error');
+            this.showToast("Please select annotation", "error");
+            return false;
+        }
+
         return true;
     }
 
