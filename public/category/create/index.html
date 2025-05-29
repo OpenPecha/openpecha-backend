@@ -9,6 +9,7 @@
     <link rel="stylesheet" href="./category.css">
     <link rel="stylesheet" href="../../toast_style.css">
     <link rel="stylesheet" href="../../navbar.css">
+    <link rel="stylesheet" href="../../select.css">
     <link rel="stylesheet" href="../../custom/select/select.css">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
 
@@ -34,10 +35,22 @@
         <form id="publishForm" novalidate>
             <div class="form-group">
                 <label for="pechaOptions">Select a pecha</label>
-                <div id="pechaOptionsContainer">
+                <div id="pechaOptionsContainer" class="select-search-container">
                     <select id="pechaOptions" required>
                         <option value="">Select pecha</option>
                     </select>
+                    <div class="search-overlay">
+                        <input
+                            type="text"
+                            class="search-input"
+                            placeholder="Search pechas..."
+                        />
+                        <div class="search-results"></div>
+                    </div>
+                </div>
+                <!-- Loading spinner for pecha dropdown -->
+                <div id="pechaLoadingSpinner" class="loading-spinner">
+                    <i class="fas fa-spinner fa-spin"></i> Loading pechas...
                 </div>
             </div>
         </form>
@@ -62,6 +75,19 @@
                 <div class="category-tree">
                     <div class="selected-category">Select Destination Category</div>
                     <div id="categoryTree">
+                    </div>
+                    <div class="form-field">
+                        <label>Select Destination</label>
+                        <div class="radio-group">
+                            <div class="radio-option">
+                                <input type="radio" id="pecha-org" name="destination" value="pecha.org" checked>
+                                <label for="pecha-org">pecha.org</label>
+                            </div>
+                            <div class="radio-option">
+                                <input type="radio" id="fodian-org" name="destination" value="fodian.org">
+                                <label for="fodian-org">fodian.org</label>
+                            </div>
+                        </div>
                     </div>
                     <button id="addCategory" class="btn btn-primary">Submit Category</button>
                 </div>

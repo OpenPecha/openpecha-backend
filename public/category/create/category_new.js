@@ -28,7 +28,8 @@ class CategoryTreeUI {
         this.elements = {
             categorySelector: document.getElementById('categorySelector'),
             langToggle: document.getElementById('languageToggle'),
-            toastContainer: document.getElementById('toastContainer')
+            toastContainer: document.getElementById('toastContainer'),
+            addCategory: document.getElementById('addCategory')
         };
         this.API_ENDPOINT = '';
         this.root = null;
@@ -57,26 +58,8 @@ class CategoryTreeUI {
     init() {
         console.log('CategoryTreeUI: DOM ready, initializing components...');
         // Get UI elements
-        const addBtn = document.getElementById('addCategory');
-        const cancelBtn = document.getElementById('cancelCategory');
         const categoryForm = document.getElementById('categoryForm');
-
-        // Add event listeners with error handling
-        if (addBtn) {
-            addBtn.addEventListener('click', () => {
-                this.assignCategory();
-            });
-        }
-
-        if (cancelBtn) {
-            cancelBtn.addEventListener('click', () => {
-                this.selectedNode = null;
-                const container = document.getElementById('categoryTree');
-                container.innerHTML = '';   
-                categoryForm.reset();
-            });
-        }
-
+        
         if (categoryForm) {
             categoryForm.addEventListener('submit', (e) => this.handleFormSubmit(e));
         }
@@ -84,6 +67,12 @@ class CategoryTreeUI {
         if (this.elements.categorySelector) {
             this.elements.categorySelector.addEventListener('customDropdownChange', () => {
                 this.handleCategorySelect();
+            });
+        }
+
+        if (this.elements.addCategory) {
+            this.elements.addCategory.addEventListener('click', () => {
+                this.assignCategory();
             });
         }
     }
@@ -124,10 +113,7 @@ class CategoryTreeUI {
     
     handleCategorySelect() {
         const selectedRoot = document.getElementById('selectedCategory').dataset.value;
-        console.log(":::",selectedRoot)
         this.selectedRoot = this.categories.categories.find(category => category.id === selectedRoot);
-        // console.log(":::",this.selectedRoot)
-        // this.displayCategory(this.selectedRoot);
         this.handleFormSubmit();
     }
 
@@ -209,23 +195,35 @@ class CategoryTreeUI {
     }
     
     assignCategory() {
-        if(!this.selectedNode) {
-            this.showToast('Please select the destination category first', 'error');
+        if (!this.selectedRoot) {
+            this.showToast('Please select a parent category first', 'error');
             return;
         }
-        console.log("selected node ",this.selectedNode.id)
-        const selectedPecha = document.getElementById('selectedPecha');
-        if (!selectedPecha) {
-            alert("Please select a pecha first");
+
+        const selectedPechaId = document.getElementById('pechaOptions').value;
+        if (!selectedPechaId) {
+            this.showToast('Please select a pecha first', 'error');
             return;
-        }   
-        fetch(`${this.API_ENDPOINT}/metadata/${selectedPecha.dataset.value}/category`, {
+        }
+
+        const selectedDestination = document.querySelector('input[name="destination"]:checked');
+        if (!selectedDestination) {
+            this.showToast('Please select a destination', 'error');
+            return;
+        }
+
+        const requestBody = {
+            category_id: this.selectedRoot.id,
+            site: selectedDestination.value
+        };
+
+        console.log("assigning category", requestBody);
+        fetch(`${this.API_ENDPOINT}/pechas/${selectedPechaId}/category`, {
             method: 'PUT',
             headers: {
-                'accept': 'application/json',
                 'Content-Type': 'application/json'
             },
-            body: JSON.stringify({ category_id: this.selectedNode.id })
+            body: JSON.stringify(requestBody)
         })
         .then(response => {
             if (!response.ok) {
@@ -235,15 +233,9 @@ class CategoryTreeUI {
         })
         .then(data => {
             console.log('Category assigned successfully:', data);
-            document.querySelectorAll('.node-content').forEach(el => {
-                el.classList.remove('selected');
-                el.style.transform = '';
-            });
-            this.selectedNode = null;
-            const addBtn = document.getElementById('addCategory');
-            addBtn.style.display = 'none';
-            this.renderTree();
             this.showToast('Category assigned successfully', 'success');
+            // Refresh metadata display
+            window.updateMetadata.handlePechaSelect();
         })
         .catch(error => {
             console.error('Error assigning category:', error);
@@ -383,9 +375,10 @@ class UpdateMetaData {
     async initialize() {
         try {
             this.setupElements();
-            this.API_ENDPOINT = await getApiEndpoint()
-            await this.fetchPechaOptions();
+            this.API_ENDPOINT = await getApiEndpoint();
             this.setupEventListeners();
+            this.initializeSearchUI();
+            this.fetchPechaOptions();
             this.showInitialMetadataState();
         } catch (error) {
             console.error('Initialization error:', error);
@@ -394,19 +387,126 @@ class UpdateMetaData {
     }
 
     setupElements() {
+        console.log('UpdateMetaData: Setting up elements...');
         this.elements = {
             form: document.getElementById('publishForm'),
             pechaOptionsContainer: document.getElementById('pechaOptionsContainer'),
+            searchContainers: document.querySelectorAll('.select-search-container'),
+            pechaLoadingSpinner: document.getElementById('pechaLoadingSpinner'),
             pechaSelect: document.getElementById('pechaOptions'),
-            toastContainer: document.getElementById('toastContainer'),
             metadataContainer: document.querySelector('.metadata-container'),
             metadataContent: document.querySelector('.metadata-content'),
             metadataHeader: document.querySelector('.metadata-header'),
             toggleIcon: document.querySelector('.toggle-icon'),
+            toastContainer: document.getElementById('toastContainer'),
             treeContainer: document.querySelector('.tree-container')
         };
         this.isLoading = false;
         this.isCollapsed = false;
+    }
+
+    initializeSearchUI() {
+        this.elements.searchContainers.forEach(container => {
+            const select = container.querySelector('select');
+            const searchOverlay = container.querySelector('.search-overlay');
+            const searchInput = container.querySelector('.search-input');
+            const searchResults = container.querySelector('.search-results');
+
+            // Toggle search overlay when clicking on the select
+            select.addEventListener('mousedown', (e) => {
+                e.preventDefault();
+                searchOverlay.classList.toggle('active');
+                if (searchOverlay.classList.contains('active')) {
+                    searchInput.focus();
+                    this.populateSearchResults(select, searchResults, searchInput.value);
+                }
+            });
+
+            // Close overlay when clicking outside
+            document.addEventListener('click', (e) => {
+                if (!container.contains(e.target)) {
+                    searchOverlay.classList.remove('active');
+                }
+            });
+
+            // Filter results when typing
+            searchInput.addEventListener('input', () => {
+                this.populateSearchResults(select, searchResults, searchInput.value);
+            });
+
+            // Handle item selection
+            searchResults.addEventListener('click', (e) => {
+                if (e.target.classList.contains('search-item')) {
+                    const value = e.target.dataset.value;
+                    select.value = value;
+
+                    const changeEvent = new Event('change', { bubbles: true });
+                    select.dispatchEvent(changeEvent);
+
+                    searchOverlay.classList.remove('active');
+                }
+            });
+
+            // Keyboard navigation
+            searchInput.addEventListener('keydown', (e) => {
+                if (e.key === 'Escape') {
+                    searchOverlay.classList.remove('active');
+                } else if (e.key === 'ArrowDown') {
+                    e.preventDefault();
+                    this.navigateSearchResults(searchResults, 'next');
+                } else if (e.key === 'ArrowUp') {
+                    e.preventDefault();
+                    this.navigateSearchResults(searchResults, 'prev');
+                } else if (e.key === 'Enter') {
+                    e.preventDefault();
+                    const activeItem = searchResults.querySelector('.search-item.active');
+                    if (activeItem) {
+                        activeItem.click();
+                    }
+                }
+            });
+        });
+    }
+
+    populateSearchResults(select, resultsContainer, searchTerm) {
+        const options = Array.from(select.options);
+        const filteredOptions = options.filter(option => 
+            option.text.toLowerCase().includes(searchTerm.trim().toLowerCase())
+        );
+
+        resultsContainer.innerHTML = '';
+        filteredOptions.forEach(option => {
+            if (option.value) {
+                const item = document.createElement('div');
+                item.className = 'search-item';
+                item.textContent = option.text;
+                item.dataset.value = option.value;
+                resultsContainer.appendChild(item);
+            }
+        });
+    }
+
+    navigateSearchResults(resultsContainer, direction) {
+        const items = resultsContainer.querySelectorAll('.search-item');
+        const activeItem = resultsContainer.querySelector('.search-item.active');
+        let nextIndex;
+
+        if (!activeItem) {
+            nextIndex = direction === 'next' ? 0 : items.length - 1;
+        } else {
+            const currentIndex = Array.from(items).indexOf(activeItem);
+            if (direction === 'next') {
+                nextIndex = currentIndex + 1 >= items.length ? 0 : currentIndex + 1;
+            } else {
+                nextIndex = currentIndex - 1 < 0 ? items.length - 1 : currentIndex - 1;
+            }
+            activeItem.classList.remove('active');
+        }
+
+        if (items[nextIndex]) {
+            items[nextIndex].classList.add('active');
+            items[nextIndex].scrollIntoView({ block: 'nearest' });
+        }
     }
 
     async loadConfig() {
@@ -428,17 +528,10 @@ class UpdateMetaData {
     }
 
     setupEventListeners() {
-        // Listen for changes on the custom dropdown
+        
         if (this.elements.pechaOptionsContainer) {
-            this.elements.pechaOptionsContainer.addEventListener('customDropdownChange', () => {
+            this.elements.pechaSelect.addEventListener('change', () => {
                 this.handlePechaSelect();
-            });
-        }
-
-        if (this.elements.form) {
-            this.elements.form.addEventListener('submit', (e) => {
-                e.preventDefault();
-                this.handlePublish();
             });
         }
 
@@ -451,15 +544,14 @@ class UpdateMetaData {
     }
 
     async fetchPechaOptions() {
-        this.showSelectLoading(true);
-
+        console.log('UpdateMetaData: Fetching pecha options...');
         try {
+            this.toggleLoadingSpinner(true);
             let allPechas = [];
             let currentPage = 1;
             let hasMorePages = true;
-            const limit = 100; // Keep the same limit per request
-            
-            // Loop until we've fetched all pages
+            const limit = 100;
+
             while (hasMorePages) {
                 const response = await fetch(`${this.API_ENDPOINT}/metadata/filter/`, {
                     method: 'POST',
@@ -468,33 +560,48 @@ class UpdateMetaData {
                         'Content-Type': 'application/json'
                     },
                     body: JSON.stringify({
-                        "filter": {},
-                        "page": currentPage,
-                        "limit": limit
+                        page: currentPage,
+                        limit: limit
                     })
                 });
 
-                if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
 
                 const pechas = await response.json();
                 allPechas = allPechas.concat(pechas.metadata);
                 hasMorePages = pechas.metadata.length === limit;
                 currentPage++;
             }
-            
-            this.updatePechaOptions(allPechas);
+
+            this.populatePechaDropdown(allPechas);
         } catch (error) {
-            console.error('Error loading pecha options:', error);
-            this.showToast('Unable to load pecha options. Please try again later.', 'error');
+            console.error('UpdateMetaData: Error fetching pecha options:', error);
+            this.showToast('Failed to load pecha options. Please try again.', 'error');
         } finally {
-            this.showSelectLoading(false);
+            this.toggleLoadingSpinner(false);
         }
     }
 
-    updatePechaOptions(pechas) {
-        if (this.elements.pechaSelect) {
-            this.elements.pechaSelect.style.display = 'none';
-            new CustomSearchableDropdown(this.elements.pechaOptionsContainer, pechas, "selectedPecha");
+    populatePechaDropdown(pechas) {
+        if (!this.elements.pechaSelect) return;
+
+        this.elements.pechaSelect.innerHTML = '<option value="">Select pecha</option>';
+        pechas.forEach(pecha => {
+            const title = pecha.title[pecha.language] ?? pecha.title.bo;
+            const option = new Option(`${pecha.id} - ${title}`, pecha.id);
+            this.elements.pechaSelect.add(option.cloneNode(true));
+        });
+    }
+
+    toggleLoadingSpinner(isLoading) {
+        if (isLoading) {
+            this.elements.pechaLoadingSpinner.classList.add('active');
+            this.elements.pechaOptionsContainer.classList.add('loading');
+        } else {
+            this.elements.pechaLoadingSpinner.classList.remove('active');
+            this.elements.pechaOptionsContainer.classList.remove('loading');
         }
     }
 
@@ -512,10 +619,7 @@ class UpdateMetaData {
     }
 
     async handlePechaSelect() {
-        const selectedPecha = document.getElementById("selectedPecha");
-        if (!selectedPecha) return
-
-        const pechaId = selectedPecha.dataset.value;
+        const pechaId = this.elements.pechaSelect.value;
         if (!pechaId) {
             this.showInitialMetadataState();
             this.showTreeState(false);  
@@ -759,6 +863,8 @@ class UpdateMetaData {
     }
 
     toggleMetadata() {
+        console.log("toggle metadata")
+
         if (!this.elements.metadataContent || !this.elements.toggleIcon) return;
 
         this.isCollapsed = !this.isCollapsed;
