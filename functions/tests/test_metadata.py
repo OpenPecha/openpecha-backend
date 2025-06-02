@@ -370,6 +370,43 @@ class TestPutMetadata:
         assert "error" in data
         assert "Metadata with ID 'NONEXISTENT' not found" in data["error"]
 
+    @patch("api.metadata.Storage")
+    @patch("api.metadata.retrieve_pecha")
+    def test_put_metadata_preserve_existing_category(self, mock_retrieve_pecha, mock_storage, mock_db, client):
+        """Test that updating metadata with null category doesn't overwrite existing category."""
+        # Setup mocks
+        mock_pecha = MagicMock()
+        mock_retrieve_pecha.return_value = mock_pecha
+
+        # First, ensure the metadata has a category
+        pecha_id = "I12345678"
+        existing_metadata = mock_db.collection("metadata").document(pecha_id).get().to_dict()
+        existing_metadata["category"] = "existing-category"
+        mock_db.collection("metadata").document(pecha_id).set(existing_metadata)
+
+        # Update metadata with null category
+        update_data = {
+            "metadata": {
+                "title": {"en": "Book With Preserved Category"},
+                "long_title": {"en": "Book With Preserved Category"},
+                "author": {"en": "New Author"},
+                "document_id": "DOC001",
+                "language": "en",
+                "source": "New Source",
+                "category": None,  # Explicitly setting to None
+            }
+        }
+
+        response = client.put(f"/metadata/{pecha_id}", json=update_data)
+        assert response.status_code == 200
+
+        # Verify the category was preserved (not set to None)
+        updated_doc = mock_db.collection("metadata").document(pecha_id).get()
+        updated_data = updated_doc.to_dict()
+        assert (
+            updated_data["category"] == "existing-category"
+        ), "Existing category should be preserved when updating with null category"
+
 
 class TestSetCategory:
     """Tests for the PUT /metadata/<pecha_id>/category endpoint."""

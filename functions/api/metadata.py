@@ -79,8 +79,7 @@ def get_related_metadata(pecha_id):
 
 @metadata_bp.route("/<string:pecha_id>", methods=["PUT"], strict_slashes=False)
 def put_metadata(pecha_id: str):
-    if not Database().metadata_exists(pecha_id):
-        raise DataNotFound(f"Metadata with ID '{pecha_id}' not found")
+    stored_metadata = Database().get_metadata(pecha_id)
 
     data = request.get_json()
     metadata_json = data.get("metadata")
@@ -90,6 +89,9 @@ def put_metadata(pecha_id: str):
 
     metadata = MetadataModel.model_validate(metadata_json)
     logger.info("Parsed metadata: %s", metadata.model_dump_json())
+
+    if metadata.category is None:
+        metadata.category = stored_metadata.category
 
     pecha = retrieve_pecha(pecha_id)
     pecha.set_metadata(metadata.model_dump())
