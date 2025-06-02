@@ -1,7 +1,7 @@
 openapi: '3.1.0'
 info:
   title: OpenPecha API
-  version: '0.1.0'
+  version: '0.2.0'
 servers:
   - url: https://api-l25bgmwqoa-uc.a.run.app
     description: Development
@@ -39,10 +39,9 @@ paths:
                   type: string
                   format: json
                   description: JSON-encoded metadata describing the document. The structure follows [metadata schema](https://pecha-backend.web.app/schema/metadata).
-                annotation_type:
+                annotation_id:
                   type: string
-                  enum: [citation, sabche]
-                  description: The type of annotation to be created for this Pecha.
+                  description: The ID of the annotation to use when serializing the Pecha.
       responses:
         "200":
           description: Successfully published the text document.
@@ -169,11 +168,12 @@ paths:
             schema:
               type: object
               properties:
-                destination_url:
+                destination:
                   type: string
                   format: uri
                   description: The destination URL to publish the Pecha to.
-                  example: "https://staging.openpecha.org"
+                  examples:
+                    - "https://staging.openpecha.org"
                 base_language:
                   type: string
                   description: The base language of the Pecha.
@@ -181,7 +181,8 @@ paths:
                 annotation_id:
                   type: string
                   description: The ID of the annotation to use when serializing the Pecha.
-                  example: A12345678
+                  examples:
+                    - 1XNZ59w3zCKN26kfbgFk
                   pattern: '^A[0-9A-F]{8}$'
       responses:
         "200":
@@ -198,7 +199,11 @@ paths:
                   id:
                     type: string
                     examples: 
-                    - I857977C3
+                      - I857977C3
+                  title:
+                    type: string
+                    examples:
+                      - "Illuminating the Intent"
         "400":
           $ref: '#/components/responses/InvalidRequest'
         "500":
@@ -769,7 +774,7 @@ paths:
   /annotation/{pecha_id}:
       get:
         summary: Get annotations for a Pecha
-        description: Returns all annotations associated with the specified pecha ID
+        description: Returns all annotations associated with the specified pecha ID as an object with annotation IDs as keys
         tags:
           - Annotation
         parameters:
@@ -787,9 +792,9 @@ paths:
             content:
               application/json:
                 schema:
-                  type: array
-                  description: List of annotation objects
-                  items:
+                  type: object
+                  description: Dictionary of annotation objects with annotation IDs as keys
+                  additionalProperties:
                     $ref: "https://pecha-backend.web.app/schema/annotation"
           "404":
             $ref: '#/components/responses/NotFound'
@@ -829,13 +834,16 @@ paths:
                 properties:
                   message:
                     type: string
-                    example: "Annotation created successfully"
+                    examples:
+                      - "Annotation created successfully"
                   id:
                     type: string
-                    example: "A12345678"
+                    examples:
+                      - "A12345678"
                   title:
                     type: string
-                    example: "Test Annotation"
+                    examples:
+                      - "Test Annotation"
         "400":
           $ref: '#/components/responses/InvalidRequest'
         "404":
@@ -944,4 +952,3 @@ components:
                   - "There was an error on the server"
             required:
               - error
-  

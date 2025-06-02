@@ -14,7 +14,6 @@ from openpecha.pecha.layer import AnnotationType
 from openpecha.pecha.parsers.docx import DocxParser
 from openpecha.pecha.parsers.ocr import BdrcParser
 from openpecha.pecha.serializers import SerializerLogicHandler
-from openpecha.pecha.serializers.pecha_db import Serializer
 from storage import Storage
 from werkzeug.datastructures import FileStorage
 

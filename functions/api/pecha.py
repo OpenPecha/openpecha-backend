@@ -115,7 +115,7 @@ def publish(pecha_id: str):
         raise InvalidRequest("Missing destination URL")
 
     try:
-        temp_url = AnyUrl(destination)
+        AnyUrl(destination)
     except ValidationError as exc:
         raise InvalidRequest(f"Invalid destination URL '{destination}'") from exc
 
