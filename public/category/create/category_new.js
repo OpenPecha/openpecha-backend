@@ -32,6 +32,8 @@ class CategoryManager {
         this.options = [];
         this.isLoading = false;
         this.isMetadataCollapsed = false;
+        this.isRelatedPechasCollapsed = false;
+        this.selectedRelatedPechas = []; // Array to track selected related pecha IDs
 
         this.elements = {};
         this.init();
@@ -47,6 +49,7 @@ class CategoryManager {
             await this.fetchCategories();
             await this.fetchPechaOptions();
             this.showInitialMetadataState();
+            this.showInitialRelatedPechasState();
         } catch (error) {
             console.error('Initialization error:', error);
             this.showToast('Failed to initialize. Please refresh the page.', 'error');
@@ -81,6 +84,11 @@ class CategoryManager {
             metadataContent: document.querySelector('.metadata-content'),
             metadataHeader: document.querySelector('.metadata-header'),
             toggleBtn: document.querySelector('.toggle-btn'),
+
+            // Related Pechas elements
+            relatedPechasContent: document.querySelector('.related-pechas-content'),
+            relatedPechasHeader: document.querySelector('.related-pechas-header'),
+            relatedPechasToggleBtn: document.querySelector('.related-pechas-header .toggle-btn'),
 
             // Form elements
             destinationRadios: document.querySelectorAll('input[name="destination"]'),
@@ -120,6 +128,13 @@ class CategoryManager {
         if (this.elements.metadataHeader) {
             this.elements.metadataHeader.addEventListener('click', () => {
                 this.toggleMetadata();
+            });
+        }
+
+        // Related Pechas toggle
+        if (this.elements.relatedPechasHeader) {
+            this.elements.relatedPechasHeader.addEventListener('click', () => {
+                this.toggleRelatedPechas();
             });
         }
     }
@@ -559,17 +574,27 @@ class CategoryManager {
 
         if (!pechaId) {
             this.showInitialMetadataState();
+            this.showInitialRelatedPechasState();
             return;
         }
 
         try {
             this.showLoadingState();
-            const metadata = await this.fetchMetadata(pechaId);
+            this.showRelatedPechasLoadingState();
+
+            // Fetch both metadata and related pechas in parallel
+            const [metadata, relatedPechas] = await Promise.all([
+                this.fetchMetadata(pechaId),
+                this.fetchRelatedPechas(pechaId)
+            ]);
+
             this.displayMetadata(metadata);
+            this.displayRelatedPechas(relatedPechas, pechaId);
         } catch (error) {
             console.error('Error in handlePechaSelect:', error);
-            this.showToast('Unable to fetch metadata. Please try again later.', 'error');
+            this.showToast('Unable to fetch data. Please try again later.', 'error');
             this.showErrorState('Failed to load metadata. Please try again.');
+            this.showRelatedPechasErrorState('Failed to load related pechas. Please try again.');
         }
     }
 
@@ -814,6 +839,267 @@ class CategoryManager {
         this.elements.toggleBtn.classList.toggle('collapsed');
     }
 
+    toggleRelatedPechas() {
+        if (!this.elements.relatedPechasContent || !this.elements.relatedPechasToggleBtn) return;
+
+        this.isRelatedPechasCollapsed = !this.isRelatedPechasCollapsed;
+        this.elements.relatedPechasContent.classList.toggle('collapsed');
+        this.elements.relatedPechasToggleBtn.classList.toggle('collapsed');
+    }
+
+    async fetchRelatedPechas(pechaId) {
+        try {
+            console.log(`Fetching related pechas for: ${pechaId}`);
+            const response = await fetch(`${this.API_ENDPOINT}/metadata/${pechaId}/related?traversal=full_tree`, {
+                method: 'GET',
+                headers: { 'accept': 'application/json' }
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            console.log('Related pechas data:', data);
+            return data;
+        } catch (error) {
+            console.error('Error fetching related pechas:', error);
+            throw error;
+        }
+    }
+
+    showInitialRelatedPechasState() {
+        if (this.elements.relatedPechasContent) {
+            this.elements.relatedPechasContent.innerHTML = `
+                <div class="related-pechas-placeholder">
+                    <i class="fas fa-link"></i>
+                    <p>Select a pecha to view related texts</p>
+                </div>
+            `;
+        }
+    }
+
+    showRelatedPechasLoadingState() {
+        if (this.elements.relatedPechasContent) {
+            this.elements.relatedPechasContent.innerHTML = `
+                <div class="related-pechas-loading">
+                    <i class="fas fa-spinner fa-spin"></i>
+                    <p>Loading related pechas...</p>
+                </div>
+            `;
+        }
+    }
+
+    showRelatedPechasErrorState(message) {
+        if (this.elements.relatedPechasContent) {
+            this.elements.relatedPechasContent.innerHTML = `
+                <div class="related-pechas-error">
+                    <i class="fas fa-exclamation-triangle"></i>
+                    <p>${message}</p>
+                </div>
+            `;
+        }
+    }
+
+    displayRelatedPechas(relatedData, currentPechaId) {
+        if (!this.elements.relatedPechasContent) return;
+
+        // Check if we have related pechas data
+        if (!relatedData || !Array.isArray(relatedData) || relatedData.length === 0) {
+            this.elements.relatedPechasContent.innerHTML = `
+                <div class="related-pechas-empty">
+                    <i class="fas fa-unlink"></i>
+                    <p>No related pechas found</p>
+                </div>
+            `;
+            this.selectedRelatedPechas = [];
+            return;
+        }
+
+        // Filter out the current pecha from the related list
+        const filteredRelated = relatedData.filter(item => item.id !== currentPechaId);
+
+        if (filteredRelated.length === 0) {
+            this.elements.relatedPechasContent.innerHTML = `
+                <div class="related-pechas-empty">
+                    <i class="fas fa-unlink"></i>
+                    <p>No related pechas found</p>
+                </div>
+            `;
+            this.selectedRelatedPechas = [];
+            return;
+        }
+
+        // Initialize selected related pechas - select all by default
+        this.selectedRelatedPechas = filteredRelated.map(pecha => pecha.id);
+
+        // Create the related pechas list
+        let relatedPechasHTML = '<div class="related-pechas-list">';
+
+        // Add select all/none controls
+        relatedPechasHTML += `
+            <div class="related-pechas-controls">
+                <button class="btn-select-all" type="button">
+                    <i class="fas fa-check-square"></i> Select All
+                </button>
+                <button class="btn-select-none" type="button">
+                    <i class="fas fa-square"></i> Select None
+                </button>
+                <span class="selection-count">${filteredRelated.length} of ${filteredRelated.length} selected</span>
+            </div>
+        `;
+
+        filteredRelated.forEach(pecha => {
+            const title = pecha.title;
+            const relationship = this.determineRelationship(pecha);
+            const isSelected = this.selectedRelatedPechas.includes(pecha.id);
+
+            relatedPechasHTML += `
+                <div class="related-pecha-item ${isSelected ? 'selected' : ''}" data-pecha-id="${pecha.id}">
+                    <div class="related-pecha-checkbox">
+                        <i class="fas ${isSelected ? 'fa-check-square' : 'fa-square'}"></i>
+                    </div>
+                    <div class="related-pecha-content">
+                        <div class="related-pecha-header">
+                            <span class="related-pecha-id">${pecha.id}</span>
+                        </div>
+                        <div class="related-pecha-title">${this.escapeHtml(title)}</div>
+                        <div class="related-pecha-meta">
+                            ${relationship ? `<span class="related-pecha-relationship">${relationship}</span>` : ''}
+                        </div>
+                    </div>
+                </div>
+            `;
+        });
+
+        relatedPechasHTML += '</div>';
+        this.elements.relatedPechasContent.innerHTML = relatedPechasHTML;
+
+        // Add click event listeners to related pecha items and controls
+        this.setupRelatedPechaClickHandlers();
+    }
+
+    setupRelatedPechaClickHandlers() {
+        const relatedPechaItems = this.elements.relatedPechasContent.querySelectorAll('.related-pecha-item');
+        const selectAllBtn = this.elements.relatedPechasContent.querySelector('.btn-select-all');
+        const selectNoneBtn = this.elements.relatedPechasContent.querySelector('.btn-select-none');
+
+        relatedPechaItems.forEach(item => {
+            item.addEventListener('click', (e) => {
+                e.stopPropagation();
+                const pechaId = item.dataset.pechaId;
+                if (pechaId) {
+                    this.toggleRelatedPechaSelection(pechaId, item);
+                }
+            });
+        });
+
+        // Select All button
+        if (selectAllBtn) {
+            selectAllBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.selectAllRelatedPechas();
+            });
+        }
+
+        // Select None button
+        if (selectNoneBtn) {
+            selectNoneBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                this.selectNoneRelatedPechas();
+            });
+        }
+    }
+
+    toggleRelatedPechaSelection(pechaId, itemElement) {
+        const isCurrentlySelected = this.selectedRelatedPechas.includes(pechaId);
+
+        if (isCurrentlySelected) {
+            // Remove from selection
+            this.selectedRelatedPechas = this.selectedRelatedPechas.filter(id => id !== pechaId);
+            itemElement.classList.remove('selected');
+            const checkbox = itemElement.querySelector('.related-pecha-checkbox i');
+            if (checkbox) {
+                checkbox.className = 'fas fa-square';
+            }
+        } else {
+            // Add to selection
+            this.selectedRelatedPechas.push(pechaId);
+            itemElement.classList.add('selected');
+            const checkbox = itemElement.querySelector('.related-pecha-checkbox i');
+            if (checkbox) {
+                checkbox.className = 'fas fa-check-square';
+            }
+        }
+
+        this.updateSelectionCount();
+    }
+
+    selectAllRelatedPechas() {
+        const allItems = this.elements.relatedPechasContent.querySelectorAll('.related-pecha-item');
+
+        allItems.forEach(item => {
+            const pechaId = item.dataset.pechaId;
+            if (pechaId && !this.selectedRelatedPechas.includes(pechaId)) {
+                this.selectedRelatedPechas.push(pechaId);
+            }
+            item.classList.add('selected');
+            const checkbox = item.querySelector('.related-pecha-checkbox i');
+            if (checkbox) {
+                checkbox.className = 'fas fa-check-square';
+            }
+        });
+
+        this.updateSelectionCount();
+    }
+
+    selectNoneRelatedPechas() {
+        const allItems = this.elements.relatedPechasContent.querySelectorAll('.related-pecha-item');
+
+        this.selectedRelatedPechas = [];
+
+        allItems.forEach(item => {
+            item.classList.remove('selected');
+            const checkbox = item.querySelector('.related-pecha-checkbox i');
+            if (checkbox) {
+                checkbox.className = 'fas fa-square';
+            }
+        });
+
+        this.updateSelectionCount();
+    }
+
+    updateSelectionCount() {
+        const selectionCountElement = this.elements.relatedPechasContent.querySelector('.selection-count');
+        const totalItems = this.elements.relatedPechasContent.querySelectorAll('.related-pecha-item').length;
+
+        if (selectionCountElement) {
+            selectionCountElement.textContent = `${this.selectedRelatedPechas.length} of ${totalItems} selected`;
+        }
+    }
+
+    determineRelationship(pecha) {
+        // Determine relationship type based on pecha metadata
+        // This would depend on the actual API response structure
+        if (pecha.relationship_type) {
+            return pecha.relationship_type;
+        }
+
+        if (pecha.version_of) {
+            return 'Version of ' + pecha.version_of;
+        }
+
+        if (pecha.commentary_of) {
+            return 'Commentary of ' + pecha.commentary_of;
+        }
+
+        if (pecha.translation_of) {
+            return 'Translation of ' + pecha.translation_of;
+        }
+
+        return 'Root';
+    }
+
     async assignCategory() {
         try {
             // Check if a specific category node is selected from the tree
@@ -836,11 +1122,13 @@ class CategoryManager {
 
             const requestBody = {
                 category_id: this.selectedNode.id,
-                site: selectedDestination.value
+                site: selectedDestination.value,
+                relate_pecha: this.selectedRelatedPechas
             };
 
             console.log('Assigning category:', requestBody);
             console.log('Selected node:', this.selectedNode);
+            console.log('Selected related pechas:', this.selectedRelatedPechas);
             const response = await fetch(`${this.API_ENDPOINT}/metadata/${selectedPechaId}/category`, {
                 method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
@@ -851,7 +1139,11 @@ class CategoryManager {
 
             const data = await response.json();
             console.log('Category assigned successfully:', data);
-            this.showToast(`Category "${this.selectedNode.titleEn}" assigned successfully`, 'success');
+
+            const relatedPechasText = this.selectedRelatedPechas.length > 0
+                ? ` with ${this.selectedRelatedPechas.length} related pecha(s)`
+                : '';
+            this.showToast(`Category "${this.selectedNode.titleEn}" assigned successfully${relatedPechasText}`, 'success');
 
             // Refresh metadata to show the updated category
             this.handlePechaSelect();
