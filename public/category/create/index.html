@@ -1,104 +1,152 @@
 <!DOCTYPE html>
 <html lang="en">
-<head>
-    <meta charset="UTF-UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <meta name="description" content="Update pecha interface">
-    <link rel="shortcut icon" href="../../assets/favicon.ico" type="image/x-icon">
-    <title>Update Pecha</title>
-    <link rel="stylesheet" href="./category.css">
-    <link rel="stylesheet" href="../../toast_style.css">
-    <link rel="stylesheet" href="../../navbar.css">
-    <link rel="stylesheet" href="../../select.css">
-    <link rel="stylesheet" href="../../custom/select/select.css">
-    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
-
-</head>
-<body>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta name="description" content="Category Management Interface" />
+    <link
+      rel="shortcut icon"
+      href="../../assets/favicon.ico"
+      type="image/x-icon"
+    />
+    <title>Category Management</title>
+    <link rel="stylesheet" href="./category.css" />
+    <link rel="stylesheet" href="../../toast_style.css" />
+    <link rel="stylesheet" href="../../navbar.css" />
+    <link rel="stylesheet" href="../../select.css" />
+    <link rel="stylesheet" href="../../custom/select/select.css" />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css"
+    />
+  </head>
+  <body>
     <nav class="navbar">
-        <div class="nav-container">
-          <a href="/" class="nav-logo">
-            <img src="../../assets/logo.svg" alt="OpenPecha Logo" />
-            <span>OpenPecha</span>
-          </a>
-          <div class="nav-links">
-            <a href="/create/create" class="nav-link">Create</a>
-            <a href="/publish/publish" class="nav-link">Publish</a>
-            <a href="/update/" class="nav-link">Update</a>
-            <a href="/category/" class="nav-link active">Category</a>
-            <a href="/annotation/" class="nav-link">Annotation</a>
+      <div class="nav-container">
+        <a href="/" class="nav-logo">
+          <img src="../../assets/logo.svg" alt="OpenPecha Logo" />
+          <span>OpenPecha</span>
+        </a>
+        <div class="nav-links">
+          <a href="/create/create" class="nav-link">Create</a>
+          <a href="/publish/publish" class="nav-link">Publish</a>
+          <a href="/update/" class="nav-link">Update</a>
+          <a href="/category/" class="nav-link active">Category</a>
+          <a href="/annotation/" class="nav-link">Annotation</a>
+        </div>
+      </div>
+    </nav>
+
+    <div id="toastContainer" role="alert" aria-live="polite"></div>
+
+    <main class="category-page">
+      <div class="content-wrapper">
+        <!-- Left Panel - Pecha Selection and Metadata -->
+        <div class="panel pecha-panel">
+          <div class="panel-header">
+            <h2>Pecha Selection</h2>
+            <p>Select a pecha to view its metadata and assign categories</p>
+          </div>
+          <div class="panel-body">
+            <div class="pecha-selection">
+              <div class="form-field">
+                <label for="pechaOptions">Select Pecha</label>
+                <div class="select-search-container">
+                  <select id="pechaOptions">
+                    <option value="">Select a pecha...</option>
+                  </select>
+                  <div class="search-overlay">
+                    <input
+                      type="text"
+                      class="search-input"
+                      placeholder="Search pechas..."
+                    />
+                    <div class="search-results"></div>
+                  </div>
+                </div>
+                <div id="pechaLoadingSpinner">
+                  <i class="fas fa-spinner fa-spin"></i>
+                  <span>Loading pechas...</span>
+                </div>
+              </div>
+            </div>
+
+            <div class="metadata-section">
+              <div class="metadata-header">
+                <h3>Metadata</h3>
+                <button class="toggle-btn" aria-label="Toggle metadata">
+                  <i class="fas fa-chevron-down"></i>
+                </button>
+              </div>
+              <div class="metadata-content">
+                <div class="metadata-placeholder">
+                  <i class="fas fa-info-circle"></i>
+                  <p>Select a pecha to view its metadata</p>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
-      </nav>
-    <div id="toastContainer" role="alert" aria-live="polite"></div>
-    <main>
-        <form id="publishForm" novalidate>
-            <div class="form-group">
-                <label for="pechaOptions">Select a pecha</label>
-                <div id="pechaOptionsContainer" class="select-search-container">
-                    <select id="pechaOptions" required>
-                        <option value="">Select pecha</option>
-                    </select>
-                    <div class="search-overlay">
-                        <input
-                            type="text"
-                            class="search-input"
-                            placeholder="Search pechas..."
-                        />
-                        <div class="search-results"></div>
-                    </div>
-                </div>
-                <!-- Loading spinner for pecha dropdown -->
-                <div id="pechaLoadingSpinner" class="loading-spinner">
-                    <i class="fas fa-spinner fa-spin"></i> Loading pechas...
-                </div>
-            </div>
-        </form>
-        <div class="metadata-container">
-            <div class="metadata-header">
-                <h2>Metadata</h2>
-                <span class="toggle-icon">▼</span>
-            </div>
-            <div class="metadata-content">
-                <!-- Content will be dynamically inserted here -->
-            </div>
-        </div>
 
-        <!-- Category Tree Structure -->
-        <div class="tree-container">
-            <div class="category-container">
-                <div class="form-field">
-                    <label for="selectedPecha">Select Parent Category</label>
-                    <div class="category-selector" id="categorySelector">
-                    </div>
-                </div>
-                <div class="category-tree">
-                    <div class="selected-category">Select Destination Category</div>
-                    <div id="categoryTree">
-                    </div>
-                    <div class="form-field">
-                        <label>Select Destination</label>
-                        <div class="radio-group">
-                            <div class="radio-option">
-                                <input type="radio" id="pecha-org" name="destination" value="pecha.org" checked>
-                                <label for="pecha-org">pecha.org</label>
-                            </div>
-                            <div class="radio-option">
-                                <input type="radio" id="fodian-org" name="destination" value="fodian.org">
-                                <label for="fodian-org">fodian.org</label>
-                            </div>
-                        </div>
-                    </div>
-                    <button id="addCategory" class="btn btn-primary">Submit Category</button>
-                </div>
+        <!-- Right Panel - Category Management -->
+        <div class="panel category-panel">
+          <div class="panel-header">
+            <h2>Category Management</h2>
+            <p>Select and manage categories for the selected pecha</p>
+          </div>
+          <div class="panel-body">
+            <div class="category-selection">
+              <div class="form-field">
+                <label for="categorySelector">Parent Category</label>
+                <div class="category-selector" id="categorySelector"></div>
+              </div>
             </div>
-        </div>
 
-        <!-- Scripts -->
-        <script src="../../config.js"></script>
-        <script src="./category_new.js"></script>
-        <script defer src="../../custom/select/index.js"></script>
-        
+            <div class="category-tree-section">
+              <div class="selected-category">
+                Select a category to view its structure
+              </div>
+              <div id="categoryTree"></div>
+            </div>
+
+            <div class="destination-section">
+              <div class="form-field">
+                <label>Destination</label>
+                <div class="radio-group">
+                  <div class="radio-option">
+                    <input
+                      type="radio"
+                      id="pecha-org"
+                      name="destination"
+                      value="pecha.org"
+                      checked
+                    />
+                    <label for="pecha-org">pecha.org</label>
+                  </div>
+                  <div class="radio-option">
+                    <input
+                      type="radio"
+                      id="fodian-org"
+                      name="destination"
+                      value="fodian.org"
+                    />
+                    <label for="fodian-org">fodian.org</label>
+                  </div>
+                </div>
+              </div>
+              <button id="addCategory" class="btn btn-primary">
+                <i class="fas fa-plus"></i>
+                Submit Category
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
     </main>
-</body>
+
+    <!-- Scripts -->
+    <script src="../../config.js"></script>
+    <script src="./category_new.js"></script>
+    <script defer src="../../custom/select/index.js"></script>
+  </body>
 </html>
