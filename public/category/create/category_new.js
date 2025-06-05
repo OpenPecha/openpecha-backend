@@ -46,8 +46,8 @@ class CategoryManager {
             this.setupElements();
             this.setupEventListeners();
             this.initializeSearchUI();
-            await this.fetchCategories();
             await this.fetchPechaOptions();
+            await this.fetchCategories();
             this.showInitialMetadataState();
             this.showInitialRelatedPechasState();
         } catch (error) {
