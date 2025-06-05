@@ -3,6 +3,7 @@ class YamlUploadHandler {
         this.FILE_SIZE_UNITS = ['Bytes', 'KB', 'MB', 'GB'];
         this.TOAST_DURATION = 3000;
         this.selectedFile = null;
+        this.selectedDestination = 'pecha'; // Default destination
         
         // Cache DOM elements
         this.elements = {
@@ -14,7 +15,8 @@ class YamlUploadHandler {
             detailsContent: document.getElementById('details-content'),
             clearButton: document.getElementById('clear-button'),
             uploadButton: document.getElementById('upload-button'),
-            toast: document.getElementById('toast')
+            toast: document.getElementById('toast'),
+            destinationOptions: document.querySelectorAll('input[name="destination"]')
         };
         
         this.initialize();
@@ -48,6 +50,15 @@ class YamlUploadHandler {
         this.elements.fileInput.addEventListener('change', () => this.handleFiles(this.elements.fileInput.files));
         this.elements.clearButton.addEventListener('click', this.clearSelection.bind(this));
         this.elements.uploadButton.addEventListener('click', this.uploadFile.bind(this));
+        
+        // Destination selection
+        this.elements.destinationOptions.forEach(option => {
+            option.addEventListener('change', (e) => {
+                this.selectedDestination = e.target.value;
+                console.log(`Destination selected: ${this.selectedDestination}`);
+                this.updateFileDetailsWithDestination();
+            });
+        });
     }
     
     handleDragOver(e) {
@@ -111,7 +122,8 @@ class YamlUploadHandler {
             { label: 'File Name', value: file.name },
             { label: 'File Type', value: file.type || 'text/yaml' },
             { label: 'File Size', value: this.formatFileSize(file.size) },
-            { label: 'Last Modified', value: new Date(file.lastModified).toLocaleString() }
+            { label: 'Last Modified', value: new Date(file.lastModified).toLocaleString() },
+            { label: 'Destination', value: this.getDestinationDisplayName(), id: 'destination-detail' }
         ];
         
         const fragment = document.createDocumentFragment();
@@ -124,12 +136,33 @@ class YamlUploadHandler {
             const valueElement = document.createElement('div');
             valueElement.className = 'value';
             valueElement.textContent = detail.value;
+            if (detail.id) {
+                valueElement.id = detail.id;
+            }
             
             fragment.appendChild(labelElement);
             fragment.appendChild(valueElement);
         });
         
         this.elements.detailsContent.appendChild(fragment);
+    }
+    
+    /**
+     * Updates the file details display with the current destination
+     */
+    updateFileDetailsWithDestination() {
+        const destinationElement = document.getElementById('destination-detail');
+        if (destinationElement) {
+            destinationElement.textContent = this.getDestinationDisplayName();
+        }
+    }
+    
+    /**
+     * Gets a user-friendly display name for the selected destination
+     * @returns {string} Display name for the destination
+     */
+    getDestinationDisplayName() {
+        return this.selectedDestination === 'fodian' ? 'fodian.org (Chinese texts)' : 'pecha.org (Tibetan texts)';
     }
     
     formatFileSize(bytes) {
@@ -155,9 +188,20 @@ class YamlUploadHandler {
         
         const formData = new FormData();
         formData.append('file', this.selectedFile);
+        formData.append('destination', this.selectedDestination);
+        
+        // Add destination to file details display
+        this.updateFileDetailsWithDestination();
+        
         this.elements.uploadButton.disabled = true;
         this.elements.uploadButton.textContent = 'Uploading...';
-        fetch(`${this.API_ENDPOINT}/categories`, {
+        
+        // Get the appropriate endpoint based on destination
+        const endpoint = this.selectedDestination === 'fodian' 
+            ? `${this.API_ENDPOINT}/categories/fodian` 
+            : `${this.API_ENDPOINT}/categories`;
+            
+        fetch(endpoint, {
             method: 'PUT',
             body: formData
         })

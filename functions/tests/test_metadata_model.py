@@ -30,6 +30,23 @@ class TestValidMetadataModel:
         assert model.long_title["en"] == "Sample Long Title"
         assert model.language == "en"
         assert model.source_type == SourceType.DOCX
+        
+    def test_valid_metadata_with_three_char_language(self):
+        """Test that metadata with 3-character language code is valid."""
+        input_data = {
+            "author": {"zh": "作者"},
+            "document_id": "DOC789",
+            "source_url": "https://example.org",
+            "title": {"zh": "中文标题"},
+            "long_title": {"zh": "中文长标题"},
+            "language": "lzh",  # Literary Chinese
+        }
+        
+        model = MetadataModel(**input_data)
+        assert model.language == "lzh"
+        assert model.title["zh"] == "中文标题"
+        assert model.author["zh"] == "作者"
+        assert model.long_title["zh"] == "中文长标题"
 
     def test_valid_docx_metadata_with_source(self):
         """Test valid metadata with source instead of source_url."""
@@ -473,7 +490,7 @@ class TestInvalidMetadataModel:
                     "source": "Source",
                     "title": {"en": "Title", "bo": "འགོ་བརྗོད།"},
                     "long_title": {"en": "Long Title"},
-                    "language": "eng",  # Invalid format, should be 2 chars like "en"
+                    "language": "english",  # Invalid format, should be 2 chars like "en"
                 }
             )
         assert "pattern" in str(excinfo.value)

@@ -317,28 +317,80 @@ body {
   overflow: hidden;
 }
 
+/* Adjust annotation item layout */
 .annotation-item {
-  padding: 10px 14px;
-  margin-bottom: 10px;
-  background-color: #fff;
-  border-left: 3px solid #4a90e2;
-  border-radius: 4px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  transition: transform 0.2s, box-shadow 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    margin-bottom: 10px;
+    background-color: #fff;
+    border-left: 3px solid #4a90e2;
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: transform 0.2s, box-shadow 0.2s;
+}
+
+.annotation-item .title-container {
+    flex: 1;
+    margin-right: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+}
+
+.annotation-item .annotation-title {
+    font-weight: 500;
+    color: #333;
+}
+
+.annotation-item .annotation-type {
+    margin-right: 10px;
+    white-space: nowrap;
+    font-size: 12px;
+    color: #666;
+    font-style: italic;
 }
 
 .annotation-item:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
 }
 
-.title-container {
-  display: flex;
-  align-items: center;
-  gap: 10px;
+/* Edit button styling */
+.edit-button {
+    background-color: #4A90E2;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 10px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.edit-button i {
+    margin-right: 5px;
+    font-size: 12px;
+}
+
+.edit-button:hover {
+    background-color: #357ABD;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+.edit-button:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 .index-badge {
@@ -352,17 +404,6 @@ body {
   border-radius: 50%;
   font-size: 12px;
   font-weight: bold;
-}
-
-.annotation-item .annotation-title {
-  font-weight: 500;
-  color: #333;
-}
-
-.annotation-item .annotation-type {
-  font-size: 12px;
-  color: #666;
-  font-style: italic;
 }
 
 .no-annotations {
@@ -448,3 +489,8 @@ body {
 .select-search-container.loading {
   display: none;
 }
+/*
+Edit
+button
+styling
+*/

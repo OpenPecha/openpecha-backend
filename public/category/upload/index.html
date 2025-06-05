@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link rel="shortcut icon" href="../../assets/favicon.ico" type="image/x-icon">
     <title>Manage Category</title>
     <link rel="stylesheet" href="./style.css">
     <link rel="stylesheet" href="../../navbar.css" />
@@ -25,6 +26,21 @@
     </nav>
     <div class="container">
         <h1>YAML File Upload</h1>
+        
+        <div class="destination-selector">
+            <div class="destination-options">
+                <label class="destination-option">
+                    <input type="radio" name="destination" value="pecha.org" checked>
+                    <span>pecha.org (Tibetan)</span>
+                </label>
+                
+                <label class="destination-option">
+                    <input type="radio" name="destination" value="fodian.org">
+                    <span>fodian.org (Chinese)</span>
+                </label>
+            </div>
+        </div>
+        
         <div class="upload-container" id="upload-container">
             <div class="upload-area" id="upload-area">
                 <div class="upload-icon">

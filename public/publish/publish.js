@@ -110,10 +110,10 @@ class UpdateMetaData {
     populateSearchResults(select, resultsContainer, searchTerm) {
         resultsContainer.innerHTML = '';
         const options = Array.from(select.options).slice(1); // Skip the placeholder
-        const lowercaseSearchTerm = searchTerm.toLowerCase();
+        const lowercaseSearchTerm = searchTerm.trim().toLowerCase();
 
         options.forEach(option => {
-            if (!searchTerm || option.text.toLowerCase().includes(lowercaseSearchTerm)) {
+            if (!searchTerm.trim() || option.text.toLowerCase().includes(lowercaseSearchTerm)) {
                 const item = document.createElement('div');
                 item.className = 'search-item';
                 item.textContent = option.text;
@@ -273,16 +273,20 @@ class UpdateMetaData {
             this.elements.annotationAlignmentSelect.remove(1);
         }
 
-        // if (annotations.length === 0) {
-        //     this.elements.annotationAlignmentGroup.style.display = 'none';
-        //     return;
-        // }
-
         annotations.forEach(annotation => {
             const option = new Option(annotation.title, annotation.id);
             this.elements.annotationAlignmentSelect.add(option.cloneNode(true));
         });
+
+        // If only one annotation, select it
+        if (annotations.length === 1) {
+            this.elements.annotationAlignmentSelect.value = annotations[0].id;
+        } else {
+            // Optionally, reset to placeholder if multiple or none
+            this.elements.annotationAlignmentSelect.selectedIndex = 0;
+        }
     }
+    
 
     toggleAnnotationLoadingSpinner(isLoading) {
         if (isLoading) {
@@ -620,7 +624,7 @@ class UpdateMetaData {
                 headers: {
                     'Content-Type': 'application/json'
                 },
-                body: JSON.stringify({ destination_url: publishDestination, annotation_id, base_language })
+                body: JSON.stringify({ destination: publishDestination, annotation_id, base_language })
             });
             if (!response.ok) {
                 console.log(response);
