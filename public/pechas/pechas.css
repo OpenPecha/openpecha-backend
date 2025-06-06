@@ -117,6 +117,25 @@
     color: var(--text-primary);
 }
 
+.filter-constraint-notice {
+    background-color: #fef3c7;
+    border: 1px solid #fbbf24;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.filter-constraint-notice p {
+    margin: 0;
+    color: #92400e;
+    font-size: 0.875rem;
+    line-height: 1.4;
+}
+
+.filter-constraint-notice strong {
+    color: #78350f;
+}
+
 .filter-section {
     margin-bottom: 1.5rem;
 }
