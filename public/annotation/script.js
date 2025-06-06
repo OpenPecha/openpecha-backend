@@ -11,7 +11,7 @@ class AnnotationForm {
         this.toastContainer = document.getElementById('toastContainer');
         this.pechaLoadingSpinner = document.getElementById('pechaLoadingSpinner');
         this.formLoadingSpinner = document.getElementById('formLoadingSpinner');
-        
+
         // Existing annotations container elements
         this.existingAnnotationsContainer = document.getElementById('existingAnnotationsContainer');
         this.existingAnnotationsList = document.getElementById('existingAnnotationsList');
@@ -48,35 +48,35 @@ class AnnotationForm {
         this.form.addEventListener('submit', this.handleSubmit);
         this.pechaSelect.addEventListener('change', (e) => this.onPechaSelect(e.target.value));
         this.annotationSelect.addEventListener('change', this.handleAnnotationChange);
-        
+
         // Add event listener for the toggle annotations button
         const toggleBtn = document.getElementById('toggleAnnotationsBtn');
         if (toggleBtn) {
             toggleBtn.addEventListener('click', this.toggleAnnotations);
         }
-        
+
         // Add event listener for the entire header to toggle annotations
         const annotationsHeader = document.querySelector('.annotations-header');
         if (annotationsHeader) {
             annotationsHeader.addEventListener('click', this.toggleAnnotations);
         }
     }
-    
+
     // Method to toggle the visibility of the annotations list
     toggleAnnotations(event) {
         // Prevent event propagation if the click is on the toggle button
         if (event && event.target && (event.target.id === 'toggleAnnotationsBtn' || event.target.id === 'toggleIcon')) {
             event.stopPropagation();
         }
-        
+
         const annotationsList = this.existingAnnotationsList;
         const toggleBtn = document.getElementById('toggleAnnotationsBtn');
         const toggleIcon = document.getElementById('toggleIcon');
-        
+
         if (annotationsList && toggleBtn && toggleIcon) {
             annotationsList.classList.toggle('collapsed');
             toggleBtn.classList.toggle('collapsed');
-            
+
             // Store the collapsed state in local storage for persistence
             const isCollapsed = annotationsList.classList.contains('collapsed');
             localStorage.setItem('annotationsCollapsed', isCollapsed);
@@ -203,7 +203,7 @@ class AnnotationForm {
         if (isLoading) {
             // Show loading spinner
             this.pechaLoadingSpinner.classList.add('active');
-            
+
             // Hide dropdown containers while loading
             this.searchContainers.forEach(container => {
                 container.classList.add('loading');
@@ -211,7 +211,7 @@ class AnnotationForm {
         } else {
             // Hide loading spinner
             this.pechaLoadingSpinner.classList.remove('active');
-            
+
             // Show dropdown containers after loading
             this.searchContainers.forEach(container => {
                 container.classList.remove('loading');
@@ -236,8 +236,8 @@ class AnnotationForm {
         Object.entries(fields).forEach(([fieldId, shouldShow]) => {
             document.getElementById(fieldId).style.display = shouldShow ? 'block' : 'none';
         });
-        
-        if(isCommentaryOrTranslation && isAlignment) {
+
+        if (isCommentaryOrTranslation && isAlignment) {
             // Set the label dynamically based on relationship type
             if ('translation_of' in this.metadata && this.metadata.translation_of !== null) {
                 this.pechaDropdownLabel.textContent = 'Translation of';
@@ -255,15 +255,15 @@ class AnnotationForm {
                 option.value = annotation.path;
                 option.textContent = annotation.title;
                 this.parentAnnotation.appendChild(option);
-            });            
+            });
         }
-        
+
         // Reset validation state
         this.form.classList.remove('was-validated');
     }
 
 
-    async fetchMetadata(pechaId){
+    async fetchMetadata(pechaId) {
         try {
             // Await the fetch call to get the response
             const response = await fetch(`${this.API_ENDPOINT}/metadata/${pechaId}`, {
@@ -278,7 +278,7 @@ class AnnotationForm {
             }
 
             const metadata = await response.json();
-            console.log("meta ",metadata)
+            console.log("meta ", metadata)
             return metadata;
         } catch (error) {
             console.error('Error fetching metadata:', error);
@@ -289,27 +289,27 @@ class AnnotationForm {
 
     async getAnnotation(pechaId) {
         const url = `${this.API_ENDPOINT}/annotation/${pechaId}`;
-      
+
         try {
-          const response = await fetch(url, {
-            method: 'GET',
-            headers: {
-              'accept': 'application/json',
-            },
-          });
-      
-          if (!response.ok) {
-            throw new Error(`HTTP error! status: ${response.status}`);
-          }
-      
-          const data = await response.json();
-          console.log(data); // You can modify this to return data instead of logging
-          return data;
+            const response = await fetch(url, {
+                method: 'GET',
+                headers: {
+                    'accept': 'application/json',
+                },
+            });
+
+            if (!response.ok) {
+                throw new Error(`HTTP error! status: ${response.status}`);
+            }
+
+            const data = await response.json();
+            console.log(data); // You can modify this to return data instead of logging
+            return data;
         } catch (error) {
-          console.error('Error fetching annotation:', error);
-          throw error;
+            console.error('Error fetching annotation:', error);
+            throw error;
         }
-      }
+    }
 
     extractAnnotations(data) {
         return Object.entries(data).map(([id, details]) => ({
@@ -318,30 +318,30 @@ class AnnotationForm {
             type: details.type || 'no type'
         }));
     }
-    
+
     // Display existing annotations for the selected pecha
     displayExistingAnnotations(annotations) {
         // Clear previous annotations
         this.existingAnnotationsList.innerHTML = '';
-        
+
         // If there are no annotations or empty object, show a message
         if (!annotations || Object.keys(annotations).length === 0) {
             this.existingAnnotationsContainer.style.display = 'none';
             return;
         }
-        
+
         // Show the container
         this.existingAnnotationsContainer.style.display = 'block';
-        
+
         // Extract and format annotations for display
         const annotationItems = this.extractAnnotations(annotations);
-        
+
         // Update the header to include the count of annotations
         const annotationsLabel = document.querySelector('.annotations-header label');
         if (annotationsLabel) {
             annotationsLabel.textContent = `Existing Annotations (${annotationItems.length})`;
         }
-        
+
         // Create and append annotation items to the list
         if (annotationItems.length === 0) {
             const noAnnotationsElem = document.createElement('div');
@@ -352,40 +352,40 @@ class AnnotationForm {
             annotationItems.forEach((item, index) => {
                 const annotationElem = document.createElement('div');
                 annotationElem.className = 'annotation-item';
-                
+
                 // Create a container for the title and index
                 const titleContainer = document.createElement('div');
                 titleContainer.className = 'title-container';
-                
+
                 // Add index badge
                 const indexBadge = document.createElement('span');
                 indexBadge.className = 'index-badge';
                 indexBadge.textContent = index + 1;
                 titleContainer.appendChild(indexBadge);
-                
+
                 // Add title
                 const titleSpan = document.createElement('span');
                 titleSpan.className = 'annotation-title';
                 titleSpan.textContent = item.title;
                 titleContainer.appendChild(titleSpan);
-                
+
                 // Add type
                 const typeSpan = document.createElement('span');
                 typeSpan.className = 'annotation-type';
                 typeSpan.textContent = ` (${item.type})`;
-                
+
                 annotationElem.appendChild(titleContainer);
                 annotationElem.appendChild(typeSpan);
-                
+
                 this.existingAnnotationsList.appendChild(annotationElem);
             });
         }
-        
+
         // Apply saved collapsed state if it exists
         const isCollapsed = localStorage.getItem('annotationsCollapsed') === 'true';
         const toggleBtn = document.getElementById('toggleAnnotationsBtn');
         const toggleIcon = document.getElementById('toggleIcon');
-        
+
         if (isCollapsed) {
             this.existingAnnotationsList.classList.add('collapsed');
             if (toggleBtn) toggleBtn.classList.add('collapsed');
@@ -407,33 +407,33 @@ class AnnotationForm {
             // Fetch metadata for the selected pecha
             this.metadata = await this.fetchMetadata(pechaId);
             console.log("metadata fetched : ", this.metadata);
-            
+
             // Show annotations container and loading spinner
             this.existingAnnotationsContainer.style.display = 'block';
             this.existingAnnotationsList.innerHTML = '';
             this.annotationsLoadingSpinner.style.display = 'flex';
-            
+
             // Fetch existing annotations for the selected pecha
             const existingAnnotations = await this.getAnnotation(pechaId);
-            
+
             // Hide loading spinner
             this.annotationsLoadingSpinner.style.display = 'none';
-            
+
             // Display existing annotations
             this.displayExistingAnnotations(existingAnnotations);
-            
+
             // Handle commentary/translation relationship annotations
-            const isCommentaryOrTranslation = ('translation_of' in this.metadata && this.metadata.translation_of !== null) || 
-                                          ('commentary_of' in this.metadata && this.metadata.commentary_of !== null);
+            const isCommentaryOrTranslation = ('translation_of' in this.metadata && this.metadata.translation_of !== null) ||
+                ('commentary_of' in this.metadata && this.metadata.commentary_of !== null);
             const isAlignment = this.annotationSelect?.value === 'alignment';
-            
+
             if (isCommentaryOrTranslation && isAlignment) {
                 const parentPechaId = this.metadata.commentary_of ?? this.metadata.translation_of;
                 const annotations = await this.getAnnotation(parentPechaId);
                 this.annotations = this.extractAnnotations(annotations);
                 console.log("annotation:", this.annotations);
             }
-            
+
             this.toggleConditionalFields();
         } catch (error) {
             console.error('Error in onPechaSelect:', error);
@@ -452,17 +452,17 @@ class AnnotationForm {
         try {
             // Show loading spinner
             this.toggleLoadingSpinner(true);
-            
+
             let allPechas = [];
             let currentPage = 1;
             let hasMorePages = true;
             const limit = 100; // Keep the same limit per request
-            
+
             // Loop until we've fetched all pages
             while (hasMorePages) {
                 body.page = currentPage;
                 body.limit = limit;
-                
+
                 const response = await fetch(`${this.API_ENDPOINT}/metadata/filter/`, {
                     method: 'POST',
                     headers: {
@@ -479,7 +479,7 @@ class AnnotationForm {
                 hasMorePages = pechas.metadata.length === limit;
                 currentPage++;
             }
-            
+
             // Hide loading spinner
             this.toggleLoadingSpinner(false);
             return allPechas;
@@ -547,9 +547,9 @@ class AnnotationForm {
 
         // Handle pecha_aligned_to based on whether it's a root pecha or not
         formattedData.aligned_to = data.pechaDropdown ? {
-                pecha_id: data.pechaDropdown,
-                alignment_id: data.parentAnnotation || null
-            } : null;
+            pecha_id: data.pechaDropdown,
+            alignment_id: data.parentAnnotation || null
+        } : null;
 
         return formattedData;
     }
@@ -663,13 +663,13 @@ class AnnotationForm {
                 return false;
             }
         }
-        
+
         if (!data.title) {
             this.highlightError(this.annotationTitle);
             this.showToast('Annotation Title is required', 'error');
             return false;
         }
-        
+
         if (!data.document_id) {
             this.highlightError(this.googleDocsUrl);
             this.showToast('Google Docs URL is required', 'error');
