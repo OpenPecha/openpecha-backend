@@ -1114,36 +1114,44 @@ class CategoryManager {
                 return;
             }
 
-            const selectedDestination = document.querySelector('input[name="destination"]:checked');
-            if (!selectedDestination) {
-                this.showToast('Please select a destination', 'error');
-                return;
-            }
-
+            // Prepare the request body with just the category ID
             const requestBody = {
-                category_id: this.selectedNode.id,
-                site: selectedDestination.value,
-                relate_pecha: this.selectedRelatedPechas
+                category_id: this.selectedNode.id
             };
 
             console.log('Assigning category:', requestBody);
             console.log('Selected node:', this.selectedNode);
             console.log('Selected related pechas:', this.selectedRelatedPechas);
-            const response = await fetch(`${this.API_ENDPOINT}/metadata/${selectedPechaId}/category`, {
-                method: 'PUT',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify(requestBody)
-            });
+            // Create an array of promises for all category assignments
+            const assignmentPromises = [
+                // Assign category to main pecha
+                fetch(`${this.API_ENDPOINT}/metadata/${selectedPechaId}/category`, {
+                    method: 'PUT',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(requestBody)
+                })
+            ];
 
-            if (!response.ok) throw new Error('Network response was not ok');
+            // Add promises for related pechas if any are selected
+            if (this.selectedRelatedPechas.length > 0) {
+                this.selectedRelatedPechas.forEach(relatedPechaId => {
+                    assignmentPromises.push(
+                        fetch(`${this.API_ENDPOINT}/metadata/${relatedPechaId}/category`, {
+                            method: 'PUT',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify(requestBody)
+                        })
+                    );
+                });
+            }
 
-            const data = await response.json();
-            console.log('Category assigned successfully:', data);
+            // Execute all assignments in parallel
+            await Promise.all(assignmentPromises);
 
             const relatedPechasText = this.selectedRelatedPechas.length > 0
-                ? ` with ${this.selectedRelatedPechas.length} related pecha(s)`
+                ? ` and ${this.selectedRelatedPechas.length} related pecha(s)`
                 : '';
-            this.showToast(`Category "${this.selectedNode.titleEn}" assigned successfully${relatedPechasText}`, 'success');
+            this.showToast(`Category "${this.selectedNode.titleEn}" assigned to selected pecha${relatedPechasText}`, 'success');
 
             // Refresh metadata to show the updated category
             this.handlePechaSelect();
