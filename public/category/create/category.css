@@ -658,15 +658,6 @@ body {
     text-align: center;
 }
 
-.destination-section {
-    border-top: 2px solid var(--border-color);
-    padding-top: var(--space-xl);
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-end;
-    gap: var(--space-xl);
-}
-
 /* Form elements */
 .form-field {
     margin-bottom: var(--space-lg);
