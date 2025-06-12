@@ -591,8 +591,6 @@ class AnnotationForm {
         if (btnSpinner) btnSpinner.style.display = 'inline-block';
         try {
             const data = this.getFormData();
-            console.log("data ", data);
-            return
             const isValid = this.validateForm(data);
             if (!isValid) {
                 if (submitBtn) submitBtn.disabled = false;
