@@ -1,7 +1,7 @@
 class AnnotationForm {
     constructor() {
         this.form = document.getElementById('annotationForm');
-        this.annotationSelect = document.getElementById('annotation');
+        this.annotationTypeInputs = document.querySelectorAll('input[name="annotation_type"]');
         this.pechaSelect = document.getElementById('pecha');
         this.pechaDropdownLabel = document.getElementById('pechaDropdownLabel');
         this.pechaDropdown = document.getElementById('pechaDropdown');
@@ -47,7 +47,9 @@ class AnnotationForm {
     setupEventListeners() {
         this.form.addEventListener('submit', this.handleSubmit);
         this.pechaSelect.addEventListener('change', (e) => this.onPechaSelect(e.target.value));
-        this.annotationSelect.addEventListener('change', this.handleAnnotationChange);
+        this.annotationTypeInputs.forEach(input => {
+            input.addEventListener('change', this.handleAnnotationChange);
+        });
 
         // Add event listener for the toggle annotations button
         const toggleBtn = document.getElementById('toggleAnnotationsBtn');
@@ -222,7 +224,8 @@ class AnnotationForm {
     async toggleConditionalFields() {
         const isCommentaryOrTranslation = ('translation_of' in this.metadata && this.metadata.translation_of !== null) || ('commentary_of' in this.metadata && this.metadata.commentary_of !== null);
 
-        const isAlignment = this.annotationSelect?.value === 'alignment';
+        const selectedAnnotationType = document.querySelector('input[name="annotation_type"]:checked');
+        const isAlignment = selectedAnnotationType?.value === 'alignment';
 
         if (!isCommentaryOrTranslation || !isAlignment) {
             this.pechaDropdown.value = "";
@@ -250,6 +253,9 @@ class AnnotationForm {
             }
             this.parentAnnotation.innerHTML = '<option value="">Select annotation</option>';
             this.parentAnnotation.remove(1)
+            const parentPechaId = this.metadata.commentary_of ?? this.metadata.translation_of;
+            const annotations = await this.getAnnotation(parentPechaId);
+            this.annotations = this.extractAnnotations(annotations);
             this.annotations.forEach(annotation => {
                 const option = document.createElement('option');
                 option.value = annotation.path;
@@ -425,11 +431,12 @@ class AnnotationForm {
             // Handle commentary/translation relationship annotations
             const isCommentaryOrTranslation = ('translation_of' in this.metadata && this.metadata.translation_of !== null) ||
                 ('commentary_of' in this.metadata && this.metadata.commentary_of !== null);
-            const isAlignment = this.annotationSelect?.value === 'alignment';
+            const isAlignment = this.annotationTypeInputs[0].checked;
 
             if (isCommentaryOrTranslation && isAlignment) {
                 const parentPechaId = this.metadata.commentary_of ?? this.metadata.translation_of;
                 const annotations = await this.getAnnotation(parentPechaId);
+                console.log("annotations:::", annotations);
                 this.annotations = this.extractAnnotations(annotations);
                 console.log("annotation:", this.annotations);
             }
@@ -584,6 +591,8 @@ class AnnotationForm {
         if (btnSpinner) btnSpinner.style.display = 'inline-block';
         try {
             const data = this.getFormData();
+            console.log("data ", data);
+            return
             const isValid = this.validateForm(data);
             if (!isValid) {
                 if (submitBtn) submitBtn.disabled = false;
@@ -620,73 +629,123 @@ class AnnotationForm {
         return formData;
     }
 
-    showToast(message, type = 'info') {
-        const toast = document.createElement('div');
-        toast.className = `toast ${type}`;
-        toast.innerHTML = `${this.getToastIcon(type)} ${message}`;
-        this.toastContainer.appendChild(toast);
-
-        setTimeout(() => {
-            toast.remove();
-        }, 3000);
-    }
-
-    getToastIcon(type) {
-        switch (type) {
-            case 'success':
-                return '<i class="fas fa-check-circle"></i>';
-            case 'error':
-                return '<i class="fas fa-exclamation-circle"></i>';
-            default:
-                return '<i class="fas fa-info-circle"></i>';
+    showError(field, message) {
+        const formGroup = field.closest('.form-group');
+        const errorElement = formGroup.querySelector('.error-message');
+        formGroup.classList.add('error');
+        if (errorElement) {
+            errorElement.textContent = message;
         }
     }
 
-    highlightError(field) {
-        field.classList.add('error');
+    clearError(field) {
+        const formGroup = field.closest('.form-group');
+        const errorElement = formGroup.querySelector('.error-message');
+        formGroup.classList.remove('error');
+        if (errorElement) {
+            errorElement.textContent = '';
+        }
+    }
+
+    clearAllErrors() {
+        this.form.querySelectorAll('.form-group').forEach(group => {
+            group.classList.remove('error');
+            const errorElement = group.querySelector('.error-message');
+            if (errorElement) {
+                errorElement.textContent = '';
+            }
+        });
+        this.form.querySelector('.annotation-type-container')?.classList.remove('error');
     }
 
     validateForm(data) {
-        if (!data.pecha_id) {
-            this.highlightError(this.pechaSelect);
-            this.showToast('Pecha is required', 'error');
-            return false;
-        }
-        const isCommentaryOrTranslation = ('translation_of' in this.metadata && this.metadata.translation_of !== null) || ('commentary_of' in this.metadata && this.metadata.commentary_of !== null);
+        this.clearAllErrors();
+        let isValid = true;
 
-        const isAlignment = this.annotationSelect?.value === 'alignment';
+        // Validate Pecha
+        if (!data.pecha_id) {
+            this.showError(this.pechaSelect, 'Please select a Pecha');
+            isValid = false;
+        }
+
+        // Validate Annotation Type
+        const annotationType = document.querySelector('input[name="annotation_type"]:checked');
+        if (!annotationType) {
+            const container = document.querySelector('.annotation-type-container');
+            container.classList.add('error');
+            document.getElementById('annotationTypeError').textContent = 'Please select an annotation type';
+            isValid = false;
+        }
+
+        // Validate conditional fields for alignment
+        const isCommentaryOrTranslation = ('translation_of' in this.metadata && this.metadata.translation_of !== null) ||
+            ('commentary_of' in this.metadata && this.metadata.commentary_of !== null);
+        const isAlignment = annotationType?.value === 'alignment';
 
         if (isCommentaryOrTranslation && isAlignment) {
             if (!data.aligned_to.alignment_id) {
-                this.highlightError(this.parentAnnotation);
-                this.showToast('Alignment annotation is required', 'error');
-                return false;
+                this.showError(this.parentAnnotation, 'Please select a parent annotation');
+                isValid = false;
             }
         }
 
+        // Validate Title
         if (!data.title) {
-            this.highlightError(this.annotationTitle);
-            this.showToast('Annotation Title is required', 'error');
-            return false;
-        }
-
-        if (!data.document_id) {
-            this.highlightError(this.googleDocsUrl);
-            this.showToast('Google Docs URL is required', 'error');
-            return false;
-        }
-
-        // Check for duplicate annotation titles
-        const existingItems = this.existingAnnotationsList.querySelectorAll('.annotation-item');
-        for (let i = 0; i < existingItems.length; i++) {
-            const titleElement = existingItems[i].querySelector('.annotation-title');
-            if (titleElement && titleElement.textContent.toLowerCase() === data.title.toLowerCase()) {
-                this.highlightError(this.annotationTitle);
-                this.showToast('An annotation with this title already exists for this pecha. Please use a different title.', 'error');
-                return false;
+            this.showError(this.annotationTitle, 'Please enter an annotation title');
+            isValid = false;
+        } else {
+            // Check for duplicate titles
+            const existingItems = this.existingAnnotationsList.querySelectorAll('.annotation-item');
+            for (let i = 0; i < existingItems.length; i++) {
+                const titleElement = existingItems[i].querySelector('.annotation-title');
+                if (titleElement && titleElement.textContent.toLowerCase() === data.title.toLowerCase()) {
+                    this.showError(this.annotationTitle, 'An annotation with this title already exists');
+                    isValid = false;
+                    break;
+                }
             }
         }
-        return true;
+
+        // Validate Google Docs URL
+        if (!data.document_id) {
+            this.showError(this.googleDocsUrl, 'Please enter a Google Docs URL');
+            isValid = false;
+        } else if (!this.isValidGoogleDocsUrl(data.document_id)) {
+            this.showError(this.googleDocsUrl, 'Please enter a valid Google Docs URL');
+            isValid = false;
+        }
+
+        return isValid;
+    }
+
+    isValidGoogleDocsUrl(url) {
+        return url.includes('docs.google.com') && url.includes('/d/');
+    }
+
+    showToast(message, type = 'info') {
+        const icons = {
+            success: '<i class="fas fa-check-circle"></i>',
+            error: '<i class="fas fa-exclamation-circle"></i>',
+            info: '<i class="fas fa-info-circle"></i>'
+        };
+
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.innerHTML = `${icons[type]} ${message}`;
+        this.toastContainer.appendChild(toast);
+
+        // Remove existing toasts
+        const existingToasts = this.toastContainer.querySelectorAll('.toast');
+        existingToasts.forEach((t, i) => {
+            if (t !== toast) {
+                t.remove();
+            }
+        });
+
+        setTimeout(() => {
+            toast.style.animation = 'slideIn 0.3s ease reverse';
+            setTimeout(() => toast.remove(), 300);
+        }, 5000);
     }
 
     resetForm() {
