@@ -41,7 +41,7 @@
         <h1>Add Annotation</h1>
         <form id="annotationForm">
           <div class="form-group">
-            <label for="pecha">Pecha</label>
+            <label for="pecha" class="required-field">Pecha</label>
             <div class="select-search-container">
               <select id="pecha" name="pecha">
                 <option value="">Select Pecha</option>
@@ -55,6 +55,7 @@
                 <div class="search-results"></div>
               </div>
             </div>
+            <div class="error-message" id="pechaError"></div>
             <!-- Loading spinner for pecha dropdown -->
             <div id="pechaLoadingSpinner" class="loading-spinner">
               <i class="fas fa-spinner fa-spin"></i> Loading pechas...
@@ -91,16 +92,31 @@
           </div>
 
           <div class="form-group">
-            <label for="annotation">Annotation Type</label>
-            <select id="annotation" name="annotation_type">
-              <option value="">Select Annotation Type</option>
-              <option value="alignment">Alignment</option>
-              <option value="footnote">Footnote</option>
-            </select>
+            <label class="required-field">Annotation Type</label>
+            <div class="annotation-type-container">
+              <label class="annotation-type-option">
+                <input type="radio" name="annotation_type" value="alignment" />
+                <div class="option-content">
+                  <i class="fas fa-link"></i>
+                  <span>Alignment</span>
+                </div>
+              </label>
+              <label class="annotation-type-option">
+                <input type="radio" name="annotation_type" value="footnote" />
+                <div class="option-content">
+                  <i class="fas fa-sticky-note"></i>
+                  <span>Footnote</span>
+                </div>
+              </label>
+            </div>
+            <div class="error-message" id="annotationTypeError"></div>
           </div>
 
           <div class="form-group conditional-field" id="pechaField">
-            <label for="pechaDropdown" id="pechaDropdownLabel"
+            <label
+              for="pechaDropdown"
+              id="pechaDropdownLabel"
+              class="required-field"
               >Parent Pecha</label
             >
             <div class="select-search-container">
@@ -116,9 +132,13 @@
                 <div class="search-results"></div>
               </div>
             </div>
+            <div class="error-message" id="pechaDropdownError"></div>
           </div>
 
           <div class="form-group conditional-field" id="parentAnnotationField">
+            <label for="parentAnnotation" class="required-field"
+              >Parent Annotation</label
+            >
             <div class="select-search-container">
               <select id="parentAnnotation" name="parentAnnotation">
                 <option value="">Select Annotation</option>
@@ -132,34 +152,47 @@
                 <div class="search-results"></div>
               </div>
             </div>
+            <div class="error-message" id="parentAnnotationError"></div>
           </div>
 
           <div class="form-group" id="titleField">
-            <label for="annotationTitle">Annotation Title</label>
+            <label for="annotationTitle" class="required-field"
+              >Annotation Title</label
+            >
             <input
               type="text"
               id="annotationTitle"
               name="annotation_title"
               placeholder="Enter title"
             />
+            <div class="error-message" id="titleError"></div>
           </div>
 
           <div class="form-group" id="urlField">
-            <label for="googleDocsUrl">Google Docs URL</label>
+            <label for="googleDocsUrl" class="required-field"
+              >Google Docs URL</label
+            >
             <input
               type="url"
               id="googleDocsUrl"
               name="google_docs_id"
               placeholder="Enter Google Docs URL"
             />
+            <div class="error-message" id="urlError"></div>
           </div>
 
-          <button type="submit" class="submit-button" id="submitAnnotationBtn">
-            <span class="btn-text">Add Annotation</span>
-            <span class="btn-spinner" style="display: none">
-              <i class="fas fa-spinner fa-spin"></i> Creating annotation...
-            </span>
-          </button>
+          <div class="submit-button-container">
+            <button
+              type="submit"
+              class="submit-button"
+              id="submitAnnotationBtn"
+            >
+              <span class="btn-text">Add Annotation</span>
+              <span class="btn-spinner" style="display: none">
+                <i class="fas fa-spinner fa-spin"></i> Creating annotation...
+              </span>
+            </button>
+          </div>
           <!-- Loading spinner for form submission -->
           <!-- <div id="formLoadingSpinner" class="loading-spinner" style="display:none; margin-top:10px; text-align:center;">
             <i class="fas fa-spinner fa-spin"></i> Adding annotation...

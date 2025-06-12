@@ -39,12 +39,15 @@ body {
 
 .form-container {
     max-width: 800px;
-    min-width:700px;
+    min-width: 700px;
     margin: 2rem auto;
     padding: 2rem;
     background: var(--white);
     border-radius: 8px;
     box-shadow: var(--box-shadow);
+    /* Set minimum height to prevent resizing */
+    min-height: 700px;
+    position: relative;
 }
 
 .form-container h1 {
@@ -56,6 +59,7 @@ body {
 
 .form-group {
     margin-bottom: 1.5rem;
+    transition: transform 0.3s ease, opacity 0.3s ease;
 }
 
 /* Enhance select elements styling */
@@ -163,8 +167,38 @@ body {
 }
 
 .conditional-field {
-    display: none;
-    animation: fadeIn 0.3s ease;
+    position: absolute;
+    width: calc(100% - 4rem); /* Account for form container padding */
+    opacity: 0;
+    visibility: hidden;
+    transform: translateY(-20px);
+    transition: opacity 0.3s ease, visibility 0.3s ease, transform 0.3s ease;
+    pointer-events: none;
+}
+
+.conditional-field[style*="display: block"] {
+    position: relative;
+    opacity: 1;
+    visibility: visible;
+    transform: translateY(0);
+    pointer-events: auto;
+    margin-bottom: 1.5rem;
+}
+
+/* Adjust spacing for non-conditional fields */
+#titleField, #urlField {
+    margin-top: auto;
+}
+
+/* Container for the submit button */
+.submit-button-container {
+    margin-top: auto;
+    width: 100%;
+}
+
+/* Ensure form groups maintain consistent spacing */
+.form-group:not(.conditional-field) {
+    margin-bottom: 1.5rem;
 }
 
 .submit-button {
@@ -447,4 +481,169 @@ body {
 /* Hide dropdown while loading */
 .select-search-container.loading {
   display: none;
+}
+
+/* Annotation Type Selection Styles */
+.annotation-type-container {
+    display: flex;
+    gap: 16px;
+    margin-top: 8px;
+}
+
+.annotation-type-option {
+    flex: 1;
+    cursor: pointer;
+}
+
+.annotation-type-option input[type="radio"] {
+    display: none;
+}
+
+.option-content {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 16px;
+    border: 2px solid var(--border-color);
+    border-radius: 8px;
+    transition: all 0.3s ease;
+}
+
+.option-content i {
+    font-size: 20px;
+    color: var(--text-color);
+    transition: color 0.3s ease;
+}
+
+.option-content span {
+    font-size: 16px;
+    font-weight: 500;
+    color: var(--text-color);
+}
+
+/* Hover state */
+.annotation-type-option:hover .option-content {
+    border-color: var(--focus-color);
+    background-color: rgba(33, 150, 243, 0.05);
+}
+
+/* Selected state */
+.annotation-type-option input[type="radio"]:checked + .option-content {
+    border-color: var(--focus-color);
+    background-color: rgba(33, 150, 243, 0.1);
+}
+
+.annotation-type-option input[type="radio"]:checked + .option-content i,
+.annotation-type-option input[type="radio"]:checked + .option-content span {
+    color: var(--focus-color);
+}
+
+/* Focus state */
+.annotation-type-option input[type="radio"]:focus + .option-content {
+    box-shadow: 0 0 0 3px var(--focus-shadow);
+}
+
+/* Validation and Error Styles */
+.form-group.error input,
+.form-group.error select,
+.form-group.error .option-content {
+    border-color: var(--color-error);
+    background-color: var(--error-bg);
+}
+
+.form-group.error label {
+    color: var(--color-error);
+}
+
+.error-message {
+    display: none;
+    color: var(--color-error);
+    font-size: 0.875rem;
+    margin-top: 0.5rem;
+    padding-left: 0.5rem;
+    border-left: 2px solid var(--color-error);
+    animation: slideDown 0.3s ease;
+}
+
+.form-group.error .error-message {
+    display: block;
+}
+
+/* Required field indicator */
+.required-field::after {
+    content: "*";
+    color: var(--color-error);
+    margin-left: 4px;
+}
+
+/* Toast Styles Update */
+.toast {
+    position: fixed;
+    bottom: 24px;
+    right: 24px;
+    padding: 16px 24px;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    font-weight: 500;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+    z-index: 1000;
+    animation: slideIn 0.3s ease;
+    max-width: 400px;
+    line-height: 1.4;
+}
+
+.toast.error {
+    background-color: #FEE2E2;
+    color: #DC2626;
+    border: 1px solid #FCA5A5;
+}
+
+.toast.success {
+    background-color: #DCFCE7;
+    color: #16A34A;
+    border: 1px solid #86EFAC;
+}
+
+.toast.info {
+    background-color: #DBEAFE;
+    color: #2563EB;
+    border: 1px solid #93C5FD;
+}
+
+.toast i {
+    font-size: 1.25rem;
+}
+
+/* Animations */
+@keyframes slideIn {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+@keyframes slideDown {
+    from {
+        transform: translateY(-10px);
+        opacity: 0;
+    }
+    to {
+        transform: translateY(0);
+        opacity: 1;
+    }
+}
+
+/* Validation highlight for annotation type */
+.annotation-type-container.error {
+    padding: 8px;
+    border-radius: 8px;
+    background-color: var(--error-bg);
+    border: 1px solid var(--color-error);
 }
