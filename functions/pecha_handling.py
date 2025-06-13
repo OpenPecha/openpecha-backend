@@ -7,7 +7,7 @@ from typing import Any
 
 from category_model import CategoryModel
 from database import Database
-from metadata_model import MetadataModel, Relationship
+from metadata_model import MetadataModel, TextType
 from openpecha.pecha import Pecha
 from openpecha.pecha.annotations import AnnotationModel, PechaAlignment
 from openpecha.pecha.layer import AnnotationType
@@ -25,7 +25,7 @@ class TraversalMode(Enum):
     FULL_TREE = auto()
 
 
-def validate_relationship(metadata: MetadataModel, parent: MetadataModel, relationship: Relationship) -> bool:
+def validate_relationship(metadata: MetadataModel, parent: MetadataModel, relationship: TextType) -> bool:
     if parent is None:
         return True
 
@@ -33,11 +33,11 @@ def validate_relationship(metadata: MetadataModel, parent: MetadataModel, relati
         return False
 
     match relationship:
-        case Relationship.COMMENTARY:
+        case TextType.COMMENTARY:
             return parent.language == metadata.language
-        case Relationship.VERSION:
+        case TextType.VERSION:
             return parent.language == metadata.language
-        case Relationship.TRANSLATION:
+        case TextType.TRANSLATION:
             return parent.language != metadata.language
 
 
@@ -45,12 +45,12 @@ def get_metadata_tree(
     pecha_id: str | None = None,
     metadata: MetadataModel | None = None,
     traversal_mode: TraversalMode = TraversalMode.UPWARD,
-    relationships: list[Relationship] | None = None,
+    relationships: list[TextType] | None = None,
 ) -> list[tuple[str, MetadataModel]]:
     logger.info("Getting metadata chain for: id: %s, metadata: %s", pecha_id, metadata)
 
     if relationships is None:
-        relationships = list(Relationship)
+        relationships = list(TextType)
 
     database = Database()
 

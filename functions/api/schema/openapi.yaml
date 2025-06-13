@@ -427,19 +427,16 @@ paths:
                       pattern: ^I[A-F0-9]{8}$
                     title:
                       type: string
-                    commentary_of:
-                      type: string
-                      pattern: ^I[A-F0-9]{8}$
-                    version_of:
-                      type: string
-                      pattern: ^I[A-F0-9]{8}$
-                    translation_of:
+                    type:
+                      $ref: '#/components/schemas/TextType'
+                    parent:
                       type: string
                       pattern: ^I[A-F0-9]{8}$
                 examples:
                   - id: IBA00803F
-                    title: Root Text
-                    version_of: IBA008040
+                    title: Commentary Text
+                    type: commentary
+                    parent: IBA008040
         "400":
           $ref: '#/components/responses/InvalidRequest'
         "404":
@@ -490,7 +487,7 @@ paths:
                   filter:
                     and: [
                       {"field": "language", "operator": "==", "value": "en"},
-                      {"field": "commentary_of", "operator": "!=", "value": null},
+                      {"field": "type", "operator": "==", "value": "commentary"},
                     ]
       responses:
         "200":
@@ -855,6 +852,11 @@ paths:
         "500":
           $ref: '#/components/responses/ServerError'
 components:
+  schemas:
+    TextType:
+      type: string
+      enum: [commentary, version, translation, root]
+      description: Type of the text relationship
   responses:
     InvalidRequest:
       description: There was an error with the request

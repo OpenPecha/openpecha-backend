@@ -19,6 +19,7 @@ class TestValidMetadataModel:
             "long_title": {"en": "Sample Long Title"},
             "language": "en",
             "source_type": "docx",
+            "type": "root",
         }
 
         model = MetadataModel(**input_data)
@@ -30,7 +31,7 @@ class TestValidMetadataModel:
         assert model.long_title["en"] == "Sample Long Title"
         assert model.language == "en"
         assert model.source_type == SourceType.DOCX
-        
+
     def test_valid_metadata_with_three_char_language(self):
         """Test that metadata with 3-character language code is valid."""
         input_data = {
@@ -40,8 +41,9 @@ class TestValidMetadataModel:
             "title": {"zh": "中文标题"},
             "long_title": {"zh": "中文长标题"},
             "language": "lzh",  # Literary Chinese
+            "type": "root",
         }
-        
+
         model = MetadataModel(**input_data)
         assert model.language == "lzh"
         assert model.title["zh"] == "中文标题"
@@ -58,6 +60,7 @@ class TestValidMetadataModel:
             "long_title": {"en": "Another Long Title"},
             "language": "en",
             "source_type": "docx",
+            "type": "root",
         }
 
         model = MetadataModel(**input_data)
@@ -81,6 +84,7 @@ class TestValidMetadataModel:
             ],
             "language": "bo",
             "source_type": "docx",
+            "type": "root",
             "date": "2023-04-10",
             "category": "philosophy",
         }
@@ -100,15 +104,14 @@ class TestValidMetadataModel:
             "source": "https://test.com",
             "title": {"en": "Test Title", "bo": "ཚོད་ལྟའི་འགོ་བརྗོད།"},
             "long_title": {"en": "Test Long Title"},
-            "commentary_of": "I12345678",
+            "type": "commentary",
+            "parent": "I12345678",
             "language": "en",
             "source_type": "docx",
         }
 
         model = MetadataModel(**input_data)
-        assert model.commentary_of == "I12345678"
-        assert model.version_of is None
-        assert model.translation_of is None
+        assert model.type == "commentary"
         assert model.parent == "I12345678"
 
     def test_valid_bdrc_metadata(self):
@@ -125,6 +128,7 @@ class TestValidMetadataModel:
                 "volume_number": 1,
                 "image_group_id": "I1234",
             },
+            "type": "root",
         }
 
         model = MetadataModel(**input_data)
@@ -139,55 +143,6 @@ class TestValidMetadataModel:
         # BDRC type still doesn't require author
         assert model.author is None
 
-    def test_parent_property(self):
-        """Test the parent property returns the correct relation."""
-        # commentary_of
-        model1 = MetadataModel(
-            author={"en": "Author"},
-            document_id="DOC1",
-            source="Source",
-            title={"en": "Title", "bo": "འགོ་བརྗོད།"},
-            long_title={"en": "Long Title"},
-            language="en",
-            commentary_of="I12345678",
-        )
-        assert model1.parent == "I12345678"
-
-        # version_of
-        model2 = MetadataModel(
-            author={"en": "Author"},
-            document_id="DOC2",
-            source="Source",
-            title={"en": "Title", "bo": "འགོ་བརྗོད།"},
-            long_title={"en": "Long Title"},
-            language="en",
-            version_of="I87654321",
-        )
-        assert model2.parent == "I87654321"
-
-        # translation_of
-        model3 = MetadataModel(
-            author={"en": "Author"},
-            document_id="DOC3",
-            source="Source",
-            title={"en": "Title", "bo": "འགོ་བརྗོད།"},
-            long_title={"en": "Long Title"},
-            language="en",
-            translation_of="IABCDEF12",
-        )
-        assert model3.parent == "IABCDEF12"
-
-        # No relation set
-        model4 = MetadataModel(
-            author={"en": "Author"},
-            document_id="DOC4",
-            source="Source",
-            title={"en": "Title", "bo": "འགོ་བརྗོད།"},
-            long_title={"en": "Long Title"},
-            language="en",
-        )
-        assert model4.parent is None
-
     def test_hyphenated_language_code(self):
         """Test valid metadata with hyphenated language code."""
         input_data = {
@@ -197,6 +152,7 @@ class TestValidMetadataModel:
             "title": {"en": "Title", "bo": "འགོ་བརྗོད།"},
             "long_title": {"en": "Long Title"},
             "language": "en-US",
+            "type": "root",
         }
 
         model = MetadataModel(**input_data)
@@ -218,6 +174,7 @@ class TestInvalidMetadataModel:
                     "long_title": {"en": "Long Title"},
                     "language": "en",
                     "source_type": "docx",
+                    "type": "root",
                 }
             )
         assert "author" in str(excinfo.value)
@@ -232,6 +189,7 @@ class TestInvalidMetadataModel:
                     "long_title": {"en": "Long Title"},
                     "language": "en",
                     "source_type": "docx",
+                    "type": "root",
                 }
             )
         assert "document_id" in str(excinfo.value)
@@ -246,6 +204,7 @@ class TestInvalidMetadataModel:
                     "long_title": {"en": "Long Title"},
                     "language": "en",
                     "source_type": "docx",
+                    "type": "root",
                 }
             )
         assert "title" in str(excinfo.value) and "Field required" in str(excinfo.value)
@@ -260,6 +219,7 @@ class TestInvalidMetadataModel:
                     "title": {"en": "Title", "bo": "འགོ་བརྗོད།"},
                     "language": "en",
                     "source_type": "docx",
+                    "type": "root",
                 }
             )
         assert "long_title" in str(excinfo.value) and "Field required" in str(excinfo.value)
@@ -274,6 +234,7 @@ class TestInvalidMetadataModel:
                     "title": {"en": "Title", "bo": "འགོ་བརྗོད།"},
                     "long_title": {"en": "Long Title"},
                     "source_type": "docx",
+                    "type": "root",
                 }
             )
         assert "language" in str(excinfo.value) and "Field required" in str(excinfo.value)
@@ -292,6 +253,7 @@ class TestInvalidMetadataModel:
                     "long_title": {"en": "Long Title"},
                     "language": "en",
                     "source_type": "docx",
+                    "type": "root",
                 }
             )
         assert "Title must have both 'en' and 'bo' localizations" in str(excinfo.value)
@@ -307,6 +269,7 @@ class TestInvalidMetadataModel:
                     "long_title": {"en": "Long Title"},
                     "language": "en",
                     "source_type": "docx",
+                    "type": "root",
                 }
             )
         assert "Title must have both 'en' and 'bo' localizations" in str(excinfo.value)
@@ -322,6 +285,7 @@ class TestInvalidMetadataModel:
                 "title": {"en": "Title", "bo": "འགོ་བརྗོད།"},
                 "long_title": {"en": "Long Title", "bo": "འགོ་བརྗོད་རིང་པོ།"},
                 "language": "bo",
+                "type": "root",
             }
         )
         assert model.title["en"] == "Title"
@@ -338,6 +302,7 @@ class TestInvalidMetadataModel:
                     "source_type": "bdrc",
                     "long_title": {"en": "Long Title", "bo": "འགོ་བརྗོད་རིང་པོ།"},
                     "language": "bo",
+                    "type": "root",
                 }
             )
         assert "title" in str(excinfo.value) and "Field required" in str(excinfo.value)
@@ -351,6 +316,7 @@ class TestInvalidMetadataModel:
                     "source_type": "bdrc",
                     "title": {"en": "Title", "bo": "འགོ་བརྗོད།"},
                     "language": "bo",
+                    "type": "root",
                 }
             )
         assert "long_title" in str(excinfo.value) and "Field required" in str(excinfo.value)
@@ -364,43 +330,10 @@ class TestInvalidMetadataModel:
                     "source_type": "bdrc",
                     "title": {"en": "Title", "bo": "འགོ་བརྗོད།"},
                     "long_title": {"en": "Long Title", "bo": "འགོ་བརྗོད་རིང་པོ།"},
+                    "type": "root",
                 }
             )
         assert "language" in str(excinfo.value) and "Field required" in str(excinfo.value)
-
-    def test_multiple_exclusive_fields(self):
-        """Test validation error when multiple exclusive fields are set."""
-        with pytest.raises(ValidationError) as excinfo:
-            MetadataModel.model_validate(
-                {
-                    "author": {"en": "Author"},
-                    "document_id": "DOC123",
-                    "source": "Source",
-                    "title": {"en": "Title", "bo": "འགོ་བརྗོད།"},
-                    "long_title": {"en": "Long Title"},
-                    "language": "en",
-                    "commentary_of": "I12345678",
-                    "version_of": "I87654321",  # Can't have both commentary_of and version_of
-                }
-            )
-        assert "Only one of" in str(excinfo.value)
-        assert "commentary_of" in str(excinfo.value)
-        assert "version_of" in str(excinfo.value)
-
-        with pytest.raises(ValidationError) as excinfo:
-            MetadataModel.model_validate(
-                {
-                    "author": {"en": "Author"},
-                    "document_id": "DOC123",
-                    "source": "Source",
-                    "title": {"en": "Title", "bo": "འགོ་བརྗོད།"},
-                    "long_title": {"en": "Long Title"},
-                    "language": "en",
-                    "commentary_of": "I12345678",
-                    "translation_of": "IABCDEF12",  # Can't have both commentary_of and translation_of
-                }
-            )
-        assert "Only one of" in str(excinfo.value)
 
     def test_missing_source_and_source_url(self):
         """Test validation error when both source and source_url are missing."""
@@ -412,6 +345,7 @@ class TestInvalidMetadataModel:
                     "title": {"en": "Title", "bo": "འགོ་བརྗོད།"},
                     "long_title": {"en": "Long Title"},
                     "language": "en",
+                    "type": "root",
                     # Missing both source and source_url
                 }
             )
@@ -429,6 +363,7 @@ class TestInvalidMetadataModel:
                     "language": "en",
                     "source_url": "",
                     "source": "Source",
+                    "type": "root",
                     # Missing both source and source_url
                 }
             )
@@ -445,9 +380,45 @@ class TestInvalidMetadataModel:
                     "title": {"en": "Title", "bo": "འགོ་བརྗོད།"},
                     "long_title": {"en": "Long Title"},
                     "language": "en",
+                    "type": "root",
                 }
             )
         assert "URL" in str(excinfo.value)
+
+    def test_invalid_type_parent_relationship(self):
+        """Test validation error for invalid type and parent combinations."""
+        with pytest.raises(ValueError) as excinfo:
+            MetadataModel.model_validate(
+                {
+                    "author": {"en": "Author"},
+                    "document_id": "DOC123",
+                    "source": "Source",
+                    "title": {"en": "Title", "bo": "འགོ་བརྗོད།"},
+                    "long_title": {"en": "Long Title"},
+                    "language": "en",
+                    "type": "root",
+                    "parent": "I12345678",  # Root type shouldn't have a parent
+                }
+            )
+
+        assert "When type is 'root', parent must be None" in str(excinfo.value)
+
+        # Test non-root types without parent (invalid)
+        for text_type in ["commentary", "version", "translation"]:
+            with pytest.raises(ValueError) as excinfo:
+                MetadataModel.model_validate(
+                    {
+                        "author": {"en": "Author"},
+                        "document_id": "DOC123",
+                        "source": "Source",
+                        "title": {"en": "Title", "bo": "འགོ་བརྗོད།"},
+                        "long_title": {"en": "Long Title"},
+                        "language": "en",
+                        "type": text_type,
+                        # Missing parent for non-root type
+                    }
+                )
+            assert "When type is not 'root', parent must be provided" in str(excinfo.value)
 
     def test_invalid_pecha_id_format(self):
         """Test validation error with invalid PechaId format."""
@@ -460,7 +431,8 @@ class TestInvalidMetadataModel:
                     "title": {"en": "Title", "bo": "འགོ་བརྗོད།"},
                     "long_title": {"en": "Long Title"},
                     "language": "en",
-                    "commentary_of": "invalid-id",  # Should be I followed by 8 hex chars
+                    "type": "commentary",
+                    "parent": "invalid-id",  # Should be I followed by 8 hex chars
                 }
             )
         assert "pattern" in str(excinfo.value)
@@ -475,7 +447,8 @@ class TestInvalidMetadataModel:
                     "title": {"en": "Title", "bo": "འགོ་བརྗོད།"},
                     "long_title": {"en": "Long Title"},
                     "language": "en",
-                    "commentary_of": "I12345abc",  # Lowercase hex chars are invalid
+                    "type": "commentary",
+                    "parent": "I12345abc",  # Lowercase hex chars are invalid
                 }
             )
         assert "pattern" in str(excinfo.value)
@@ -491,6 +464,7 @@ class TestInvalidMetadataModel:
                     "title": {"en": "Title", "bo": "འགོ་བརྗོད།"},
                     "long_title": {"en": "Long Title"},
                     "language": "english",  # Invalid format, should be 2 chars like "en"
+                    "type": "root",
                 }
             )
         assert "pattern" in str(excinfo.value)
@@ -504,6 +478,7 @@ class TestInvalidMetadataModel:
                     "title": {"en": "Title", "bo": "འགོ་བརྗོད།"},
                     "long_title": {"en": "Long Title"},
                     "language": "en-us",  # Invalid format, country code should be uppercase
+                    "type": "root",
                 }
             )
         assert "pattern" in str(excinfo.value)
@@ -519,6 +494,7 @@ class TestInvalidMetadataModel:
                     "title": {"en": "Title", "bo": "འགོ་བརྗོད།"},
                     "long_title": {"en": "Long Title"},
                     "language": "en",
+                    "type": "root",
                 }
             )
         assert "String should have at least 1 character" in str(excinfo.value)
@@ -536,6 +512,7 @@ class TestMetadataModelSerialization:
             title={"en": "Title", "bo": "འགོ་བརྗོད།"},
             long_title={"en": "Long Title"},
             language="en",
+            type="root",
         )
 
         serialized = json.loads(metadata.model_dump_json())
@@ -551,9 +528,7 @@ class TestMetadataModelSerialization:
         # Check optional fields are serialized as None
         assert serialized["source"] is None
         assert serialized["alt_titles"] is None
-        assert serialized["commentary_of"] is None
-        assert serialized["version_of"] is None
-        assert serialized["translation_of"] is None
+        assert serialized["parent"] is None
 
     def test_url_serialization(self):
         """Test that URL is serialized as a string."""
@@ -564,6 +539,7 @@ class TestMetadataModelSerialization:
             title={"en": "Title", "bo": "འགོ་བརྗོད།"},
             long_title={"en": "Long Title"},
             language="en",
+            type="root",
         )
 
         serialized = json.loads(metadata.model_dump_json())
@@ -582,6 +558,7 @@ class TestMetadataModelSerialization:
             title={"en": "Title", "bo": "འགོ་བརྗོད།"},
             long_title={"en": "Long Title"},
             language="en",
+            type="root",
         )
 
         serialized = json.loads(metadata.model_dump_json())

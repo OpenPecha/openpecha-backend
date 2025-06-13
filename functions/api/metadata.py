@@ -5,7 +5,7 @@ from exceptions import DataNotFound, InvalidRequest
 from filter_model import FilterModel
 from flask import Blueprint, jsonify, request
 from metadata_model import MetadataModel
-from pecha_handling import Relationship, TraversalMode, get_metadata_tree, retrieve_pecha
+from pecha_handling import TextType, TraversalMode, get_metadata_tree, retrieve_pecha
 from storage import Storage
 
 metadata_bp = Blueprint("metadata", __name__)
@@ -19,11 +19,8 @@ def format_metadata_chain(chain: list[tuple[str, MetadataModel]]) -> list[dict[s
         {
             "id": pecha_id,
             "title": metadata.title.root.get(metadata.language, ""),
-            **{
-                field: getattr(metadata, field)
-                for field in ["commentary_of", "version_of", "translation_of"]
-                if getattr(metadata, field, None)
-            },
+            "type": metadata.type,
+            **({"parent": metadata.parent} if metadata.parent is not None else {})
         }
         for pecha_id, metadata in chain
     ]
@@ -57,16 +54,16 @@ def get_related_metadata(pecha_id):
     traversal_mode = TraversalMode[traversal]
 
     relationship_map = {
-        "commentary": Relationship.COMMENTARY,
-        "version": Relationship.VERSION,
-        "translation": Relationship.TRANSLATION,
+        "commentary": TextType.COMMENTARY,
+        "version": TextType.VERSION,
+        "translation": TextType.TRANSLATION,
     }
 
     rel_param = request.args.get("relationships", "")
     relationships = (
         [relationship_map[r.strip().lower()] for r in rel_param.split(",") if r.strip().lower() in relationship_map]
         if rel_param
-        else list(Relationship)
+        else list(TextType)
     )
 
     if rel_param and len(relationships) != len(rel_param.split(",")):

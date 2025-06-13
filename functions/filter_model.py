@@ -11,9 +11,9 @@ class Condition(BaseModel):
         extra="forbid",
         json_schema_extra={
             "examples": {
-                "single_condition_commentary": {
-                    "summary": "Filter by commentary_of",
-                    "value": {"field": "commentary_of", "operator": "==", "value": None},
+                "single_condition_type": {
+                    "summary": "Filter by type",
+                    "value": {"field": "type", "operator": "==", "value": "commentary"},
                 },
                 "single_condition_language": {
                     "summary": "Filter by language",

@@ -24,7 +24,8 @@ def mock_db():
             "long_title": {"en": "Book One", "bo": "དེབ་དང་པོ།"},
             "author": {"en": "Author One", "bo": "སྒྲོལ་མ།"},
             "language": "en",
-            "commentary_of": "I87654321",
+            "type": "commentary",
+            "parent": "I87654321",
             "document_id": "DOC001",
             "source": "Source 1",
         }
@@ -35,7 +36,8 @@ def mock_db():
             "long_title": {"en": "Book Two", "bo": "དེབ་གཉིས་པ།"},
             "author": {"en": "Author Two", "bo": "སྒྲོལ་མ།"},
             "language": "en",
-            "version_of": "I44444444",
+            "type": "version",
+            "parent": "I44444444",
             "document_id": "DOC002",
             "source_url": "https://example.com/book2",
         }
@@ -46,7 +48,7 @@ def mock_db():
             "long_title": {"bo": "དཔེ་ཆ་", "en": "Book Three"},
             "author": {"en": "Author Three", "bo": "སྒྲོལ་མ།"},
             "language": "bo",
-            "translation_of": None,
+            "type": "root",
             "document_id": "DOC003",
             "source": "Source 3",
         }
