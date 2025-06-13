@@ -522,9 +522,23 @@ body {
 }
 
 /* Hover state */
-.annotation-type-option:hover .option-content {
+/* .annotation-type-option:hover .option-content {
     border-color: var(--focus-color);
     background-color: rgba(33, 150, 243, 0.05);
+} */
+
+/* Hover state */
+.annotation-type-option:first-child:hover .option-content {
+    border-color: var(--focus-color);
+    background-color: rgba(33, 150, 243, 0.05);
+}
+
+.annotation-type-option:last-child {
+    cursor: not-allowed;
+}
+
+.annotation-type-option:last-child .option-content {
+    opacity: 0.6;
 }
 
 /* Selected state */
