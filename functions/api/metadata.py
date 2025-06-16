@@ -3,7 +3,7 @@ import logging
 from database import Database
 from exceptions import DataNotFound, InvalidRequest
 from filter_model import FilterModel
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, Response, jsonify, request
 from metadata_model import MetadataModel
 from pecha_handling import TextType, TraversalMode, get_metadata_tree, retrieve_pecha
 from storage import Storage
@@ -27,7 +27,7 @@ def format_metadata_chain(chain: list[tuple[str, MetadataModel]]) -> list[dict[s
 
 
 @metadata_bp.after_request
-def add_no_cache_headers(response):
+def add_no_cache_headers(response: Response) -> Response:
     """Add headers to prevent response caching."""
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     response.headers["Pragma"] = "no-cache"
@@ -36,13 +36,13 @@ def add_no_cache_headers(response):
 
 
 @metadata_bp.route("/<string:pecha_id>", methods=["GET"], strict_slashes=False)
-def get_metadata(pecha_id):
+def get_metadata(pecha_id: str) -> tuple[Response, int]:
     metadata = Database().get_metadata(pecha_id)
     return jsonify(metadata.model_dump()), 200
 
 
 @metadata_bp.route("/<string:pecha_id>/related", methods=["GET"], strict_slashes=False)
-def get_related_metadata(pecha_id):
+def get_related_metadata(pecha_id: str) -> tuple[Response, int]:
     if not Database().metadata_exists(pecha_id):
         raise DataNotFound(f"Metadata with ID '{pecha_id}' not found")
 
@@ -75,7 +75,7 @@ def get_related_metadata(pecha_id):
 
 
 @metadata_bp.route("/<string:pecha_id>", methods=["PUT"], strict_slashes=False)
-def put_metadata(pecha_id: str):
+def put_metadata(pecha_id: str) -> tuple[Response, int]:
     stored_metadata = Database().get_metadata(pecha_id)
 
     data = request.get_json()
@@ -109,7 +109,7 @@ def put_metadata(pecha_id: str):
 
 
 @metadata_bp.route("/<string:pecha_id>/category", methods=["PUT"], strict_slashes=False)
-def set_category(pecha_id: str):
+def set_category(pecha_id: str) -> tuple[Response, int]:
     data = request.get_json()
     category_id = data.get("category_id")
 
@@ -130,7 +130,7 @@ def set_category(pecha_id: str):
 
 
 @metadata_bp.route("/filter", methods=["POST"], strict_slashes=False)
-def filter_metadata():
+def filter_metadata() -> tuple[Response, int]:
     data = request.get_json(silent=True) or {}
     filter_json = data.get("filter")
     page = int(data.get("page", 1))

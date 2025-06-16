@@ -94,7 +94,7 @@ def get_metadata_tree(
     return chain
 
 
-def retrieve_pecha(pecha_id) -> Pecha:
+def retrieve_pecha(pecha_id: str) -> Pecha:
     zip_path = Storage().retrieve_pecha_opf(pecha_id)
 
     temp_dir = tempfile.gettempdir()

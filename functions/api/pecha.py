@@ -4,7 +4,7 @@ import logging
 from api.text import validate_bdrc_file, validate_docx_file
 from database import Database
 from exceptions import DataConflict, InvalidRequest
-from flask import Blueprint, jsonify, request, send_file
+from flask import Blueprint, Response, jsonify, request, send_file
 from metadata_model import MetadataModel, SourceType
 from pecha_handling import process_bdrc_pecha, process_pecha, retrieve_pecha, serialize
 from pecha_uploader.pipeline import upload
@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 
 
 @pecha_bp.after_request
-def add_no_cache_headers(response):
+def add_no_cache_headers(response: Response) -> Response:
     """Add headers to prevent response caching."""
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     response.headers["Pragma"] = "no-cache"
@@ -33,7 +33,7 @@ def get_duplicate_key(document_id: str) -> str | None:
 
 
 @pecha_bp.route("/", methods=["POST"], strict_slashes=False)
-def post_pecha():
+def post_pecha() -> tuple[Response, int]:
     text = request.files.get("text")
     data = request.files.get("data")
 
@@ -75,7 +75,7 @@ def post_pecha():
 
 
 @pecha_bp.route("/<string:pecha_id>", methods=["GET"], strict_slashes=False)
-def get_pecha(pecha_id: str):
+def get_pecha(pecha_id: str) -> Response:
     storage = Storage()
     opf_path = storage.retrieve_pecha_opf(pecha_id=pecha_id)
 
@@ -88,7 +88,7 @@ def get_pecha(pecha_id: str):
 
 
 @pecha_bp.route("/<string:pecha_id>", methods=["DELETE"], strict_slashes=False)
-def delete_pecha(pecha_id: str):
+def delete_pecha(pecha_id: str) -> tuple[Response, int]:
     try:
         storage = Storage()
         storage.delete_pecha_doc(pecha_id=pecha_id)
@@ -102,7 +102,7 @@ def delete_pecha(pecha_id: str):
 
 
 @pecha_bp.route("/<string:pecha_id>/publish", methods=["POST"], strict_slashes=False)
-def publish(pecha_id: str):
+def publish(pecha_id: str) -> tuple[Response, int]:
     data = request.get_json()
     destination = data.get("destination")
     annotation_id = data.get("annotation_id")

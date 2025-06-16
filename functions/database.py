@@ -10,7 +10,7 @@ from openpecha.pecha.annotations import AnnotationModel
 
 
 class Database:
-    def __init__(self):
+    def __init__(self) -> None:
         self.db = firestore.client()
         self.metadata_ref = self.db.collection("metadata")
         self.category_ref = self.db.collection("category")
@@ -35,13 +35,13 @@ class Database:
         docs = query.stream()
         return {doc.id: MetadataModel.model_validate(doc.to_dict()) for doc in docs}
 
-    def set_metadata(self, pecha_id: str, metadata: MetadataModel):
+    def set_metadata(self, pecha_id: str, metadata: MetadataModel) -> None:
         self.metadata_ref.document(pecha_id).set(metadata.model_dump())
 
-    def update_metadata(self, pecha_id: str, fields: dict[str, Any]):
+    def update_metadata(self, pecha_id: str, fields: dict[str, Any]) -> None:
         self.metadata_ref.document(pecha_id).update(fields)
 
-    def delete_metadata(self, pecha_id: str):
+    def delete_metadata(self, pecha_id: str) -> None:
         self.metadata_ref.document(pecha_id).delete()
 
     def get_children_metadata(self, pecha_id: str, relationships: list[TextType]) -> dict[str, MetadataModel]:
@@ -78,11 +78,11 @@ class Database:
 
         return results
 
-    def category_exists(self, category_id: str):
+    def category_exists(self, category_id: str) -> bool:
         doc = self.category_ref.document(category_id).get()
         return doc.exists
 
-    def delete_all_categories(self):
+    def delete_all_categories(self) -> None:
         docs = self.category_ref.stream()
         for doc in docs:
             self.category_ref.document(doc.id).delete()
@@ -93,7 +93,7 @@ class Database:
             raise DataNotFound(f"Category with ID '{category_id}' not found")
         return CategoryModel.model_validate(doc.to_dict())
 
-    def set_category(self, category_id: str, category: CategoryModel):
+    def set_category(self, category_id: str, category: CategoryModel) -> None:
         doc_ref = self.category_ref.document(category_id)
         doc_ref.set(category.model_dump())
 

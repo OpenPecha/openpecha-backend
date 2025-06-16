@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import Annotated, Any, Mapping, Sequence
+from typing import Annotated, Any, Mapping, Self, Sequence
 
 from pydantic import AnyUrl, BaseModel, ConfigDict, Field, RootModel, field_serializer, model_validator
 
@@ -23,7 +23,7 @@ class LocalizedString(RootModel[Mapping[str, NonEmptyStr]]):
         ..., description="Dictionary with language codes as keys and corresponding strings as values", min_length=1
     )
 
-    def __getitem__(self, item):
+    def __getitem__(self, item: str) -> NonEmptyStr:
         return self.root[item]
 
 
@@ -109,13 +109,13 @@ class MetadataModel(BaseModel):
     )
 
     @field_serializer("source_url")
-    def serialize_url(self, source_url: AnyUrl | None):
+    def serialize_url(self, source_url: AnyUrl | None) -> str | None:
         if source_url is None:
             return None
         return str(source_url)
 
     @model_validator(mode="after")
-    def check_required_fields(self):
+    def check_required_fields(self) -> Self:
         """Ensure required fields are provided unless source_type is 'bdrc'."""
         # If source_type is not bdrc, author, title, long_title, and language must be provided
         if self.source_type == SourceType.BDRC:

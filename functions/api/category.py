@@ -5,7 +5,7 @@ import yaml
 from category_model import CategoryModel
 from database import Database
 from exceptions import InvalidRequest
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, Response, jsonify, request
 from werkzeug.datastructures import FileStorage
 
 logger = logging.getLogger(__name__)
@@ -14,7 +14,7 @@ categories_bp = Blueprint("categories", __name__)
 
 
 @categories_bp.after_request
-def add_no_cache_headers(response):
+def add_no_cache_headers(response: Response) -> Response:
     """Add headers to prevent response caching."""
     response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
     response.headers["Pragma"] = "no-cache"
@@ -50,7 +50,7 @@ def process_categories(categories: list[dict[str, Any]], parent_id: str | None =
 
 
 @categories_bp.route("/", methods=["PUT"], strict_slashes=False)
-def upload_categories():
+def upload_categories() -> tuple[Response, int]:
     if "file" not in request.files:
         raise InvalidRequest("No file provided")
 
@@ -63,7 +63,7 @@ def upload_categories():
     if not isinstance(content, dict) or "categories" not in content:
         raise InvalidRequest("Invalid file structure. Expected a dictionary with 'categories' key")
 
-    # This should be changed to delete only after the process categories is successfully returning the list of categories
+    # This should be changed to delete only if the process categories is successfully returning the list of categories
     Database().delete_all_categories()
 
     category_count = process_categories(content["categories"])
@@ -92,6 +92,6 @@ def build_category_tree() -> list[dict[str, Any]]:
 
 
 @categories_bp.route("/", methods=["GET"], strict_slashes=False)
-def get_categories():
+def get_categories() -> tuple[Response, int]:
     categories = build_category_tree()
     return jsonify({"categories": categories}), 200

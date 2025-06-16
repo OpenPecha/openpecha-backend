@@ -3,7 +3,7 @@ import os
 
 from database import Database
 from exceptions import DataNotFound, InvalidRequest
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, Response, jsonify, request
 from openpecha.pecha.parsers.docx.update import DocxAnnotationUpdate
 from pecha_handling import create_tmp, get_metadata_tree, retrieve_pecha
 from storage import Storage
@@ -33,7 +33,7 @@ def validate_bdrc_file(data: FileStorage) -> None:
 
 
 @text_bp.route("/<string:pecha_id>", methods=["PUT"], strict_slashes=False)
-def put_text(pecha_id: str):
+def put_text(pecha_id: str) -> tuple[Response, int]:
     text = request.files.get("text")
     if not text:
         raise InvalidRequest("Missing text file")

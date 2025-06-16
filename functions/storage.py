@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 
 
 class Storage:
-    def __init__(self):
+    def __init__(self) -> None:
         self.bucket = storage.bucket()
 
     def store_pecha_json(self, pecha_id: str, base_language: str, json_dict: dict[str, Any]) -> str:
@@ -60,13 +60,13 @@ class Storage:
 
         return zip_path
 
-    def delete_pecha_json(self, pecha_id: str):
+    def delete_pecha_json(self, pecha_id: str) -> None:
         self._delete(f"json/{pecha_id}")
 
-    def delete_pecha_opf(self, pecha_id: str):
+    def delete_pecha_opf(self, pecha_id: str) -> None:
         self._delete(Storage._pecha_opf_path(pecha_id))
 
-    def delete_pecha_doc(self, pecha_id: str):
+    def delete_pecha_doc(self, pecha_id: str) -> None:
         self._delete(Storage._pecha_doc_path(pecha_id))
 
     def pecha_opf_exists(self, pecha_id: str) -> bool:
@@ -94,7 +94,7 @@ class Storage:
 
         return blob
 
-    def _delete(self, storage_path):
+    def _delete(self, storage_path: str) -> None:
         blob = self.bucket.blob(storage_path)
         blob.delete()
         logger.info("Rolled back: %s", blob.name)
