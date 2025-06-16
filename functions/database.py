@@ -5,7 +5,7 @@ from exceptions import DataNotFound, InvalidRequest
 from filter_model import AndFilter, Condition, FilterModel, OrFilter
 from firebase_admin import firestore
 from google.cloud.firestore_v1.base_query import FieldFilter, Or
-from metadata_model import MetadataModel, Relationship
+from metadata_model import MetadataModel, TextType
 from openpecha.pecha.annotations import AnnotationModel
 
 
@@ -44,7 +44,7 @@ class Database:
     def delete_metadata(self, pecha_id: str):
         self.metadata_ref.document(pecha_id).delete()
 
-    def get_children_metadata(self, pecha_id: str, relationships: list[Relationship]) -> dict[str, MetadataModel]:
+    def get_children_metadata(self, pecha_id: str, relationships: list[TextType]) -> dict[str, MetadataModel]:
         ref_fields = [r.value for r in relationships]
 
         docs = self.metadata_ref.where(filter=Or([FieldFilter(f, "==", pecha_id) for f in ref_fields])).stream()

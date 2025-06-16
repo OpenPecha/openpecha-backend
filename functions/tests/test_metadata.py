@@ -17,9 +17,10 @@ def mock_db():
             "long_title": {"en": "Book One", "bo": "དེབ་དང་པོ།"},
             "author": {"en": "Author One", "bo": "སྒྲོལ་མ།"},
             "language": "en",
-            "commentary_of": "I87654321",
             "document_id": "DOC001",
             "source": "Source 1",
+            "type": "commentary",
+            "parent": "I87654321",
         }
     )
     mock_db.collection("metadata").document("I87654321").set(
@@ -28,7 +29,8 @@ def mock_db():
             "long_title": {"en": "Book Two", "bo": "དེབ་གཉིས་པ།"},
             "author": {"en": "Author Two", "bo": "སྒྲོལ་མ།"},
             "language": "en",
-            "version_of": "I44444444",
+            "type": "version",
+            "parent": "I44444444",
             "document_id": "DOC002",
             "source_url": "https://example.com/book2",
         }
@@ -39,7 +41,7 @@ def mock_db():
             "long_title": {"bo": "དཔེ་ཆ་", "en": "Book Three"},
             "author": {"en": "Author Three", "bo": "སྒྲོལ་མ།"},
             "language": "bo",
-            "translation_of": None,
+            "type": "root",
             "document_id": "DOC003",
             "source": "Source 3",
         }
@@ -50,6 +52,7 @@ def mock_db():
             "long_title": {"en": "Book Four", "bo": "དེབ་བཞི་པ།"},
             "author": {"en": "Author Four", "bo": "སྒྲོལ་མ།"},
             "language": "en",
+            "type": "root",
             "document_id": "DOC004",
             "source": "Source 4",
             "category": "CAT001",
@@ -61,6 +64,7 @@ def mock_db():
             "long_title": {"en": "Book One", "bo": "དེབ་དང་པོ།"},
             "language": "zh",
             "author": {"en": "Alice", "bo": "སྒྲོལ་མ།"},
+            "type": "root",
             "document_id": "DOC005",
             "source_url": "https://example.com/book5",
         }
@@ -71,6 +75,7 @@ def mock_db():
             "long_title": {"en": "Book Six", "bo": "དེབ་དྲུག་པ།"},
             "language": "en",
             "author": {"en": "Bob", "bo": "པད་མ།"},
+            "type": "root",
             "document_id": "DOC006",
             "source": "Source 6",
         }
@@ -82,6 +87,7 @@ def mock_db():
             "language": "en",
             "author": {"en": "Author Seven", "bo": "སྒྲོལ་མ།"},
             "source_url": "https://example.com/book7",
+            "type": "root",
             "document_id": "DOC007",
         }
     )
@@ -106,7 +112,8 @@ class TestGetMetadata:
         assert data["title"]["en"] == "Book One"
         assert data["title"]["bo"] == "དེབ་དང་པོ།"
         assert data["language"] == "en"
-        assert data["commentary_of"] == "I87654321"
+        assert data["type"] == "commentary"
+        assert data["parent"] == "I87654321"
         assert data["document_id"] == "DOC001"
 
     def test_get_metadata_not_found(self, mock_db, client):
@@ -201,6 +208,7 @@ class TestPutMetadata:
                 "author": {"en": "New Author", "bo": "རྩོམ་པ་པོ་གསར་པ།"},
                 "long_title": {"en": "Complete Updated Book One", "bo": "དེབ་དང་པོ་བསྐྱར་བཅོས་ཆ་ཚང་།"},
                 "source": "Updated Source",
+                "type": "root",
             }
         }
 
@@ -249,6 +257,7 @@ class TestPutMetadata:
                 "long_title": {"en": "Complete Updated Book One", "bo": "དེབ་དང་པོ་བསྐྱར་བཅོས་ཆ་ཚང་།"},
                 "source": "Updated Source",
                 "source_url": "",
+                "type": "root",
             }
         }
 
@@ -276,6 +285,7 @@ class TestPutMetadata:
                 "author": {"en": "New Author", "bo": "རྩོམ་པ་པོ་གསར་པ།"},
                 "long_title": {"en": "Complete Updated Book One", "bo": "དེབ་དང་པོ་བསྐྱར་བཅོས་ཆ་ཚང་།"},
                 "source": "Updated Source",
+                "type": "root",
             }
         }
 
@@ -302,6 +312,7 @@ class TestPutMetadata:
                 "language": "en",
                 "long_title": {"en": "Complete Updated Book One", "bo": "དེབ་དང་པོ་བསྐྱར་བཅོས་ཆ་ཚང་།"},
                 "source": "Updated Source",
+                "type": "root",
             }
         }
 
@@ -334,6 +345,7 @@ class TestPutMetadata:
                 "author": {"en": "New Author", "bo": "རྩོམ་པ་པོ་གསར་པ།"},
                 "long_title": {"en": "Complete Updated Book One", "bo": "དེབ་དང་པོ་བསྐྱར་བཅོས་ཆ་ཚང་།"},
                 "source": "Updated Source",
+                "type": "root",
             }
         }
 
@@ -360,6 +372,7 @@ class TestPutMetadata:
                 "author": {"en": "New Author", "bo": "རྩོམ་པ་པོ་གསར་པ།"},
                 "source": "New Source",
                 "long_title": {"en": "Complete New Book", "bo": "དེབ་གསར་པ་ཆ་ཚང།"},
+                "type": "root",
             }
         }
 
@@ -394,6 +407,7 @@ class TestPutMetadata:
                 "language": "en",
                 "source": "New Source",
                 "category": None,  # Explicitly setting to None
+                "type": "root",
             }
         }
 

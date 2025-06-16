@@ -6,10 +6,11 @@ from pydantic import AnyUrl, BaseModel, ConfigDict, Field, RootModel, field_seri
 NonEmptyStr = Annotated[str, Field(min_length=1)]
 
 
-class Relationship(str, Enum):
-    COMMENTARY = "commentary_of"
-    VERSION = "version_of"
-    TRANSLATION = "translation_of"
+class TextType(str, Enum):
+    COMMENTARY = "commentary"
+    VERSION = "version"
+    TRANSLATION = "translation"
+    ROOT = "root"
 
 
 class SourceType(str, Enum):
@@ -31,6 +32,7 @@ class MetadataModel(BaseModel):
         None,
         description="Dictionary with language codes as keys and corresponding strings as values",
     )
+
     date: str | None = Field(None, pattern="\\S")
     source: str | None = Field(
         None,
@@ -62,9 +64,7 @@ class MetadataModel(BaseModel):
         description="Dictionary with language codes as keys and corresponding strings as values",
     )
     alt_titles: Sequence[LocalizedString] | None = Field(None, min_length=1)
-    commentary_of: str | None = Field(None, pattern="^I[A-F0-9]{8}$")
-    version_of: str | None = Field(None, pattern="^I[A-F0-9]{8}$")
-    translation_of: str | None = Field(None, pattern="^I[A-F0-9]{8}$")
+    type: TextType = Field(..., description="The type of this Pecha (commentary, version, translation, or root)")
 
     language: str = Field(..., pattern="^[a-z]{2,3}(-[A-Z]{2})?$")
     category: str | None = Field(
@@ -83,7 +83,8 @@ class MetadataModel(BaseModel):
             "examples": [
                 {
                     "author": {"en": "DPO and Claude-3-5-sonnet-20241022"},
-                    "commentary_of": "IB42962D2",
+                    "type": "commentary",
+                    "parent": "IB42962D2",
                     "document_id": "1vgnfCQH3yaWPDaMDFXT_5GhlG0M9kEra0mxkDX46VLE",
                     "language": "en",
                     "long_title": {
@@ -101,9 +102,11 @@ class MetadataModel(BaseModel):
         },
     )
 
-    @property
-    def parent(self) -> str | None:
-        return self.commentary_of or self.version_of or self.translation_of
+    parent: str | None = Field(
+        None,
+        pattern="^I[A-F0-9]{8}$",
+        description="The ID of the parent Pecha (commentary, version, or translation), or None if this is a root Pecha",
+    )
 
     @field_serializer("source_url")
     def serialize_url(self, source_url: AnyUrl | None):
@@ -123,6 +126,22 @@ class MetadataModel(BaseModel):
 
         return self
 
+    @model_validator(mode="after")
+    def validate_root_type(self):
+        if self.type == TextType.ROOT and self.parent is not None:
+            raise ValueError("When type is 'root', parent must be None")
+        if self.type != TextType.ROOT and self.parent is None:
+            raise ValueError("When type is not 'root', parent must be provided")
+        return self
+
+    @model_validator(mode="after")
+    def check_source_fields(self):
+        # Ensure that at least one of source or source_url is set
+        if not self.source and not self.source_url:
+            raise ValueError("Either 'source' or 'source_url' must be provided.")
+
+        return self
+
     # @model_validator(mode="after")
     # def check_required_localizations(self):
     #     """Ensure title has both English and Tibetan localizations."""
@@ -135,22 +154,3 @@ class MetadataModel(BaseModel):
     #         raise ValueError("Title values cannot be empty")
     #     except (TypeError, KeyError) as e:
     #         raise ValueError("Title must have both 'en' and 'bo' localizations.") from e
-
-    @model_validator(mode="after")
-    def check_mutually_exclusive_fields(self):
-        """Ensure only one of `commentary_of`, `version_of`, or `translation_of` is set."""
-        exclusive_fields = {
-            "commentary_of": self.commentary_of,
-            "version_of": self.version_of,
-            "translation_of": self.translation_of,
-        }
-        non_null_fields = [field for field, value in exclusive_fields.items() if value is not None]
-
-        if len(non_null_fields) > 1:
-            raise ValueError(f"Only one of {list(exclusive_fields.keys())} can be set. Found: {non_null_fields}")
-
-        # Ensure that at least one of source or source_url is set
-        if not self.source and not self.source_url:
-            raise ValueError("Either 'source' or 'source_url' must be provided.")
-
-        return self
