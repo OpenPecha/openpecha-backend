@@ -344,14 +344,27 @@ main {
 
 /* Error states */
 .error,
-select.error {
+select.error,
+.form-group.error {
     border-color: var(--color-error) !important;
+}
+
+.form-group.error .radio-group {
+    border: 1px solid var(--color-error);
+    border-radius: var(--border-radius);
+    padding: var(--spacing-sm);
 }
 
 .input-wrapper.error input,
 .input-wrapper.error textarea,
-.input-wrapper.error select {
+.input-wrapper.error select,
+.select-search-container.error {
     background-color: var(--color-error-bg);
+}
+
+.select-search-container.error select,
+.select-search-container.error .search-overlay {
+    border-color: var(--color-error);
 }
 
 /* style for pop up */
