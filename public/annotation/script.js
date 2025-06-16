@@ -708,16 +708,12 @@ class AnnotationForm {
         if (!data.document_id) {
             this.showError(this.googleDocsUrl, 'Please enter a Google Docs URL');
             isValid = false;
-        } else if (!this.isValidGoogleDocsUrl(data.document_id)) {
+        } else if (!data.document_id) {
             this.showError(this.googleDocsUrl, 'Please enter a valid Google Docs URL');
             isValid = false;
         }
 
         return isValid;
-    }
-
-    isValidGoogleDocsUrl(url) {
-        return url.includes('docs.google.com') && url.includes('/d/');
     }
 
     showToast(message, type = 'info') {
