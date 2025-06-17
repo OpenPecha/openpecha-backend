@@ -83,28 +83,28 @@
               <div class="filter-constraint-notice">
                 <p>
                   <strong>Note:</strong> You can only use one filter type at a
-                  time. Select either a relationship, language, or category.
+                  time. Select either a type, language, or category.
                 </p>
               </div>
               <div class="filter-modal-body">
                 <div class="filter-section">
-                  <h3>Relationships</h3>
+                  <h3>Type</h3>
                   <div class="filter-options">
                     <label class="filter-option">
                       <input
                         type="radio"
                         name="single-filter"
-                        value="version_of"
-                        data-type="relationship"
+                        value="root"
+                        data-type="type"
                       />
-                      Version
+                      Root
                     </label>
                     <label class="filter-option">
                       <input
                         type="radio"
                         name="single-filter"
-                        value="commentary_of"
-                        data-type="relationship"
+                        value="commentary"
+                        data-type="type"
                       />
                       Commentary
                     </label>
@@ -112,8 +112,17 @@
                       <input
                         type="radio"
                         name="single-filter"
-                        value="translation_of"
-                        data-type="relationship"
+                        value="version"
+                        data-type="type"
+                      />
+                      Version
+                    </label>
+                    <label class="filter-option">
+                      <input
+                        type="radio"
+                        name="single-filter"
+                        value="translation"
+                        data-type="type"
                       />
                       Translation
                     </label>

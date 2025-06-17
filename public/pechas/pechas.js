@@ -24,7 +24,7 @@ class PechaList {
             currentSort: 'relevance',
             currentFilters: {
                 search: '',
-                relationships: [],
+                types: [],
                 languages: [],
                 category: ''
             },
@@ -75,7 +75,7 @@ class PechaList {
         try {
             // Build the request body based on whether we have advanced filters
             const hasAdvancedFilters =
-                this.state.currentFilters.relationships.length > 0 ||
+                this.state.currentFilters.types.length > 0 ||
                 this.state.currentFilters.languages.length > 0 ||
                 this.state.currentFilters.category !== '';
 
@@ -133,14 +133,14 @@ class PechaList {
     // Build API filter based on current UI filters
     buildApiFilter() {
         console.log("Building API filter");
-        if (this.state.currentFilters.relationships.length > 0) {
-            const relationshipFilter = {
-                "field": this.state.currentFilters.relationships[0],
-                "operator": "!=",
-                "value": null
+        if (this.state.currentFilters.types.length > 0) {
+            const typeFilter = {
+                "field": "type",
+                "operator": "==",
+                "value": this.state.currentFilters.types[0]
             };
-            console.log("Built relationship filter:", relationshipFilter);
-            return relationshipFilter;
+            console.log("Built type filter:", typeFilter);
+            return typeFilter;
         }
         if (this.state.currentFilters.languages.length > 0) {
             const languageFilter = {
@@ -229,7 +229,7 @@ class PechaList {
 
         // Check if we need to do an API request for advanced filters
         const hasAdvancedFilters =
-            this.state.currentFilters.relationships.length > 0 ||
+            this.state.currentFilters.types.length > 0 ||
             this.state.currentFilters.languages.length > 0 ||
             this.state.currentFilters.category !== '';
 
@@ -556,7 +556,7 @@ class PechaList {
 
     handleApplyFilters() {
         // Reset all current filters
-        this.state.currentFilters.relationships = [];
+        this.state.currentFilters.types = [];
         this.state.currentFilters.languages = [];
         this.state.currentFilters.category = '';
 
@@ -566,8 +566,8 @@ class PechaList {
             const filterType = selectedRadio.getAttribute('data-type');
             const filterValue = selectedRadio.value;
 
-            if (filterType === 'relationship') {
-                this.state.currentFilters.relationships = [filterValue];
+            if (filterType === 'type') {
+                this.state.currentFilters.types = [filterValue];
             } else if (filterType === 'language') {
                 this.state.currentFilters.languages = [filterValue];
             }
@@ -604,7 +604,7 @@ class PechaList {
         const currentSearchTerm = this.elements.searchInput.value.trim();
         this.state.currentFilters = {
             search: currentSearchTerm,
-            relationships: [],
+            types: [],
             languages: [],
             category: ''
         };
