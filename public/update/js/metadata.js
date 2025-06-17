@@ -624,9 +624,9 @@ class UpdateMetadata {
 
     async fetchRelatedPechas(type) {
         const filters = {
-            commentary: { "field": "type", "operator": "==", "value": "root" },
-            version: { "field": "type", "operator": "==", "value": "root" },
-            translation: { "field": "type", "operator": "==", "value": "root" }
+            commentary: { "field": "type", "operator": "!=", "value": "commentary" },
+            version: { "field": "type", "operator": "!=", "value": "version" },
+            translation: { "field": "type", "operator": "!=", "value": "translation" }
         };
         const body = { filter: filters[type] || {} };
 
