@@ -871,6 +871,15 @@ class LocalizedForm {
             this.parentOptionsContainer.classList.remove('error');
         }
 
+        // Validate annotation alignment for non-root types
+        if (metadata.type !== 'root' && !formData.annotation_id) {
+            this.annotationAlignmentSelect.classList.add('error');
+            this.showToast("Please select annotation", "error");
+            return false;
+        } else {
+            this.annotationAlignmentSelect.classList.remove('error');
+        }
+
         // Check author in English
         if (!metadata.author) {
             this.highlightError('author');
@@ -966,12 +975,6 @@ class LocalizedForm {
         if (!metadata.document_id) {
             document.querySelector('input[placeholder="Google docs URL"]').closest('.input-wrapper').classList.add('error');
             this.showToast("Enter valid Google docs URL", "error");
-            return false;
-        }
-
-        if (!formData.annotation_id) {
-            this.annotationAlignmentSelect.classList.add('error');
-            this.showToast("Please select annotation", "error");
             return false;
         }
 
