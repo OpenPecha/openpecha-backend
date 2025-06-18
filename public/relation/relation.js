@@ -255,49 +255,51 @@ class PechaRelationship {
             // Then create links based on relationships
             data.forEach(item => {
                 // Handle version relationship
-                if (item.version_of) {
-                    const sourceNode = nodeMap.get(item.version_of);
+                const type = item.type;
+                console.log("Type:", type);
+                if (type === 'version') {
+                    const sourceNode = nodeMap.get(item.parent);
                     const targetNode = nodeMap.get(item.id);
                     
                     if (sourceNode && targetNode) {
                         targetNode.group = 'version';
                         
                         links.push({
-                            source: item.version_of,
+                            source: item.parent,
                             target: item.id,
-                            type: 'version_of'
+                            type: 'version'
                         });
                     }
                 }
                 
                 // Handle commentary relationship
-                if (item.commentary_of) {
-                    const sourceNode = nodeMap.get(item.commentary_of);
+                if (type === 'commentary') {
+                    const sourceNode = nodeMap.get(item.parent);
                     const targetNode = nodeMap.get(item.id);
                     
                     if (sourceNode && targetNode) {
                         targetNode.group = 'commentary';
                         
                         links.push({
-                            source: item.commentary_of,
+                            source: item.parent,
                             target: item.id,
-                            type: 'commentary_of'
+                            type: 'commentary'
                         });
                     }
                 }
                 
                 // Handle translation relationship
-                if (item.translation_of) {
-                    const sourceNode = nodeMap.get(item.translation_of);
+                if (type === 'translation') {
+                    const sourceNode = nodeMap.get(item.parent);
                     const targetNode = nodeMap.get(item.id);
                     
                     if (sourceNode && targetNode) {
                         targetNode.group = 'translation';
                         
                         links.push({
-                            source: item.translation_of,
+                            source: item.parent,
                             target: item.id,
-                            type: 'translation_of'
+                            type: 'translation'
                         });
                     }
                 }

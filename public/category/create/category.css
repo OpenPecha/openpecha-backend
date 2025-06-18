@@ -95,7 +95,7 @@ body {
 /* Content wrapper */
 .content-wrapper {
     display: grid;
-    grid-template-columns: 400px 1fr;
+    grid-template-columns: 1fr 1fr;
     gap: var(--space-xl);
     align-items: start;
 }
