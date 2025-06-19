@@ -589,6 +589,7 @@ class AnnotationForm {
         if (submitBtn) submitBtn.disabled = true;
         if (btnText) btnText.style.display = 'none';
         if (btnSpinner) btnSpinner.style.display = 'inline-block';
+        console.log("submitBtn:::", submitBtn);
         try {
             const data = this.getFormData();
             const isValid = this.validateForm(data);
@@ -676,8 +677,8 @@ class AnnotationForm {
         }
 
         // Validate conditional fields for alignment
-        const isCommentaryOrTranslation = ('translation_of' in this.metadata && this.metadata.translation_of !== null) ||
-            ('commentary_of' in this.metadata && this.metadata.commentary_of !== null);
+        const isCommentaryOrTranslation = (this.metadata.type === 'translation') ||
+            (this.metadata.type === 'commentary');
         const isAlignment = annotationType?.value === 'alignment';
 
         if (isCommentaryOrTranslation && isAlignment) {

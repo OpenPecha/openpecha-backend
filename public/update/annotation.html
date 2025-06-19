@@ -60,34 +60,82 @@
               <i class="fas fa-spinner fa-spin"></i> Loading pechas...
             </div>
             <!-- Container to display existing annotations -->
-            <div id="existingAnnotationsContainer" class="existing-annotations-container" style="display: none;">
+            <div
+              id="existingAnnotationsContainer"
+              class="existing-annotations-container"
+              style="display: none"
+            >
               <div class="annotations-header">
                 <label>Existing Annotations</label>
-                <button type="button" id="toggleAnnotationsBtn" class="toggle-btn">
+                <button
+                  type="button"
+                  id="toggleAnnotationsBtn"
+                  class="toggle-btn"
+                >
                   <i class="fas fa-chevron-up" id="toggleIcon"></i>
                 </button>
               </div>
               <!-- Loading spinner for annotations -->
-              <div id="annotationsLoadingSpinner" class="loading-spinner" style="display:none; margin:10px;">
+              <div
+                id="annotationsLoadingSpinner"
+                class="loading-spinner"
+                style="display: none; margin: 10px"
+              >
                 <i class="fas fa-spinner fa-spin"></i> Loading annotations...
               </div>
-              <div id="existingAnnotationsList" class="existing-annotations-list"></div>
+              <div
+                id="existingAnnotationsList"
+                class="existing-annotations-list"
+              ></div>
             </div>
           </div>
 
           <div class="form-group">
-            <label for="annotation">Annotation Type</label>
-            <select id="annotation" name="annotation_type" disabled>
-              <option value="">Select Annotation Type</option>
-              <option value="commentary">Commentary</option>
-              <option value="translation">Translation</option>
-              <option value="segmentation">Segmentation</option>
-              <option value="alignment" selected>Alignment</option>
-            </select>
+            <label>Annotation Type</label>
+            <div class="annotation-type-container">
+              <label class="annotation-type-option">
+                <input
+                  type="radio"
+                  name="annotation_type"
+                  value="alignment"
+                  disabled
+                />
+                <div class="option-content">
+                  <i class="fas fa-link"></i>
+                  <span>Alignment</span>
+                </div>
+              </label>
+              <label class="annotation-type-option">
+                <input
+                  type="radio"
+                  name="annotation_type"
+                  value="footnote"
+                  disabled
+                />
+                <div class="option-content">
+                  <i class="fas fa-sticky-note"></i>
+                  <span>Footnote</span>
+                </div>
+              </label>
+              <label class="annotation-type-option">
+                <input
+                  type="radio"
+                  name="annotation_type"
+                  value="segmentation"
+                  disabled
+                />
+                <div class="option-content">
+                  <i class="fas fa-cut"></i>
+                  <span>Segmentation</span>
+                </div>
+              </label>
+            </div>
           </div>
 
           <div class="form-group conditional-field" id="pechaField">
-            <label for="pechaDropdown" id="pechaDropdownLabel">Parent Pecha</label>
+            <label for="pechaDropdown" id="pechaDropdownLabel"
+              >Parent Pecha</label
+            >
             <div class="select-search-container">
               <select id="pechaDropdown" name="pechaDropdown" disabled>
                 <option value="">Select Pecha</option>
@@ -131,7 +179,7 @@
 
           <button type="submit" class="submit-button" id="submitAnnotationBtn">
             <span class="btn-text">Update Annotation</span>
-            <span class="btn-spinner" style="display:none;">
+            <span class="btn-spinner" style="display: none">
               <i class="fas fa-spinner fa-spin"></i> Updating annotation...
             </span>
           </button>
