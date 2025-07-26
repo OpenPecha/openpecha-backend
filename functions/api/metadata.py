@@ -20,7 +20,7 @@ def format_metadata_chain(chain: list[tuple[str, MetadataModel]]) -> list[dict[s
             "id": pecha_id,
             "title": metadata.title.root.get(metadata.language, ""),
             "type": metadata.type,
-            **({"parent": metadata.parent} if metadata.parent is not None else {})
+            **({"parent": metadata.parent} if metadata.parent is not None else {}),
         }
         for pecha_id, metadata in chain
     ]

@@ -76,6 +76,12 @@ class MetadataModel(BaseModel):
         description="An optional dictionary containing BDRC-specific metadata",
     )
 
+    parent: str | None = Field(
+        None,
+        pattern="^I[A-F0-9]{8}$",
+        description="The ID of the parent Pecha (commentary, version, or translation), or None if this is a root Pecha",
+    )
+
     model_config = ConfigDict(
         extra="forbid",
         str_strip_whitespace=True,
@@ -100,12 +106,6 @@ class MetadataModel(BaseModel):
                 }
             ]
         },
-    )
-
-    parent: str | None = Field(
-        None,
-        pattern="^I[A-F0-9]{8}$",
-        description="The ID of the parent Pecha (commentary, version, or translation), or None if this is a root Pecha",
     )
 
     @field_serializer("source_url")

@@ -1,0 +1,165 @@
+nodes:
+  Work:
+    properties:
+      wiki: string
+      bdrc: string
+    relationships:
+      HAS_TITLE:
+        target: Nomen
+        cardinality: one
+        required: true
+
+  Expression:
+    properties:
+      wiki: string
+      bdrc: string
+    relationships:
+      EXPRESSION_OF:
+        target: Work
+        cardinality: one
+        required: true
+      HAS_TYPE:
+        target: ExpressionType
+        cardinality: one
+        required: true
+      HAS_LANGUAGE:
+        target: Language
+        cardinality: one
+        required: true
+      HAS_CONTRIBUTION:
+        target: Contribution
+        cardinality: many
+        required: true
+      HAS_TITLE:
+        target: Nomen
+        cardinality: one
+        required: false
+
+  Manifestation:
+    properties:
+      colophon: string
+      created: datetime
+      modified: datetime
+      bdrc: string
+      wiki: string
+    relationships:
+      HAS_TYPE:
+        target: ManifestationType
+        cardinality: one
+        required: true
+      HAS_COPYRIGHT:
+        target: CopyrightStatus
+        cardinality: one
+        required: false
+      MANIFESTATION_OF:
+        target: Expression
+        cardinality: one
+        required: true
+      HAS_ANNOTATION:
+        target: Annotation
+        cardinality: many
+        required: false
+
+  Annotation:
+    properties:
+      name: string
+    relationships:
+      HAS_TYPE:
+        target: AnnotationType
+        cardinality: one
+        required: true
+
+  Contribution:
+    relationships:
+      BY:
+        target: Person
+        cardinality: one
+        required: true
+      WITH_ROLE:
+        target: RoleType
+        cardinality: one
+        required: true
+
+  Person:
+    properties:
+      id: string
+      bdrc: string
+      wiki: string
+    relationships:
+      HAS_NAME:
+        target: Nomen
+        cardinality: one
+        required: true
+
+  Nomen:
+    properties:
+      id: string
+    relationships:
+      HAS_LOCALIZATION:
+        target: LocalizedText
+        cardinality: one
+        required: true
+      ALTERNATIVE_OF:
+        target: Nomen
+        cardinality: one
+        required: false
+
+  LocalizedText:
+    properties:
+      text: string
+    relationships:
+      HAS_LANGUAGE:
+        target: Language
+        cardinality: one
+        required: true
+        properties:
+          tags: string
+
+  Language:
+    properties:
+      code: string
+      name: string
+  
+  ManifestationType:
+    enum: true
+    properties:
+      name:
+        type: string
+        allowed_values:
+          - diplomatic
+          - critical
+
+  CopyrightStatus:
+    properties:
+      info_url: string
+      status: string
+      notice: string
+
+  AnnotationType:
+    enum: true
+    properties:
+      name:
+        type: string
+        allowed_values:
+          - segmentation
+          - alignment
+
+  ExpressionType:
+    enum: true
+    properties:
+      name:
+        type: string
+        allowed_values:
+          - translation
+          - original
+
+  RoleType:
+    enum: true
+    properties:
+      name:
+        type: string
+        allowed_values:
+          - reviser
+          - author
+          - translator
+  

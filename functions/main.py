@@ -2,9 +2,13 @@ import firebase_admin
 from api.annotation import annotation_bp
 from api.api import api_bp
 from api.category import categories_bp
+from api.expression import expression_bp
 from api.languages import languages_bp
+from api.manifestation import manifestation_bp
 from api.metadata import metadata_bp
+from api.metadata_v2 import metadata_v2_bp
 from api.pecha import pecha_bp
+from api.person import persons_bp
 from api.schema import schema_bp
 from api.text import text_bp
 from exceptions import OpenPechaException
@@ -30,15 +34,28 @@ def create_app(testing=False):
     app = Flask(__name__)
     app.config["TESTING"] = testing
     app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
+    app.json.ensure_ascii = False
 
     app.register_blueprint(pecha_bp, url_prefix="/pecha")
     app.register_blueprint(metadata_bp, url_prefix="/metadata")
+    app.register_blueprint(metadata_v2_bp, url_prefix="/v2/metadata")
     app.register_blueprint(languages_bp, url_prefix="/languages")
     app.register_blueprint(schema_bp, url_prefix="/schema")
     app.register_blueprint(api_bp, url_prefix="/api")
     app.register_blueprint(text_bp, url_prefix="/text")
     app.register_blueprint(categories_bp, url_prefix="/categories")
     app.register_blueprint(annotation_bp, url_prefix="/annotation")
+    app.register_blueprint(manifestation_bp, url_prefix="/v2/manifestation")
+    app.register_blueprint(expression_bp, url_prefix="/v2/expression")
+    app.register_blueprint(persons_bp, url_prefix="/v2/persons")
+
+    @app.after_request
+    def add_no_cache_headers(response):
+        """Add no-cache headers to all responses."""
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
 
     @app.errorhandler(Exception)
     def handle_exception(e):
@@ -56,7 +73,7 @@ def create_app(testing=False):
     def log_response(response):
         try:
             request_body = request.get_json() if request.is_json else request.get_data(as_text=True)
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             request_body = "<unknown>"
 
         if response.is_json:
@@ -86,6 +103,7 @@ def create_app(testing=False):
     max_instances=1,
     secrets=[
         "PECHA_API_KEY",
+        "NEO4J_PASSWORD",
     ],
     memory=options.MemoryOption.MB_512,
 )

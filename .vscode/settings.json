@@ -3,7 +3,6 @@
         "--disable=missing-class-docstring",
         "--disable=missing-function-docstring",
         "--disable=missing-module-docstring",
-        "--disable=broad-exception-caught",
         "--max-line-length=120",
     ],
     "mypy-type-checker.args": [
@@ -36,7 +35,7 @@
         "**/.git": true,
         "**/venv": true,
         "**/.firebase": true,
-        "**/.pytest_cache": true
+        "**/.pytest_cache": true,
     },
     "bandit.ignorePatterns": [
         "**/tests/*.py"

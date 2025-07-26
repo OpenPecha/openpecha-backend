@@ -1,6 +1,7 @@
 {
   "functions": {
     "source": "functions",
+    "runtime": "python312",
     "codebase": "default",
     "ignore": [
       "venv",
