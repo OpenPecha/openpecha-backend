@@ -219,6 +219,8 @@ class Neo4JDatabase:
                     ContributionModel(
                         person=PersonModel(
                             id=contributor["person"]["id"],
+                            bdrc=contributor["person"].get("bdrc"),
+                            wiki=contributor["person"].get("wiki"),
                             name=LocalizedString(self.__convert_to_localized_text(contributor["person"]["name"])),
                             alt_names=[
                                 LocalizedString(self.__convert_to_localized_text(alt))
