@@ -50,7 +50,7 @@ class PersonModel(BaseModel):
     bdrc: str | None = None
     wiki: str | None = None
     name: LocalizedString
-    alt_names: Sequence[LocalizedString] | None = Field(None, min_length=1)
+    alt_names: Sequence[LocalizedString] | None = None
 
 
 class ContributionModel(BaseModel):

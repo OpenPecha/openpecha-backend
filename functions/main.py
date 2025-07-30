@@ -2,13 +2,12 @@ import firebase_admin
 from api.annotation import annotation_bp
 from api.api import api_bp
 from api.category import categories_bp
-from api.expression import expression_bp
 from api.languages import languages_bp
 from api.manifestation import manifestation_bp
 from api.metadata import metadata_bp
 from api.metadata_v2 import metadata_v2_bp
 from api.pecha import pecha_bp
-from api.person import persons_bp
+from api.persons import persons_bp
 from api.schema import schema_bp
 from api.text import text_bp
 from exceptions import OpenPechaException
@@ -46,7 +45,6 @@ def create_app(testing=False):
     app.register_blueprint(categories_bp, url_prefix="/categories")
     app.register_blueprint(annotation_bp, url_prefix="/annotation")
     app.register_blueprint(manifestation_bp, url_prefix="/v2/manifestation")
-    app.register_blueprint(expression_bp, url_prefix="/v2/expression")
     app.register_blueprint(persons_bp, url_prefix="/v2/persons")
 
     @app.after_request
@@ -103,6 +101,7 @@ def create_app(testing=False):
     max_instances=1,
     secrets=[
         "PECHA_API_KEY",
+        "NEO4J_URI",
         "NEO4J_PASSWORD",
     ],
     memory=options.MemoryOption.MB_512,

@@ -1,8 +1,12 @@
 nodes:
   Work:
     properties:
-      wiki: string
-      bdrc: string
+      wiki:
+        type: string
+        required: false
+      bdrc:
+        type: string
+        required: false
     relationships:
       HAS_TITLE:
         target: Nomen
@@ -11,8 +15,12 @@ nodes:
 
   Expression:
     properties:
-      wiki: string
-      bdrc: string
+      wiki:
+        type: string
+        required: false
+      bdrc:
+        type: string
+        required: false
     relationships:
       EXPRESSION_OF:
         target: Work
@@ -37,11 +45,21 @@ nodes:
 
   Manifestation:
     properties:
-      colophon: string
-      created: datetime
-      modified: datetime
-      bdrc: string
-      wiki: string
+      colophon:
+        type: string
+        required: false
+      created:
+        type: datetime
+        required: false
+      modified:
+        type: datetime
+        required: false
+      bdrc:
+        type: string
+        required: false
+      wiki:
+        type: string
+        required: false
     relationships:
       HAS_TYPE:
         target: ManifestationType
@@ -62,7 +80,9 @@ nodes:
 
   Annotation:
     properties:
-      name: string
+      name:
+        type: string
+        required: true
     relationships:
       HAS_TYPE:
         target: AnnotationType
@@ -82,9 +102,15 @@ nodes:
 
   Person:
     properties:
-      id: string
-      bdrc: string
-      wiki: string
+      id:
+        type: string
+        required: true
+      bdrc:
+        type: string
+        required: false
+      wiki:
+        type: string
+        required: false
     relationships:
       HAS_NAME:
         target: Nomen
@@ -93,7 +119,9 @@ nodes:
 
   Nomen:
     properties:
-      id: string
+      id:
+        type: string
+        required: true
     relationships:
       HAS_LOCALIZATION:
         target: LocalizedText
@@ -106,19 +134,30 @@ nodes:
 
   LocalizedText:
     properties:
-      text: string
+      id:
+        type: string
+        required: true
+      text:
+        type: string
+        required: true
     relationships:
       HAS_LANGUAGE:
         target: Language
         cardinality: one
         required: true
         properties:
-          tags: string
+          tags:
+            type: string
+            required: false
 
   Language:
     properties:
-      code: string
-      name: string
+      code:
+        type: string
+        required: true
+      name:
+        type: string
+        required: true
   
   ManifestationType:
     enum: true
@@ -131,9 +170,15 @@ nodes:
 
   CopyrightStatus:
     properties:
-      info_url: string
-      status: string
-      notice: string
+      info_url:
+        type: string
+        required: false
+      status:
+        type: string
+        required: true
+      notice:
+        type: string
+        required: false
 
   AnnotationType:
     enum: true
