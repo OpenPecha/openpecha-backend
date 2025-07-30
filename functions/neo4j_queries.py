@@ -151,23 +151,29 @@ RETURN p.id as person_id
 
 Queries.nomens = {
     "create": """
-CREATE (n:Nomen {id: $id})
-RETURN n.id as nomen_id
+CREATE (n:Nomen)
+RETURN elementId(n) as element_id
 """,
     "link_to_person": """
-MATCH (p:Person), (n:Nomen)
-WHERE p.id = $person_id AND n.id = $primary_name_id
+MATCH (p:Person)
+WHERE p.id = $person_id
+WITH p
+MATCH (n:Nomen)
+WHERE elementId(n) = $primary_name_element_id
 CREATE (p)-[:HAS_NAME]->(n)
 """,
     "link_alternative": """
-MATCH (primary:Nomen), (alt:Nomen)
-WHERE primary.id = $primary_name_id AND alt.id = $alt_name_id
+MATCH (primary:Nomen)
+WHERE elementId(primary) = $primary_name_element_id
+WITH primary
+MATCH (alt:Nomen)
+WHERE elementId(alt) = $alt_name_element_id
 CREATE (alt)-[:ALTERNATIVE_OF]->(primary)
 """,
     "create_localized_text": """
 MATCH (n:Nomen), (l:Language)
-WHERE n.id = $id AND l.code = $base_lang_code
-CREATE (n)-[:HAS_LOCALIZATION]->(lt:LocalizedText {id: $id, text: $text})-[:HAS_LANGUAGE {bcp47: $bcp47_tag}]->(l)
+WHERE elementId(n) = $nomen_element_id AND l.code = $base_lang_code
+CREATE (n)-[:HAS_LOCALIZATION]->(lt:LocalizedText {text: $text})-[:HAS_LANGUAGE {bcp47: $bcp47_tag}]->(l)
 """,
 }
 

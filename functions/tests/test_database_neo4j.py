@@ -47,7 +47,6 @@ def test_database(neo4j_connection):
     with db.get_session() as session:
         # Create constraints
         session.run("CREATE CONSTRAINT person_id IF NOT EXISTS FOR (p:Person) REQUIRE p.id IS UNIQUE")
-        session.run("CREATE CONSTRAINT nomen_id IF NOT EXISTS FOR (n:Nomen) REQUIRE n.id IS UNIQUE")
         session.run("CREATE CONSTRAINT expression_id IF NOT EXISTS FOR (e:Expression) REQUIRE e.id IS UNIQUE")
 
         # Create test languages

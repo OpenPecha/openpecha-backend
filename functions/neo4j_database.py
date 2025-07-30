@@ -27,10 +27,9 @@ class Neo4JDatabase:
         else:
             # Production Neo4j connection
             self.__driver = GraphDatabase.driver(
-                "neo4j+s://de3b3d5d.databases.neo4j.io",
+                os.environ.get("NEO4J_URI"),
                 auth=("neo4j", os.environ.get("NEO4J_PASSWORD")),
             )
-
         self.__driver.verify_connectivity()
         logger.info("Connection to neo4j established.")
 
@@ -155,13 +154,19 @@ class Neo4JDatabase:
         def create_transaction(tx):
             person_id = generate_id()
             tx.run(Queries.persons["create"], id=person_id, bdrc=person.bdrc, wiki=person.wiki)
-            primary_name_id = self._create_name(tx, person.name.root)
+            primary_name_element_id = self._create_name(tx, person.name.root)
 
-            tx.run(Queries.nomens["link_to_person"], person_id=person_id, primary_name_id=primary_name_id)
+            tx.run(
+                Queries.nomens["link_to_person"], person_id=person_id, primary_name_element_id=primary_name_element_id
+            )
 
             for alt_name in person.alt_names or []:
-                alt_name_id = self._create_name(tx, alt_name.root)
-                tx.run(Queries.nomens["link_alternative"], primary_name_id=primary_name_id, alt_name_id=alt_name_id)
+                alt_name_element_id = self._create_name(tx, alt_name.root)
+                tx.run(
+                    Queries.nomens["link_alternative"],
+                    primary_name_element_id=primary_name_element_id,
+                    alt_name_element_id=alt_name_element_id,
+                )
 
             return person_id
 
@@ -169,8 +174,8 @@ class Neo4JDatabase:
             return session.execute_write(create_transaction)
 
     def _create_name(self, tx, localized_text: dict[str, str]) -> str:
-        nomen_id = generate_id()
-        tx.run(Queries.nomens["create"], id=nomen_id)
+        result = tx.run(Queries.nomens["create"])
+        nomen_element_id = result.single()["element_id"]
 
         for bcp47_tag, text in localized_text.items():
             base_lang_code = bcp47_tag.split("-")[0].lower()
@@ -179,13 +184,13 @@ class Neo4JDatabase:
 
             tx.run(
                 Queries.nomens["create_localized_text"],
-                id=nomen_id,
+                nomen_element_id=nomen_element_id,
                 base_lang_code=base_lang_code,
                 bcp47_tag=bcp47_tag,
                 text=text,
             )
 
-        return nomen_id
+        return nomen_element_id
 
     def get_all_expressions_neo4j(
         self,

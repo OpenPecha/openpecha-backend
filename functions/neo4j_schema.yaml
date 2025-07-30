@@ -118,10 +118,7 @@ nodes:
         required: true
 
   Nomen:
-    properties:
-      id:
-        type: string
-        required: true
+    properties: {}
     relationships:
       HAS_LOCALIZATION:
         target: LocalizedText
@@ -134,9 +131,6 @@ nodes:
 
   LocalizedText:
     properties:
-      id:
-        type: string
-        required: true
       text:
         type: string
         required: true
