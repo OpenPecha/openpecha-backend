@@ -27,7 +27,7 @@ class Neo4JDatabase:
         else:
             # Production Neo4j connection
             self.__driver = GraphDatabase.driver(
-                os.environ.get("NEO4J_URI"),
+                "neo4j+s://de3b3d5d.databases.neo4j.io",
                 auth=("neo4j", os.environ.get("NEO4J_PASSWORD")),
             )
 
