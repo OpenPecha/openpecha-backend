@@ -26,6 +26,10 @@ nodes:
         target: Work
         cardinality: one
         required: true
+        properties:
+          original:
+            type: boolean
+            required: true
       HAS_TYPE:
         target: ExpressionType
         cardinality: one
@@ -34,10 +38,14 @@ nodes:
         target: Language
         cardinality: one
         required: true
+        properties:
+          tags:
+            type: string
+            required: false
       HAS_CONTRIBUTION:
         target: Contribution
         cardinality: many
-        required: true
+        required: false
       HAS_TITLE:
         target: Nomen
         cardinality: one
@@ -80,7 +88,7 @@ nodes:
 
   Annotation:
     properties:
-      name:
+      id:
         type: string
         required: true
     relationships:
@@ -98,6 +106,15 @@ nodes:
       WITH_ROLE:
         target: RoleType
         cardinality: one
+        required: true
+
+  AI:
+    properties:
+      id:
+        type: string
+        required: true
+      model:
+        type: string
         required: true
 
   Person:
