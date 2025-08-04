@@ -65,7 +65,8 @@ END
     type: {Queries.infer_expression_type(label)},
     parent: COALESCE(
         [({label})-[:TRANSLATION_OF]->(parent:Expression) | parent.id][0],
-        [({label})-[:EXPRESSION_OF]->(w:Work)-[:COMMENTARY_OF]->(:Work)<-[:EXPRESSION_OF]-(parent:Expression) | parent.id][0]
+        [({label})-[:EXPRESSION_OF]->(w:Work)-[:COMMENTARY_OF]->(:Work)
+        <-[:EXPRESSION_OF]-(parent:Expression) | parent.id][0]
     ),
     contributors: [
         ({label})-[:HAS_CONTRIBUTION]->(c:Contribution)-[:BY]->(person:Person) | {{
@@ -125,7 +126,7 @@ RETURN e.id as expression_id
 """,
     "create_contribution": """
 MATCH (e:Expression {id: $expression_id})
-MATCH (p:Person) WHERE (($person_id IS NOT NULL AND p.id = $person_id) 
+MATCH (p:Person) WHERE (($person_id IS NOT NULL AND p.id = $person_id)
                         OR ($person_bdrc_id IS NOT NULL AND p.bdrc = $person_bdrc_id))
 MATCH (rt:RoleType {name: $role_name})
 CREATE (e)-[:HAS_CONTRIBUTION]->(c:Contribution)-[:BY]->(p),

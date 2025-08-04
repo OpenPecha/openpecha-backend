@@ -16,7 +16,14 @@ from pathlib import Path
 import pytest
 from dotenv import load_dotenv
 from exceptions import DataNotFound
-from metadata_model_v2 import LocalizedString, PersonModel
+from metadata_model_v2 import (
+    ContributionModel,
+    ContributorRole,
+    ExpressionModel,
+    LocalizedString,
+    PersonModel,
+    TextType,
+)
 from neo4j_database import Neo4JDatabase
 from neo4j_queries import Queries
 
@@ -321,7 +328,6 @@ class TestDatabaseNeo4jReal:
 
     def test_create_root_expression_success(self, test_database):
         """Test successful creation of ROOT type expression with all components"""
-        from metadata_model_v2 import ContributionModel, ContributorRole, ExpressionModel, LocalizedString, TextType
 
         # First create a person to reference in contributions
         person = PersonModel(
@@ -382,7 +388,6 @@ class TestDatabaseNeo4jReal:
 
     def test_create_root_expression_missing_person(self, test_database):
         """Test that creating expression with non-existent person fails and rolls back"""
-        from metadata_model_v2 import ContributionModel, ContributorRole, ExpressionModel, LocalizedString, TextType
 
         expression = ExpressionModel(
             id="temp-id",
@@ -400,7 +405,6 @@ class TestDatabaseNeo4jReal:
 
     def test_create_root_expression_language_support(self, test_database):
         """Test that various language codes are properly supported"""
-        from metadata_model_v2 import ContributionModel, ContributorRole, ExpressionModel, LocalizedString, TextType
 
         # Create a person
         person = PersonModel(
@@ -436,8 +440,6 @@ class TestDatabaseNeo4jReal:
 
     def test_create_root_expression_multiple_contributions(self, test_database):
         """Test creating expression with multiple contributors"""
-        from metadata_model_v2 import ContributionModel, ContributorRole, ExpressionModel, LocalizedString, TextType
-
         # Create multiple persons
         author = PersonModel(
             id="temp-id",
@@ -480,8 +482,6 @@ class TestDatabaseNeo4jReal:
 
     def test_create_root_expression_minimal_data(self, test_database):
         """Test creating expression with minimal required data"""
-        from metadata_model_v2 import ContributionModel, ContributorRole, ExpressionModel, LocalizedString, TextType
-
         # Create a person
         person = PersonModel(
             id="temp-id",
@@ -512,8 +512,6 @@ class TestDatabaseNeo4jReal:
 
     def test_create_root_expression_with_bdrc_id(self, test_database):
         """Test creating expression with contribution using person_bdrc_id instead of person_id"""
-        from metadata_model_v2 import ContributionModel, ContributorRole, ExpressionModel, LocalizedString, TextType
-
         # Create a person with BDRC ID
         person = PersonModel(
             id="temp-person-id",
@@ -553,8 +551,6 @@ class TestDatabaseNeo4jReal:
 
     def test_create_root_expression_missing_person_bdrc_id(self, test_database):
         """Test that creating expression with non-existent person_bdrc_id fails"""
-        from metadata_model_v2 import ContributionModel, ContributorRole, ExpressionModel, LocalizedString, TextType
-
         expression = ExpressionModel(
             id="temp-id",
             type=TextType.ROOT,
@@ -573,8 +569,6 @@ class TestDatabaseNeo4jReal:
 
     def test_create_translation_expression_success(self, test_database):
         """Test creating a translation expression that links to parent's work"""
-        from metadata_model_v2 import ContributionModel, ContributorRole, ExpressionModel, LocalizedString, TextType
-
         # First create a root expression (parent)
         person = PersonModel(
             id="temp-person-id",
@@ -621,8 +615,6 @@ class TestDatabaseNeo4jReal:
 
     def test_create_translation_expression_missing_parent(self, test_database):
         """Test that creating translation expression without parent fails validation"""
-        from metadata_model_v2 import ContributionModel, ContributorRole, ExpressionModel, LocalizedString, TextType
-
         # Create a person for the contribution
         person = PersonModel(
             id="temp-person-id",
@@ -643,8 +635,6 @@ class TestDatabaseNeo4jReal:
 
     def test_create_root_expression_with_parent_fails(self, test_database):
         """Test that creating root expression with parent fails validation"""
-        from metadata_model_v2 import ContributionModel, ContributorRole, ExpressionModel, LocalizedString, TextType
-
         # Create a person for the contribution
         person = PersonModel(
             id="temp-person-id",
@@ -665,8 +655,6 @@ class TestDatabaseNeo4jReal:
 
     def test_create_translation_expression_nonexistent_parent(self, test_database):
         """Test that creating translation with non-existent parent fails"""
-        from metadata_model_v2 import ContributionModel, ContributorRole, ExpressionModel, LocalizedString, TextType
-
         # Create a person for the contribution
         person = PersonModel(
             id="temp-person-id",
@@ -690,8 +678,6 @@ class TestDatabaseNeo4jReal:
 
     def test_create_commentary_expression_success(self, test_database):
         """Test creating a commentary expression that creates its own Work with COMMENTARY_OF relationship"""
-        from metadata_model_v2 import ContributionModel, ContributorRole, ExpressionModel, LocalizedString, TextType
-
         # First create a root expression (parent)
         person = PersonModel(
             id="temp-person-id",
@@ -743,8 +729,6 @@ class TestDatabaseNeo4jReal:
 
     def test_create_commentary_expression_missing_parent(self, test_database):
         """Test that creating commentary expression without parent fails validation"""
-        from metadata_model_v2 import ContributionModel, ContributorRole, ExpressionModel, LocalizedString, TextType
-
         # Create a person for the contribution
         person = PersonModel(
             id="temp-person-id",
@@ -765,8 +749,6 @@ class TestDatabaseNeo4jReal:
 
     def test_create_commentary_expression_nonexistent_parent(self, test_database):
         """Test that creating commentary with non-existent parent fails"""
-        from metadata_model_v2 import ContributionModel, ContributorRole, ExpressionModel, LocalizedString, TextType
-
         # Create a person for the contribution
         person = PersonModel(
             id="temp-person-id",
@@ -790,8 +772,6 @@ class TestDatabaseNeo4jReal:
 
     def test_create_commentary_expression_with_multiple_contributions(self, test_database):
         """Test creating commentary expression with multiple contributors"""
-        from metadata_model_v2 import ContributionModel, ContributorRole, ExpressionModel, LocalizedString, TextType
-
         # Create parent expression
         author = PersonModel(
             id="temp-author-id",
@@ -842,5 +822,3 @@ class TestDatabaseNeo4jReal:
         contribution_roles = {contrib.role for contrib in retrieved.contributions}
         assert ContributorRole.AUTHOR in contribution_roles
         assert ContributorRole.REVISER in contribution_roles
-
-

@@ -278,14 +278,7 @@ class Neo4JDatabase:
                     for contributor in expression_data.get("contributors", [])
                 ]
 
-                parent = None
-                # TODO: this should get the parent (root, in case of commentary, and original in case of translation)
-                # if expression_data["type"] == "translation":
-                #     related_expressions = expression_data.get("related", [])
-                #     for related in related_expressions:
-                #         if related.get("type") == "original":
-                #             parent = related["id"]
-                #             break
+                parent = expression_data["parent"]
 
                 expression = ExpressionModel(
                     id=expression_data["id"],
