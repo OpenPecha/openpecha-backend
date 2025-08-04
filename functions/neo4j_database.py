@@ -10,6 +10,7 @@ from metadata_model_v2 import (
     LocalizedString,
     ManifestationModel,
     PersonModel,
+    TextType,
 )
 from neo4j import GraphDatabase
 from neo4j_queries import Queries
@@ -42,21 +43,7 @@ class Neo4JDatabase:
         if self.__driver:
             self.__driver.close()
 
-    def _create_person_model(self, person_data, person_id=None):
-        """Helper to create PersonModel from Neo4j person data"""
-        return PersonModel(
-            id=person_id or person_data.get("id"),
-            bdrc=person_data.get("bdrc"),
-            wiki=person_data.get("wiki"),
-            name=LocalizedString(self.__convert_to_localized_text(person_data["name"])),
-            alt_names=(
-                [LocalizedString(self.__convert_to_localized_text(alt)) for alt in person_data["alt_names"]]
-                if person_data.get("alt_names")
-                else None
-            ),
-        )
-
-    def get_expression_neo4j(self, expression_id: str) -> ExpressionModel:
+    def get_expression(self, expression_id: str) -> ExpressionModel:
         with self.__driver.session() as session:
             result = session.run(Queries.expressions["fetch_by_id"], id=expression_id)
 
@@ -67,7 +54,8 @@ class Neo4JDatabase:
 
             contributions = [
                 ContributionModel(
-                    person=self._create_person_model(contributor["person"]),
+                    person_id=contributor["person_id"],
+                    person_bdrc_id=contributor.get("person_bdrc_id"),
                     role=contributor["role"],
                 )
                 for contributor in expression.get("contributors", [])
@@ -86,7 +74,7 @@ class Neo4JDatabase:
                 id=expression["id"],
                 bdrc=expression["bdrc"],
                 wiki=expression["wiki"],
-                type=expression["type"],
+                type="root",  # Hardcoded for now
                 contributions=contributions,
                 date=expression["date"],
                 title=self.__convert_to_localized_text(expression["title"]),
@@ -95,7 +83,7 @@ class Neo4JDatabase:
                 parent=parent,
             )
 
-    def get_manifestation_neo4j(self, manifestation_id: str) -> ManifestationModel:
+    def get_manifestation(self, manifestation_id: str) -> ManifestationModel:
         with self.__driver.session() as session:
             result = session.run(Queries.manifestations["fetch_by_id"], id=manifestation_id)
 
@@ -131,7 +119,7 @@ class Neo4JDatabase:
                 alt_incipit_titles=alt_incipit_titles,
             )
 
-    def get_all_persons_neo4j(self) -> list[PersonModel]:
+    def get_all_persons(self) -> list[PersonModel]:
         with self.__driver.session() as session:
             result = session.run(Queries.persons["fetch_all"])
             persons = []
@@ -140,7 +128,7 @@ class Neo4JDatabase:
                 persons.append(self._create_person_model(person_data))
             return persons
 
-    def get_person_neo4j(self, person_id: str) -> PersonModel:
+    def get_person(self, person_id: str) -> PersonModel:
         with self.__driver.session() as session:
             result = session.run(Queries.persons["fetch_by_id"], id=person_id)
             record = result.single()
@@ -150,49 +138,98 @@ class Neo4JDatabase:
             person_data = record.data()["person"]
             return self._create_person_model(person_data)
 
-    def create_person_neo4j(self, person: PersonModel) -> str:
+    def create_person(self, person: PersonModel) -> str:
         def create_transaction(tx):
             person_id = generate_id()
-            tx.run(Queries.persons["create"], id=person_id, bdrc=person.bdrc, wiki=person.wiki)
-            primary_name_element_id = self._create_name(tx, person.name.root)
+            alt_names_data = [alt_name.root for alt_name in person.alt_names] if person.alt_names else None
+            primary_name_element_id = self._create_nomens(tx, person.name.root, alt_names_data)
 
             tx.run(
-                Queries.nomens["link_to_person"], person_id=person_id, primary_name_element_id=primary_name_element_id
+                Queries.persons["create"],
+                id=person_id,
+                bdrc=person.bdrc,
+                wiki=person.wiki,
+                primary_name_element_id=primary_name_element_id,
             )
-
-            for alt_name in person.alt_names or []:
-                alt_name_element_id = self._create_name(tx, alt_name.root)
-                tx.run(
-                    Queries.nomens["link_alternative"],
-                    primary_name_element_id=primary_name_element_id,
-                    alt_name_element_id=alt_name_element_id,
-                )
 
             return person_id
 
         with self.__driver.session() as session:
             return session.execute_write(create_transaction)
 
-    def _create_name(self, tx, localized_text: dict[str, str]) -> str:
-        result = tx.run(Queries.nomens["create"])
-        nomen_element_id = result.single()["element_id"]
+    def create_expression(self, expression: ExpressionModel) -> str:
+        if expression.type != TextType.ROOT:
+            raise ValueError(f"Unsupported text type: {expression.type}. Only ROOT is supported.")
 
-        for bcp47_tag, text in localized_text.items():
-            base_lang_code = bcp47_tag.split("-")[0].lower()
-
-            tx.run(Queries.languages["create_or_find"], lang_code=base_lang_code)
+        def create_transaction(tx):
+            work_id = generate_id()
+            expression_id = generate_id()
+            base_lang_code = expression.language.split("-")[0].lower()
+            alt_titles_data = [alt_title.root for alt_title in expression.alt_titles] if expression.alt_titles else None
+            expression_title_element_id = self._create_nomens(tx, expression.title.root, alt_titles_data)
 
             tx.run(
-                Queries.nomens["create_localized_text"],
-                nomen_element_id=nomen_element_id,
-                base_lang_code=base_lang_code,
-                bcp47_tag=bcp47_tag,
-                text=text,
+                Queries.expressions["create"],
+                work_id=work_id,
+                expression_id=expression_id,
+                bdrc=expression.bdrc,
+                wiki=expression.wiki,
+                date=expression.date,
+                type_name=expression.type.value,
+                language_code=base_lang_code,
+                bcp47_tag=expression.language,
+                title_nomen_element_id=expression_title_element_id,
             )
 
-        return nomen_element_id
+            for contribution in expression.contributions:
+                person_link_result = tx.run(
+                    Queries.expressions["create_contribution"],
+                    expression_id=expression_id,
+                    person_id=contribution.person_id,
+                    person_bdrc_id=contribution.person_bdrc_id,
+                    role_name=contribution.role.value,
+                )
+                if not person_link_result.single():
+                    if contribution.person_id:
+                        raise DataNotFound(f"Person with ID '{contribution.person_id}' not found")
+                    else:
+                        raise DataNotFound(f"Person with BDRC ID '{contribution.person_bdrc_id}' not found")
 
-    def get_all_expressions_neo4j(
+            return expression_id
+
+        with self.__driver.session() as session:
+            return session.execute_write(create_transaction)
+
+    def _create_nomens(self, tx, primary_text: dict[str, str], alternative_texts: list[dict[str, str]] = None) -> str:
+        primary_localized_texts = [
+            {"base_lang_code": bcp47_tag.split("-")[0].lower(), "bcp47_tag": bcp47_tag, "text": text}
+            for bcp47_tag, text in primary_text.items()
+        ]
+
+        # Create primary nomen
+        result = tx.run(
+            Queries.nomens["create"],
+            primary_name_element_id=None,
+            localized_texts=primary_localized_texts,
+        )
+        primary_nomen_element_id = result.single()["element_id"]
+
+        # Create alternative nomens
+        for alt_text in alternative_texts or []:
+            localized_texts = [
+                {"base_lang_code": bcp47_tag.split("-")[0].lower(), "bcp47_tag": bcp47_tag, "text": text}
+                for bcp47_tag, text in alt_text.items()
+            ]
+
+            tx.run(
+                Queries.nomens["create"],
+                primary_name_element_id=primary_nomen_element_id,
+                localized_texts=localized_texts,
+            )
+
+        return primary_nomen_element_id
+
+    def get_all_expressions(
         self,
         offset: int = 0,
         limit: int = 20,
@@ -217,16 +254,8 @@ class Neo4JDatabase:
 
                 contributions = [
                     ContributionModel(
-                        person=PersonModel(
-                            id=contributor["person"]["id"],
-                            bdrc=contributor["person"].get("bdrc"),
-                            wiki=contributor["person"].get("wiki"),
-                            name=LocalizedString(self.__convert_to_localized_text(contributor["person"]["name"])),
-                            alt_names=[
-                                LocalizedString(self.__convert_to_localized_text(alt))
-                                for alt in contributor["person"].get("alt_names", [])
-                            ],
-                        ),
+                        person_id=contributor["person_id"],
+                        person_bdrc_id=contributor.get("person_bdrc_id"),
                         role=contributor["role"],
                     )
                     for contributor in expression_data.get("contributors", [])
@@ -259,3 +288,16 @@ class Neo4JDatabase:
 
     def __convert_to_localized_text(self, entries: list[dict[str, str]]) -> dict[str, str]:
         return {entry["language"]: entry["text"] for entry in entries if "language" in entry and "text" in entry}
+
+    def _create_person_model(self, person_data, person_id=None):
+        return PersonModel(
+            id=person_id or person_data.get("id"),
+            bdrc=person_data.get("bdrc"),
+            wiki=person_data.get("wiki"),
+            name=LocalizedString(self.__convert_to_localized_text(person_data["name"])),
+            alt_names=(
+                [LocalizedString(self.__convert_to_localized_text(alt)) for alt in person_data["alt_names"]]
+                if person_data.get("alt_names")
+                else None
+            ),
+        )

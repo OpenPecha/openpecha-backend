@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 @manifestation_bp.route("/<string:manifestation_id>", methods=["GET"], strict_slashes=False)
 def get_manifestation(manifestation_id: str) -> tuple[Response, int]:
-    manifestation = Neo4JDatabase().get_manifestation_neo4j(manifestation_id)
+    manifestation = Neo4JDatabase().get_manifestation(manifestation_id)
     return jsonify(manifestation.model_dump()), 200
 
 

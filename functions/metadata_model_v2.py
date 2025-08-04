@@ -7,9 +7,9 @@ NonEmptyStr = Annotated[str, Field(min_length=1)]
 
 
 class TextType(str, Enum):
+    ROOT = "root"
     COMMENTARY = "commentary"
     TRANSLATION = "translation"
-    ROOT = "root"
 
 
 class ContributorRole(str, Enum):
@@ -52,10 +52,27 @@ class PersonModel(BaseModel):
     name: LocalizedString
     alt_names: Sequence[LocalizedString] | None = None
 
+    model_config = ConfigDict(
+        extra="forbid",
+        str_strip_whitespace=True,
+    )
+
 
 class ContributionModel(BaseModel):
-    person: PersonModel
+    person_id: str | None = None
+    person_bdrc_id: str | None = None
     role: ContributorRole
+
+    model_config = ConfigDict(
+        extra="forbid",
+        str_strip_whitespace=True,
+    )
+
+    @model_validator(mode="after")
+    def validate_person_identifier(self):
+        if self.person_id is None and self.person_bdrc_id is None:
+            raise ValueError("Either person_id or person_bdrc_id must be provided")
+        return self
 
 
 class AnnotationModel(BaseModel):
@@ -64,16 +81,21 @@ class AnnotationModel(BaseModel):
     name: str
     aligned_to: str | None = None
 
+    model_config = ConfigDict(
+        extra="forbid",
+        str_strip_whitespace=True,
+    )
+
 
 class ExpressionModel(BaseModel):
     id: str
     bdrc: str | None = None
     wiki: str | None = None
-    type: ExpressionType
+    type: TextType
     contributions: Sequence[ContributionModel] = Field(..., min_length=1)
     date: str | None = Field(None, pattern="\\S")
     title: LocalizedString
-    alt_titles: Sequence[LocalizedString] | None = Field(None, min_length=1)
+    alt_titles: Sequence[LocalizedString] | None = None
     language: str
     parent: str | None = None
 
@@ -82,13 +104,13 @@ class ExpressionModel(BaseModel):
         str_strip_whitespace=True,
     )
 
-    @model_validator(mode="after")
-    def validate_root_type(self):
-        if self.type == TextType.ROOT and self.parent is not None:
-            raise ValueError("When type is 'root', parent must be None")
-        if self.type != TextType.ROOT and self.parent is None:
-            raise ValueError("When type is not 'root', parent must be provided")
-        return self
+    # @model_validator(mode="after")
+    # def validate_root_type(self):
+    #     if self.type == TextType.ROOT and self.parent is not None:
+    #         raise ValueError("When type is 'root', parent must be None")
+    #     if self.type != TextType.ROOT and self.parent is None:
+    #         raise ValueError("When type is not 'root', parent must be provided")
+    #     return self
 
 
 class ManifestationModel(BaseModel):
@@ -102,3 +124,8 @@ class ManifestationModel(BaseModel):
     incipit_title: LocalizedString | None = None
     colophon: str | None = None
     alt_incipit_titles: Sequence[LocalizedString] | None = Field(None, min_length=1)
+
+    model_config = ConfigDict(
+        extra="forbid",
+        str_strip_whitespace=True,
+    )

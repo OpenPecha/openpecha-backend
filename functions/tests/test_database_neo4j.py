@@ -11,6 +11,7 @@ Environment variables can be set via:
 2. .env file in project root (automatically loaded)
 """
 import os
+from pathlib import Path
 
 import pytest
 from dotenv import load_dotenv
@@ -21,6 +22,25 @@ from neo4j_queries import Queries
 
 # Load .env file if it exists
 load_dotenv()
+
+
+def load_constraints_file():
+    """Load and return the contents of the Neo4j constraints file"""
+    constraints_file = Path(__file__).parent.parent / "neo4j_constraints.cypher"
+    if not constraints_file.exists():
+        raise FileNotFoundError(f"Constraints file not found: {constraints_file}")
+
+    with open(constraints_file, "r", encoding="utf-8") as f:
+        content = f.read()
+
+    # Split by semicolons and filter out empty lines and comments-only lines
+    statements = []
+    for line in content.split(";"):
+        line = line.strip()
+        if line and not line.startswith("//") and "CREATE CONSTRAINT" in line:
+            statements.append(line + ";")
+
+    return statements
 
 
 @pytest.fixture(scope="session")
@@ -45,24 +65,29 @@ def test_database(neo4j_connection):
 
     # Setup test schema and basic data
     with db.get_session() as session:
-        # Create constraints
-        session.run("CREATE CONSTRAINT person_id IF NOT EXISTS FOR (p:Person) REQUIRE p.id IS UNIQUE")
-        session.run("CREATE CONSTRAINT expression_id IF NOT EXISTS FOR (e:Expression) REQUIRE e.id IS UNIQUE")
+        # Clean up any existing data first
+        session.run("MATCH (n) DETACH DELETE n")
+
+        # Load and apply all constraints from the comprehensive constraints file
+        constraint_statements = load_constraints_file()
+        for statement in constraint_statements:
+            session.run(statement)
 
         # Create test languages
         session.run("MERGE (l:Language {code: 'bo', name: 'Tibetan'})")
         session.run("MERGE (l:Language {code: 'en', name: 'English'})")
         session.run("MERGE (l:Language {code: 'sa', name: 'Sanskrit'})")
 
-        # Create test expression types
-        session.run("MERGE (t:ExpressionType {name: 'translation'})")
-        session.run("MERGE (t:ExpressionType {name: 'original'})")
-        session.run("MERGE (t:ExpressionType {name: 'commentary'})")
+        # Create test text types (TextType enum values)
+        session.run("MERGE (t:TextType {name: 'root'})")
+        session.run("MERGE (t:TextType {name: 'commentary'})")
+        session.run("MERGE (t:TextType {name: 'translation'})")
 
-        # Create test role types
+        # Create test role types (only allowed values per constraints)
         session.run("MERGE (r:RoleType {name: 'translator'})")
         session.run("MERGE (r:RoleType {name: 'author'})")
-        session.run("MERGE (r:RoleType {name: 'editor'})")
+        session.run("MERGE (r:RoleType {name: 'reviser'})")
+        # Note: 'editor' changed to 'reviser' to match allowed values
 
     yield db
 
@@ -101,12 +126,12 @@ class TestDatabaseNeo4jReal:
         )
 
         # Create in database
-        person_id = db.create_person_neo4j(person)
+        person_id = db.create_person(person)
         assert person_id is not None
         assert len(person_id) == 16  # Should be 16-character ID
 
         # Retrieve the person
-        retrieved_person = db.get_person_neo4j(person_id)
+        retrieved_person = db.get_person(person_id)
         assert retrieved_person.id == person_id
 
         # Compare LocalizedString objects properly
@@ -126,12 +151,12 @@ class TestDatabaseNeo4jReal:
         person2 = PersonModel(id="temp-2", name=LocalizedString({"bo": "རིན་ཆེན་སྡེ།"}))
         person3 = PersonModel(id="temp-3", name=LocalizedString({"sa": "मञ्जुश्री", "en": "Manjushri"}))
 
-        id1 = db.create_person_neo4j(person1)
-        id2 = db.create_person_neo4j(person2)
-        id3 = db.create_person_neo4j(person3)
+        id1 = db.create_person(person1)
+        id2 = db.create_person(person2)
+        id3 = db.create_person(person3)
 
         # Retrieve all
-        all_persons = db.get_all_persons_neo4j()
+        all_persons = db.get_all_persons()
         assert len(all_persons) == 3
 
         # Check that our created persons are in the results
@@ -145,7 +170,7 @@ class TestDatabaseNeo4jReal:
         db = test_database
 
         with pytest.raises(DataNotFound, match="Person with ID 'nonexistent' not found"):
-            db.get_person_neo4j("nonexistent")
+            db.get_person("nonexistent")
 
     def test_queries_class_structure(self, test_database):
         """Test that the new Queries class structure works correctly"""
@@ -185,12 +210,12 @@ class TestDatabaseNeo4jReal:
         )
 
         # Create person using the actual create_person_neo4j method
-        person_id = db.create_person_neo4j(person)
+        person_id = db.create_person(person)
         assert person_id is not None
         assert len(person_id) == 16  # Should be 16-character ID
 
         # Retrieve the person and validate ALL fields
-        retrieved_person = db.get_person_neo4j(person_id)
+        retrieved_person = db.get_person(person_id)
 
         # Validate that bdrc and wiki are properly stored and retrieved
         assert retrieved_person.id == person_id
@@ -210,7 +235,7 @@ class TestDatabaseNeo4jReal:
             name=LocalizedString({"bo": "རིན་ཆེན་སྡེ།", "en": "Rinchen De"}),
             alt_names=[LocalizedString({"bo": "རིན་ཆེན་སྡེ་བ།"})],
         )
-        person_id = db.create_person_neo4j(person)
+        person_id = db.create_person(person)
 
         # Test that the fragments work in actual queries
         with db.get_session() as session:
@@ -234,13 +259,13 @@ class TestDatabaseNeo4jReal:
         db = test_database
 
         # Test expressions query with no data
-        result = db.get_all_expressions_neo4j(offset=0, limit=10, filters={})
+        result = db.get_all_expressions(offset=0, limit=10, filters={})
         assert isinstance(result, list)
         assert len(result) == 0  # Empty database
 
         # Test with filters
         filters = {"type": "translation", "language": "bo"}
-        result = db.get_all_expressions_neo4j(offset=0, limit=10, filters=filters)
+        result = db.get_all_expressions(offset=0, limit=10, filters=filters)
         assert isinstance(result, list)
         assert len(result) == 0  # Still empty
 
@@ -249,22 +274,22 @@ class TestDatabaseNeo4jReal:
         db = test_database
 
         with pytest.raises(DataNotFound, match="Expression with ID 'nonexistent' not found"):
-            db.get_expression_neo4j("nonexistent")
+            db.get_expression("nonexistent")
 
     def test_manifestation_not_found(self, test_database):
         """Test retrieving non-existent manifestation"""
         db = test_database
 
         with pytest.raises(DataNotFound, match="Manifestation with ID 'nonexistent' not found"):
-            db.get_manifestation_neo4j("nonexistent")
+            db.get_manifestation("nonexistent")
 
     def test_helper_methods_accessibility(self):
         """Test that helper methods are now public and accessible"""
         # Test that the static methods are accessible and return strings
-        primary_name_fragment = Queries.person_primary_name("p")
-        alt_names_fragment = Queries.person_alternative_names("p")
-        title_primary_fragment = Queries.title_primary("e")
-        title_alt_fragment = Queries.title_alternative("e")
+        primary_name_fragment = Queries.primary_nomen("p", "HAS_NAME")
+        alt_names_fragment = Queries.alternative_nomen("p", "HAS_NAME")
+        title_primary_fragment = Queries.primary_nomen("e", "HAS_TITLE")
+        title_alt_fragment = Queries.alternative_nomen("e", "HAS_TITLE")
         person_fragment = Queries.person_fragment("p")
         expression_fragment = Queries.expression_fragment("e")
 
@@ -280,17 +305,293 @@ class TestDatabaseNeo4jReal:
         assert "HAS_NAME" in primary_name_fragment
         assert "ALTERNATIVE_OF" in alt_names_fragment
         assert "HAS_TITLE" in title_primary_fragment
-        assert "HAS_TITLE" in title_alt_fragment
+        assert "ALTERNATIVE_OF" in title_alt_fragment
         assert "id:" in person_fragment
         assert "id:" in expression_fragment
 
     def test_database_connection_parameters(self, test_database):
         """Test that database is using the test connection parameters"""
-        db = test_database
-
-        # Verify we can connect and perform operations
-        with db.get_session() as session:
-            # Simple connectivity test
-            result = session.run("RETURN 1 as test")
+        # This is more of a sanity check to ensure we're connected to the test database
+        # We can't easily check the exact connection details, but we can verify
+        # that the database responds to queries
+        with test_database.get_session() as session:
+            result = session.run("RETURN 'test connection' as message")
             record = result.single()
-            assert record.data()["test"] == 1
+            assert record["message"] == "test connection"
+
+    def test_create_root_expression_success(self, test_database):
+        """Test successful creation of ROOT type expression with all components"""
+        from metadata_model_v2 import ContributionModel, ContributorRole, ExpressionModel, LocalizedString, TextType
+
+        # First create a person to reference in contributions
+        person = PersonModel(
+            id="temp-id",
+            bdrc="P123456",
+            wiki="Q123456",
+            name=LocalizedString({"en": "Test Author", "bo": "རྩོམ་པ་པོ་"}),
+            alt_names=[LocalizedString({"en": "Alternative Author Name"})],
+        )
+        person_id = test_database.create_person(person)
+
+        # Create ROOT expression
+        expression = ExpressionModel(
+            id="temp-id",  # Will be replaced
+            type=TextType.ROOT,
+            bdrc="W789012",
+            wiki="Q789012",
+            date="2024-01-15",
+            title=LocalizedString({"bo": "དམ་པའི་ཆོས་པདྨ་དཀར་པོ།", "en": "The Sacred White Lotus Dharma"}),
+            alt_titles=[LocalizedString({"bo": "པདྨ་དཀར་པོའི་མདོ།", "en": "White Lotus Sutra"})],
+            language="bo",  # Simple language code
+            contributions=[ContributionModel(person_id=person_id, role=ContributorRole.AUTHOR)],
+            parent=None,  # Ignored for ROOT
+        )
+
+        # Create the expression
+        expression_id = test_database.create_expression(expression)
+
+        # Verify the expression was created
+        assert expression_id is not None
+        assert len(expression_id) > 0
+
+        # Verify we can retrieve the expression
+        retrieved_expression = test_database.get_expression(expression_id)
+        assert retrieved_expression.id == expression_id
+        assert retrieved_expression.type == TextType.ROOT
+        assert retrieved_expression.bdrc == "W789012"
+        assert retrieved_expression.wiki == "Q789012"
+        assert retrieved_expression.date == "2024-01-15"
+        assert retrieved_expression.language == "bo"
+
+        # Verify title
+        assert "bo" in retrieved_expression.title.root
+        assert "en" in retrieved_expression.title.root
+        assert retrieved_expression.title.root["bo"] == "དམ་པའི་ཆོས་པདྨ་དཀར་པོ།"
+
+        # Verify alt_titles
+        assert retrieved_expression.alt_titles is not None
+        assert len(retrieved_expression.alt_titles) == 1
+        assert "bo" in retrieved_expression.alt_titles[0].root
+        assert retrieved_expression.alt_titles[0].root["bo"] == "པདྨ་དཀར་པོའི་མདོ།"
+
+        # Verify contributions
+        assert len(retrieved_expression.contributions) == 1
+        contribution = retrieved_expression.contributions[0]
+        assert contribution.person_id == person_id
+        assert contribution.role == ContributorRole.AUTHOR
+
+    def test_create_root_expression_missing_person(self, test_database):
+        """Test that creating expression with non-existent person fails and rolls back"""
+        from metadata_model_v2 import ContributionModel, ContributorRole, ExpressionModel, LocalizedString, TextType
+
+        expression = ExpressionModel(
+            id="temp-id",
+            type=TextType.ROOT,
+            title=LocalizedString({"en": "Test Expression"}),
+            language="en",
+            contributions=[ContributionModel(person_id="non-existent-person-id", role=ContributorRole.AUTHOR)],
+        )
+
+        # Should raise DataNotFound for missing person
+        with pytest.raises(DataNotFound) as exc_info:
+            test_database.create_expression(expression)
+
+        assert "Person with ID 'non-existent-person-id' not found" in str(exc_info.value)
+
+    def test_create_root_expression_unsupported_type(self, test_database):
+        """Test that creating expression with unsupported type fails"""
+        from metadata_model_v2 import ContributionModel, ContributorRole, ExpressionModel, LocalizedString, TextType
+
+        # First create a person
+        person = PersonModel(
+            id="temp-id",
+            name=LocalizedString({"en": "Test Person"}),
+        )
+        person_id = test_database.create_person(person)
+
+        expression = ExpressionModel(
+            id="temp-id",
+            type=TextType.COMMENTARY,  # Unsupported type
+            title=LocalizedString({"en": "Test Commentary"}),
+            language="en",
+            contributions=[ContributionModel(person_id=person_id, role=ContributorRole.AUTHOR)],
+        )
+
+        # Should raise ValueError for unsupported type
+        with pytest.raises(ValueError) as exc_info:
+            test_database.create_expression(expression)
+
+        assert "Unsupported text type: TextType.COMMENTARY. Only ROOT is supported." in str(exc_info.value)
+
+    def test_create_root_expression_language_support(self, test_database):
+        """Test that various language codes are properly supported"""
+        from metadata_model_v2 import ContributionModel, ContributorRole, ExpressionModel, LocalizedString, TextType
+
+        # Create a person
+        person = PersonModel(
+            id="temp-id",
+            name=LocalizedString({"en": "Test Person"}),
+        )
+        person_id = test_database.create_person(person)
+
+        # Test various language inputs and their expected base codes
+        test_cases = [
+            ("bo-Latn", "bo"),  # Tibetan in Latin script -> bo
+            ("zh-Hans-CN", "zh"),  # Simplified Chinese in China -> zh
+            ("en-US", "en"),  # American English -> en
+            ("bo", "bo"),  # Standard Tibetan -> bo
+        ]
+
+        for input_lang, expected_lang in test_cases:
+            expression = ExpressionModel(
+                id="temp-id",
+                type=TextType.ROOT,
+                title=LocalizedString({"en": f"Test Expression {input_lang}"}),
+                language=input_lang,
+                contributions=[ContributionModel(person_id=person_id, role=ContributorRole.AUTHOR)],
+            )
+
+            # Should create successfully
+            expression_id = test_database.create_expression(expression)
+            assert expression_id is not None
+
+            # Verify base language code is returned
+            retrieved = test_database.get_expression(expression_id)
+            assert retrieved.language == expected_lang
+
+    def test_create_root_expression_multiple_contributions(self, test_database):
+        """Test creating expression with multiple contributors"""
+        from metadata_model_v2 import ContributionModel, ContributorRole, ExpressionModel, LocalizedString, TextType
+
+        # Create multiple persons
+        author = PersonModel(
+            id="temp-id",
+            name=LocalizedString({"en": "Primary Author"}),
+        )
+        author_id = test_database.create_person(author)
+
+        reviser = PersonModel(
+            id="temp-id",
+            name=LocalizedString({"en": "Reviser"}),
+        )
+        reviser_id = test_database.create_person(reviser)
+
+        expression = ExpressionModel(
+            id="temp-id",
+            type=TextType.ROOT,
+            title=LocalizedString({"en": "Multi-Contributor Work"}),
+            language="en",
+            contributions=[
+                ContributionModel(person_id=author_id, role=ContributorRole.AUTHOR),
+                ContributionModel(person_id=reviser_id, role=ContributorRole.REVISER),
+            ],
+        )
+
+        expression_id = test_database.create_expression(expression)
+        retrieved = test_database.get_expression(expression_id)
+
+        # Verify both contributions
+        assert len(retrieved.contributions) == 2
+
+        # Check that we have both roles
+        roles = {contrib.role for contrib in retrieved.contributions}
+        assert ContributorRole.AUTHOR in roles
+        assert ContributorRole.REVISER in roles
+
+        # Check that we have both persons
+        person_ids = {contrib.person_id for contrib in retrieved.contributions}
+        assert author_id in person_ids
+        assert reviser_id in person_ids
+
+    def test_create_root_expression_minimal_data(self, test_database):
+        """Test creating expression with minimal required data"""
+        from metadata_model_v2 import ContributionModel, ContributorRole, ExpressionModel, LocalizedString, TextType
+
+        # Create a person
+        person = PersonModel(
+            id="temp-id",
+            name=LocalizedString({"en": "Minimal Person"}),
+        )
+        person_id = test_database.create_person(person)
+
+        # Minimal expression (no bdrc, wiki, date, alt_titles)
+        expression = ExpressionModel(
+            id="temp-id",
+            type=TextType.ROOT,
+            title=LocalizedString({"en": "Minimal Expression"}),
+            language="en",
+            contributions=[ContributionModel(person_id=person_id, role=ContributorRole.AUTHOR)],
+        )
+
+        expression_id = test_database.create_expression(expression)
+        retrieved = test_database.get_expression(expression_id)
+
+        assert retrieved.id == expression_id
+        assert retrieved.type == TextType.ROOT
+        assert retrieved.bdrc is None
+        assert retrieved.wiki is None
+        assert retrieved.date is None
+        assert retrieved.alt_titles is None or len(retrieved.alt_titles) == 0
+        assert retrieved.title.root["en"] == "Minimal Expression"
+        assert len(retrieved.contributions) == 1
+
+    def test_create_root_expression_with_bdrc_id(self, test_database):
+        """Test creating expression with contribution using person_bdrc_id instead of person_id"""
+        from metadata_model_v2 import ContributionModel, ContributorRole, ExpressionModel, LocalizedString, TextType
+
+        # Create a person with BDRC ID
+        person = PersonModel(
+            id="temp-person-id",
+            name=LocalizedString({"en": "BDRC Person", "bo": "བདྲ་ཅ་མི་སྣ།"}),
+            bdrc="P123456",  # This is the BDRC ID we'll use for lookup
+        )
+        person_id = test_database.create_person(person)
+
+        # Create expression using person_bdrc_id instead of person_id
+        expression = ExpressionModel(
+            id="temp-expression-id",
+            type=TextType.ROOT,
+            title=LocalizedString({"en": "Expression with BDRC Contributor"}),
+            language="en",
+            contributions=[
+                ContributionModel(
+                    person_bdrc_id="P123456", role=ContributorRole.AUTHOR  # Using BDRC ID instead of person_id
+                )
+            ],
+        )
+
+        # Should successfully create expression using BDRC ID
+        expression_id = test_database.create_expression(expression)
+        retrieved = test_database.get_expression(expression_id)
+
+        # Verify the expression was created correctly
+        assert retrieved.id == expression_id
+        assert retrieved.type == TextType.ROOT
+        assert retrieved.title.root["en"] == "Expression with BDRC Contributor"
+        assert len(retrieved.contributions) == 1
+
+        # Verify the contribution is linked to the correct person
+        contribution = retrieved.contributions[0]
+        assert contribution.person_id == person_id  # Should resolve to the actual person_id
+        assert contribution.person_bdrc_id == "P123456"  # Should also include the BDRC ID
+        assert contribution.role == ContributorRole.AUTHOR
+
+    def test_create_root_expression_missing_person_bdrc_id(self, test_database):
+        """Test that creating expression with non-existent person_bdrc_id fails"""
+        from metadata_model_v2 import ContributionModel, ContributorRole, ExpressionModel, LocalizedString, TextType
+
+        expression = ExpressionModel(
+            id="temp-id",
+            type=TextType.ROOT,
+            title=LocalizedString({"en": "Test Expression"}),
+            language="en",
+            contributions=[
+                ContributionModel(person_bdrc_id="P999999", role=ContributorRole.AUTHOR)  # Non-existent BDRC ID
+            ],
+        )
+
+        # Should raise DataNotFound for missing person
+        with pytest.raises(DataNotFound) as exc_info:
+            test_database.create_expression(expression)
+
+        assert "Person with BDRC ID 'P999999' not found" in str(exc_info.value)

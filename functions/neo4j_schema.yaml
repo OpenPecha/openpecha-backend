@@ -53,6 +53,9 @@ nodes:
 
   Manifestation:
     properties:
+      id:
+        type: string
+        required: true
       colophon:
         type: string
         required: false
@@ -100,7 +103,7 @@ nodes:
   Contribution:
     relationships:
       BY:
-        target: Person
+        target: Person | AI
         cardinality: one
         required: true
       WITH_ROLE:

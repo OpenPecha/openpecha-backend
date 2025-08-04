@@ -2,6 +2,7 @@ import logging
 
 from exceptions import InvalidRequest
 from flask import Blueprint, Response, jsonify, request
+from metadata_model_v2 import ExpressionModel
 from neo4j_database import Neo4JDatabase
 
 metadata_v2_bp = Blueprint("metadata_v2", __name__)
@@ -28,7 +29,7 @@ def get_all_metadata_v2() -> tuple[Response, int]:
         filters["author"] = author_filter
 
     db = Neo4JDatabase()
-    result = db.get_all_expressions_neo4j(offset=offset, limit=limit, filters=filters)
+    result = db.get_all_expressions(offset=offset, limit=limit, filters=filters)
 
     response_data = [item.model_dump() for item in result]
 
@@ -38,9 +39,30 @@ def get_all_metadata_v2() -> tuple[Response, int]:
 @metadata_v2_bp.route("/<string:expression_id>", methods=["GET"], strict_slashes=False)
 def get_metadata_v2(expression_id: str) -> tuple[Response, int]:
     db = Neo4JDatabase()
-    metadata = db.get_expression_neo4j(expression_id=expression_id)
+    metadata = db.get_expression(expression_id=expression_id)
     response_data = metadata.model_dump()
     return jsonify(response_data), 200
+
+
+@metadata_v2_bp.route("", methods=["POST"], strict_slashes=False)
+def post_metadata_v2() -> tuple[Response, int]:
+    """V2 endpoint for creating metadata."""
+    if not (data := request.get_json()):
+        raise InvalidRequest("No JSON data provided")
+    data["id"] = ""
+
+    # Validate the incoming data using ExpressionModel
+    expression = ExpressionModel.model_validate(data)
+
+    logger.info("Successfully parsed expression: %s", expression.model_dump_json())
+
+    # Create the expression using the database
+    db = Neo4JDatabase()
+
+    expression_id = db.create_expression(expression)
+    logger.info("Successfully created expression with ID: %s", expression_id)
+
+    return jsonify({"message": "Expression created successfully", "id": expression_id}), 201
 
 
 # @metadata_v2_bp.route("/<string:pecha_id>/related", methods=["GET"], strict_slashes=False)

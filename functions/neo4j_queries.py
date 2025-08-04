@@ -1,49 +1,24 @@
 class Queries:
-    """Neo4j queries organized by domain with private helper methods."""
-
-    # Private helper methods for query fragments
     @staticmethod
-    def person_primary_name(label):
+    def primary_nomen(label, relationship):
         return f"""
-({label})-[:HAS_NAME]->({label}_n:Nomen)-[:HAS_LOCALIZATION]->
-({label}_lt:LocalizedText)-[:HAS_LANGUAGE]->({label}_l:Language)
-WHERE exists((:Nomen)-[:ALTERNATIVE_OF]->({label}_n)) | {{
-    language: {label}_l.code,
-    text: {label}_lt.text
-}}
-"""
+        ({label})-[:{relationship}]->({label}_n:Nomen)-[:HAS_LOCALIZATION]->
+        ({label}_lt:LocalizedText)-[:HAS_LANGUAGE]->({label}_l:Language) | {{
+            language: {label}_l.code,
+            text: {label}_lt.text
+        }}
+    """
 
     @staticmethod
-    def person_alternative_names(label):
+    def alternative_nomen(label, relationship):
         return f"""
-({label})-[:HAS_NAME]->(:Nomen)<-[:ALTERNATIVE_OF]-({label}_an:Nomen) | [
-    ({label}_an)-[:HAS_LOCALIZATION]->({label}_at:LocalizedText)-[:HAS_LANGUAGE]->({label}_al:Language) | {{
-        language: {label}_al.code,
-        text: {label}_at.text
-    }}
-]
-"""
-
-    @staticmethod
-    def title_primary(label):
-        return f"""
-({label})-[:HAS_TITLE]->({label}_n:Nomen)-[:HAS_LOCALIZATION]->({label}_lt:LocalizedText)-[:HAS_LANGUAGE]->({label}_l:Language)
-WHERE exists((:Nomen)-[:ALTERNATIVE_OF]->({label}_n)) | {{
-    language: {label}_l.code,
-    text: {label}_lt.text
-}}
-"""
-
-    @staticmethod
-    def title_alternative(label):
-        return f"""
-({label})-[:HAS_TITLE]->(:Nomen)<-[:ALTERNATIVE_OF]-({label}_an:Nomen) | [
-    ({label}_an)-[:HAS_LOCALIZATION]->({label}_at:LocalizedText)-[:HAS_LANGUAGE]->({label}_al:Language) | {{
-        language: {label}_al.code,
-        text: {label}_at.text
-    }}
-]
-"""
+        ({label})-[:{relationship}]->(:Nomen)<-[:ALTERNATIVE_OF]-({label}_an:Nomen) | [
+            ({label}_an)-[:HAS_LOCALIZATION]->({label}_at:LocalizedText)-[:HAS_LANGUAGE]->({label}_al:Language) | {{
+                language: {label}_al.code,
+                text: {label}_at.text
+            }}
+        ]
+    """
 
     @staticmethod
     def person_fragment(label):
@@ -52,8 +27,8 @@ WHERE exists((:Nomen)-[:ALTERNATIVE_OF]->({label}_n)) | {{
     id: {label}.id,
     bdrc: {label}.bdrc,
     wiki: {label}.wiki,
-    name: [{Queries.person_primary_name(label)}],
-    alt_names: [{Queries.person_alternative_names(label)}]
+    name: [{Queries.primary_nomen(label, "HAS_NAME")}],
+    alt_names: [{Queries.alternative_nomen(label, "HAS_NAME")}]
 }}
 """
 
@@ -62,26 +37,26 @@ WHERE exists((:Nomen)-[:ALTERNATIVE_OF]->({label}_n)) | {{
         return f"""
 {{
     id: {label}.id,
-    title: [{Queries.title_primary(label)}],
+    title: [{Queries.primary_nomen(label, "HAS_TITLE")}],
     language: [({label})-[:HAS_LANGUAGE]->({label}_l:Language) | {label}_l.code][0],
-    type: [({label})-[:HAS_TYPE]->({label}_t:ExpressionType) | {label}_t.name][0]
+    type: [({label})-[:HAS_TYPE]->({label}_t:TextType) | {label}_t.name][0]
 }}
 """
 
 
 Queries.expressions = {
     "fetch_by_id": f"""
-    MATCH (e:Expression)
-    WHERE e.id = $id
+    MATCH (e:Expression {{id: $id}})
 
     RETURN {{
         id: e.id,
         bdrc: e.bdrc,
         wiki: e.wiki,
-        type: [(e)-[:HAS_TYPE]->(et:ExpressionType) | et.name][0],
+        type: [(e)-[:HAS_TYPE]->(tt:TextType) | tt.name][0],
         contributors: [
             (e)-[:HAS_CONTRIBUTION]->(c:Contribution)-[:BY]->(person:Person) | {{
-                person: {Queries.person_fragment('person')},
+                person_id: person.id,
+                person_bdrc_id: person.bdrc,
                 role: [(c)-[:WITH_ROLE]->(rt:RoleType) | rt.name][0]
             }}
         ],
@@ -90,15 +65,15 @@ Queries.expressions = {
                 {Queries.expression_fragment('sibling')}
         ],
         date: e.date,
-        title: [{Queries.title_primary('e')}],
-        alt_titles: [{Queries.title_alternative('e')}],
+        title: [{Queries.primary_nomen('e', 'HAS_TITLE')}],
+        alt_titles: [{Queries.alternative_nomen('e', 'HAS_TITLE')}],
         language: [(e)-[:HAS_LANGUAGE]->(l:Language) | l.code][0]
     }} AS expression
 """,
     "fetch_all": f"""
     MATCH (e:Expression)
     WITH e
-    WHERE ($type IS NULL OR [(e)-[:HAS_TYPE]->(et:ExpressionType) | et.name][0] = $type)
+    WHERE ($type IS NULL OR [(e)-[:HAS_TYPE]->(tt:TextType) | tt.name][0] = $type)
     AND ($language IS NULL OR [(e)-[:HAS_LANGUAGE]->(l:Language) | l.code][0] = $language)
 
     SKIP $offset
@@ -108,22 +83,22 @@ Queries.expressions = {
         id: e.id,
         bdrc: e.bdrc,
         wiki: e.wiki,
-        type: [(e)-[:HAS_TYPE]->(et:ExpressionType) | et.name][0],
+        type: [(e)-[:HAS_TYPE]->(tt:TextType) | tt.name][0],
         contributors: [
             (e)-[:HAS_CONTRIBUTION]->(c:Contribution)-[:BY]->(person:Person) | {{
-                person: {Queries.person_fragment('person')},
+                person_id: person.id,
+                person_bdrc_id: person.bdrc,
                 role: [(c)-[:WITH_ROLE]->(rt:RoleType) | rt.name][0]
             }}
         ],
         date: e.date,
-        title: [{Queries.title_primary('e')}],
-        alt_titles: [{Queries.title_alternative('e')}],
+        title: [{Queries.primary_nomen('e', 'HAS_TITLE')}],
+        alt_titles: [{Queries.alternative_nomen('e', 'HAS_TITLE')}],
         language: [(e)-[:HAS_LANGUAGE]->(l:Language) | l.code][0]
     }} AS expression
 """,
     "fetch_related": f"""
-    MATCH (e:Expression)
-    WHERE e.id = $id
+    MATCH (e:Expression {{id: $id}})
 
     RETURN [
         sibling IN [(e)-[:EXPRESSION_OF]->(work:Work)<-[:EXPRESSION_OF]-
@@ -131,12 +106,35 @@ Queries.expressions = {
             {Queries.expression_fragment('sibling')}
     ] AS related_expressions
 """,
+    "create": """
+CREATE (w:Work {id: $work_id})
+CREATE (e:Expression {id: $expression_id, bdrc: $bdrc, wiki: $wiki, date: $date})
+WITH w, e
+MATCH (tt:TextType {name: $type_name})
+WITH w, e, tt
+MERGE (l:Language {code: $language_code})
+WITH w, e, tt, l
+MATCH (n:Nomen) WHERE elementId(n) = $title_nomen_element_id
+CREATE (e)-[:EXPRESSION_OF {original: true}]->(w),
+       (e)-[:HAS_TYPE]->(tt),
+       (e)-[:HAS_LANGUAGE {tags: $bcp47_tag}]->(l),
+       (e)-[:HAS_TITLE]->(n)
+RETURN e.id as expression_id
+""",
+    "create_contribution": """
+MATCH (e:Expression {id: $expression_id})
+MATCH (p:Person) WHERE (($person_id IS NOT NULL AND p.id = $person_id) 
+                        OR ($person_bdrc_id IS NOT NULL AND p.bdrc = $person_bdrc_id))
+MATCH (rt:RoleType {name: $role_name})
+CREATE (e)-[:HAS_CONTRIBUTION]->(c:Contribution)-[:BY]->(p),
+       (c)-[:WITH_ROLE]->(rt)
+RETURN p.id as person_id
+""",
 }
 
 Queries.persons = {
     "fetch_by_id": f"""
-MATCH (person:Person)
-WHERE person.id = $id
+MATCH (person:Person {{id: $id}})
 RETURN {Queries.person_fragment('person')} AS person
 """,
     "fetch_all": f"""
@@ -145,48 +143,34 @@ RETURN {Queries.person_fragment('person')} AS person
 """,
     "create": """
 CREATE (p:Person {id: $id, bdrc: $bdrc, wiki: $wiki})
+WITH p
+MATCH (n:Nomen) WHERE elementId(n) = $primary_name_element_id
+CREATE (p)-[:HAS_NAME]->(n)
 RETURN p.id as person_id
 """,
 }
 
 Queries.nomens = {
     "create": """
+OPTIONAL MATCH (primary:Nomen)
+WHERE $primary_name_element_id IS NOT NULL AND elementId(primary) = $primary_name_element_id
+WITH primary
 CREATE (n:Nomen)
+FOREACH (_ IN CASE WHEN primary IS NOT NULL THEN [1] ELSE [] END |
+    CREATE (n)-[:ALTERNATIVE_OF]->(primary)
+)
+WITH n
+FOREACH (lt IN $localized_texts |
+    MERGE (l:Language {code: lt.base_lang_code})
+    CREATE (n)-[:HAS_LOCALIZATION]->(locText:LocalizedText {text: lt.text})-[:HAS_LANGUAGE {bcp47: lt.bcp47_tag}]->(l)
+)
 RETURN elementId(n) as element_id
 """,
-    "link_to_person": """
-MATCH (p:Person)
-WHERE p.id = $person_id
-WITH p
-MATCH (n:Nomen)
-WHERE elementId(n) = $primary_name_element_id
-CREATE (p)-[:HAS_NAME]->(n)
-""",
-    "link_alternative": """
-MATCH (primary:Nomen)
-WHERE elementId(primary) = $primary_name_element_id
-WITH primary
-MATCH (alt:Nomen)
-WHERE elementId(alt) = $alt_name_element_id
-CREATE (alt)-[:ALTERNATIVE_OF]->(primary)
-""",
-    "create_localized_text": """
-MATCH (n:Nomen), (l:Language)
-WHERE elementId(n) = $nomen_element_id AND l.code = $base_lang_code
-CREATE (n)-[:HAS_LOCALIZATION]->(lt:LocalizedText {text: $text})-[:HAS_LANGUAGE {bcp47: $bcp47_tag}]->(l)
-""",
-}
-
-Queries.languages = {
-    "create_or_find": """
-MERGE (l:Language {code: $lang_code})
-"""
 }
 
 Queries.manifestations = {
     "fetch_by_id": f"""
-    MATCH (m:Manifestation)
-    WHERE m.id = $id
+    MATCH (m:Manifestation {{id: $id}})
 
     RETURN {{
         id: m.id,
@@ -204,8 +188,8 @@ Queries.manifestations = {
         ],
         colophon: m.colophon,
         copyright: [(m)-[:HAS_COPYRIGHT]->(cs:CopyrightStatus) | cs.status][0],
-        incipit_title: [{Queries.title_primary('m')}],
-        alt_incipit_titles: [{Queries.title_alternative('m')}]
+        incipit_title: [{Queries.primary_nomen('m', 'HAS_TITLE')}],
+        alt_incipit_titles: [{Queries.alternative_nomen('m', 'HAS_TITLE')}]
     }} AS manifestation
 """
 }
