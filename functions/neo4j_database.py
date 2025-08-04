@@ -61,20 +61,13 @@ class Neo4JDatabase:
                 for contributor in expression.get("contributors", [])
             ]
 
-            parent = None
-            # TODO
-            # if expression["type"] == "translation":
-            #     related_expressions = expression.get("related", [])
-            #     for related in related_expressions:
-            #         if related.get("type") == "original":
-            #             parent = related["id"]
-            #             break
+            parent = expression.get("parent")
 
             return ExpressionModel(
                 id=expression["id"],
                 bdrc=expression["bdrc"],
                 wiki=expression["wiki"],
-                type="root",  # Hardcoded for now
+                type=expression["type"],
                 contributions=contributions,
                 date=expression["date"],
                 title=self.__convert_to_localized_text(expression["title"]),
@@ -158,28 +151,52 @@ class Neo4JDatabase:
             return session.execute_write(create_transaction)
 
     def create_expression(self, expression: ExpressionModel) -> str:
-        if expression.type != TextType.ROOT:
-            raise ValueError(f"Unsupported text type: {expression.type}. Only ROOT is supported.")
-
         def create_transaction(tx):
-            work_id = generate_id()
             expression_id = generate_id()
             base_lang_code = expression.language.split("-")[0].lower()
             alt_titles_data = [alt_title.root for alt_title in expression.alt_titles] if expression.alt_titles else None
             expression_title_element_id = self._create_nomens(tx, expression.title.root, alt_titles_data)
 
-            tx.run(
-                Queries.expressions["create"],
-                work_id=work_id,
-                expression_id=expression_id,
-                bdrc=expression.bdrc,
-                wiki=expression.wiki,
-                date=expression.date,
-                type_name=expression.type.value,
-                language_code=base_lang_code,
-                bcp47_tag=expression.language,
-                title_nomen_element_id=expression_title_element_id,
-            )
+            # Choose query based on expression type
+            if expression.type == TextType.ROOT:
+                work_id = generate_id()
+                tx.run(
+                    Queries.expressions["create_root"],
+                    work_id=work_id,
+                    expression_id=expression_id,
+                    bdrc=expression.bdrc,
+                    wiki=expression.wiki,
+                    date=expression.date,
+                    language_code=base_lang_code,
+                    bcp47_tag=expression.language,
+                    title_nomen_element_id=expression_title_element_id,
+                )
+            elif expression.type == TextType.TRANSLATION:
+                tx.run(
+                    Queries.expressions["create_translation"],
+                    parent_id=expression.parent,
+                    expression_id=expression_id,
+                    bdrc=expression.bdrc,
+                    wiki=expression.wiki,
+                    date=expression.date,
+                    language_code=base_lang_code,
+                    bcp47_tag=expression.language,
+                    title_nomen_element_id=expression_title_element_id,
+                )
+            else:  # TextType.COMMENTARY
+                work_id = generate_id()
+                tx.run(
+                    Queries.expressions["create_commentary"],
+                    work_id=work_id,
+                    parent_id=expression.parent,
+                    expression_id=expression_id,
+                    bdrc=expression.bdrc,
+                    wiki=expression.wiki,
+                    date=expression.date,
+                    language_code=base_lang_code,
+                    bcp47_tag=expression.language,
+                    title_nomen_element_id=expression_title_element_id,
+                )
 
             for contribution in expression.contributions:
                 person_link_result = tx.run(

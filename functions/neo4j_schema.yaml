@@ -12,6 +12,10 @@ nodes:
         target: Nomen
         cardinality: one
         required: true
+      COMMENTARY_OF:
+        target: Work
+        cardinality: one
+        required: false
 
   Expression:
     properties:
@@ -30,6 +34,10 @@ nodes:
           original:
             type: boolean
             required: true
+      TRANSLATION_OF:
+        target: Expression
+        cardinality: one
+        required: false
       HAS_TYPE:
         target: ExpressionType
         cardinality: one

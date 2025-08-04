@@ -398,31 +398,6 @@ class TestDatabaseNeo4jReal:
 
         assert "Person with ID 'non-existent-person-id' not found" in str(exc_info.value)
 
-    def test_create_root_expression_unsupported_type(self, test_database):
-        """Test that creating expression with unsupported type fails"""
-        from metadata_model_v2 import ContributionModel, ContributorRole, ExpressionModel, LocalizedString, TextType
-
-        # First create a person
-        person = PersonModel(
-            id="temp-id",
-            name=LocalizedString({"en": "Test Person"}),
-        )
-        person_id = test_database.create_person(person)
-
-        expression = ExpressionModel(
-            id="temp-id",
-            type=TextType.COMMENTARY,  # Unsupported type
-            title=LocalizedString({"en": "Test Commentary"}),
-            language="en",
-            contributions=[ContributionModel(person_id=person_id, role=ContributorRole.AUTHOR)],
-        )
-
-        # Should raise ValueError for unsupported type
-        with pytest.raises(ValueError) as exc_info:
-            test_database.create_expression(expression)
-
-        assert "Unsupported text type: TextType.COMMENTARY. Only ROOT is supported." in str(exc_info.value)
-
     def test_create_root_expression_language_support(self, test_database):
         """Test that various language codes are properly supported"""
         from metadata_model_v2 import ContributionModel, ContributorRole, ExpressionModel, LocalizedString, TextType
@@ -595,3 +570,277 @@ class TestDatabaseNeo4jReal:
             test_database.create_expression(expression)
 
         assert "Person with BDRC ID 'P999999' not found" in str(exc_info.value)
+
+    def test_create_translation_expression_success(self, test_database):
+        """Test creating a translation expression that links to parent's work"""
+        from metadata_model_v2 import ContributionModel, ContributorRole, ExpressionModel, LocalizedString, TextType
+
+        # First create a root expression (parent)
+        person = PersonModel(
+            id="temp-person-id",
+            name=LocalizedString({"en": "Original Author"}),
+        )
+        person_id = test_database.create_person(person)
+
+        root_expression = ExpressionModel(
+            id="temp-root-id",
+            type=TextType.ROOT,
+            title=LocalizedString({"en": "Original Text"}),
+            language="en",
+            contributions=[ContributionModel(person_id=person_id, role=ContributorRole.AUTHOR)],
+        )
+        root_expression_id = test_database.create_expression(root_expression)
+
+        # Create translator person
+        translator = PersonModel(
+            id="temp-translator-id",
+            name=LocalizedString({"en": "Translator Name"}),
+        )
+        translator_id = test_database.create_person(translator)
+
+        # Now create a translation expression
+        translation_expression = ExpressionModel(
+            id="temp-translation-id",
+            type=TextType.TRANSLATION,
+            title=LocalizedString({"bo": "བསྒྱུར་བ།"}),
+            language="bo",
+            parent=root_expression_id,  # Link to parent
+            contributions=[ContributionModel(person_id=translator_id, role=ContributorRole.TRANSLATOR)],
+        )
+
+        translation_id = test_database.create_expression(translation_expression)
+        retrieved = test_database.get_expression(translation_id)
+
+        # Verify the translation was created correctly
+        assert retrieved.id == translation_id
+        assert retrieved.type == TextType.TRANSLATION
+        assert retrieved.title.root["bo"] == "བསྒྱུར་བ།"
+        assert retrieved.language == "bo"
+        assert len(retrieved.contributions) == 1
+        assert retrieved.contributions[0].role == ContributorRole.TRANSLATOR
+
+    def test_create_translation_expression_missing_parent(self, test_database):
+        """Test that creating translation expression without parent fails validation"""
+        from metadata_model_v2 import ContributionModel, ContributorRole, ExpressionModel, LocalizedString, TextType
+
+        # Create a person for the contribution
+        person = PersonModel(
+            id="temp-person-id",
+            name=LocalizedString({"en": "Translator"}),
+        )
+        person_id = test_database.create_person(person)
+
+        # Try to create translation without parent - should fail validation
+        with pytest.raises(ValueError, match="When type is 'translation', parent must be provided"):
+            ExpressionModel(
+                id="temp-id",
+                type=TextType.TRANSLATION,
+                title=LocalizedString({"bo": "བསྒྱུར་བ།"}),
+                language="bo",
+                parent=None,  # Missing parent
+                contributions=[ContributionModel(person_id=person_id, role=ContributorRole.TRANSLATOR)],
+            )
+
+    def test_create_root_expression_with_parent_fails(self, test_database):
+        """Test that creating root expression with parent fails validation"""
+        from metadata_model_v2 import ContributionModel, ContributorRole, ExpressionModel, LocalizedString, TextType
+
+        # Create a person for the contribution
+        person = PersonModel(
+            id="temp-person-id",
+            name=LocalizedString({"en": "Author"}),
+        )
+        person_id = test_database.create_person(person)
+
+        # Try to create root with parent - should fail validation
+        with pytest.raises(ValueError, match="When type is 'root', parent must be None"):
+            ExpressionModel(
+                id="temp-id",
+                type=TextType.ROOT,
+                title=LocalizedString({"en": "Root Text"}),
+                language="en",
+                parent="some-parent-id",  # Should be None for root
+                contributions=[ContributionModel(person_id=person_id, role=ContributorRole.AUTHOR)],
+            )
+
+    def test_create_translation_expression_nonexistent_parent(self, test_database):
+        """Test that creating translation with non-existent parent fails"""
+        from metadata_model_v2 import ContributionModel, ContributorRole, ExpressionModel, LocalizedString, TextType
+
+        # Create a person for the contribution
+        person = PersonModel(
+            id="temp-person-id",
+            name=LocalizedString({"en": "Translator"}),
+        )
+        person_id = test_database.create_person(person)
+
+        # Create translation with non-existent parent
+        translation_expression = ExpressionModel(
+            id="temp-translation-id",
+            type=TextType.TRANSLATION,
+            title=LocalizedString({"bo": "བསྒྱུར་བ།"}),
+            language="bo",
+            parent="nonexistent-parent-id",
+            contributions=[ContributionModel(person_id=person_id, role=ContributorRole.TRANSLATOR)],
+        )
+
+        # Should fail when trying to create in database
+        with pytest.raises(Exception):  # Neo4j will throw an exception for missing parent
+            test_database.create_expression(translation_expression)
+
+    def test_create_commentary_expression_success(self, test_database):
+        """Test creating a commentary expression that creates its own Work with COMMENTARY_OF relationship"""
+        from metadata_model_v2 import ContributionModel, ContributorRole, ExpressionModel, LocalizedString, TextType
+
+        # First create a root expression (parent)
+        person = PersonModel(
+            id="temp-person-id",
+            name=LocalizedString({"en": "Original Author"}),
+        )
+        person_id = test_database.create_person(person)
+
+        root_expression = ExpressionModel(
+            id="temp-root-id",
+            type=TextType.ROOT,
+            title=LocalizedString({"en": "Original Text"}),
+            language="en",
+            contributions=[ContributionModel(person_id=person_id, role=ContributorRole.AUTHOR)],
+        )
+        root_expression_id = test_database.create_expression(root_expression)
+
+        # Create commentator person
+        commentator = PersonModel(
+            id="temp-commentator-id",
+            name=LocalizedString({"en": "Commentator Name"}),
+        )
+        commentator_id = test_database.create_person(commentator)
+
+        # Now create a commentary expression
+        commentary_expression = ExpressionModel(
+            id="temp-commentary-id",
+            type=TextType.COMMENTARY,
+            title=LocalizedString({"bo": "འགྲེལ་པ།"}),
+            language="bo",
+            parent=root_expression_id,  # Link to parent
+            contributions=[ContributionModel(person_id=commentator_id, role=ContributorRole.AUTHOR)],
+        )
+
+        commentary_id = test_database.create_expression(commentary_expression)
+        retrieved = test_database.get_expression(commentary_id)
+
+        # Verify the commentary was created correctly
+        assert retrieved.id == commentary_id
+        assert retrieved.type == TextType.COMMENTARY
+        assert retrieved.parent == root_expression_id
+        assert retrieved.bdrc is None
+        assert retrieved.wiki is None
+        assert retrieved.date is None
+        assert retrieved.title.root["bo"] == "འགྲེལ་པ།"
+        assert retrieved.language == "bo"
+        assert len(retrieved.contributions) == 1
+        assert retrieved.contributions[0].person_id == commentator_id
+        assert retrieved.contributions[0].role == ContributorRole.AUTHOR
+
+    def test_create_commentary_expression_missing_parent(self, test_database):
+        """Test that creating commentary expression without parent fails validation"""
+        from metadata_model_v2 import ContributionModel, ContributorRole, ExpressionModel, LocalizedString, TextType
+
+        # Create a person for the contribution
+        person = PersonModel(
+            id="temp-person-id",
+            name=LocalizedString({"en": "Commentator"}),
+        )
+        person_id = test_database.create_person(person)
+
+        # Try to create commentary without parent - should fail validation
+        with pytest.raises(ValueError, match="When type is 'commentary', parent must be provided"):
+            ExpressionModel(
+                id="temp-id",
+                type=TextType.COMMENTARY,
+                title=LocalizedString({"en": "Commentary Text"}),
+                language="en",
+                # parent missing - should fail
+                contributions=[ContributionModel(person_id=person_id, role=ContributorRole.AUTHOR)],
+            )
+
+    def test_create_commentary_expression_nonexistent_parent(self, test_database):
+        """Test that creating commentary with non-existent parent fails"""
+        from metadata_model_v2 import ContributionModel, ContributorRole, ExpressionModel, LocalizedString, TextType
+
+        # Create a person for the contribution
+        person = PersonModel(
+            id="temp-person-id",
+            name=LocalizedString({"en": "Commentator"}),
+        )
+        person_id = test_database.create_person(person)
+
+        # Create commentary expression with non-existent parent
+        commentary_expression = ExpressionModel(
+            id="temp-commentary-id",
+            type=TextType.COMMENTARY,
+            title=LocalizedString({"bo": "འགྲེལ་པ།"}),
+            language="bo",
+            parent="nonexistent-parent-id",
+            contributions=[ContributionModel(person_id=person_id, role=ContributorRole.AUTHOR)],
+        )
+
+        # Should fail when trying to create in database
+        with pytest.raises(Exception):  # Neo4j will throw an exception for missing parent
+            test_database.create_expression(commentary_expression)
+
+    def test_create_commentary_expression_with_multiple_contributions(self, test_database):
+        """Test creating commentary expression with multiple contributors"""
+        from metadata_model_v2 import ContributionModel, ContributorRole, ExpressionModel, LocalizedString, TextType
+
+        # Create parent expression
+        author = PersonModel(
+            id="temp-author-id",
+            name=LocalizedString({"en": "Original Author"}),
+        )
+        author_id = test_database.create_person(author)
+
+        root_expression = ExpressionModel(
+            id="temp-root-id",
+            type=TextType.ROOT,
+            title=LocalizedString({"en": "Original Text"}),
+            language="en",
+            contributions=[ContributionModel(person_id=author_id, role=ContributorRole.AUTHOR)],
+        )
+        root_expression_id = test_database.create_expression(root_expression)
+
+        # Create multiple contributors for commentary
+        commentator = PersonModel(
+            id="temp-commentator-id",
+            name=LocalizedString({"en": "Commentator"}),
+        )
+        commentator_id = test_database.create_person(commentator)
+
+        reviser = PersonModel(
+            id="temp-reviser-id",
+            name=LocalizedString({"en": "Reviser"}),
+        )
+        reviser_id = test_database.create_person(reviser)
+
+        # Create commentary with multiple contributions
+        commentary_expression = ExpressionModel(
+            id="temp-commentary-id",
+            type=TextType.COMMENTARY,
+            title=LocalizedString({"bo": "འགྲེལ་པ།"}),
+            language="bo",
+            parent=root_expression_id,
+            contributions=[
+                ContributionModel(person_id=commentator_id, role=ContributorRole.AUTHOR),
+                ContributionModel(person_id=reviser_id, role=ContributorRole.REVISER),
+            ],
+        )
+
+        commentary_id = test_database.create_expression(commentary_expression)
+        retrieved = test_database.get_expression(commentary_id)
+
+        # Verify multiple contributions
+        assert len(retrieved.contributions) == 2
+        contribution_roles = {contrib.role for contrib in retrieved.contributions}
+        assert ContributorRole.AUTHOR in contribution_roles
+        assert ContributorRole.REVISER in contribution_roles
+
+

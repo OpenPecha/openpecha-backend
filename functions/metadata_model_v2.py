@@ -104,13 +104,13 @@ class ExpressionModel(BaseModel):
         str_strip_whitespace=True,
     )
 
-    # @model_validator(mode="after")
-    # def validate_root_type(self):
-    #     if self.type == TextType.ROOT and self.parent is not None:
-    #         raise ValueError("When type is 'root', parent must be None")
-    #     if self.type != TextType.ROOT and self.parent is None:
-    #         raise ValueError("When type is not 'root', parent must be provided")
-    #     return self
+    @model_validator(mode="after")
+    def validate_parent_field(self):
+        if self.type == TextType.ROOT and self.parent is not None:
+            raise ValueError("When type is 'root', parent must be None")
+        if self.type in [TextType.TRANSLATION, TextType.COMMENTARY] and self.parent is None:
+            raise ValueError(f"When type is '{self.type.value}', parent must be provided")
+        return self
 
 
 class ManifestationModel(BaseModel):
