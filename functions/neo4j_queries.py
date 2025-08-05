@@ -170,8 +170,8 @@ MATCH (person:Person)
 RETURN {Queries.person_fragment('person')} AS person
 """,
     "create": """
-    CYPHER 25
 CREATE (p:Person {id: $id, bdrc: $bdrc, wiki: $wiki})
+WITH p
 MATCH (n:Nomen) WHERE elementId(n) = $primary_name_element_id
 CREATE (p)-[:HAS_NAME]->(n)
 RETURN p.id as person_id

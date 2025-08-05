@@ -82,7 +82,7 @@ def post_manifestation_v2(expression_id: str) -> tuple[Response, int]:
 
     db = Neo4JDatabase()
     manifestation_id = db.create_manifestation(manifestation, expression_id)
-    
+
     logger.info("Successfully created manifestation with ID: %s", manifestation_id)
 
     return jsonify({"message": "Manifestation created successfully", "id": manifestation_id}), 201

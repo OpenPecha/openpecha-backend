@@ -218,12 +218,13 @@ class Neo4JDatabase:
                 "parent_id": expression.parent,
             }
 
-            if expression.type == TextType.ROOT:
-                tx.run(Queries.expressions["create_root"], work_id=generate_id(), **common_params)
-            elif expression.type == TextType.TRANSLATION:
-                tx.run(Queries.expressions["create_translation"], **common_params)
-            else:
-                tx.run(Queries.expressions["create_commentary"], work_id=generate_id(), **common_params)
+            match expression.type:
+                case TextType.ROOT:
+                    tx.run(Queries.expressions["create_root"], work_id=generate_id(), **common_params)
+                case TextType.TRANSLATION:
+                    tx.run(Queries.expressions["create_translation"], **common_params)
+                case TextType.COMMENTARY:
+                    tx.run(Queries.expressions["create_commentary"], work_id=generate_id(), **common_params)
 
             for contribution in expression.contributions:
                 person_link_result = tx.run(
