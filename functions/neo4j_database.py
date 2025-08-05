@@ -5,10 +5,13 @@ from exceptions import DataNotFound
 from identifier import generate_id
 from metadata_model_v2 import (
     AnnotationModel,
+    AnnotationType,
     ContributionModel,
+    CopyrightStatus,
     ExpressionModel,
     LocalizedString,
     ManifestationModel,
+    ManifestationType,
     PersonModel,
     TextType,
 )
@@ -19,14 +22,10 @@ logger = logging.getLogger(__name__)
 
 
 class Neo4JDatabase:
-    """Neo4j database operations for OpenPecha backend"""
-
     def __init__(self, neo4j_uri: str = None, neo4j_auth: tuple = None) -> None:
-        # Use provided Neo4j connection or default to production
         if neo4j_uri and neo4j_auth:
             self.__driver = GraphDatabase.driver(neo4j_uri, auth=neo4j_auth)
         else:
-            # Production Neo4j connection
             self.__driver = GraphDatabase.driver(
                 os.environ.get("NEO4J_URI"),
                 auth=("neo4j", os.environ.get("NEO4J_PASSWORD")),
@@ -35,11 +34,9 @@ class Neo4JDatabase:
         logger.info("Connection to neo4j established.")
 
     def get_session(self):
-        """Get a Neo4j session for direct database operations (primarily for testing)"""
         return self.__driver.session()
 
     def close_driver(self):
-        """Close the Neo4j driver (primarily for testing cleanup)"""
         if self.__driver:
             self.__driver.close()
 
@@ -76,41 +73,88 @@ class Neo4JDatabase:
                 parent=parent,
             )
 
-    def get_manifestation(self, manifestation_id: str) -> ManifestationModel:
+    def get_manifestations_by_expression(self, expression_id: str) -> list[ManifestationModel]:
         with self.__driver.session() as session:
-            result = session.run(Queries.manifestations["fetch_by_id"], id=manifestation_id)
+            result = session.run(Queries.manifestations["fetch_by_expression"], expression_id=expression_id)
+            manifestations = []
 
-            if (record := result.single()) is None:
-                raise DataNotFound(f"Manifestation with ID '{manifestation_id}' not found")
+            for record in result:
+                manifestation_data = record.data()["manifestation"]
 
-            manifestation = record.data()["manifestation"]
-
-            annotations = [
-                AnnotationModel.model_validate(annotation_data)
-                for annotation_data in manifestation.get("annotations", [])
-            ]
-
-            incipit_title = None
-            if manifestation.get("incipit_title"):
-                incipit_title = self.__convert_to_localized_text(manifestation["incipit_title"])
-
-            alt_incipit_titles = None
-            if manifestation.get("alt_incipit_titles"):
-                alt_incipit_titles = [
-                    self.__convert_to_localized_text(alt) for alt in manifestation["alt_incipit_titles"]
+                annotations = [
+                    AnnotationModel(
+                        id=ann["id"],
+                        type=AnnotationType(ann["type"]),
+                        name=ann["name"],
+                        aligned_to=ann.get("aligned_to"),
+                    )
+                    for ann in manifestation_data.get("annotations", [])
                 ]
 
-            return ManifestationModel(
-                id=manifestation["id"],
-                bdrc=manifestation["bdrc"],
-                type=manifestation["type"],
-                manifestation_of=manifestation["manifestation_of"],
-                annotations=annotations,
-                copyright=manifestation["copyright"],
-                colophon=manifestation.get("colophon", ""),
-                incipit_title=incipit_title,
-                alt_incipit_titles=alt_incipit_titles,
+                incipit_title = self.__convert_to_localized_text(manifestation_data.get("incipit_title"))
+                alt_incipit_titles = (
+                    [self.__convert_to_localized_text(alt) for alt in manifestation_data.get("alt_incipit_titles", [])]
+                    if manifestation_data.get("alt_incipit_titles")
+                    else None
+                )
+
+                manifestation = ManifestationModel(
+                    id=manifestation_data["id"],
+                    bdrc=manifestation_data.get("bdrc"),
+                    type=ManifestationType(manifestation_data["type"]),
+                    annotations=annotations,
+                    copyright=CopyrightStatus(manifestation_data["copyright"]),
+                    colophon=manifestation_data.get("colophon"),
+                    incipit_title=incipit_title,
+                    alt_incipit_titles=alt_incipit_titles,
+                )
+                manifestations.append(manifestation)
+
+            return manifestations
+
+    def create_manifestation(self, manifestation: ManifestationModel, expression_id: str) -> str:
+        """Create a new manifestation linked to an expression."""
+
+        def create_transaction(tx):
+            manifestation_id = generate_id()
+
+            title_nomen_element_id = None
+            if manifestation.incipit_title:
+                alt_titles_data = (
+                    [alt.root for alt in manifestation.alt_incipit_titles] if manifestation.alt_incipit_titles else None
+                )
+                title_nomen_element_id = self._create_nomens(tx, manifestation.incipit_title.root, alt_titles_data)
+
+            result = tx.run(
+                Queries.manifestations["create"],
+                manifestation_id=manifestation_id,
+                expression_id=expression_id,
+                bdrc=manifestation.bdrc,
+                wiki=manifestation.wiki,
+                type=manifestation.type.value if manifestation.type else None,
+                copyright=manifestation.copyright.value if manifestation.copyright else None,
+                colophon=manifestation.colophon,
+                title_nomen_element_id=title_nomen_element_id,
             )
+
+            if not result.single():
+                raise DataNotFound(f"Expression '{expression_id}' not found")
+
+            for annotation in manifestation.annotations or []:
+                annotation_id = generate_id()
+                tx.run(
+                    Queries.annotations["create"],
+                    annotation_id=annotation_id,
+                    manifestation_id=manifestation_id,
+                    name=annotation.name,
+                    type=annotation.type.value if annotation.type else None,
+                    aligned_to_id=annotation.aligned_to,
+                )
+
+            return manifestation_id
+
+        with self.__driver.session() as session:
+            return session.execute_write(create_transaction)
 
     def get_all_persons(self) -> list[PersonModel]:
         with self.__driver.session() as session:
@@ -151,52 +195,35 @@ class Neo4JDatabase:
             return session.execute_write(create_transaction)
 
     def create_expression(self, expression: ExpressionModel) -> str:
+        if expression.parent:
+            parent_expression = self.get_expression(expression.parent)
+            if expression.type == TextType.TRANSLATION:
+                if parent_expression.language == expression.language:
+                    raise ValueError("Translation must have a different language than the parent expression")
+
         def create_transaction(tx):
             expression_id = generate_id()
             base_lang_code = expression.language.split("-")[0].lower()
             alt_titles_data = [alt_title.root for alt_title in expression.alt_titles] if expression.alt_titles else None
             expression_title_element_id = self._create_nomens(tx, expression.title.root, alt_titles_data)
 
-            # Choose query based on expression type
+            common_params = {
+                "expression_id": expression_id,
+                "bdrc": expression.bdrc,
+                "wiki": expression.wiki,
+                "date": expression.date,
+                "language_code": base_lang_code,
+                "bcp47_tag": expression.language,
+                "title_nomen_element_id": expression_title_element_id,
+                "parent_id": expression.parent,
+            }
+
             if expression.type == TextType.ROOT:
-                work_id = generate_id()
-                tx.run(
-                    Queries.expressions["create_root"],
-                    work_id=work_id,
-                    expression_id=expression_id,
-                    bdrc=expression.bdrc,
-                    wiki=expression.wiki,
-                    date=expression.date,
-                    language_code=base_lang_code,
-                    bcp47_tag=expression.language,
-                    title_nomen_element_id=expression_title_element_id,
-                )
+                tx.run(Queries.expressions["create_root"], work_id=generate_id(), **common_params)
             elif expression.type == TextType.TRANSLATION:
-                tx.run(
-                    Queries.expressions["create_translation"],
-                    parent_id=expression.parent,
-                    expression_id=expression_id,
-                    bdrc=expression.bdrc,
-                    wiki=expression.wiki,
-                    date=expression.date,
-                    language_code=base_lang_code,
-                    bcp47_tag=expression.language,
-                    title_nomen_element_id=expression_title_element_id,
-                )
-            else:  # TextType.COMMENTARY
-                work_id = generate_id()
-                tx.run(
-                    Queries.expressions["create_commentary"],
-                    work_id=work_id,
-                    parent_id=expression.parent,
-                    expression_id=expression_id,
-                    bdrc=expression.bdrc,
-                    wiki=expression.wiki,
-                    date=expression.date,
-                    language_code=base_lang_code,
-                    bcp47_tag=expression.language,
-                    title_nomen_element_id=expression_title_element_id,
-                )
+                tx.run(Queries.expressions["create_translation"], **common_params)
+            else:
+                tx.run(Queries.expressions["create_commentary"], work_id=generate_id(), **common_params)
 
             for contribution in expression.contributions:
                 person_link_result = tx.run(
@@ -207,10 +234,9 @@ class Neo4JDatabase:
                     role_name=contribution.role.value,
                 )
                 if not person_link_result.single():
-                    if contribution.person_id:
-                        raise DataNotFound(f"Person with ID '{contribution.person_id}' not found")
-                    else:
-                        raise DataNotFound(f"Person with BDRC ID '{contribution.person_bdrc_id}' not found")
+                    raise DataNotFound(
+                        f"Person (id: {contribution.person_id} bdrc_id: {contribution.person_bdrc_id}) not found"
+                    )
 
             return expression_id
 
@@ -296,7 +322,9 @@ class Neo4JDatabase:
 
             return expressions
 
-    def __convert_to_localized_text(self, entries: list[dict[str, str]]) -> dict[str, str]:
+    def __convert_to_localized_text(self, entries: list[dict[str, str]] | None) -> dict[str, str] | None:
+        if entries is None:
+            return None
         return {entry["language"]: entry["text"] for entry in entries if "language" in entry and "text" in entry}
 
     def _create_person_model(self, person_data, person_id=None):

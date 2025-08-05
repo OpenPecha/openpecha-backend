@@ -27,6 +27,7 @@ class AnnotationType(str, Enum):
 class ManifestationType(str, Enum):
     DIPLOMATIC = "diplomatic"
     CRITICAL = "critical"
+    COLLATED = "collated"
 
 
 class ExpressionType(str, Enum):
@@ -118,12 +119,11 @@ class ManifestationModel(BaseModel):
     bdrc: str | None = None
     wiki: str | None = None
     type: ManifestationType
-    manifestation_of: str
     annotations: Sequence[AnnotationModel] = Field(..., min_length=1)
     copyright: CopyrightStatus
     incipit_title: LocalizedString | None = None
     colophon: str | None = None
-    alt_incipit_titles: Sequence[LocalizedString] | None = Field(None, min_length=1)
+    alt_incipit_titles: Sequence[LocalizedString] | None = None
 
     model_config = ConfigDict(
         extra="forbid",

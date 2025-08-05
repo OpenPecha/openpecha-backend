@@ -3,7 +3,6 @@ from api.annotation import annotation_bp
 from api.api import api_bp
 from api.category import categories_bp
 from api.languages import languages_bp
-from api.manifestation import manifestation_bp
 from api.metadata import metadata_bp
 from api.metadata_v2 import metadata_v2_bp
 from api.pecha import pecha_bp
@@ -44,7 +43,6 @@ def create_app(testing=False):
     app.register_blueprint(text_bp, url_prefix="/text")
     app.register_blueprint(categories_bp, url_prefix="/categories")
     app.register_blueprint(annotation_bp, url_prefix="/annotation")
-    app.register_blueprint(manifestation_bp, url_prefix="/v2/manifestation")
     app.register_blueprint(persons_bp, url_prefix="/v2/persons")
 
     @app.after_request

@@ -170,8 +170,8 @@ MATCH (person:Person)
 RETURN {Queries.person_fragment('person')} AS person
 """,
     "create": """
+    CYPHER 25
 CREATE (p:Person {id: $id, bdrc: $bdrc, wiki: $wiki})
-WITH p
 MATCH (n:Nomen) WHERE elementId(n) = $primary_name_element_id
 CREATE (p)-[:HAS_NAME]->(n)
 RETURN p.id as person_id
@@ -181,13 +181,12 @@ RETURN p.id as person_id
 Queries.nomens = {
     "create": """
 OPTIONAL MATCH (primary:Nomen)
-WHERE $primary_name_element_id IS NOT NULL AND elementId(primary) = $primary_name_element_id
-WITH primary
+WHERE elementId(primary) = $primary_name_element_id
 CREATE (n:Nomen)
+WITH n, primary
 FOREACH (_ IN CASE WHEN primary IS NOT NULL THEN [1] ELSE [] END |
     CREATE (n)-[:ALTERNATIVE_OF]->(primary)
 )
-WITH n
 FOREACH (lt IN $localized_texts |
     MERGE (l:Language {code: lt.base_lang_code})
     CREATE (n)-[:HAS_LOCALIZATION]->(locText:LocalizedText {text: lt.text})-[:HAS_LANGUAGE {bcp47: lt.bcp47_tag}]->(l)
@@ -197,15 +196,15 @@ RETURN elementId(n) as element_id
 }
 
 Queries.manifestations = {
-    "fetch_by_id": f"""
-    MATCH (m:Manifestation {{id: $id}})
+    "fetch_by_expression": f"""
+    MATCH (e:Expression {{id: $expression_id}})<-[:MANIFESTATION_OF]-(m:Manifestation)
 
     RETURN {{
         id: m.id,
         bdrc: m.bdrc,
         wiki: m.wiki,
         type: [(m)-[:HAS_TYPE]->(mt:ManifestationType) | mt.name][0],
-        manifestation_of: [(m)-[:MANIFESTATION_OF]->(e:Expression) | e.id][0],
+        manifestation_of: e.id,
         annotations: [
             (m)-[:HAS_ANNOTATION]->(a:Annotation) | {{
                 id: a.id,
@@ -219,5 +218,49 @@ Queries.manifestations = {
         incipit_title: [{Queries.primary_nomen('m', 'HAS_TITLE')}],
         alt_incipit_titles: [{Queries.alternative_nomen('m', 'HAS_TITLE')}]
     }} AS manifestation
+""",
+    "create": """
+CREATE (m:Manifestation {
+  id:        $manifestation_id,
+  bdrc:      $bdrc,
+  wiki:      $wiki,
+  colophon:  $colophon
+})
+WITH m
+MATCH (e:Expression {id: $expression_id})
+MERGE (mt:ManifestationType {name: $type})
+
+WITH m, e, mt
+
+OPTIONAL MATCH (n:Nomen)
+  WHERE elementId(n) = $title_nomen_element_id
+CREATE (m)-[:MANIFESTATION_OF]->(e),
+       (m)-[:HAS_TYPE]->(mt)
+FOREACH (_ IN CASE WHEN $copyright IS NULL THEN [] ELSE [1] END |
+  MERGE (cs:CopyrightStatus {status: $copyright})
+  CREATE (m)-[:HAS_COPYRIGHT]->(cs)
+)
+FOREACH (_ IN CASE WHEN n IS NULL THEN [] ELSE [1] END |
+  CREATE (m)-[:HAS_TITLE]->(n)
+)
+RETURN m.id AS manifestation_id
+""",
+}
+
+Queries.annotations = {
+    "create": """
+MATCH (m:Manifestation {id: $manifestation_id})
+MERGE (at:AnnotationType {name: $type})
+WITH m, at
+OPTIONAL MATCH (target:Annotation {id: $aligned_to_id})
+
+CREATE (a:Annotation {id: $annotation_id, name: $name})-[:HAS_TYPE]->(at),
+       (m)-[:HAS_ANNOTATION]->(a)
+
+FOREACH (_ IN CASE WHEN target IS NULL THEN [] ELSE [1] END |
+  CREATE (a)-[:ALIGNED_TO]->(target)
+)
+
+RETURN a.id AS annotation_id
 """
 }
