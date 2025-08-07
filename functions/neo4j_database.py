@@ -60,11 +60,15 @@ class Neo4JDatabase:
 
             parent = expression.get("parent")
 
+            expression_type = expression["type"]
+            if expression_type is None:
+                raise DataNotFound(f"Expression '{expression_id}' has invalid type (null)")
+                
             return ExpressionModel(
                 id=expression["id"],
                 bdrc=expression["bdrc"],
                 wiki=expression["wiki"],
-                type=expression["type"],
+                type=TextType(expression_type),
                 contributions=contributions,
                 date=expression["date"],
                 title=self.__convert_to_localized_text(expression["title"]),
@@ -73,48 +77,60 @@ class Neo4JDatabase:
                 parent=parent,
             )
 
+    def __process_manifestation_data(self, manifestation_data: dict) -> ManifestationModel:
+        """Private helper to process manifestation data from Neo4j into ManifestationModel."""
+        annotations = [
+            AnnotationModel(
+                id=ann["id"],
+                type=AnnotationType(ann["type"]),
+                name=ann["name"],
+                aligned_to=ann.get("aligned_to"),
+            )
+            for ann in manifestation_data.get("annotations", [])
+        ]
+
+        incipit_title = self.__convert_to_localized_text(manifestation_data.get("incipit_title"))
+        alt_incipit_titles = (
+            [self.__convert_to_localized_text(alt) for alt in manifestation_data.get("alt_incipit_titles", [])]
+            if manifestation_data.get("alt_incipit_titles")
+            else None
+        )
+
+        return ManifestationModel(
+            id=manifestation_data["id"],
+            bdrc=manifestation_data.get("bdrc"),
+            type=ManifestationType(manifestation_data["type"]),
+            annotations=annotations,
+            copyright=CopyrightStatus(manifestation_data["copyright"]),
+            colophon=manifestation_data.get("colophon"),
+            incipit_title=incipit_title,
+            alt_incipit_titles=alt_incipit_titles,
+        )
+
     def get_manifestations_by_expression(self, expression_id: str) -> list[ManifestationModel]:
         with self.__driver.session() as session:
-            result = session.run(Queries.manifestations["fetch_by_expression"], expression_id=expression_id)
+            result = session.run(Queries.manifestations["fetch"], expression_id=expression_id, manifestation_id=None)
             manifestations = []
 
             for record in result:
                 manifestation_data = record.data()["manifestation"]
-
-                annotations = [
-                    AnnotationModel(
-                        id=ann["id"],
-                        type=AnnotationType(ann["type"]),
-                        name=ann["name"],
-                        aligned_to=ann.get("aligned_to"),
-                    )
-                    for ann in manifestation_data.get("annotations", [])
-                ]
-
-                incipit_title = self.__convert_to_localized_text(manifestation_data.get("incipit_title"))
-                alt_incipit_titles = (
-                    [self.__convert_to_localized_text(alt) for alt in manifestation_data.get("alt_incipit_titles", [])]
-                    if manifestation_data.get("alt_incipit_titles")
-                    else None
-                )
-
-                manifestation = ManifestationModel(
-                    id=manifestation_data["id"],
-                    bdrc=manifestation_data.get("bdrc"),
-                    type=ManifestationType(manifestation_data["type"]),
-                    annotations=annotations,
-                    copyright=CopyrightStatus(manifestation_data["copyright"]),
-                    colophon=manifestation_data.get("colophon"),
-                    incipit_title=incipit_title,
-                    alt_incipit_titles=alt_incipit_titles,
-                )
+                manifestation = self.__process_manifestation_data(manifestation_data)
                 manifestations.append(manifestation)
 
             return manifestations
 
-    def create_manifestation(self, manifestation: ManifestationModel, expression_id: str) -> str:
-        """Create a new manifestation linked to an expression."""
+    def get_manifestation(self, manifestation_id: str) -> ManifestationModel:
+        with self.__driver.session() as session:
+            result = session.run(Queries.manifestations["fetch"], manifestation_id=manifestation_id, expression_id=None)
+            record = result.single()
 
+            if not record:
+                raise DataNotFound(f"Manifestation '{manifestation_id}' not found")
+
+            manifestation_data = record.data()["manifestation"]
+            return self.__process_manifestation_data(manifestation_data)
+
+    def create_manifestation(self, manifestation: ManifestationModel, expression_id: str) -> str:
         def create_transaction(tx):
             manifestation_id = generate_id()
 
@@ -307,11 +323,16 @@ class Neo4JDatabase:
 
                 parent = expression_data["parent"]
 
+                expression_type = expression_data["type"]
+                if expression_type is None:
+                    # Skip expressions that don't have a valid type
+                    continue
+                
                 expression = ExpressionModel(
                     id=expression_data["id"],
                     bdrc=expression_data["bdrc"],
                     wiki=expression_data["wiki"],
-                    type=expression_data["type"],
+                    type=TextType(expression_type),
                     contributions=contributions,
                     date=expression_data["date"],
                     title=self.__convert_to_localized_text(expression_data["title"]),

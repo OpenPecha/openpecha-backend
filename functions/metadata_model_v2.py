@@ -93,7 +93,7 @@ class ExpressionModel(BaseModel):
     bdrc: str | None = None
     wiki: str | None = None
     type: TextType
-    contributions: Sequence[ContributionModel] = Field(..., min_length=1)
+    contributions: Sequence[ContributionModel]
     date: str | None = Field(None, pattern="\\S")
     title: LocalizedString
     alt_titles: Sequence[LocalizedString] | None = None

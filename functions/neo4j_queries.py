@@ -33,7 +33,7 @@ class Queries:
 """
 
     @staticmethod
-    def expression_fragment(label):
+    def expression_compact_fragment(label):
         return f"""
 {{
     id: {label}.id,
@@ -56,7 +56,7 @@ END
 """
 
     @staticmethod
-    def expression_detailed_fragment(label):
+    def expression_fragment(label):
         return f"""
 {{
     id: {label}.id,
@@ -91,7 +91,7 @@ Queries.expressions = {
     "fetch_by_id": f"""
     MATCH (e:Expression {{id: $id}})
 
-    RETURN {Queries.expression_detailed_fragment('e')} AS expression
+    RETURN {Queries.expression_fragment('e')} AS expression
 """,
     "fetch_all": f"""
     MATCH (e:Expression)
@@ -102,7 +102,7 @@ Queries.expressions = {
     SKIP $offset
     LIMIT $limit
 
-    RETURN {Queries.expression_detailed_fragment('e')} AS expression
+    RETURN {Queries.expression_fragment('e')} AS expression
 """,
     "fetch_related": f"""
     MATCH (e:Expression {{id: $id}})
@@ -110,7 +110,7 @@ Queries.expressions = {
     RETURN [
         sibling IN [(e)-[:EXPRESSION_OF]->(work:Work)<-[:EXPRESSION_OF]-
         (s:Expression) WHERE s.id <> $id | s] |
-            {Queries.expression_fragment('sibling')}
+            {Queries.expression_compact_fragment('sibling')}
     ] AS related_expressions
 """,
     "create_root": f"""
@@ -196,8 +196,11 @@ RETURN elementId(n) as element_id
 }
 
 Queries.manifestations = {
-    "fetch_by_expression": f"""
-    MATCH (e:Expression {{id: $expression_id}})<-[:MANIFESTATION_OF]-(m:Manifestation)
+    "fetch": f"""
+    MATCH (m:Manifestation)
+    WHERE ($manifestation_id IS NOT NULL AND m.id = $manifestation_id) OR 
+          ($expression_id IS NOT NULL AND (m)-[:MANIFESTATION_OF]->(:Expression {{id: $expression_id}}))
+    OPTIONAL MATCH (m)-[:MANIFESTATION_OF]->(e:Expression)
 
     RETURN {{
         id: m.id,
@@ -221,10 +224,10 @@ Queries.manifestations = {
 """,
     "create": """
 CREATE (m:Manifestation {
-  id:        $manifestation_id,
-  bdrc:      $bdrc,
-  wiki:      $wiki,
-  colophon:  $colophon
+  id: $manifestation_id,
+  bdrc: $bdrc,
+  wiki: $wiki,
+  colophon: $colophon
 })
 WITH m
 MATCH (e:Expression {id: $expression_id})
