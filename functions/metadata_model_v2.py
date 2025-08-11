@@ -36,11 +36,11 @@ class ExpressionType(str, Enum):
 
 
 class CopyrightStatus(str, Enum):
-    PUBLIC_DOMAIN = "Public domain"
+    PUBLIC_DOMAIN = "public"
 
 
 class LocalizedString(RootModel[Mapping[str, NonEmptyStr]]):
-    root: Mapping[str, NonEmptyStr] = Field(min_length=1)
+    root: Mapping[str, NonEmptyStr]
 
     def __getitem__(self, item: str) -> NonEmptyStr:
         return self.root[item]
@@ -79,7 +79,6 @@ class ContributionModel(BaseModel):
 class AnnotationModel(BaseModel):
     id: str
     type: AnnotationType
-    name: str
     aligned_to: str | None = None
 
     model_config = ConfigDict(
@@ -124,6 +123,7 @@ class ManifestationModel(BaseModel):
     incipit_title: LocalizedString | None = None
     colophon: str | None = None
     alt_incipit_titles: Sequence[LocalizedString] | None = None
+    expression: str
 
     model_config = ConfigDict(
         extra="forbid",

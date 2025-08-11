@@ -198,7 +198,7 @@ RETURN elementId(n) as element_id
 Queries.manifestations = {
     "fetch": f"""
     MATCH (m:Manifestation)
-    WHERE ($manifestation_id IS NOT NULL AND m.id = $manifestation_id) OR 
+    WHERE ($manifestation_id IS NOT NULL AND m.id = $manifestation_id) OR
           ($expression_id IS NOT NULL AND (m)-[:MANIFESTATION_OF]->(:Expression {{id: $expression_id}}))
     OPTIONAL MATCH (m)-[:MANIFESTATION_OF]->(e:Expression)
 
@@ -212,12 +212,11 @@ Queries.manifestations = {
             (m)-[:HAS_ANNOTATION]->(a:Annotation) | {{
                 id: a.id,
                 type: [(a)-[:HAS_TYPE]->(at:AnnotationType) | at.name][0],
-                name: a.name,
                 aligned_to: [(a)-[:ALIGNED_TO]->(target:Annotation) | target.id][0]
             }}
         ],
         colophon: m.colophon,
-        copyright: [(m)-[:HAS_COPYRIGHT]->(cs:CopyrightStatus) | cs.status][0],
+        copyright: [(m)-[:HAS_COPYRIGHT]->(cs:CopyrightStatus) | cs.name][0],
         incipit_title: [{Queries.primary_nomen('m', 'HAS_TITLE')}],
         alt_incipit_titles: [{Queries.alternative_nomen('m', 'HAS_TITLE')}]
     }} AS manifestation
@@ -232,17 +231,15 @@ CREATE (m:Manifestation {
 WITH m
 MATCH (e:Expression {id: $expression_id})
 MERGE (mt:ManifestationType {name: $type})
+MERGE (cs:CopyrightStatus {name: $copyright})
 
-WITH m, e, mt
+WITH m, e, mt, cs
 
 OPTIONAL MATCH (n:Nomen)
   WHERE elementId(n) = $title_nomen_element_id
 CREATE (m)-[:MANIFESTATION_OF]->(e),
-       (m)-[:HAS_TYPE]->(mt)
-FOREACH (_ IN CASE WHEN $copyright IS NULL THEN [] ELSE [1] END |
-  MERGE (cs:CopyrightStatus {status: $copyright})
-  CREATE (m)-[:HAS_COPYRIGHT]->(cs)
-)
+       (m)-[:HAS_TYPE]->(mt),
+       (m)-[:HAS_COPYRIGHT]->(cs)
 FOREACH (_ IN CASE WHEN n IS NULL THEN [] ELSE [1] END |
   CREATE (m)-[:HAS_TITLE]->(n)
 )
@@ -257,7 +254,7 @@ MERGE (at:AnnotationType {name: $type})
 WITH m, at
 OPTIONAL MATCH (target:Annotation {id: $aligned_to_id})
 
-CREATE (a:Annotation {id: $annotation_id, name: $name})-[:HAS_TYPE]->(at),
+CREATE (a:Annotation {id: $annotation_id})-[:HAS_TYPE]->(at),
        (m)-[:HAS_ANNOTATION]->(a)
 
 FOREACH (_ IN CASE WHEN target IS NULL THEN [] ELSE [1] END |

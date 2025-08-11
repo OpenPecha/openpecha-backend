@@ -63,7 +63,7 @@ class Neo4JDatabase:
             expression_type = expression["type"]
             if expression_type is None:
                 raise DataNotFound(f"Expression '{expression_id}' has invalid type (null)")
-                
+
             return ExpressionModel(
                 id=expression["id"],
                 bdrc=expression["bdrc"],
@@ -77,13 +77,11 @@ class Neo4JDatabase:
                 parent=parent,
             )
 
-    def __process_manifestation_data(self, manifestation_data: dict) -> ManifestationModel:
-        """Private helper to process manifestation data from Neo4j into ManifestationModel."""
+    def _process_manifestation_data(self, manifestation_data: dict) -> ManifestationModel:
         annotations = [
             AnnotationModel(
                 id=ann["id"],
                 type=AnnotationType(ann["type"]),
-                name=ann["name"],
                 aligned_to=ann.get("aligned_to"),
             )
             for ann in manifestation_data.get("annotations", [])
@@ -99,12 +97,14 @@ class Neo4JDatabase:
         return ManifestationModel(
             id=manifestation_data["id"],
             bdrc=manifestation_data.get("bdrc"),
+            wiki=manifestation_data.get("wiki"),
             type=ManifestationType(manifestation_data["type"]),
             annotations=annotations,
             copyright=CopyrightStatus(manifestation_data["copyright"]),
             colophon=manifestation_data.get("colophon"),
             incipit_title=incipit_title,
             alt_incipit_titles=alt_incipit_titles,
+            expression=manifestation_data["manifestation_of"],
         )
 
     def get_manifestations_by_expression(self, expression_id: str) -> list[ManifestationModel]:
@@ -114,7 +114,7 @@ class Neo4JDatabase:
 
             for record in result:
                 manifestation_data = record.data()["manifestation"]
-                manifestation = self.__process_manifestation_data(manifestation_data)
+                manifestation = self._process_manifestation_data(manifestation_data)
                 manifestations.append(manifestation)
 
             return manifestations
@@ -128,7 +128,7 @@ class Neo4JDatabase:
                 raise DataNotFound(f"Manifestation '{manifestation_id}' not found")
 
             manifestation_data = record.data()["manifestation"]
-            return self.__process_manifestation_data(manifestation_data)
+            return self._process_manifestation_data(manifestation_data)
 
     def create_manifestation(self, manifestation: ManifestationModel, expression_id: str) -> str:
         def create_transaction(tx):
@@ -148,7 +148,7 @@ class Neo4JDatabase:
                 bdrc=manifestation.bdrc,
                 wiki=manifestation.wiki,
                 type=manifestation.type.value if manifestation.type else None,
-                copyright=manifestation.copyright.value if manifestation.copyright else None,
+                copyright=manifestation.copyright.value if manifestation.copyright else "public",
                 colophon=manifestation.colophon,
                 title_nomen_element_id=title_nomen_element_id,
             )
@@ -162,7 +162,6 @@ class Neo4JDatabase:
                     Queries.annotations["create"],
                     annotation_id=annotation_id,
                     manifestation_id=manifestation_id,
-                    name=annotation.name,
                     type=annotation.type.value if annotation.type else None,
                     aligned_to_id=annotation.aligned_to,
                 )
@@ -327,7 +326,7 @@ class Neo4JDatabase:
                 if expression_type is None:
                     # Skip expressions that don't have a valid type
                     continue
-                
+
                 expression = ExpressionModel(
                     id=expression_data["id"],
                     bdrc=expression_data["bdrc"],

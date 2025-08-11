@@ -191,17 +191,17 @@ nodes:
           - critical
 
   CopyrightStatus:
+    enum: true
     properties:
       info_url:
         type: string
         required: false
-      status:
+      name:
         type: string
         required: true
-      notice:
+      description:
         type: string
         required: false
-
   AnnotationType:
     enum: true
     properties:
