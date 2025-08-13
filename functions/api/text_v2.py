@@ -14,14 +14,10 @@ logger = logging.getLogger(__name__)
 def get_text_v2(manifestation_id: str) -> tuple[Response, int]:
     logger.info("Fetching text for manifestation ID: %s", manifestation_id)
 
-    db = Neo4JDatabase()
-    manifestation = db.get_manifestation(manifestation_id)
-
+    manifestation = Neo4JDatabase().get_manifestation(manifestation_id)
     pecha = retrieve_pecha(manifestation.expression)
 
-    annotations_dict = [
-        {"id": annotation.id, "type": annotation.type.value} for annotation in manifestation.annotations
-    ]
-    logger.info("Converted annotations: %s", annotations_dict)
-
-    return JsonSerializer().serialize(pecha, annotations=annotations_dict), 200
+    return (
+        JsonSerializer().serialize(pecha, annotations=[a.model_dump() for a in manifestation.annotations]),
+        200,
+    )

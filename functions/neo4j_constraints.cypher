@@ -36,3 +36,35 @@ CREATE CONSTRAINT annotation_type_name_unique IF NOT EXISTS FOR (at:AnnotationTy
 // ManifestationType nodes - each manifestation type must have a unique name
 CREATE CONSTRAINT manifestation_type_name_unique IF NOT EXISTS FOR (mt:ManifestationType) REQUIRE mt.name IS UNIQUE;
 
+// CopyrightStatus nodes - each copyright status must have a unique name
+CREATE CONSTRAINT copyright_status_name_unique IF NOT EXISTS FOR (cs:CopyrightStatus) REQUIRE cs.name IS UNIQUE;
+
+// =============================================================================
+// UNIQUE CONSTRAINTS FOR EXTERNAL IDENTIFIERS (BDRC/WIKI)
+// =============================================================================
+
+// Person nodes - BDRC IDs must be unique when present
+CREATE CONSTRAINT person_bdrc_unique IF NOT EXISTS FOR (p:Person) REQUIRE p.bdrc IS UNIQUE;
+
+// Person nodes - Wiki IDs must be unique when present
+CREATE CONSTRAINT person_wiki_unique IF NOT EXISTS FOR (p:Person) REQUIRE p.wiki IS UNIQUE;
+
+// Expression nodes - BDRC IDs must be unique when present
+CREATE CONSTRAINT expression_bdrc_unique IF NOT EXISTS FOR (e:Expression) REQUIRE e.bdrc IS UNIQUE;
+
+// Expression nodes - Wiki IDs must be unique when present
+CREATE CONSTRAINT expression_wiki_unique IF NOT EXISTS FOR (e:Expression) REQUIRE e.wiki IS UNIQUE;
+
+// Work nodes - BDRC IDs must be unique when present
+CREATE CONSTRAINT work_bdrc_unique IF NOT EXISTS FOR (w:Work) REQUIRE w.bdrc IS UNIQUE;
+
+// Work nodes - Wiki IDs must be unique when present
+CREATE CONSTRAINT work_wiki_unique IF NOT EXISTS FOR (w:Work) REQUIRE w.wiki IS UNIQUE;
+
+// Manifestation nodes - BDRC IDs must be unique when present
+CREATE CONSTRAINT manifestation_bdrc_unique IF NOT EXISTS FOR (m:Manifestation) REQUIRE m.bdrc IS UNIQUE;
+
+// Manifestation nodes - Wiki IDs must be unique when present
+CREATE CONSTRAINT manifestation_wiki_unique IF NOT EXISTS FOR (m:Manifestation) REQUIRE m.wiki IS UNIQUE;
+
+

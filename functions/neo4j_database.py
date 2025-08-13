@@ -16,6 +16,7 @@ from metadata_model_v2 import (
     TextType,
 )
 from neo4j import GraphDatabase
+from neo4j_database_validator import Neo4JDatabaseValidator
 from neo4j_queries import Queries
 
 logger = logging.getLogger(__name__)
@@ -31,6 +32,7 @@ class Neo4JDatabase:
                 auth=("neo4j", os.environ.get("NEO4J_PASSWORD")),
             )
         self.__driver.verify_connectivity()
+        self.__validator = Neo4JDatabaseValidator()
         logger.info("Connection to neo4j established.")
 
     def get_session(self):
@@ -51,40 +53,34 @@ class Neo4JDatabase:
 
             contributions = [
                 ContributionModel(
-                    person_id=contributor["person_id"],
+                    person_id=contributor.get("person_id"),
                     person_bdrc_id=contributor.get("person_bdrc_id"),
-                    role=contributor["role"],
+                    role=contributor.get("role"),
                 )
                 for contributor in expression.get("contributors", [])
             ]
 
-            parent = expression.get("parent")
-
-            expression_type = expression["type"]
-            if expression_type is None:
-                raise DataNotFound(f"Expression '{expression_id}' has invalid type (null)")
-
             return ExpressionModel(
-                id=expression["id"],
-                bdrc=expression["bdrc"],
-                wiki=expression["wiki"],
-                type=TextType(expression_type),
+                id=expression.get("id"),
+                bdrc=expression.get("bdrc"),
+                wiki=expression.get("wiki"),
+                type=TextType(expression.get("type")),
                 contributions=contributions,
-                date=expression["date"],
-                title=self.__convert_to_localized_text(expression["title"]),
-                alt_titles=[self.__convert_to_localized_text(alt) for alt in expression["alt_titles"]],
-                language=expression["language"],
-                parent=parent,
+                date=expression.get("date"),
+                title=self.__convert_to_localized_text(expression.get("title")),
+                alt_titles=[self.__convert_to_localized_text(alt) for alt in expression.get("alt_titles")],
+                language=expression.get("language"),
+                parent=expression.get("parent"),
             )
 
     def _process_manifestation_data(self, manifestation_data: dict) -> ManifestationModel:
         annotations = [
             AnnotationModel(
-                id=ann["id"],
-                type=AnnotationType(ann["type"]),
-                aligned_to=ann.get("aligned_to"),
+                id=annotation.get("id"),
+                type=AnnotationType(annotation.get("type")),
+                aligned_to=annotation.get("aligned_to"),
             )
-            for ann in manifestation_data.get("annotations", [])
+            for annotation in manifestation_data.get("annotations", [])
         ]
 
         incipit_title = self.__convert_to_localized_text(manifestation_data.get("incipit_title"))
@@ -132,6 +128,8 @@ class Neo4JDatabase:
 
     def create_manifestation(self, manifestation: ManifestationModel, expression_id: str) -> str:
         def create_transaction(tx):
+            self.__validator.validate_expression_exists(tx, expression_id)
+
             manifestation_id = generate_id()
 
             title_nomen_element_id = None
@@ -217,6 +215,9 @@ class Neo4JDatabase:
                     raise ValueError("Translation must have a different language than the parent expression")
 
         def create_transaction(tx):
+            work_id = generate_id() if expression.type == TextType.ROOT else None
+
+            self.__validator.validate_expression_creation(tx, expression, work_id)
             expression_id = generate_id()
             base_lang_code = expression.language.split("-")[0].lower()
             alt_titles_data = [alt_title.root for alt_title in expression.alt_titles] if expression.alt_titles else None
@@ -235,7 +236,7 @@ class Neo4JDatabase:
 
             match expression.type:
                 case TextType.ROOT:
-                    tx.run(Queries.expressions["create_root"], work_id=generate_id(), **common_params)
+                    tx.run(Queries.expressions["create_root"], work_id=work_id, **common_params)
                 case TextType.TRANSLATION:
                     tx.run(Queries.expressions["create_translation"], **common_params)
                 case TextType.COMMENTARY:

@@ -99,9 +99,9 @@ def retrieve_pecha(pecha_id: str) -> Pecha:
     zip_path = Storage().retrieve_pecha_opf(pecha_id)
 
     temp_dir = tempfile.gettempdir()
-    extract_path = Path(temp_dir) / pecha_id
+    extract_path = Path(temp_dir)
     zipfile.ZipFile(zip_path).extractall(extract_path)
-    return Pecha.from_path(extract_path)
+    return Pecha.from_path(extract_path / pecha_id)
 
 
 def get_pecha_chain(pecha_ids: list[str]) -> dict[str, Pecha]:

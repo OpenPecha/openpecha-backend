@@ -1,3 +1,7 @@
+import logging
+import os
+import traceback
+
 import firebase_admin
 from api.annotation import annotation_bp
 from api.api import api_bp
@@ -25,8 +29,11 @@ def _init_firebase():
         cred = credentials.ApplicationDefault()
         firebase_admin.initialize_app(cred)
 
-    logging_client = cloud_logging.Client()
-    logging_client.setup_logging()
+    if os.getenv("FUNCTIONS_EMULATOR") != "true":
+        logging_client = cloud_logging.Client()
+        logging_client.setup_logging()
+    else:
+        logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(name)s - %(message)s")
 
 
 def create_app(testing=False):
@@ -57,7 +64,12 @@ def create_app(testing=False):
 
     @app.errorhandler(Exception)
     def handle_exception(e):
-        app.logger.error("Error: %s", e)
+        # Log the full traceback for ALL exceptions
+        app.logger.error("Exception occurred:")
+        app.logger.error("Exception type: %s", type(e).__name__)
+        app.logger.error("Exception message: %s", str(e))
+        app.logger.error("Full traceback:\n%s", traceback.format_exc())
+
         if isinstance(e, ValidationError):
             # for some reason if ctx is in the error dict, it will break the response, we need to remove it
             errors = [{k: v for k, v in err.items() if k != "ctx"} for err in e.errors()]
