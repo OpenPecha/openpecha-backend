@@ -16,7 +16,6 @@ from pathlib import Path
 import pytest
 from dotenv import load_dotenv
 from exceptions import DataNotFound
-from neo4j_database_validator import DataValidationError
 from metadata_model_v2 import (
     AnnotationModel,
     AnnotationType,
@@ -31,6 +30,7 @@ from metadata_model_v2 import (
     TextType,
 )
 from neo4j_database import Neo4JDatabase
+from neo4j_database_validator import DataValidationError
 from neo4j_queries import Queries
 
 # Load .env file if it exists
@@ -927,7 +927,6 @@ class TestDatabaseNeo4j:
             annotations=[annotation],
             copyright=CopyrightStatus.PUBLIC_DOMAIN,
             colophon="Test colophon",
-            expression=expression_id,
         )
 
         # Create manifestation in database
@@ -969,7 +968,6 @@ class TestDatabaseNeo4j:
             type=ManifestationType.CRITICAL,
             annotations=[annotation],
             copyright=CopyrightStatus.PUBLIC_DOMAIN,
-            expression=expression_id,
         )
 
         # Create manifestation in database
@@ -1017,7 +1015,6 @@ class TestDatabaseNeo4j:
             annotations=[annotation1],
             copyright=CopyrightStatus.PUBLIC_DOMAIN,
             colophon="First manifestation",
-            expression=expression_id,
         )
         manifestation1_id = test_database.create_manifestation(manifestation1, expression_id)
 
@@ -1033,7 +1030,6 @@ class TestDatabaseNeo4j:
             annotations=[annotation2],
             copyright=CopyrightStatus.PUBLIC_DOMAIN,
             colophon="Second manifestation",
-            expression="non-existent-expression-id",
         )
         manifestation2_id = test_database.create_manifestation(manifestation2, expression_id)
 
@@ -1063,7 +1059,6 @@ class TestDatabaseNeo4j:
             type=ManifestationType.DIPLOMATIC,
             annotations=[annotation],
             copyright=CopyrightStatus.PUBLIC_DOMAIN,
-            expression="nonexistent-id",
         )
 
         # Should raise DataValidationError for non-existent expression

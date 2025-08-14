@@ -123,7 +123,6 @@ class ManifestationModel(BaseModel):
     incipit_title: LocalizedString | None = None
     colophon: str | None = None
     alt_incipit_titles: Sequence[LocalizedString] | None = None
-    expression: str
 
     model_config = ConfigDict(
         extra="forbid",

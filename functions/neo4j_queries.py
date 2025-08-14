@@ -207,7 +207,6 @@ Queries.manifestations = {
         bdrc: m.bdrc,
         wiki: m.wiki,
         type: [(m)-[:HAS_TYPE]->(mt:ManifestationType) | mt.name][0],
-        manifestation_of: e.id,
         annotations: [
             (m)-[:HAS_ANNOTATION]->(a:Annotation) | {{
                 id: a.id,
@@ -219,7 +218,7 @@ Queries.manifestations = {
         copyright: [(m)-[:HAS_COPYRIGHT]->(cs:CopyrightStatus) | cs.name][0],
         incipit_title: [{Queries.primary_nomen('m', 'HAS_TITLE')}],
         alt_incipit_titles: [{Queries.alternative_nomen('m', 'HAS_TITLE')}]
-    }} AS manifestation
+    }} AS manifestation, e.id AS expression_id
 """,
     "create": """
 CREATE (m:Manifestation {

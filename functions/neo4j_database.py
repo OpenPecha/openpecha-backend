@@ -100,7 +100,6 @@ class Neo4JDatabase:
             colophon=manifestation_data.get("colophon"),
             incipit_title=incipit_title,
             alt_incipit_titles=alt_incipit_titles,
-            expression=manifestation_data["manifestation_of"],
         )
 
     def get_manifestations_by_expression(self, expression_id: str) -> list[ManifestationModel]:
@@ -115,16 +114,18 @@ class Neo4JDatabase:
 
             return manifestations
 
-    def get_manifestation(self, manifestation_id: str) -> ManifestationModel:
+    def get_manifestation(self, manifestation_id: str) -> tuple[ManifestationModel, str]:
         with self.__driver.session() as session:
             result = session.run(Queries.manifestations["fetch"], manifestation_id=manifestation_id, expression_id=None)
             record = result.single()
-
-            if not record:
+            if record is None:
                 raise DataNotFound(f"Manifestation '{manifestation_id}' not found")
 
-            manifestation_data = record.data()["manifestation"]
-            return self._process_manifestation_data(manifestation_data)
+            record_data = record.data()
+            manifestation_data = record_data["manifestation"]
+            expression_id = record_data["expression_id"]
+            manifestation = self._process_manifestation_data(manifestation_data)
+            return manifestation, expression_id
 
     def create_manifestation(self, manifestation: ManifestationModel, expression_id: str) -> str:
         def create_transaction(tx):

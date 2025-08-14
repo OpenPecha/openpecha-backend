@@ -14,8 +14,8 @@ logger = logging.getLogger(__name__)
 def get_text_v2(manifestation_id: str) -> tuple[Response, int]:
     logger.info("Fetching text for manifestation ID: %s", manifestation_id)
 
-    manifestation = Neo4JDatabase().get_manifestation(manifestation_id)
-    pecha = retrieve_pecha(manifestation.expression)
+    manifestation, expression_id = Neo4JDatabase().get_manifestation(manifestation_id)
+    pecha = retrieve_pecha(expression_id)
 
     return (
         JsonSerializer().serialize(pecha, annotations=[a.model_dump() for a in manifestation.annotations]),
