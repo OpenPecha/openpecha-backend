@@ -347,7 +347,8 @@ class Neo4JDatabase:
     def __convert_to_localized_text(self, entries: list[dict[str, str]] | None) -> dict[str, str] | None:
         if entries is None:
             return None
-        return {entry["language"]: entry["text"] for entry in entries if "language" in entry and "text" in entry}
+        result = {entry["language"]: entry["text"] for entry in entries if "language" in entry and "text" in entry}
+        return result or None
 
     def _create_person_model(self, person_data, person_id=None):
         return PersonModel(

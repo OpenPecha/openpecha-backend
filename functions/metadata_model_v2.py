@@ -40,7 +40,7 @@ class CopyrightStatus(str, Enum):
 
 
 class LocalizedString(RootModel[Mapping[str, NonEmptyStr]]):
-    root: Mapping[str, NonEmptyStr]
+    root: Mapping[str, NonEmptyStr] = Field(min_length=1)
 
     def __getitem__(self, item: str) -> NonEmptyStr:
         return self.root[item]

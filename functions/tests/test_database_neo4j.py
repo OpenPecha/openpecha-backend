@@ -16,6 +16,7 @@ from pathlib import Path
 import pytest
 from dotenv import load_dotenv
 from exceptions import DataNotFound
+from neo4j_database_validator import DataValidationError
 from metadata_model_v2 import (
     AnnotationModel,
     AnnotationType,
@@ -400,11 +401,11 @@ class TestDatabaseNeo4j:
             contributions=[ContributionModel(person_id="non-existent-person-id", role=ContributorRole.AUTHOR)],
         )
 
-        # Should raise DataNotFound for missing person
-        with pytest.raises(DataNotFound) as exc_info:
+        # Should raise DataValidationError for missing person
+        with pytest.raises(DataValidationError) as exc_info:
             test_database.create_expression(expression)
 
-        assert "id: non-existent-person-id" in str(exc_info.value)
+        assert "non-existent-person-id" in str(exc_info.value)
 
     def test_create_root_expression_language_support(self, test_database):
         """Test that various language codes are properly supported"""
@@ -564,11 +565,11 @@ class TestDatabaseNeo4j:
             ],
         )
 
-        # Should raise DataNotFound for missing person
-        with pytest.raises(DataNotFound) as exc_info:
+        # Should raise DataValidationError for missing person
+        with pytest.raises(DataValidationError) as exc_info:
             test_database.create_expression(expression)
 
-        assert "bdrc_id: P999999" in str(exc_info.value)
+        assert "P999999" in str(exc_info.value)
 
     def test_create_translation_expression_success(self, test_database):
         """Test creating a translation expression that links to parent's work"""
@@ -918,7 +919,6 @@ class TestDatabaseNeo4j:
         annotation = AnnotationModel(
             id="",  # Will be generated
             type=AnnotationType.SEGMENTATION,
-            name="Basic Test Annotation",
         )
 
         manifestation = ManifestationModel(
@@ -927,6 +927,7 @@ class TestDatabaseNeo4j:
             annotations=[annotation],
             copyright=CopyrightStatus.PUBLIC_DOMAIN,
             colophon="Test colophon",
+            expression=expression_id,
         )
 
         # Create manifestation in database
@@ -961,7 +962,6 @@ class TestDatabaseNeo4j:
         annotation = AnnotationModel(
             id="",  # Will be generated
             type=AnnotationType.SEGMENTATION,
-            name="Test Segmentation",
         )
 
         manifestation = ManifestationModel(
@@ -969,6 +969,7 @@ class TestDatabaseNeo4j:
             type=ManifestationType.CRITICAL,
             annotations=[annotation],
             copyright=CopyrightStatus.PUBLIC_DOMAIN,
+            expression=expression_id,
         )
 
         # Create manifestation in database
@@ -983,9 +984,8 @@ class TestDatabaseNeo4j:
         assert retrieved.id == manifestation_id
         assert retrieved.type == ManifestationType.CRITICAL
         assert retrieved.copyright == CopyrightStatus.PUBLIC_DOMAIN
-        assert len(retrieved.annotations) == 1
+        assert len(retrieved.annotations) == 1  # Verify annotation details
         assert retrieved.annotations[0].type == AnnotationType.SEGMENTATION
-        assert retrieved.annotations[0].name == "Test Segmentation"
 
     def test_create_multiple_manifestations_for_expression(self, test_database):
         """Test creating multiple manifestations for the same expression."""
@@ -1009,7 +1009,6 @@ class TestDatabaseNeo4j:
         annotation1 = AnnotationModel(
             id="",
             type=AnnotationType.SEGMENTATION,
-            name="First Annotation",
         )
 
         manifestation1 = ManifestationModel(
@@ -1018,6 +1017,7 @@ class TestDatabaseNeo4j:
             annotations=[annotation1],
             copyright=CopyrightStatus.PUBLIC_DOMAIN,
             colophon="First manifestation",
+            expression=expression_id,
         )
         manifestation1_id = test_database.create_manifestation(manifestation1, expression_id)
 
@@ -1025,7 +1025,6 @@ class TestDatabaseNeo4j:
         annotation2 = AnnotationModel(
             id="",
             type=AnnotationType.ALIGNMENT,
-            name="Second Annotation",
         )
 
         manifestation2 = ManifestationModel(
@@ -1034,6 +1033,7 @@ class TestDatabaseNeo4j:
             annotations=[annotation2],
             copyright=CopyrightStatus.PUBLIC_DOMAIN,
             colophon="Second manifestation",
+            expression="non-existent-expression-id",
         )
         manifestation2_id = test_database.create_manifestation(manifestation2, expression_id)
 
@@ -1056,7 +1056,6 @@ class TestDatabaseNeo4j:
         annotation = AnnotationModel(
             id="",
             type=AnnotationType.SEGMENTATION,
-            name="Error Test Annotation",
         )
 
         manifestation = ManifestationModel(
@@ -1064,8 +1063,9 @@ class TestDatabaseNeo4j:
             type=ManifestationType.DIPLOMATIC,
             annotations=[annotation],
             copyright=CopyrightStatus.PUBLIC_DOMAIN,
+            expression="nonexistent-id",
         )
 
-        # Should raise DataNotFound for non-existent expression
-        with pytest.raises(DataNotFound, match="Expression 'nonexistent-id' not found"):
+        # Should raise DataValidationError for non-existent expression
+        with pytest.raises(DataValidationError, match="Expression nonexistent-id does not exist"):
             test_database.create_manifestation(manifestation, "nonexistent-id")

@@ -61,16 +61,16 @@ def post_metadata_v2() -> tuple[Response, int]:
     return jsonify({"message": "Expression created successfully", "id": expression_id}), 201
 
 
-@metadata_v2_bp.route("/<string:expression_id>/manifestations", methods=["GET"], strict_slashes=False)
-def get_manifestations_v2(expression_id: str) -> tuple[Response, int]:
+@metadata_v2_bp.route("/<string:expression_id>/editions", methods=["GET"], strict_slashes=False)
+def get_editions_v2(expression_id: str) -> tuple[Response, int]:
     db = Neo4JDatabase()
     manifestations = db.get_manifestations_by_expression(expression_id)
     response_data = [manifestation.model_dump() for manifestation in manifestations]
     return jsonify(response_data), 200
 
 
-@metadata_v2_bp.route("/<string:expression_id>/manifestations", methods=["POST"], strict_slashes=False)
-def post_manifestation_v2(expression_id: str) -> tuple[Response, int]:
+@metadata_v2_bp.route("/<string:expression_id>/editions", methods=["POST"], strict_slashes=False)
+def post_edition_v2(expression_id: str) -> tuple[Response, int]:
     if not (data := request.get_json()):
         raise InvalidRequest("No JSON data provided")
 

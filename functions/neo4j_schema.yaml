@@ -110,6 +110,9 @@ nodes:
         type: string
         required: true
         unique: true
+      aligned_to:
+        type: string
+        required: false
     relationships:
       HAS_TYPE:
         target: AnnotationType
@@ -214,9 +217,12 @@ nodes:
         type: string
         unique: true
         required: true
+        allowed_values:
+          - public
       description:
         type: string
         required: false
+
   AnnotationType:
     enum: true
     properties:
