@@ -46,12 +46,29 @@ class LocalizedString(RootModel[Mapping[str, NonEmptyStr]]):
         return self.root[item]
 
 
-class PersonModel(BaseModel):
-    id: str
+class PersonModelBase(BaseModel):
     bdrc: str | None = None
     wiki: str | None = None
-    name: LocalizedString
+    name: LocalizedString | None = None
     alt_names: Sequence[LocalizedString] | None = None
+
+    model_config = ConfigDict(
+        extra="forbid",
+        str_strip_whitespace=True,
+    )
+
+
+class PersonModelInput(PersonModelBase):
+    pass
+
+
+class PersonModelOutput(PersonModelBase):
+    id: str
+
+
+class AIContributionModel(BaseModel):
+    ai_id: str
+    role: ContributorRole
 
     model_config = ConfigDict(
         extra="forbid",
@@ -76,8 +93,7 @@ class ContributionModel(BaseModel):
         return self
 
 
-class AnnotationModel(BaseModel):
-    id: str
+class AnnotationModelBase(BaseModel):
     type: AnnotationType
     aligned_to: str | None = None
 
@@ -87,12 +103,19 @@ class AnnotationModel(BaseModel):
     )
 
 
-class ExpressionModel(BaseModel):
+class AnnotationModelInput(AnnotationModelBase):
+    pass
+
+
+class AnnotationModelOutput(AnnotationModelBase):
     id: str
+
+
+class ExpressionModelBase(BaseModel):
     bdrc: str | None = None
     wiki: str | None = None
     type: TextType
-    contributions: Sequence[ContributionModel]
+    contributions: Sequence[ContributionModel | AIContributionModel]
     date: str | None = Field(None, pattern="\\S")
     title: LocalizedString
     alt_titles: Sequence[LocalizedString] | None = None
@@ -113,16 +136,77 @@ class ExpressionModel(BaseModel):
         return self
 
 
-class ManifestationModel(BaseModel):
+class ExpressionModelInput(ExpressionModelBase):
+    pass
+
+
+class ExpressionModelOutput(ExpressionModelBase):
     id: str
+
+
+class ManifestationModelBase(BaseModel):
     bdrc: str | None = None
     wiki: str | None = None
     type: ManifestationType
-    annotations: Sequence[AnnotationModel] = Field(..., min_length=1)
-    copyright: CopyrightStatus
+
+    copyright: CopyrightStatus = CopyrightStatus.PUBLIC_DOMAIN
     incipit_title: LocalizedString | None = None
     colophon: str | None = None
     alt_incipit_titles: Sequence[LocalizedString] | None = None
+
+    model_config = ConfigDict(
+        extra="forbid",
+        str_strip_whitespace=True,
+    )
+
+    @model_validator(mode="after")
+    def validate_bdrc_for_diplomatic(self):
+        if self.type == ManifestationType.DIPLOMATIC and not self.bdrc:
+            raise ValueError("When type is 'diplomatic', bdrc must be provided")
+        return self
+
+
+class ManifestationModelInput(ManifestationModelBase):
+    pass
+
+
+class ManifestationModelOutput(ManifestationModelBase):
+    id: str
+    annotations: Sequence[AnnotationModelOutput] = Field(..., min_length=1)
+
+    @property
+    def segmentation_annotation_id(self) -> str | None:
+        return next(
+            (annotation.id for annotation in self.annotations if annotation.type == AnnotationType.SEGMENTATION),
+            None,
+        )
+
+
+class TranslatorModel(BaseModel):
+    person_id: str | None = None
+    person_bdrc_id: str | None = None
+    ai_id: str | None = None
+
+    model_config = ConfigDict(
+        extra="forbid",
+        str_strip_whitespace=True,
+    )
+
+    @model_validator(mode="after")
+    def validate_translator(self):
+        if sum(field is not None for field in [self.person_id, self.person_bdrc_id, self.ai_id]) != 1:
+            raise ValueError("Exactly one of person_id, person_bdrc_id, or ai_id must be provided")
+        return self
+
+
+class TranslationRequestModel(BaseModel):
+    language: str = Field(..., min_length=1)
+    content: str = Field(..., min_length=1)
+    title: str = Field(..., min_length=1)
+    alt_titles: Sequence[str] | None = None
+    translator: TranslatorModel
+    original_annotation: dict | None = None
+    translation_annotation: dict
 
     model_config = ConfigDict(
         extra="forbid",

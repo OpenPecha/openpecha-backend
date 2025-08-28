@@ -99,10 +99,7 @@ nodes:
         target: Expression
         cardinality: one
         required: true
-      HAS_ANNOTATION:
-        target: Annotation
-        cardinality: many
-        required: false
+
 
   Annotation:
     properties:
@@ -116,6 +113,10 @@ nodes:
     relationships:
       HAS_TYPE:
         target: AnnotationType
+        cardinality: one
+        required: true
+      ANNOTATION_OF:
+        target: Manifestation
         cardinality: one
         required: true
 
@@ -136,9 +137,6 @@ nodes:
         type: string
         required: true
         unique: true
-      model:
-        type: string
-        required: true
 
   Person:
     properties:

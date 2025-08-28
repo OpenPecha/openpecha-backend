@@ -2,7 +2,7 @@ import logging
 
 from exceptions import InvalidRequest
 from flask import Blueprint, Response, jsonify, request
-from metadata_model_v2 import PersonModel
+from metadata_model_v2 import PersonModelInput
 from neo4j_database import Neo4JDatabase
 
 persons_bp = Blueprint("persons", __name__)
@@ -26,8 +26,7 @@ def get_all_persons() -> tuple[Response, int]:
 def create_person() -> tuple[Response, int]:
     if not (data := request.get_json()):
         raise InvalidRequest("No JSON data provided")
-    data["id"] = ""
-    person = PersonModel.model_validate(data)
+    person = PersonModelInput.model_validate(data)
 
     logger.info("Successfully parsed person: %s", person.model_dump_json())
 

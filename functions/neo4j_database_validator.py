@@ -1,7 +1,7 @@
 import logging
 from typing import List
 
-from metadata_model_v2 import ExpressionModel, TextType
+from metadata_model_v2 import ExpressionModelInput, TextType
 
 logger = logging.getLogger(__name__)
 
@@ -69,13 +69,13 @@ class Neo4JDatabaseValidator:
         if missing_persons:
             raise DataValidationError(f"Referenced person BDRC IDs do not exist: {', '.join(missing_persons)}")
 
-    def validate_expression_creation(self, session, expression: ExpressionModel, work_id: str) -> None:
+    def validate_expression_creation(self, session, expression: ExpressionModelInput, work_id: str) -> None:
         if expression.type == TextType.ROOT:
             self.validate_original_expression_uniqueness(session, work_id)
 
         if expression.contributions:
-            person_ids = [contrib.person_id for contrib in expression.contributions if contrib.person_id]
-            person_bdrc_ids = [contrib.person_bdrc_id for contrib in expression.contributions if contrib.person_bdrc_id]
+            person_ids = [contrib.person_id for contrib in expression.contributions if hasattr(contrib, 'person_id') and contrib.person_id]
+            person_bdrc_ids = [contrib.person_bdrc_id for contrib in expression.contributions if hasattr(contrib, 'person_bdrc_id') and contrib.person_bdrc_id]
 
             self.validate_person_references(session, person_ids)
             self.validate_person_bdrc_references(session, person_bdrc_ids)

@@ -99,7 +99,7 @@ Queries.expressions = {
     WHERE ($type IS NULL OR {Queries.infer_expression_type('e')} = $type)
     AND ($language IS NULL OR [(e)-[:HAS_LANGUAGE]->(l:Language) | l.code][0] = $language)
 
-    SKIP $offset
+    OFFSET $offset
     LIMIT $limit
 
     RETURN {Queries.expression_fragment('e')} AS expression
@@ -131,7 +131,15 @@ MATCH (p:Person) WHERE (($person_id IS NOT NULL AND p.id = $person_id)
 MATCH (rt:RoleType {name: $role_name})
 CREATE (e)-[:HAS_CONTRIBUTION]->(c:Contribution)-[:BY]->(p),
        (c)-[:WITH_ROLE]->(rt)
-RETURN p.id as person_id
+RETURN elementId(c) as contribution_element_id
+""",
+    "create_ai_contribution": """
+MATCH (e:Expression {id: $expression_id})
+MATCH (ai: AI) WHERE elementId(ai) = $ai_element_id
+MATCH (rt:RoleType {name: $role_name})
+CREATE (e)-[:HAS_CONTRIBUTION]->(c:Contribution)-[:BY]->(ai),
+       (c)-[:WITH_ROLE]->(rt)
+RETURN elementId(c) as contribution_element_id
 """,
     "create_translation": f"""
 MATCH (parent:Expression {{id: $parent_id}})-[:EXPRESSION_OF]->(w:Work)
@@ -208,7 +216,7 @@ Queries.manifestations = {
         wiki: m.wiki,
         type: [(m)-[:HAS_TYPE]->(mt:ManifestationType) | mt.name][0],
         annotations: [
-            (m)-[:HAS_ANNOTATION]->(a:Annotation) | {{
+            (m)<-[:ANNOTATION_OF]-(a:Annotation) | {{
                 id: a.id,
                 type: [(a)-[:HAS_TYPE]->(at:AnnotationType) | at.name][0],
                 aligned_to: [(a)-[:ALIGNED_TO]->(target:Annotation) | target.id][0]
@@ -254,12 +262,19 @@ WITH m, at
 OPTIONAL MATCH (target:Annotation {id: $aligned_to_id})
 
 CREATE (a:Annotation {id: $annotation_id})-[:HAS_TYPE]->(at),
-       (m)-[:HAS_ANNOTATION]->(a)
+       (a)-[:ANNOTATION_OF]->(m)
 
 FOREACH (_ IN CASE WHEN target IS NULL THEN [] ELSE [1] END |
   CREATE (a)-[:ALIGNED_TO]->(target)
 )
 
 RETURN a.id AS annotation_id
+"""
+}
+
+Queries.ai = {
+    "find_or_create": """
+    MERGE (ai:AI {id: $ai_id})
+    RETURN elementId(ai) AS ai_element_id
 """
 }
