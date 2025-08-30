@@ -345,19 +345,21 @@ class Neo4JDatabase:
             )
         except Exception as e:
             logger.error("Failed to create person (data: %s) model: %s", person_id or person_data, e)
-            return None
+            raise  # temprorarily so we know if data is corrupted in the db
+            # return None
 
         return person
 
     def _execute_create_expression(self, tx, expression: ExpressionModelInput, expression_id: str | None = None) -> str:
         # Pre-validation (outside transaction)
+        # TODO: move the validation based on language to the database validator
         if expression.parent:
             parent_expression = self.get_expression(expression.parent)
             if expression.type == TextType.TRANSLATION:
                 if parent_expression.language == expression.language:
                     raise ValueError("Translation must have a different language than the parent expression")
 
-        work_id = generate_id() if expression.type == TextType.ROOT else None
+        work_id = generate_id()
         self.__validator.validate_expression_creation(tx, expression, work_id)
         base_lang_code = expression.language.split("-")[0].lower()
         alt_titles_data = [alt_title.root for alt_title in expression.alt_titles] if expression.alt_titles else None
@@ -376,11 +378,14 @@ class Neo4JDatabase:
 
         match expression.type:
             case TextType.ROOT:
-                tx.run(Queries.expressions["create_root"], work_id=work_id, **common_params)
+                tx.run(Queries.expressions["create_standalone"], work_id=work_id, original=True, **common_params)
             case TextType.TRANSLATION:
-                tx.run(Queries.expressions["create_translation"], **common_params)
+                if expression.parent == "N/A":
+                    tx.run(Queries.expressions["create_standalone"], work_id=work_id, original=False, **common_params)
+                else:
+                    tx.run(Queries.expressions["create_translation"], **common_params)
             case TextType.COMMENTARY:
-                tx.run(Queries.expressions["create_commentary"], work_id=generate_id(), **common_params)
+                tx.run(Queries.expressions["create_commentary"], work_id=work_id, **common_params)
 
         for contribution in expression.contributions:
             if isinstance(contribution, ContributionModel):

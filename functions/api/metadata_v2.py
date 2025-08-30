@@ -52,9 +52,8 @@ def post_metadata_v2() -> tuple[Response, int]:
     expression = ExpressionModelInput.model_validate(data)
 
     logger.info("Successfully parsed expression: %s", expression.model_dump_json())
-    db = Neo4JDatabase()
 
-    expression_id = db.create_expression(expression)
+    expression_id = Neo4JDatabase().create_expression(expression)
     logger.info("Successfully created expression with ID: %s", expression_id)
 
     return jsonify({"message": "Expression created successfully", "id": expression_id}), 201

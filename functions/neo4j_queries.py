@@ -113,13 +113,13 @@ Queries.expressions = {
             {Queries.expression_compact_fragment('sibling')}
     ] AS related_expressions
 """,
-    "create_root": f"""
+    "create_standalone": f"""
 CREATE (w:Work {{id: $work_id}})
 {Queries.create_expression_base('e')}
 WITH w, e
 MATCH (n:Nomen) WHERE elementId(n) = $title_nomen_element_id
 MERGE (l:Language {{code: $language_code}})
-CREATE (e)-[:EXPRESSION_OF {{original: true}}]->(w),
+CREATE (e)-[:EXPRESSION_OF {{original: $original}}]->(w),
        (e)-[:HAS_LANGUAGE {{tags: $bcp47_tag}}]->(l),
        (e)-[:HAS_TITLE]->(n)
 RETURN e.id as expression_id
