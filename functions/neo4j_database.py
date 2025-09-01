@@ -353,6 +353,7 @@ class Neo4JDatabase:
     def _execute_create_expression(self, tx, expression: ExpressionModelInput, expression_id: str | None = None) -> str:
         # Pre-validation (outside transaction)
         # TODO: move the validation based on language to the database validator
+        expression_id = expression_id or generate_id()
         parent_id = expression.parent if expression.parent != "N/A" else None
         if parent_id:
             parent_expression = self.get_expression(parent_id)
@@ -367,7 +368,7 @@ class Neo4JDatabase:
         expression_title_element_id = self._create_nomens(tx, expression.title.root, alt_titles_data)
 
         common_params = {
-            "expression_id": expression_id or generate_id(),
+            "expression_id": expression_id,
             "bdrc": expression.bdrc,
             "wiki": expression.wiki,
             "date": expression.date,
@@ -397,6 +398,7 @@ class Neo4JDatabase:
                     person_bdrc_id=contribution.person_bdrc_id,
                     role_name=contribution.role.value,
                 )
+                
                 if not result.single():
                     raise DataNotFound(
                         f"Person (id: {contribution.person_id} bdrc_id: {contribution.person_bdrc_id}) not found"
