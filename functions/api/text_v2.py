@@ -71,7 +71,7 @@ def create_translation_v2(original_manifestation_id: str) -> tuple[Response, int
         pecha_id=expression_id,
         base_text=translation_request.content,
         annotation_id=translation_annotation_id,
-        annotation=[AlignmentAnnotation.model_validate(translation_request.translation_annotation)],
+        annotation=[AlignmentAnnotation.model_validate(a) for a in translation_request.translation_annotation],
     )
 
     storage = Storage()
@@ -82,7 +82,7 @@ def create_translation_v2(original_manifestation_id: str) -> tuple[Response, int
         original_pecha = retrieve_pecha(original_expression_id)
         original_pecha.add(
             annotation_id=original_annotation_id,
-            annotation=AlignmentAnnotation.model_validate(translation_request.original_annotation),
+            annotation=[AlignmentAnnotation.model_validate(a) for a in translation_request.original_annotation],
         )
         storage.store_pecha_opf(original_pecha)
 

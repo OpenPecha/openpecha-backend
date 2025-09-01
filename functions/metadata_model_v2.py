@@ -1,9 +1,9 @@
 from enum import Enum
-from typing import Annotated, Mapping, Sequence
+from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, RootModel, model_validator
+from pydantic import BaseModel, ConfigDict, Field, RootModel, model_validator, StringConstraints, StrictStr
 
-NonEmptyStr = Annotated[str, Field(min_length=1)]
+NonEmptyStr = Annotated[StrictStr, StringConstraints(min_length=1, strip_whitespace=True)]
 
 
 class TextType(str, Enum):
@@ -30,32 +30,29 @@ class ManifestationType(str, Enum):
     COLLATED = "collated"
 
 
-class ExpressionType(str, Enum):
-    ORIGINAL = "original"
-    TRANSLATION = "translation"
-
-
 class CopyrightStatus(str, Enum):
     PUBLIC_DOMAIN = "public"
 
 
-class LocalizedString(RootModel[Mapping[str, NonEmptyStr]]):
-    root: Mapping[str, NonEmptyStr] = Field(min_length=1)
+class LocalizedString(RootModel[dict[str, NonEmptyStr]]):
+    root: dict[str, NonEmptyStr] = Field(min_length=1)
 
-    def __getitem__(self, item: str) -> NonEmptyStr:
+    def __getitem__(self, item: str) -> str:
         return self.root[item]
 
 
-class PersonModelBase(BaseModel):
-    bdrc: str | None = None
-    wiki: str | None = None
-    name: LocalizedString | None = None
-    alt_names: Sequence[LocalizedString] | None = None
-
+class OpenPechaModel(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
         str_strip_whitespace=True,
     )
+
+
+class PersonModelBase(OpenPechaModel):
+    bdrc: str | None = None
+    wiki: str | None = None
+    name: LocalizedString | None = None
+    alt_names: list[LocalizedString] | None = None
 
 
 class PersonModelInput(PersonModelBase):
@@ -66,25 +63,15 @@ class PersonModelOutput(PersonModelBase):
     id: str
 
 
-class AIContributionModel(BaseModel):
+class AIContributionModel(OpenPechaModel):
     ai_id: str
     role: ContributorRole
 
-    model_config = ConfigDict(
-        extra="forbid",
-        str_strip_whitespace=True,
-    )
 
-
-class ContributionModel(BaseModel):
+class ContributionModel(OpenPechaModel):
     person_id: str | None = None
     person_bdrc_id: str | None = None
     role: ContributorRole
-
-    model_config = ConfigDict(
-        extra="forbid",
-        str_strip_whitespace=True,
-    )
 
     @model_validator(mode="after")
     def validate_person_identifier(self):
@@ -93,14 +80,9 @@ class ContributionModel(BaseModel):
         return self
 
 
-class AnnotationModelBase(BaseModel):
+class AnnotationModelBase(OpenPechaModel):
     type: AnnotationType
     aligned_to: str | None = None
-
-    model_config = ConfigDict(
-        extra="forbid",
-        str_strip_whitespace=True,
-    )
 
 
 class AnnotationModelInput(AnnotationModelBase):
@@ -111,21 +93,16 @@ class AnnotationModelOutput(AnnotationModelBase):
     id: str
 
 
-class ExpressionModelBase(BaseModel):
+class ExpressionModelBase(OpenPechaModel):
     bdrc: str | None = None
     wiki: str | None = None
     type: TextType
-    contributions: Sequence[ContributionModel | AIContributionModel]
-    date: str | None = Field(None, pattern="\\S")
+    contributions: list[ContributionModel | AIContributionModel]
+    date: NonEmptyStr | None
     title: LocalizedString
-    alt_titles: Sequence[LocalizedString] | None = None
-    language: str
+    alt_titles: list[LocalizedString] | None = None
+    language: NonEmptyStr
     parent: str | None = None
-
-    model_config = ConfigDict(
-        extra="forbid",
-        str_strip_whitespace=True,
-    )
 
     @model_validator(mode="after")
     def validate_parent_field(self):
@@ -144,20 +121,15 @@ class ExpressionModelOutput(ExpressionModelBase):
     id: str
 
 
-class ManifestationModelBase(BaseModel):
+class ManifestationModelBase(OpenPechaModel):
     bdrc: str | None = None
     wiki: str | None = None
     type: ManifestationType
 
     copyright: CopyrightStatus = CopyrightStatus.PUBLIC_DOMAIN
     incipit_title: LocalizedString | None = None
-    colophon: str | None = None
-    alt_incipit_titles: Sequence[LocalizedString] | None = None
-
-    model_config = ConfigDict(
-        extra="forbid",
-        str_strip_whitespace=True,
-    )
+    colophon: NonEmptyStr | None = None
+    alt_incipit_titles: list[LocalizedString] | None = None
 
     @model_validator(mode="after")
     def validate_bdrc_for_diplomatic(self):
@@ -172,7 +144,7 @@ class ManifestationModelInput(ManifestationModelBase):
 
 class ManifestationModelOutput(ManifestationModelBase):
     id: str
-    annotations: Sequence[AnnotationModelOutput] = Field(..., min_length=1)
+    annotations: list[AnnotationModelOutput] = Field(..., min_length=1)
 
     @property
     def segmentation_annotation_id(self) -> str | None:
@@ -182,15 +154,10 @@ class ManifestationModelOutput(ManifestationModelBase):
         )
 
 
-class TranslatorModel(BaseModel):
+class TranslatorModel(OpenPechaModel):
     person_id: str | None = None
     person_bdrc_id: str | None = None
     ai_id: str | None = None
-
-    model_config = ConfigDict(
-        extra="forbid",
-        str_strip_whitespace=True,
-    )
 
     @model_validator(mode="after")
     def validate_translator(self):
@@ -199,16 +166,11 @@ class TranslatorModel(BaseModel):
         return self
 
 
-class TranslationRequestModel(BaseModel):
-    language: str = Field(..., min_length=1)
-    content: str = Field(..., min_length=1)
-    title: str = Field(..., min_length=1)
-    alt_titles: Sequence[str] | None = None
+class TranslationRequestModel(OpenPechaModel):
+    language: NonEmptyStr
+    content: NonEmptyStr
+    title: NonEmptyStr
+    alt_titles: list[NonEmptyStr] | None = None
     translator: TranslatorModel
-    original_annotation: dict | None = None
-    translation_annotation: dict
-
-    model_config = ConfigDict(
-        extra="forbid",
-        str_strip_whitespace=True,
-    )
+    original_annotation: list[dict] | None = None
+    translation_annotation: list[dict]
