@@ -68,13 +68,18 @@ END
         [({label})-[:EXPRESSION_OF]->(w:Work)-[:COMMENTARY_OF]->(:Work)
         <-[:EXPRESSION_OF]-(parent:Expression) | parent.id][0]
     ),
-    contributors: [
-        ({label})-[:HAS_CONTRIBUTION]->(c:Contribution)-[:BY]->(person:Person) | {{
+    contributors: (
+        [({label})-[:HAS_CONTRIBUTION]->(c:Contribution)-[:BY]->(person:Person) | {{
             person_id: person.id,
             person_bdrc_id: person.bdrc,
             role: [(c)-[:WITH_ROLE]->(rt:RoleType) | rt.name][0]
-        }}
-    ],
+        }}]
+        +
+        [({label})-[:HAS_CONTRIBUTION]->(c:Contribution)-[:BY]->(ai:AI) | {{
+            ai_id: ai.id,
+            role: [(c)-[:WITH_ROLE]->(rt:RoleType) | rt.name][0]
+        }}]
+    ),
     date: {label}.date,
     title: [{Queries.primary_nomen(label, 'HAS_TITLE')}],
     alt_titles: [{Queries.alternative_nomen(label, 'HAS_TITLE')}],
@@ -178,9 +183,8 @@ MATCH (person:Person)
 RETURN {Queries.person_fragment('person')} AS person
 """,
     "create": """
-CREATE (p:Person {id: $id, bdrc: $bdrc, wiki: $wiki})
-WITH p
 MATCH (n:Nomen) WHERE elementId(n) = $primary_name_element_id
+CREATE (p:Person {id: $id, bdrc: $bdrc, wiki: $wiki})
 CREATE (p)-[:HAS_NAME]->(n)
 RETURN p.id as person_id
 """,
@@ -229,17 +233,15 @@ Queries.manifestations = {
     }} AS manifestation, e.id AS expression_id
 """,
     "create": """
+MATCH (e:Expression {id: $expression_id})
+MERGE (mt:ManifestationType {name: $type})
+MERGE (cs:CopyrightStatus {name: $copyright})
 CREATE (m:Manifestation {
   id: $manifestation_id,
   bdrc: $bdrc,
   wiki: $wiki,
   colophon: $colophon
 })
-WITH m
-MATCH (e:Expression {id: $expression_id})
-MERGE (mt:ManifestationType {name: $type})
-MERGE (cs:CopyrightStatus {name: $copyright})
-
 WITH m, e, mt, cs
 
 OPTIONAL MATCH (n:Nomen)

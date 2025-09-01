@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, RootModel, model_validator, StringConstraints, StrictStr
+from pydantic import BaseModel, ConfigDict, Field, RootModel, StrictStr, StringConstraints, model_validator
 
 NonEmptyStr = Annotated[StrictStr, StringConstraints(min_length=1, strip_whitespace=True)]
 
@@ -51,7 +51,7 @@ class OpenPechaModel(BaseModel):
 class PersonModelBase(OpenPechaModel):
     bdrc: str | None = None
     wiki: str | None = None
-    name: LocalizedString | None = None
+    name: LocalizedString
     alt_names: list[LocalizedString] | None = None
 
 
@@ -98,7 +98,7 @@ class ExpressionModelBase(OpenPechaModel):
     wiki: str | None = None
     type: TextType
     contributions: list[ContributionModel | AIContributionModel]
-    date: NonEmptyStr | None
+    date: NonEmptyStr | None = None
     title: LocalizedString
     alt_titles: list[LocalizedString] | None = None
     language: NonEmptyStr

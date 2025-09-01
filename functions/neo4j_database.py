@@ -56,21 +56,12 @@ class Neo4JDatabase:
 
             expression = record.data()["expression"]
 
-            contributions = [
-                ContributionModel(
-                    person_id=contributor.get("person_id"),
-                    person_bdrc_id=contributor.get("person_bdrc_id"),
-                    role=contributor.get("role"),
-                )
-                for contributor in expression.get("contributors", [])
-            ]
-
             return ExpressionModelOutput(
                 id=expression.get("id"),
                 bdrc=expression.get("bdrc"),
                 wiki=expression.get("wiki"),
                 type=TextType(expression.get("type")),
-                contributions=contributions,
+                contributions=self._build_contributions(expression.get("contributors")),
                 date=expression.get("date"),
                 title=self.__convert_to_localized_text(expression.get("title")),
                 alt_titles=[self.__convert_to_localized_text(alt) for alt in expression.get("alt_titles")],
@@ -109,61 +100,37 @@ class Neo4JDatabase:
 
     def get_manifestations_by_expression(self, expression_id: str) -> list[ManifestationModelOutput]:
         with self.__driver.session() as session:
-            result = session.run(Queries.manifestations["fetch"], expression_id=expression_id, manifestation_id=None)
-            manifestations = []
-
-            for record in result:
-                manifestation_data = record.data()["manifestation"]
-                manifestation = self._process_manifestation_data(manifestation_data)
-                manifestations.append(manifestation)
-
-            return manifestations
+            rows = session.execute_read(
+                lambda tx: [
+                    r.data()
+                    for r in tx.run(Queries.manifestations["fetch"], expression_id=expression_id, manifestation_id=None)
+                ]
+            )
+            return [self._process_manifestation_data(row["manifestation"]) for row in rows]
 
     def get_manifestation(self, manifestation_id: str) -> tuple[ManifestationModelOutput, str]:
         with self.__driver.session() as session:
-            result = session.run(Queries.manifestations["fetch"], manifestation_id=manifestation_id, expression_id=None)
-            record = result.single()
+            record = session.execute_read(
+                lambda tx: tx.run(
+                    Queries.manifestations["fetch"], manifestation_id=manifestation_id, expression_id=None
+                ).single()
+            )
             if record is None:
                 raise DataNotFound(f"Manifestation '{manifestation_id}' not found")
+            d = record.data()
+            return self._process_manifestation_data(d["manifestation"]), d["expression_id"]
 
-            record_data = record.data()
-            manifestation_data = record_data["manifestation"]
-            expression_id = record_data["expression_id"]
-            manifestation = self._process_manifestation_data(manifestation_data)
-            return manifestation, expression_id
-
-    def create_manifestation(self, manifestation: ManifestationModelInput, expression_id: str) -> str:
-        def create_transaction(tx):
-            self.__validator.validate_expression_exists(tx, expression_id)
-
-            manifestation_id = generate_id()
-
-            title_nomen_element_id = None
-            if manifestation.incipit_title:
-                alt_titles_data = (
-                    [alt.root for alt in manifestation.alt_incipit_titles] if manifestation.alt_incipit_titles else None
-                )
-                title_nomen_element_id = self._create_nomens(tx, manifestation.incipit_title.root, alt_titles_data)
-
-            result = tx.run(
-                Queries.manifestations["create"],
-                manifestation_id=manifestation_id,
-                expression_id=expression_id,
-                bdrc=manifestation.bdrc,
-                wiki=manifestation.wiki,
-                type=manifestation.type.value if manifestation.type else None,
-                copyright=manifestation.copyright.value if manifestation.copyright else "public",
-                colophon=manifestation.colophon,
-                title_nomen_element_id=title_nomen_element_id,
-            )
-
-            if not result.single():
-                raise DataNotFound(f"Expression '{expression_id}' not found")
-
+    def create_manifestation(
+        self, manifestation: ManifestationModelInput, annotations: list[AnnotationModelInput], expression_id: str
+    ) -> str:
+        def transaction_function(tx):
+            manifestation_id = self._execute_create_manifestation(tx, manifestation, expression_id)
+            for annotation in annotations:
+                self._execute_add_annotation(tx, manifestation_id, annotation)
             return manifestation_id
 
         with self.__driver.session() as session:
-            return session.execute_write(create_transaction)
+            return session.execute_write(transaction_function)
 
     def get_all_persons(self) -> list[PersonModelOutput]:
         with self.__driver.session() as session:
@@ -291,29 +258,18 @@ class Neo4JDatabase:
 
             for record in result:
                 expression_data = record.data()["expression"]
-
-                contributions = [
-                    ContributionModel(
-                        person_id=contributor["person_id"],
-                        person_bdrc_id=contributor.get("person_bdrc_id"),
-                        role=contributor["role"],
-                    )
-                    for contributor in expression_data.get("contributors", [])
-                ]
-
                 parent = expression_data["parent"]
 
                 expression_type = expression_data["type"]
                 if expression_type is None:
-                    # Skip expressions that don't have a valid type
-                    continue
+                    raise ValueError(f"Expression type {expression_type} is invalid")
 
                 expression = ExpressionModelOutput(
                     id=expression_data["id"],
                     bdrc=expression_data["bdrc"],
                     wiki=expression_data["wiki"],
                     type=TextType(expression_type),
-                    contributions=contributions,
+                    contributions=self._build_contributions(expression_data.get("contributors")),
                     date=expression_data["date"],
                     title=self.__convert_to_localized_text(expression_data["title"]),
                     alt_titles=[self.__convert_to_localized_text(alt) for alt in expression_data["alt_titles"]],
@@ -350,16 +306,31 @@ class Neo4JDatabase:
 
         return person
 
+    def _build_contributions(self, items: list[dict] | None) -> list[ContributionModel | AIContributionModel]:
+        out: list[ContributionModel | AIContributionModel] = []
+        for c in items or []:
+            if c.get("ai_id"):
+                out.append(AIContributionModel(ai_id=c["ai_id"], role=c["role"]))
+            else:
+                out.append(
+                    ContributionModel(
+                        person_id=c.get("person_id"),
+                        person_bdrc_id=c.get("person_bdrc_id"),
+                        role=c["role"],
+                    )
+                )
+        return out
+
     def _execute_create_expression(self, tx, expression: ExpressionModelInput, expression_id: str | None = None) -> str:
         # Pre-validation (outside transaction)
         # TODO: move the validation based on language to the database validator
         expression_id = expression_id or generate_id()
         parent_id = expression.parent if expression.parent != "N/A" else None
-        if parent_id:
-            parent_expression = self.get_expression(parent_id)
-            if expression.type == TextType.TRANSLATION:
-                if parent_expression.language == expression.language:
-                    raise ValueError("Translation must have a different language than the parent expression")
+        if parent_id and expression.type == TextType.TRANSLATION:
+            result = tx.run(Queries.expressions["fetch_by_id"], id=parent_id).single()
+            parent_language = result.data()["expression"]["language"] if result else None
+            if parent_language == expression.language:
+                raise ValueError("Translation must have a different language than the parent expression")
 
         work_id = generate_id()
         self.__validator.validate_expression_creation(tx, expression, work_id)
@@ -398,7 +369,7 @@ class Neo4JDatabase:
                     person_bdrc_id=contribution.person_bdrc_id,
                     role_name=contribution.role.value,
                 )
-                
+
                 if not result.single():
                     raise DataNotFound(
                         f"Person (id: {contribution.person_id} bdrc_id: {contribution.person_bdrc_id}) not found"
@@ -457,10 +428,11 @@ class Neo4JDatabase:
     def _execute_add_annotation(
         self, tx, manifestation_id: str, annotation: AnnotationModelInput, annotation_id: str | None = None
     ) -> str:
+        annotation_id = annotation_id or generate_id()
         tx.run(
             Queries.annotations["create"],
             manifestation_id=manifestation_id,
-            annotation_id=annotation_id or generate_id(),
+            annotation_id=annotation_id,
             type=annotation.type.value,
             aligned_to_id=annotation.aligned_to,
         )

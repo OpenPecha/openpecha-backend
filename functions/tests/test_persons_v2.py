@@ -12,14 +12,17 @@ Requires environment variables:
 - NEO4J_TEST_PASSWORD: Password for test instance
 """
 import json
+import logging
 import os
 from unittest.mock import patch
 
 import pytest
 from dotenv import load_dotenv
 from main import create_app
-from metadata_model_v2 import PersonModel
+from metadata_model_v2 import PersonModelInput
 from neo4j_database import Neo4JDatabase
+
+logger = logging.getLogger(__name__)
 
 # Load .env file if it exists
 load_dotenv()
@@ -87,7 +90,6 @@ def client():
 def test_person_data():
     """Sample person data for testing"""
     return {
-        "id": "",
         "name": {"en": "Test Author", "bo": "རྩོམ་པ་པོ།"},
         "alt_names": [{"en": "Alternative Name", "bo": "མིང་གཞན།"}],
         "bdrc": "P123456",
@@ -97,7 +99,7 @@ def test_person_data():
 @pytest.fixture
 def test_person_data_minimal():
     """Minimal person data for testing"""
-    return {"id": "", "name": {"en": "Minimal Person"}}
+    return {"name": {"en": "Minimal Person"}}
 
 
 class TestGetAllPersonsV2:
@@ -109,7 +111,7 @@ class TestGetAllPersonsV2:
             mock_db_class.return_value = test_database
 
             response = client.get("/v2/persons/")
-
+            logger.info(response.data)
             assert response.status_code == 200
             data = json.loads(response.data)
             assert isinstance(data, list)
@@ -121,7 +123,7 @@ class TestGetAllPersonsV2:
             mock_db_class.return_value = test_database
 
             # Create test person
-            person = PersonModel.model_validate(test_person_data)
+            person = PersonModelInput.model_validate(test_person_data)
             person_id = test_database.create_person(person)
 
             response = client.get("/v2/persons/")
@@ -142,8 +144,8 @@ class TestGetAllPersonsV2:
             # Create multiple test persons
             person_ids = []
             for i in range(3):
-                person_data = {"id": "", "name": {"en": f"Person {i+1}", "bo": f"གང་ཟག་{i+1}།"}, "bdrc": f"P{i+1:06d}"}
-                person = PersonModel.model_validate(person_data)
+                person_data = {"name": {"en": f"Person {i+1}", "bo": f"གང་ཟག་{i+1}།"}, "bdrc": f"P{i+1:06d}"}
+                person = PersonModelInput.model_validate(person_data)
                 person_id = test_database.create_person(person)
                 person_ids.append(person_id)
 
@@ -166,11 +168,10 @@ class TestGetAllPersonsV2:
 
             # Create person with alternative names
             person_data = {
-                "id": "",
                 "name": {"en": "Primary Name", "bo": "གཙོ་བོའི་མིང་།"},
                 "alt_names": [{"en": "Alt Name 1", "bo": "གཞན་མིང་༡།"}, {"en": "Alt Name 2"}],
             }
-            person = PersonModel.model_validate(person_data)
+            person = PersonModelInput.model_validate(person_data)
             person_id = test_database.create_person(person)
 
             response = client.get("/v2/persons/")
@@ -196,7 +197,7 @@ class TestGetSinglePersonV2:
             mock_db_class.return_value = test_database
 
             # Create test person
-            person = PersonModel.model_validate(test_person_data)
+            person = PersonModelInput.model_validate(test_person_data)
             person_id = test_database.create_person(person)
 
             response = client.get(f"/v2/persons/{person_id}")
@@ -215,7 +216,7 @@ class TestGetSinglePersonV2:
             mock_db_class.return_value = test_database
 
             # Create minimal person
-            person = PersonModel.model_validate(test_person_data_minimal)
+            person = PersonModelInput.model_validate(test_person_data_minimal)
             person_id = test_database.create_person(person)
 
             response = client.get(f"/v2/persons/{person_id}")

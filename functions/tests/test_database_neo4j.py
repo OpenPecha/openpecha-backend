@@ -17,16 +17,16 @@ import pytest
 from dotenv import load_dotenv
 from exceptions import DataNotFound
 from metadata_model_v2 import (
-    AnnotationModel,
+    AnnotationModelInput,
     AnnotationType,
     ContributionModel,
     ContributorRole,
     CopyrightStatus,
-    ExpressionModel,
+    ExpressionModelInput,
     LocalizedString,
-    ManifestationModel,
+    ManifestationModelInput,
     ManifestationType,
-    PersonModel,
+    PersonModelInput,
     TextType,
 )
 from neo4j_database import Neo4JDatabase
@@ -130,8 +130,7 @@ class TestDatabaseNeo4j:
         db = test_database
 
         # Create a person with Tibetan and English names
-        person = PersonModel(
-            id="temp-id",  # Temporary ID, will be replaced by create_person_neo4j
+        person = PersonModelInput(
             name=LocalizedString({"bo": "རིན་ཆེན་སྡེ།", "en": "Rinchen De"}),
             alt_names=[LocalizedString({"bo": "རིན་ཆེན་སྡེ་བ།"}), LocalizedString({"en": "Rinchen Dewa"})],
         )
@@ -158,9 +157,9 @@ class TestDatabaseNeo4j:
         """Test retrieving all persons"""
         db = test_database
 
-        person1 = PersonModel(id="temp-1", name=LocalizedString({"en": "John Doe"}))
-        person2 = PersonModel(id="temp-2", name=LocalizedString({"bo": "རིན་ཆེན་སྡེ།"}))
-        person3 = PersonModel(id="temp-3", name=LocalizedString({"sa": "मञ्जुश्री", "en": "Manjushri"}))
+        person1 = PersonModelInput(name=LocalizedString({"en": "John Doe"}))
+        person2 = PersonModelInput(name=LocalizedString({"bo": "རིན་ཆེན་སྡེ།"}))
+        person3 = PersonModelInput(name=LocalizedString({"sa": "मञ्जुश्री", "en": "Manjushri"}))
 
         id1 = db.create_person(person1)
         id2 = db.create_person(person2)
@@ -212,8 +211,7 @@ class TestDatabaseNeo4j:
         db = test_database
 
         # Create a person with bdrc and wiki values using the actual API
-        person = PersonModel(
-            id="temp-id",  # Will be replaced by create_person_neo4j
+        person = PersonModelInput(
             bdrc="P123456",
             wiki="W123456",
             name=LocalizedString({"en": "Test Person", "bo": "བསྟན་པ་མི་"}),
@@ -241,8 +239,7 @@ class TestDatabaseNeo4j:
         db = test_database
 
         # Create a person to test fragments
-        person = PersonModel(
-            id="temp-fragment-test",
+        person = PersonModelInput(
             name=LocalizedString({"bo": "རིན་ཆེན་སྡེ།", "en": "Rinchen De"}),
             alt_names=[LocalizedString({"bo": "རིན་ཆེན་སྡེ་བ།"})],
         )
@@ -334,8 +331,7 @@ class TestDatabaseNeo4j:
         """Test successful creation of ROOT type expression with all components"""
 
         # First create a person to reference in contributions
-        person = PersonModel(
-            id="temp-id",
+        person = PersonModelInput(
             bdrc="P123456",
             wiki="Q123456",
             name=LocalizedString({"en": "Test Author", "bo": "རྩོམ་པ་པོ་"}),
@@ -344,8 +340,7 @@ class TestDatabaseNeo4j:
         person_id = test_database.create_person(person)
 
         # Create ROOT expression
-        expression = ExpressionModel(
-            id="temp-id",  # Will be replaced
+        expression = ExpressionModelInput(
             type=TextType.ROOT,
             bdrc="W789012",
             wiki="Q789012",
@@ -393,8 +388,7 @@ class TestDatabaseNeo4j:
     def test_create_root_expression_missing_person(self, test_database):
         """Test that creating expression with non-existent person fails and rolls back"""
 
-        expression = ExpressionModel(
-            id="temp-id",
+        expression = ExpressionModelInput(
             type=TextType.ROOT,
             title=LocalizedString({"en": "Test Expression"}),
             language="en",
@@ -411,8 +405,7 @@ class TestDatabaseNeo4j:
         """Test that various language codes are properly supported"""
 
         # Create a person
-        person = PersonModel(
-            id="temp-id",
+        person = PersonModelInput(
             name=LocalizedString({"en": "Test Person"}),
         )
         person_id = test_database.create_person(person)
@@ -426,8 +419,7 @@ class TestDatabaseNeo4j:
         ]
 
         for input_lang, expected_lang in test_cases:
-            expression = ExpressionModel(
-                id="temp-id",
+            expression = ExpressionModelInput(
                 type=TextType.ROOT,
                 title=LocalizedString({"en": f"Test Expression {input_lang}"}),
                 language=input_lang,
@@ -445,20 +437,17 @@ class TestDatabaseNeo4j:
     def test_create_root_expression_multiple_contributions(self, test_database):
         """Test creating expression with multiple contributors"""
         # Create multiple persons
-        author = PersonModel(
-            id="temp-id",
+        author = PersonModelInput(
             name=LocalizedString({"en": "Primary Author"}),
         )
         author_id = test_database.create_person(author)
 
-        reviser = PersonModel(
-            id="temp-id",
+        reviser = PersonModelInput(
             name=LocalizedString({"en": "Reviser"}),
         )
         reviser_id = test_database.create_person(reviser)
 
-        expression = ExpressionModel(
-            id="temp-id",
+        expression = ExpressionModelInput(
             type=TextType.ROOT,
             title=LocalizedString({"en": "Multi-Contributor Work"}),
             language="en",
@@ -487,15 +476,13 @@ class TestDatabaseNeo4j:
     def test_create_root_expression_minimal_data(self, test_database):
         """Test creating expression with minimal required data"""
         # Create a person
-        person = PersonModel(
-            id="temp-id",
+        person = PersonModelInput(
             name=LocalizedString({"en": "Minimal Person"}),
         )
         person_id = test_database.create_person(person)
 
         # Minimal expression (no bdrc, wiki, date, alt_titles)
-        expression = ExpressionModel(
-            id="temp-id",
+        expression = ExpressionModelInput(
             type=TextType.ROOT,
             title=LocalizedString({"en": "Minimal Expression"}),
             language="en",
@@ -517,16 +504,14 @@ class TestDatabaseNeo4j:
     def test_create_root_expression_with_bdrc_id(self, test_database):
         """Test creating expression with contribution using person_bdrc_id instead of person_id"""
         # Create a person with BDRC ID
-        person = PersonModel(
-            id="temp-person-id",
+        person = PersonModelInput(
             name=LocalizedString({"en": "BDRC Person", "bo": "བདྲ་ཅ་མི་སྣ།"}),
             bdrc="P123456",  # This is the BDRC ID we'll use for lookup
         )
         person_id = test_database.create_person(person)
 
         # Create expression using person_bdrc_id instead of person_id
-        expression = ExpressionModel(
-            id="temp-expression-id",
+        expression = ExpressionModelInput(
             type=TextType.ROOT,
             title=LocalizedString({"en": "Expression with BDRC Contributor"}),
             language="en",
@@ -555,8 +540,7 @@ class TestDatabaseNeo4j:
 
     def test_create_root_expression_missing_person_bdrc_id(self, test_database):
         """Test that creating expression with non-existent person_bdrc_id fails"""
-        expression = ExpressionModel(
-            id="temp-id",
+        expression = ExpressionModelInput(
             type=TextType.ROOT,
             title=LocalizedString({"en": "Test Expression"}),
             language="en",
@@ -574,14 +558,12 @@ class TestDatabaseNeo4j:
     def test_create_translation_expression_success(self, test_database):
         """Test creating a translation expression that links to parent's work"""
         # First create a root expression (parent)
-        person = PersonModel(
-            id="temp-person-id",
+        person = PersonModelInput(
             name=LocalizedString({"en": "Original Author"}),
         )
         person_id = test_database.create_person(person)
 
-        root_expression = ExpressionModel(
-            id="temp-root-id",
+        root_expression = ExpressionModelInput(
             type=TextType.ROOT,
             title=LocalizedString({"en": "Original Text"}),
             language="en",
@@ -590,15 +572,13 @@ class TestDatabaseNeo4j:
         root_expression_id = test_database.create_expression(root_expression)
 
         # Create translator person
-        translator = PersonModel(
-            id="temp-translator-id",
+        translator = PersonModelInput(
             name=LocalizedString({"en": "Translator Name"}),
         )
         translator_id = test_database.create_person(translator)
 
         # Now create a translation expression
-        translation_expression = ExpressionModel(
-            id="temp-translation-id",
+        translation_expression = ExpressionModelInput(
             type=TextType.TRANSLATION,
             title=LocalizedString({"bo": "བསྒྱུར་བ།"}),
             language="bo",
@@ -620,16 +600,14 @@ class TestDatabaseNeo4j:
     def test_create_translation_expression_missing_parent(self, test_database):
         """Test that creating translation expression without parent fails validation"""
         # Create a person for the contribution
-        person = PersonModel(
-            id="temp-person-id",
+        person = PersonModelInput(
             name=LocalizedString({"en": "Translator"}),
         )
         person_id = test_database.create_person(person)
 
         # Try to create translation without parent - should fail validation
         with pytest.raises(ValueError, match="When type is 'translation', parent must be provided"):
-            ExpressionModel(
-                id="temp-id",
+            ExpressionModelInput(
                 type=TextType.TRANSLATION,
                 title=LocalizedString({"bo": "བསྒྱུར་བ།"}),
                 language="bo",
@@ -640,16 +618,14 @@ class TestDatabaseNeo4j:
     def test_create_root_expression_with_parent_fails(self, test_database):
         """Test that creating root expression with parent fails validation"""
         # Create a person for the contribution
-        person = PersonModel(
-            id="temp-person-id",
+        person = PersonModelInput(
             name=LocalizedString({"en": "Author"}),
         )
         person_id = test_database.create_person(person)
 
         # Try to create root with parent - should fail validation
         with pytest.raises(ValueError, match="When type is 'root', parent must be None"):
-            ExpressionModel(
-                id="temp-id",
+            ExpressionModelInput(
                 type=TextType.ROOT,
                 title=LocalizedString({"en": "Root Text"}),
                 language="en",
@@ -660,15 +636,13 @@ class TestDatabaseNeo4j:
     def test_create_translation_expression_nonexistent_parent(self, test_database):
         """Test that creating translation with non-existent parent fails"""
         # Create a person for the contribution
-        person = PersonModel(
-            id="temp-person-id",
+        person = PersonModelInput(
             name=LocalizedString({"en": "Translator"}),
         )
         person_id = test_database.create_person(person)
 
         # Create translation with non-existent parent
-        translation_expression = ExpressionModel(
-            id="temp-translation-id",
+        translation_expression = ExpressionModelInput(
             type=TextType.TRANSLATION,
             title=LocalizedString({"bo": "བསྒྱུར་བ།"}),
             language="bo",
@@ -683,14 +657,12 @@ class TestDatabaseNeo4j:
     def test_create_commentary_expression_success(self, test_database):
         """Test creating a commentary expression that creates its own Work with COMMENTARY_OF relationship"""
         # First create a root expression (parent)
-        person = PersonModel(
-            id="temp-person-id",
+        person = PersonModelInput(
             name=LocalizedString({"en": "Original Author"}),
         )
         person_id = test_database.create_person(person)
 
-        root_expression = ExpressionModel(
-            id="temp-root-id",
+        root_expression = ExpressionModelInput(
             type=TextType.ROOT,
             title=LocalizedString({"en": "Original Text"}),
             language="en",
@@ -699,15 +671,13 @@ class TestDatabaseNeo4j:
         root_expression_id = test_database.create_expression(root_expression)
 
         # Create commentator person
-        commentator = PersonModel(
-            id="temp-commentator-id",
+        commentator = PersonModelInput(
             name=LocalizedString({"en": "Commentator Name"}),
         )
         commentator_id = test_database.create_person(commentator)
 
         # Now create a commentary expression
-        commentary_expression = ExpressionModel(
-            id="temp-commentary-id",
+        commentary_expression = ExpressionModelInput(
             type=TextType.COMMENTARY,
             title=LocalizedString({"bo": "འགྲེལ་པ།"}),
             language="bo",
@@ -734,16 +704,14 @@ class TestDatabaseNeo4j:
     def test_create_commentary_expression_missing_parent(self, test_database):
         """Test that creating commentary expression without parent fails validation"""
         # Create a person for the contribution
-        person = PersonModel(
-            id="temp-person-id",
+        person = PersonModelInput(
             name=LocalizedString({"en": "Commentator"}),
         )
         person_id = test_database.create_person(person)
 
         # Try to create commentary without parent - should fail validation
         with pytest.raises(ValueError, match="When type is 'commentary', parent must be provided"):
-            ExpressionModel(
-                id="temp-id",
+            ExpressionModelInput(
                 type=TextType.COMMENTARY,
                 title=LocalizedString({"en": "Commentary Text"}),
                 language="en",
@@ -754,15 +722,13 @@ class TestDatabaseNeo4j:
     def test_create_commentary_expression_nonexistent_parent(self, test_database):
         """Test that creating commentary with non-existent parent fails"""
         # Create a person for the contribution
-        person = PersonModel(
-            id="temp-person-id",
+        person = PersonModelInput(
             name=LocalizedString({"en": "Commentator"}),
         )
         person_id = test_database.create_person(person)
 
         # Create commentary expression with non-existent parent
-        commentary_expression = ExpressionModel(
-            id="temp-commentary-id",
+        commentary_expression = ExpressionModelInput(
             type=TextType.COMMENTARY,
             title=LocalizedString({"bo": "འགྲེལ་པ།"}),
             language="bo",
@@ -777,14 +743,12 @@ class TestDatabaseNeo4j:
     def test_create_commentary_expression_with_multiple_contributions(self, test_database):
         """Test creating commentary expression with multiple contributors"""
         # Create parent expression
-        author = PersonModel(
-            id="temp-author-id",
+        author = PersonModelInput(
             name=LocalizedString({"en": "Original Author"}),
         )
         author_id = test_database.create_person(author)
 
-        root_expression = ExpressionModel(
-            id="temp-root-id",
+        root_expression = ExpressionModelInput(
             type=TextType.ROOT,
             title=LocalizedString({"en": "Original Text"}),
             language="en",
@@ -793,21 +757,18 @@ class TestDatabaseNeo4j:
         root_expression_id = test_database.create_expression(root_expression)
 
         # Create multiple contributors for commentary
-        commentator = PersonModel(
-            id="temp-commentator-id",
+        commentator = PersonModelInput(
             name=LocalizedString({"en": "Commentator"}),
         )
         commentator_id = test_database.create_person(commentator)
 
-        reviser = PersonModel(
-            id="temp-reviser-id",
+        reviser = PersonModelInput(
             name=LocalizedString({"en": "Reviser"}),
         )
         reviser_id = test_database.create_person(reviser)
 
         # Create commentary with multiple contributions
-        commentary_expression = ExpressionModel(
-            id="temp-commentary-id",
+        commentary_expression = ExpressionModelInput(
             type=TextType.COMMENTARY,
             title=LocalizedString({"bo": "འགྲེལ་པ།"}),
             language="bo",
@@ -831,14 +792,12 @@ class TestDatabaseNeo4j:
     def test_get_manifestations_by_expression_empty(self, test_database):
         """Test getting manifestations for expression with no manifestations."""
         # Create a basic expression first
-        person = PersonModel(
-            id="temp-person-id",
+        person = PersonModelInput(
             name=LocalizedString({"en": "Test Author"}),
         )
         person_id = test_database.create_person(person)
 
-        expression = ExpressionModel(
-            id="temp-expression-id",
+        expression = ExpressionModelInput(
             type=TextType.ROOT,
             title=LocalizedString({"en": "Test Expression"}),
             language="en",
@@ -853,15 +812,13 @@ class TestDatabaseNeo4j:
     def test_get_manifestations_by_expression_with_different_types(self, test_database):
         """Test getting manifestations for different expression types (ROOT, TRANSLATION, COMMENTARY)."""
         # Create person
-        person = PersonModel(
-            id="temp-person-id",
+        person = PersonModelInput(
             name=LocalizedString({"en": "Test Author"}),
         )
         person_id = test_database.create_person(person)
 
         # Test ROOT expression
-        root_expression = ExpressionModel(
-            id="temp-root-id",
+        root_expression = ExpressionModelInput(
             type=TextType.ROOT,
             title=LocalizedString({"en": "Root Expression"}),
             language="en",
@@ -872,8 +829,7 @@ class TestDatabaseNeo4j:
         assert isinstance(root_manifestations, list)
 
         # Test TRANSLATION expression
-        translation_expression = ExpressionModel(
-            id="temp-translation-id",
+        translation_expression = ExpressionModelInput(
             type=TextType.TRANSLATION,
             title=LocalizedString({"bo": "འགྱུར་བ།"}),
             language="bo",
@@ -885,8 +841,7 @@ class TestDatabaseNeo4j:
         assert isinstance(translation_manifestations, list)
 
         # Test COMMENTARY expression
-        commentary_expression = ExpressionModel(
-            id="temp-commentary-id",
+        commentary_expression = ExpressionModelInput(
             type=TextType.COMMENTARY,
             title=LocalizedString({"bo": "འགྲེལ་པ།"}),
             language="bo",
@@ -900,14 +855,16 @@ class TestDatabaseNeo4j:
     def test_create_manifestation_basic(self, test_database):
         """Test creating a basic manifestation."""
         # Create expression first
-        person = PersonModel(
-            id="temp-person-id",
+        person = PersonModelInput(
             name=LocalizedString({"en": "Test Author"}),
         )
         person_id = test_database.create_person(person)
 
-        expression = ExpressionModel(
-            id="temp-expression-id",
+        annotation = AnnotationModelInput(
+            type=AnnotationType.SEGMENTATION,
+        )
+
+        expression = ExpressionModelInput(
             type=TextType.ROOT,
             title=LocalizedString({"en": "Test Expression"}),
             language="en",
@@ -915,22 +872,14 @@ class TestDatabaseNeo4j:
         )
         expression_id = test_database.create_expression(expression)
 
-        # Create basic manifestation
-        annotation = AnnotationModel(
-            id="",  # Will be generated
-            type=AnnotationType.SEGMENTATION,
-        )
-
-        manifestation = ManifestationModel(
-            id="",  # Will be generated
-            type=ManifestationType.DIPLOMATIC,
-            annotations=[annotation],
+        manifestation = ManifestationModelInput(
+            type=ManifestationType.CRITICAL,
             copyright=CopyrightStatus.PUBLIC_DOMAIN,
             colophon="Test colophon",
         )
 
         # Create manifestation in database
-        manifestation_id = test_database.create_manifestation(manifestation, expression_id)
+        manifestation_id = test_database.create_manifestation(manifestation, [annotation], expression_id)
         assert manifestation_id is not None
         assert len(manifestation_id) > 0
 
@@ -942,14 +891,12 @@ class TestDatabaseNeo4j:
     def test_create_and_retrieve_manifestation_with_annotations(self, test_database):
         """Test creating a manifestation with annotations and retrieving it."""
         # Create expression first
-        person = PersonModel(
-            id="temp-person-id",
+        person = PersonModelInput(
             name=LocalizedString({"en": "Test Author"}),
         )
         person_id = test_database.create_person(person)
 
-        expression = ExpressionModel(
-            id="temp-expression-id",
+        expression = ExpressionModelInput(
             type=TextType.ROOT,
             title=LocalizedString({"en": "Test Expression"}),
             language="en",
@@ -957,21 +904,17 @@ class TestDatabaseNeo4j:
         )
         expression_id = test_database.create_expression(expression)
 
-        # Create manifestation with annotations
-        annotation = AnnotationModel(
-            id="",  # Will be generated
+        annotation = AnnotationModelInput(
             type=AnnotationType.SEGMENTATION,
         )
 
-        manifestation = ManifestationModel(
-            id="",  # Will be generated
+        manifestation = ManifestationModelInput(
             type=ManifestationType.CRITICAL,
-            annotations=[annotation],
             copyright=CopyrightStatus.PUBLIC_DOMAIN,
         )
 
         # Create manifestation in database
-        manifestation_id = test_database.create_manifestation(manifestation, expression_id)
+        manifestation_id = test_database.create_manifestation(manifestation, [annotation], expression_id)
         assert manifestation_id is not None
 
         # Retrieve and verify
@@ -988,14 +931,12 @@ class TestDatabaseNeo4j:
     def test_create_multiple_manifestations_for_expression(self, test_database):
         """Test creating multiple manifestations for the same expression."""
         # Create expression first
-        person = PersonModel(
-            id="temp-person-id",
+        person = PersonModelInput(
             name=LocalizedString({"en": "Test Author"}),
         )
         person_id = test_database.create_person(person)
 
-        expression = ExpressionModel(
-            id="temp-expression-id",
+        expression = ExpressionModelInput(
             type=TextType.ROOT,
             title=LocalizedString({"en": "Test Expression"}),
             language="en",
@@ -1004,34 +945,28 @@ class TestDatabaseNeo4j:
         expression_id = test_database.create_expression(expression)
 
         # Create first manifestation
-        annotation1 = AnnotationModel(
-            id="",
+        annotation1 = AnnotationModelInput(
             type=AnnotationType.SEGMENTATION,
         )
 
-        manifestation1 = ManifestationModel(
-            id="",
-            type=ManifestationType.DIPLOMATIC,
-            annotations=[annotation1],
+        manifestation1 = ManifestationModelInput(
+            type=ManifestationType.CRITICAL,
             copyright=CopyrightStatus.PUBLIC_DOMAIN,
             colophon="First manifestation",
         )
-        manifestation1_id = test_database.create_manifestation(manifestation1, expression_id)
+        manifestation1_id = test_database.create_manifestation(manifestation1, [annotation1], expression_id)
 
         # Create second manifestation
-        annotation2 = AnnotationModel(
-            id="",
+        annotation2 = AnnotationModelInput(
             type=AnnotationType.ALIGNMENT,
         )
 
-        manifestation2 = ManifestationModel(
-            id="",
+        manifestation2 = ManifestationModelInput(
             type=ManifestationType.CRITICAL,
-            annotations=[annotation2],
             copyright=CopyrightStatus.PUBLIC_DOMAIN,
             colophon="Second manifestation",
         )
-        manifestation2_id = test_database.create_manifestation(manifestation2, expression_id)
+        manifestation2_id = test_database.create_manifestation(manifestation2, [annotation2], expression_id)
 
         # Retrieve all manifestations
         retrieved_manifestations = test_database.get_manifestations_by_expression(expression_id)
@@ -1044,23 +979,19 @@ class TestDatabaseNeo4j:
 
         # Verify different types
         retrieved_types = {m.type for m in retrieved_manifestations}
-        assert ManifestationType.DIPLOMATIC in retrieved_types
         assert ManifestationType.CRITICAL in retrieved_types
 
     def test_create_manifestation_nonexistent_expression(self, test_database):
         """Test that creating manifestation for non-existent expression fails."""
-        annotation = AnnotationModel(
-            id="",
+        annotation = AnnotationModelInput(
             type=AnnotationType.SEGMENTATION,
         )
 
-        manifestation = ManifestationModel(
-            id="",
-            type=ManifestationType.DIPLOMATIC,
-            annotations=[annotation],
+        manifestation = ManifestationModelInput(
+            type=ManifestationType.CRITICAL,
             copyright=CopyrightStatus.PUBLIC_DOMAIN,
         )
 
         # Should raise DataValidationError for non-existent expression
         with pytest.raises(DataValidationError, match="Expression nonexistent-id does not exist"):
-            test_database.create_manifestation(manifestation, "nonexistent-id")
+            test_database.create_manifestation(manifestation, [annotation], "nonexistent-id")

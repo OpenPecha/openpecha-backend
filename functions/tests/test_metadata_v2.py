@@ -18,7 +18,7 @@ from unittest.mock import patch
 import pytest
 from dotenv import load_dotenv
 from main import create_app
-from metadata_model_v2 import ExpressionModel, PersonModel
+from metadata_model_v2 import ExpressionModelInput, PersonModelInput
 from neo4j_database import Neo4JDatabase
 
 # Load .env file if it exists
@@ -140,12 +140,12 @@ class TestGetAllMetadataV2:
             mock_db_class.return_value = test_database
 
             # Create test person first
-            person = PersonModel.model_validate(test_person_data)
+            person = PersonModelInput.model_validate(test_person_data)
             person_id = test_database.create_person(person)
 
             # Create test expression
             test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
-            expression = ExpressionModel.model_validate(test_expression_data)
+            expression = ExpressionModelInput.model_validate(test_expression_data)
             expression_id = test_database.create_expression(expression)
 
             response = client.get("/v2/metadata")
@@ -164,7 +164,7 @@ class TestGetAllMetadataV2:
             mock_db_class.return_value = test_database
 
             # Create test person
-            person = PersonModel.model_validate(test_person_data)
+            person = PersonModelInput.model_validate(test_person_data)
             person_id = test_database.create_person(person)
 
             # Create multiple expressions
@@ -177,7 +177,7 @@ class TestGetAllMetadataV2:
                     "language": "en",
                     "contributions": [{"person_id": person_id, "role": "author"}],
                 }
-                expression = ExpressionModel.model_validate(expr_data)
+                expression = ExpressionModelInput.model_validate(expr_data)
                 expr_id = test_database.create_expression(expression)
                 expression_ids.append(expr_id)
 
@@ -194,7 +194,7 @@ class TestGetAllMetadataV2:
             mock_db_class.return_value = test_database
 
             # Create test person
-            person = PersonModel.model_validate(test_person_data)
+            person = PersonModelInput.model_validate(test_person_data)
             person_id = test_database.create_person(person)
 
             # Create ROOT expression
@@ -205,7 +205,7 @@ class TestGetAllMetadataV2:
                 "language": "en",
                 "contributions": [{"person_id": person_id, "role": "author"}],
             }
-            root_expression = ExpressionModel.model_validate(root_data)
+            root_expression = ExpressionModelInput.model_validate(root_data)
             root_id = test_database.create_expression(root_expression)
 
             # Create TRANSLATION expression
@@ -217,7 +217,7 @@ class TestGetAllMetadataV2:
                 "parent": root_id,
                 "contributions": [{"person_id": person_id, "role": "translator"}],
             }
-            translation_expression = ExpressionModel.model_validate(translation_data)
+            translation_expression = ExpressionModelInput.model_validate(translation_data)
             translation_id = test_database.create_expression(translation_expression)
 
             # Filter by root type
@@ -244,7 +244,7 @@ class TestGetAllMetadataV2:
             mock_db_class.return_value = test_database
 
             # Create test person
-            person = PersonModel.model_validate(test_person_data)
+            person = PersonModelInput.model_validate(test_person_data)
             person_id = test_database.create_person(person)
 
             # Create English expression
@@ -255,7 +255,7 @@ class TestGetAllMetadataV2:
                 "language": "en",
                 "contributions": [{"person_id": person_id, "role": "author"}],
             }
-            en_expression = ExpressionModel.model_validate(en_data)
+            en_expression = ExpressionModelInput.model_validate(en_data)
             en_id = test_database.create_expression(en_expression)
 
             # Create Tibetan expression
@@ -266,7 +266,7 @@ class TestGetAllMetadataV2:
                 "language": "bo",
                 "contributions": [{"person_id": person_id, "role": "author"}],
             }
-            bo_expression = ExpressionModel.model_validate(bo_data)
+            bo_expression = ExpressionModelInput.model_validate(bo_data)
             bo_id = test_database.create_expression(bo_expression)
 
             # Filter by English
@@ -293,7 +293,7 @@ class TestGetAllMetadataV2:
             mock_db_class.return_value = test_database
 
             # Create test person
-            person = PersonModel.model_validate(test_person_data)
+            person = PersonModelInput.model_validate(test_person_data)
             person_id = test_database.create_person(person)
 
             # Create ROOT expression
@@ -304,7 +304,7 @@ class TestGetAllMetadataV2:
                 "language": "en",
                 "contributions": [{"person_id": person_id, "role": "author"}],
             }
-            root_expression = ExpressionModel.model_validate(root_data)
+            root_expression = ExpressionModelInput.model_validate(root_data)
             root_id = test_database.create_expression(root_expression)
 
             # Create TRANSLATION expression in Tibetan
@@ -316,7 +316,7 @@ class TestGetAllMetadataV2:
                 "parent": root_id,
                 "contributions": [{"person_id": person_id, "role": "translator"}],
             }
-            translation_expression = ExpressionModel.model_validate(translation_data)
+            translation_expression = ExpressionModelInput.model_validate(translation_data)
             test_database.create_expression(translation_expression)
 
             # Filter by type=root AND language=en
@@ -375,7 +375,7 @@ class TestGetAllMetadataV2:
             mock_db_class.return_value = test_database
 
             # Create test person
-            person = PersonModel.model_validate(test_person_data)
+            person = PersonModelInput.model_validate(test_person_data)
             person_id = test_database.create_person(person)
 
             # Create one expression
@@ -386,7 +386,7 @@ class TestGetAllMetadataV2:
                 "language": "en",
                 "contributions": [{"person_id": person_id, "role": "author"}],
             }
-            expression = ExpressionModel.model_validate(expr_data)
+            expression = ExpressionModelInput.model_validate(expr_data)
             test_database.create_expression(expression)
 
             # Test limit=1 (minimum)
@@ -417,12 +417,12 @@ class TestGetSingleMetadataV2:
             mock_db_class.return_value = test_database
 
             # Create test person
-            person = PersonModel.model_validate(test_person_data)
+            person = PersonModelInput.model_validate(test_person_data)
             person_id = test_database.create_person(person)
 
             # Create test expression
             test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
-            expression = ExpressionModel.model_validate(test_expression_data)
+            expression = ExpressionModelInput.model_validate(test_expression_data)
             expression_id = test_database.create_expression(expression)
 
             response = client.get(f"/v2/metadata/{expression_id}")
@@ -447,7 +447,7 @@ class TestGetSingleMetadataV2:
             mock_db_class.return_value = test_database
 
             # Create test person
-            person = PersonModel.model_validate(test_person_data)
+            person = PersonModelInput.model_validate(test_person_data)
             person_id = test_database.create_person(person)
 
             # Create parent ROOT expression
@@ -458,7 +458,7 @@ class TestGetSingleMetadataV2:
                 "language": "en",
                 "contributions": [{"person_id": person_id, "role": "author"}],
             }
-            root_expression = ExpressionModel.model_validate(root_data)
+            root_expression = ExpressionModelInput.model_validate(root_data)
             parent_id = test_database.create_expression(root_expression)
 
             # Create TRANSLATION expression
@@ -470,7 +470,7 @@ class TestGetSingleMetadataV2:
                 "parent": parent_id,
                 "contributions": [{"person_id": person_id, "role": "translator"}],
             }
-            translation_expression = ExpressionModel.model_validate(translation_data)
+            translation_expression = ExpressionModelInput.model_validate(translation_data)
             translation_id = test_database.create_expression(translation_expression)
 
             response = client.get(f"/v2/metadata/{translation_id}")
@@ -503,7 +503,7 @@ class TestPostMetadataV2:
             mock_db_class.return_value = test_database
 
             # Create test person first
-            person = PersonModel.model_validate(test_person_data)
+            person = PersonModelInput.model_validate(test_person_data)
             person_id = test_database.create_person(person)
 
             # Create ROOT expression
