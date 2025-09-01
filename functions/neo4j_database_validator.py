@@ -74,8 +74,16 @@ class Neo4JDatabaseValidator:
             self.validate_original_expression_uniqueness(session, work_id)
 
         if expression.contributions:
-            person_ids = [contrib.person_id for contrib in expression.contributions if hasattr(contrib, 'person_id') and contrib.person_id]
-            person_bdrc_ids = [contrib.person_bdrc_id for contrib in expression.contributions if hasattr(contrib, 'person_bdrc_id') and contrib.person_bdrc_id]
+            person_ids = [
+                contrib.person_id
+                for contrib in expression.contributions
+                if hasattr(contrib, "person_id") and contrib.person_id
+            ]
+            person_bdrc_ids = [
+                contrib.person_bdrc_id
+                for contrib in expression.contributions
+                if hasattr(contrib, "person_bdrc_id") and contrib.person_bdrc_id
+            ]
 
             self.validate_person_references(session, person_ids)
             self.validate_person_bdrc_references(session, person_bdrc_ids)

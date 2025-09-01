@@ -353,8 +353,9 @@ class Neo4JDatabase:
     def _execute_create_expression(self, tx, expression: ExpressionModelInput, expression_id: str | None = None) -> str:
         # Pre-validation (outside transaction)
         # TODO: move the validation based on language to the database validator
-        if expression.parent:
-            parent_expression = self.get_expression(expression.parent)
+        parent_id = expression.parent if expression.parent != "N/A" else None
+        if parent_id:
+            parent_expression = self.get_expression(parent_id)
             if expression.type == TextType.TRANSLATION:
                 if parent_expression.language == expression.language:
                     raise ValueError("Translation must have a different language than the parent expression")
@@ -373,7 +374,7 @@ class Neo4JDatabase:
             "language_code": base_lang_code,
             "bcp47_tag": expression.language,
             "title_nomen_element_id": expression_title_element_id,
-            "parent_id": expression.parent,
+            "parent_id": parent_id,
         }
 
         match expression.type:
