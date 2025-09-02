@@ -33,16 +33,17 @@ def get_text_v2(manifestation_id: str) -> tuple[Response, int]:
     logger.info("Fetching text for manifestation ID: %s", manifestation_id)
 
     manifestation, expression_id = Neo4JDatabase().get_manifestation(manifestation_id)
+    logger.info("Manifestation: %s", manifestation)
+
     pecha = retrieve_pecha(expression_id)
 
-    annotations = [a.model_dump() for a in manifestation.annotations]
     target = {
         "pecha": pecha,
-        "annotations": annotations,
+        "annotations": [a.model_dump() for a in manifestation.annotations],
     }
 
     return (
-        JsonSerializer().serialize(SerializerLogicHandler().serialize(target)),
+        SerializerLogicHandler().serialize(target).model_dump(),
         200,
     )
 
