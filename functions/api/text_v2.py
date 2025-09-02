@@ -8,7 +8,6 @@ from metadata_model_v2 import (
     AnnotationType,
     ContributionModel,
     ContributorRole,
-    CopyrightStatus,
     ExpressionModelInput,
     LocalizedString,
     ManifestationModelInput,

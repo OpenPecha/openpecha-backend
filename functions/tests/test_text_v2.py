@@ -288,9 +288,7 @@ class TestTextV2API:
 
             assert response.status_code == 404  # DataNotFound exception becomes 404
 
-    def test_create_translation_with_ai_translator(
-        self, mock_storage_with_cleanup, client, test_database, sample_manifestation
-    ):
+    def test_create_translation_with_ai_translator(self, client, test_database, sample_manifestation):
         """Test translation creation using AI translator"""
         translation_data = {
             "language": "en",
@@ -312,9 +310,7 @@ class TestTextV2API:
             assert "expression_id" in response_data
             assert response_data["message"] == "Translation created successfully"
 
-    def test_create_translation_with_optional_fields(
-        self, mock_storage_with_cleanup, client, test_database, sample_manifestation, sample_person
-    ):
+    def test_create_translation_with_optional_fields(self, client, test_database, sample_manifestation, sample_person):
         """Test translation creation with all optional fields"""
         translation_data = {
             "language": "en",
