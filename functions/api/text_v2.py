@@ -18,6 +18,7 @@ from metadata_model_v2 import (
 from neo4j_database import Neo4JDatabase
 from openpecha.pecha import Pecha
 from openpecha.pecha.annotations import AlignmentAnnotation
+from openpecha.pecha.serializers import SerializerLogicHandler
 from openpecha.pecha.serializers.json import JsonSerializer
 from pecha_handling import retrieve_pecha
 from storage import Storage
@@ -34,8 +35,14 @@ def get_text_v2(manifestation_id: str) -> tuple[Response, int]:
     manifestation, expression_id = Neo4JDatabase().get_manifestation(manifestation_id)
     pecha = retrieve_pecha(expression_id)
 
+    annotations = [a.model_dump() for a in manifestation.annotations]
+    target = {
+        "pecha": pecha,
+        "annotations": annotations,
+    }
+
     return (
-        JsonSerializer().serialize(pecha, annotations=[a.model_dump() for a in manifestation.annotations]),
+        JsonSerializer().serialize(SerializerLogicHandler().serialize(target)),
         200,
     )
 

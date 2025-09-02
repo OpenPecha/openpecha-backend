@@ -262,7 +262,7 @@ class Neo4JDatabase:
 
                 expression_type = expression_data["type"]
                 if expression_type is None:
-                    raise ValueError(f"Expression type {expression_type} is invalid")
+                    raise ValueError(f"Expression type invalid for expression {expression_data['id']}")
 
                 expression = ExpressionModelOutput(
                     id=expression_data["id"],

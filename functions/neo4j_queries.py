@@ -48,7 +48,7 @@ class Queries:
         """Fragment to infer expression type from relationships instead of HAS_TYPE"""
         return f"""
 CASE
-    WHEN ({label})-[:TRANSLATION_OF]->(:Expression) THEN 'translation'
+    WHEN ({label})-[:EXPRESSION_OF {{original: false}}]->(:Work) THEN 'translation'
     WHEN ({label})-[:EXPRESSION_OF]->(:Work)-[:COMMENTARY_OF]->(:Work) THEN 'commentary'
     WHEN ({label})-[:EXPRESSION_OF {{original: true}}]->(:Work) THEN 'root'
     ELSE null
