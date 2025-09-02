@@ -95,7 +95,6 @@ def patched_client(client, test_database):
 def test_person_data():
     """Sample person data for testing"""
     return {
-        "id": "",
         "name": {"en": "Test Author", "bo": "སློབ་དཔོན།"},
         "alt_names": [{"en": "Alternative Name", "bo": "མིང་གཞན།"}],
         "bdrc": "P123456",
@@ -107,7 +106,6 @@ def test_person_data():
 def test_expression_data():
     """Sample expression data for testing"""
     return {
-        "id": "",
         "type": "root",
         "title": {"en": "Test Expression", "bo": "བརྟག་དཔྱད་ཚིག་སྒྲུབ།"},
         "alt_titles": [{"en": "Alternative Title", "bo": "མཚན་བྱང་གཞན།"}],
@@ -127,7 +125,7 @@ class TestGetAllMetadataV2:
         with patch("api.metadata_v2.Neo4JDatabase") as mock_db_class:
             mock_db_class.return_value = test_database
 
-            response = client.get("/v2/metadata")
+            response = client.get("/v2/metadata/")
 
             assert response.status_code == 200
             data = json.loads(response.data)
@@ -148,7 +146,7 @@ class TestGetAllMetadataV2:
             expression = ExpressionModelInput.model_validate(test_expression_data)
             expression_id = test_database.create_expression(expression)
 
-            response = client.get("/v2/metadata")
+            response = client.get("/v2/metadata/")
 
             assert response.status_code == 200
             data = json.loads(response.data)
@@ -171,7 +169,6 @@ class TestGetAllMetadataV2:
             expression_ids = []
             for i in range(5):
                 expr_data = {
-                    "id": "",
                     "type": "root",
                     "title": {"en": f"Expression {i+1}", "bo": f"ཚིག་སྒྲུབ་{i+1}།"},
                     "language": "en",
@@ -199,7 +196,6 @@ class TestGetAllMetadataV2:
 
             # Create ROOT expression
             root_data = {
-                "id": "",
                 "type": "root",
                 "title": {"en": "Root Expression", "bo": "རྩ་བའི་ཚིག་སྒྲུབ།"},
                 "language": "en",
@@ -210,7 +206,6 @@ class TestGetAllMetadataV2:
 
             # Create TRANSLATION expression
             translation_data = {
-                "id": "",
                 "type": "translation",
                 "title": {"en": "Translation Expression", "bo": "སྒྱུར་བའི་ཚིག་སྒྲུབ།"},
                 "language": "bo",
@@ -249,7 +244,6 @@ class TestGetAllMetadataV2:
 
             # Create English expression
             en_data = {
-                "id": "",
                 "type": "root",
                 "title": {"en": "English Expression"},
                 "language": "en",
@@ -260,7 +254,6 @@ class TestGetAllMetadataV2:
 
             # Create Tibetan expression
             bo_data = {
-                "id": "",
                 "type": "root",
                 "title": {"bo": "བོད་ཡིག་ཚིག་སྒྲུབ།"},
                 "language": "bo",
@@ -298,7 +291,6 @@ class TestGetAllMetadataV2:
 
             # Create ROOT expression
             root_data = {
-                "id": "",
                 "type": "root",
                 "title": {"en": "Root Expression"},
                 "language": "en",
@@ -309,7 +301,6 @@ class TestGetAllMetadataV2:
 
             # Create TRANSLATION expression in Tibetan
             translation_data = {
-                "id": "",
                 "type": "translation",
                 "title": {"bo": "སྒྱུར་བའི་ཚིག་སྒྲུབ།"},
                 "language": "bo",
@@ -380,7 +371,6 @@ class TestGetAllMetadataV2:
 
             # Create one expression
             expr_data = {
-                "id": "",
                 "type": "root",
                 "title": {"en": "Single Expression"},
                 "language": "en",
@@ -452,7 +442,6 @@ class TestGetSingleMetadataV2:
 
             # Create parent ROOT expression
             root_data = {
-                "id": "",
                 "type": "root",
                 "title": {"en": "Parent Root Expression"},
                 "language": "en",
@@ -463,7 +452,6 @@ class TestGetSingleMetadataV2:
 
             # Create TRANSLATION expression
             translation_data = {
-                "id": "",
                 "type": "translation",
                 "title": {"bo": "སྒྱུར་བའི་ཚིག་སྒྲུབ།", "en": "Translation Expression"},
                 "language": "bo",
@@ -600,14 +588,14 @@ class TestPostMetadataV2:
             assert "error" in data
             assert "parent must be None" in data["details"][0]["msg"]
 
-    def test_create_translation_without_parent_fails(self, client, test_database):
-        """Test that TRANSLATION expression without parent fails validation"""
+    def test_create_commentary_without_parent_fails(self, client, test_database):
+        """Test that COMMENTARY expression without parent fails validation"""
         with patch("api.metadata_v2.Neo4JDatabase") as mock_db_class:
             mock_db_class.return_value = test_database
 
             expression_data = {
-                "type": "translation",
-                "title": {"en": "Test Translation"},
+                "type": "commentary",
+                "title": {"en": "Test Commentary"},
                 "language": "en",
                 "contributions": [],
             }

@@ -10,7 +10,7 @@ metadata_v2_bp = Blueprint("metadata_v2", __name__)
 logger = logging.getLogger(__name__)
 
 
-@metadata_v2_bp.route("/", methods=["GET"])
+@metadata_v2_bp.route("", methods=["GET"], strict_slashes=False)
 def get_all_metadata_v2() -> tuple[Response, int]:
     limit = request.args.get("limit", 20, type=int)
     offset = request.args.get("offset", 0, type=int)
@@ -36,7 +36,7 @@ def get_all_metadata_v2() -> tuple[Response, int]:
     return jsonify(response_data), 200
 
 
-@metadata_v2_bp.route("/<string:expression_id>", methods=["GET"])
+@metadata_v2_bp.route("/<string:expression_id>", methods=["GET"], strict_slashes=False)
 def get_metadata_v2(expression_id: str) -> tuple[Response, int]:
     db = Neo4JDatabase()
     metadata = db.get_expression(expression_id=expression_id)
