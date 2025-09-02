@@ -217,6 +217,7 @@ nodes:
         required: true
         allowed_values:
           - public
+          - copyrighted
       description:
         type: string
         required: false

@@ -32,6 +32,7 @@ class ManifestationType(str, Enum):
 
 class CopyrightStatus(str, Enum):
     PUBLIC_DOMAIN = "public"
+    COPYRIGHTED = "copyrighted"
 
 
 class LocalizedString(RootModel[dict[str, NonEmptyStr]]):
@@ -174,3 +175,4 @@ class TranslationRequestModel(OpenPechaModel):
     translator: TranslatorModel
     original_annotation: list[dict] | None = None
     translation_annotation: list[dict]
+    copyright: CopyrightStatus = CopyrightStatus.PUBLIC_DOMAIN

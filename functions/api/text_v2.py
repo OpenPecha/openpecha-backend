@@ -8,6 +8,7 @@ from metadata_model_v2 import (
     AnnotationType,
     ContributionModel,
     ContributorRole,
+    CopyrightStatus,
     ExpressionModelInput,
     LocalizedString,
     ManifestationModelInput,
@@ -19,7 +20,6 @@ from neo4j_database import Neo4JDatabase
 from openpecha.pecha import Pecha
 from openpecha.pecha.annotations import AlignmentAnnotation
 from openpecha.pecha.serializers import SerializerLogicHandler
-from openpecha.pecha.serializers.json import JsonSerializer
 from pecha_handling import retrieve_pecha
 from storage import Storage
 
@@ -118,7 +118,9 @@ def create_translation_v2(original_manifestation_id: str) -> tuple[Response, int
         parent=original_expression_id,
     )
 
-    translation_manifestation = ManifestationModelInput(type=ManifestationType.CRITICAL)
+    translation_manifestation = ManifestationModelInput(
+        type=ManifestationType.CRITICAL, copyright=translation_request.copyright
+    )
 
     annotation = AnnotationModelInput(
         type=AnnotationType.ALIGNMENT, aligned_to=original_manifestation.segmentation_annotation_id
