@@ -121,9 +121,12 @@ def create_translation_v2(original_manifestation_id: str) -> tuple[Response, int
         type=ManifestationType.CRITICAL, copyright=translation_request.copyright
     )
 
-    annotation = AnnotationModelInput(
-        type=AnnotationType.ALIGNMENT, aligned_to=original_manifestation.segmentation_annotation_id
-    )
+    if translation_request.original_annotation:
+        annotation = AnnotationModelInput(type=AnnotationType.ALIGNMENT, aligned_to=original_annotation_id)
+    else:
+        annotation = AnnotationModelInput(
+            type=AnnotationType.ALIGNMENT, aligned_to=original_manifestation.segmentation_annotation_id
+        )
 
     original_annotation = (
         AnnotationModelInput(type=AnnotationType.ALIGNMENT) if translation_request.original_annotation else None
