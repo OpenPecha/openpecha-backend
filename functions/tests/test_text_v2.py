@@ -16,9 +16,10 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 from dotenv import load_dotenv
+from identifier import generate_id
 from main import create_app
-from metadata_model_v2 import (
-    AnnotationModelInput,
+from models_v2 import (
+    AnnotationModel,
     AnnotationType,
     ContributionModel,
     ContributorRole,
@@ -128,7 +129,7 @@ def sample_manifestation(test_database, sample_expression):
     manifestation_id = test_database.create_manifestation(manifestation, sample_expression)
 
     # Add required segmentation annotation
-    annotation = AnnotationModelInput(type=AnnotationType.SEGMENTATION)
+    annotation = AnnotationModel(id=generate_id(), type=AnnotationType.SEGMENTATION)
     test_database.add_annotation(manifestation_id, annotation)
 
     return manifestation_id

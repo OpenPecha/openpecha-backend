@@ -1,7 +1,7 @@
 import logging
 from typing import List
 
-from metadata_model_v2 import ExpressionModelInput, TextType
+from models_v2 import ExpressionModelInput, TextType
 
 logger = logging.getLogger(__name__)
 

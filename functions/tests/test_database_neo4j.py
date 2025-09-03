@@ -16,8 +16,9 @@ from pathlib import Path
 import pytest
 from dotenv import load_dotenv
 from exceptions import DataNotFound
-from metadata_model_v2 import (
-    AnnotationModelInput,
+from identifier import generate_id
+from models_v2 import (
+    AnnotationModel,
     AnnotationType,
     ContributionModel,
     ContributorRole,
@@ -597,8 +598,8 @@ class TestDatabaseNeo4j:
         assert len(retrieved.contributions) == 1
         assert retrieved.contributions[0].role == ContributorRole.TRANSLATOR
 
-    def test_create_translation_expression_missing_parent(self, test_database):
-        """Test that creating translation expression without parent fails validation"""
+    def test_create_commentary_expression_missing_parent(self, test_database):
+        """Test that creating commentary expression without parent fails validation"""
         # Create a person for the contribution
         person = PersonModelInput(
             name=LocalizedString({"en": "Translator"}),
@@ -606,9 +607,9 @@ class TestDatabaseNeo4j:
         person_id = test_database.create_person(person)
 
         # Try to create translation without parent - should fail validation
-        with pytest.raises(ValueError, match="When type is 'translation', parent must be provided"):
+        with pytest.raises(ValueError, match="When type is 'commentary', parent must be provided"):
             ExpressionModelInput(
-                type=TextType.TRANSLATION,
+                type=TextType.COMMENTARY,
                 title=LocalizedString({"bo": "བསྒྱུར་བ།"}),
                 language="bo",
                 parent=None,  # Missing parent
@@ -860,7 +861,8 @@ class TestDatabaseNeo4j:
         )
         person_id = test_database.create_person(person)
 
-        annotation = AnnotationModelInput(
+        annotation = AnnotationModel(
+            id=generate_id(),
             type=AnnotationType.SEGMENTATION,
         )
 
@@ -879,7 +881,7 @@ class TestDatabaseNeo4j:
         )
 
         # Create manifestation in database
-        manifestation_id = test_database.create_manifestation(manifestation, [annotation], expression_id)
+        manifestation_id = test_database.create_manifestation(manifestation, annotation, expression_id)
         assert manifestation_id is not None
         assert len(manifestation_id) > 0
 
@@ -904,7 +906,8 @@ class TestDatabaseNeo4j:
         )
         expression_id = test_database.create_expression(expression)
 
-        annotation = AnnotationModelInput(
+        annotation = AnnotationModel(
+            id=generate_id(),
             type=AnnotationType.SEGMENTATION,
         )
 
@@ -914,7 +917,7 @@ class TestDatabaseNeo4j:
         )
 
         # Create manifestation in database
-        manifestation_id = test_database.create_manifestation(manifestation, [annotation], expression_id)
+        manifestation_id = test_database.create_manifestation(manifestation, annotation, expression_id)
         assert manifestation_id is not None
 
         # Retrieve and verify
@@ -945,7 +948,8 @@ class TestDatabaseNeo4j:
         expression_id = test_database.create_expression(expression)
 
         # Create first manifestation
-        annotation1 = AnnotationModelInput(
+        annotation1 = AnnotationModel(
+            id=generate_id(),
             type=AnnotationType.SEGMENTATION,
         )
 
@@ -954,10 +958,11 @@ class TestDatabaseNeo4j:
             copyright=CopyrightStatus.PUBLIC_DOMAIN,
             colophon="First manifestation",
         )
-        manifestation1_id = test_database.create_manifestation(manifestation1, [annotation1], expression_id)
+        manifestation1_id = test_database.create_manifestation(manifestation1, annotation1, expression_id)
 
         # Create second manifestation
-        annotation2 = AnnotationModelInput(
+        annotation2 = AnnotationModel(
+            id=generate_id(),
             type=AnnotationType.ALIGNMENT,
         )
 
@@ -966,7 +971,7 @@ class TestDatabaseNeo4j:
             copyright=CopyrightStatus.PUBLIC_DOMAIN,
             colophon="Second manifestation",
         )
-        manifestation2_id = test_database.create_manifestation(manifestation2, [annotation2], expression_id)
+        manifestation2_id = test_database.create_manifestation(manifestation2, annotation2, expression_id)
 
         # Retrieve all manifestations
         retrieved_manifestations = test_database.get_manifestations_by_expression(expression_id)
@@ -983,7 +988,8 @@ class TestDatabaseNeo4j:
 
     def test_create_manifestation_nonexistent_expression(self, test_database):
         """Test that creating manifestation for non-existent expression fails."""
-        annotation = AnnotationModelInput(
+        annotation = AnnotationModel(
+            id=generate_id(),
             type=AnnotationType.SEGMENTATION,
         )
 

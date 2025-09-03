@@ -10,10 +10,6 @@ nodes:
         required: false
         unique: true
     relationships:
-      HAS_TITLE:
-        target: Nomen
-        cardinality: one
-        required: true
       COMMENTARY_OF:
         target: Work
         cardinality: one
@@ -61,7 +57,7 @@ nodes:
       HAS_TITLE:
         target: Nomen
         cardinality: one
-        required: false
+        required: true
 
   Manifestation:
     properties:
@@ -95,11 +91,14 @@ nodes:
         target: CopyrightStatus
         cardinality: one
         required: false
+      HAS_INCIPIT_TITLE:
+        target: Nomen
+        cardinality: one
+        required: false
       MANIFESTATION_OF:
         target: Expression
         cardinality: one
         required: true
-
 
   Annotation:
     properties:

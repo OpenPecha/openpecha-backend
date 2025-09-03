@@ -196,9 +196,9 @@ OPTIONAL MATCH (primary:Nomen)
 WHERE elementId(primary) = $primary_name_element_id
 CREATE (n:Nomen)
 WITH n, primary
-FOREACH (_ IN CASE WHEN primary IS NOT NULL THEN [1] ELSE [] END |
-    CREATE (n)-[:ALTERNATIVE_OF]->(primary)
-)
+CALL (*) {
+    WHEN primary IS NOT NULL THEN { CREATE (n)-[:ALTERNATIVE_OF]->(primary) }
+}
 FOREACH (lt IN $localized_texts |
     MERGE (l:Language {code: lt.base_lang_code})
     CREATE (n)-[:HAS_LOCALIZATION]->(locText:LocalizedText {text: lt.text})-[:HAS_LANGUAGE {bcp47: lt.bcp47_tag}]->(l)
@@ -212,7 +212,7 @@ Queries.manifestations = {
     MATCH (m:Manifestation)
     WHERE ($manifestation_id IS NOT NULL AND m.id = $manifestation_id) OR
           ($expression_id IS NOT NULL AND (m)-[:MANIFESTATION_OF]->(:Expression {{id: $expression_id}}))
-    OPTIONAL MATCH (m)-[:MANIFESTATION_OF]->(e:Expression)
+    MATCH (m)-[:MANIFESTATION_OF]->(e:Expression)
 
     RETURN {{
         id: m.id,
@@ -228,12 +228,14 @@ Queries.manifestations = {
         ],
         colophon: m.colophon,
         copyright: [(m)-[:HAS_COPYRIGHT]->(cs:CopyrightStatus) | cs.name][0],
-        incipit_title: [{Queries.primary_nomen('m', 'HAS_TITLE')}],
-        alt_incipit_titles: [{Queries.alternative_nomen('m', 'HAS_TITLE')}]
+        incipit_title: [{Queries.primary_nomen('m', 'HAS_INCIPIT_TITLE')}],
+        alt_incipit_titles: [{Queries.alternative_nomen('m', 'HAS_INCIPIT_TITLE')}]
     }} AS manifestation, e.id AS expression_id
 """,
     "create": """
 MATCH (e:Expression {id: $expression_id})
+OPTIONAL MATCH (it:Nomen)
+  WHERE elementId(it) = $incipit_element_id
 MERGE (mt:ManifestationType {name: $type})
 MERGE (cs:CopyrightStatus {name: $copyright})
 CREATE (m:Manifestation {
@@ -242,16 +244,14 @@ CREATE (m:Manifestation {
   wiki: $wiki,
   colophon: $colophon
 })
-WITH m, e, mt, cs
+WITH m, e, mt, cs, it
 
-OPTIONAL MATCH (n:Nomen)
-  WHERE elementId(n) = $title_nomen_element_id
 CREATE (m)-[:MANIFESTATION_OF]->(e),
        (m)-[:HAS_TYPE]->(mt),
        (m)-[:HAS_COPYRIGHT]->(cs)
-FOREACH (_ IN CASE WHEN n IS NULL THEN [] ELSE [1] END |
-  CREATE (m)-[:HAS_TITLE]->(n)
-)
+CALL (*) {
+  WHEN it IS NOT NULL THEN { CREATE (m)-[:HAS_INCIPIT_TITLE]->(it) }
+}
 RETURN m.id AS manifestation_id
 """,
 }
@@ -266,6 +266,9 @@ OPTIONAL MATCH (target:Annotation {id: $aligned_to_id})
 CREATE (a:Annotation {id: $annotation_id})-[:HAS_TYPE]->(at),
        (a)-[:ANNOTATION_OF]->(m)
 
+CALL (*) {
+    WHEN target IS NOT NULL THEN { CREATE (a)-[:ALIGNED_TO]->(target) }
+}
 FOREACH (_ IN CASE WHEN target IS NULL THEN [] ELSE [1] END |
   CREATE (a)-[:ALIGNED_TO]->(target)
 )

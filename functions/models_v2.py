@@ -81,17 +81,10 @@ class ContributionModel(OpenPechaModel):
         return self
 
 
-class AnnotationModelBase(OpenPechaModel):
+class AnnotationModel(OpenPechaModel):
+    id: str
     type: AnnotationType
     aligned_to: str | None = None
-
-
-class AnnotationModelInput(AnnotationModelBase):
-    pass
-
-
-class AnnotationModelOutput(AnnotationModelBase):
-    id: str
 
 
 class ExpressionModelBase(OpenPechaModel):
@@ -128,9 +121,9 @@ class ManifestationModelBase(OpenPechaModel):
     type: ManifestationType
 
     copyright: CopyrightStatus = CopyrightStatus.PUBLIC_DOMAIN
-    incipit_title: LocalizedString | None = None
     colophon: NonEmptyStr | None = None
-    alt_incipit_titles: list[LocalizedString] | None = None
+    incipit_title: NonEmptyStr | None = None
+    alt_incipit_titles: list[NonEmptyStr] | None = None
 
     @model_validator(mode="after")
     def validate_bdrc_for_diplomatic(self):
@@ -145,7 +138,7 @@ class ManifestationModelInput(ManifestationModelBase):
 
 class ManifestationModelOutput(ManifestationModelBase):
     id: str
-    annotations: list[AnnotationModelOutput] = Field(..., min_length=1)
+    annotations: list[AnnotationModel] = Field(..., min_length=1)
 
     @property
     def segmentation_annotation_id(self) -> str | None:
@@ -155,7 +148,7 @@ class ManifestationModelOutput(ManifestationModelBase):
         )
 
 
-class TranslatorModel(OpenPechaModel):
+class CreatorRequestModel(OpenPechaModel):
     person_id: str | None = None
     person_bdrc_id: str | None = None
     ai_id: str | None = None
@@ -172,7 +165,21 @@ class TranslationRequestModel(OpenPechaModel):
     content: NonEmptyStr
     title: NonEmptyStr
     alt_titles: list[NonEmptyStr] | None = None
-    translator: TranslatorModel
+    translator: CreatorRequestModel
     original_annotation: list[dict] | None = None
     translation_annotation: list[dict]
     copyright: CopyrightStatus = CopyrightStatus.PUBLIC_DOMAIN
+
+
+class TextRequestModel(OpenPechaModel):
+    metadata_id: str
+    language: NonEmptyStr
+    content: NonEmptyStr
+    title: NonEmptyStr
+    alt_titles: list[NonEmptyStr] | None = None
+    author: CreatorRequestModel
+    annotation: list[dict]
+    copyright: CopyrightStatus = CopyrightStatus.PUBLIC_DOMAIN
+    type: ManifestationType = ManifestationType.DIPLOMATIC
+    incipit_title: LocalizedString | None = None
+    alt_incipit_titles: list[LocalizedString] | None = None

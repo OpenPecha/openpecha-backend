@@ -2,7 +2,7 @@ import logging
 
 from exceptions import InvalidRequest
 from flask import Blueprint, Response, jsonify, request
-from metadata_model_v2 import ExpressionModelInput
+from models_v2 import ExpressionModelInput
 from neo4j_database import Neo4JDatabase
 
 metadata_v2_bp = Blueprint("metadata_v2", __name__)

@@ -3,10 +3,9 @@ import os
 
 from exceptions import DataNotFound
 from identifier import generate_id
-from metadata_model_v2 import (
+from models_v2 import (
     AIContributionModel,
-    AnnotationModelInput,
-    AnnotationModelOutput,
+    AnnotationModel,
     AnnotationType,
     ContributionModel,
     CopyrightStatus,
@@ -71,7 +70,7 @@ class Neo4JDatabase:
 
     def _process_manifestation_data(self, manifestation_data: dict) -> ManifestationModelOutput:
         annotations = [
-            AnnotationModelOutput(
+            AnnotationModel(
                 id=annotation.get("id"),
                 type=AnnotationType(annotation.get("type")),
                 aligned_to=annotation.get("aligned_to"),
@@ -121,12 +120,11 @@ class Neo4JDatabase:
             return self._process_manifestation_data(d["manifestation"]), d["expression_id"]
 
     def create_manifestation(
-        self, manifestation: ManifestationModelInput, annotations: list[AnnotationModelInput], expression_id: str
+        self, manifestation: ManifestationModelInput, annotation: AnnotationModel, expression_id: str
     ) -> str:
         def transaction_function(tx):
             manifestation_id = self._execute_create_manifestation(tx, manifestation, expression_id)
-            for annotation in annotations:
-                self._execute_add_annotation(tx, manifestation_id, annotation)
+            self._execute_add_annotation(tx, manifestation_id, annotation)
             return manifestation_id
 
         with self.__driver.session() as session:
@@ -177,7 +175,7 @@ class Neo4JDatabase:
         with self.__driver.session() as session:
             return session.execute_write(lambda tx: self._execute_create_expression(tx, expression))
 
-    def add_annotation(self, manifestation_id: str, annotation: AnnotationModelInput) -> str:
+    def add_annotation(self, manifestation_id: str, annotation: AnnotationModel) -> str:
         with self.__driver.session() as session:
             return session.execute_write(lambda tx: self._execute_add_annotation(tx, manifestation_id, annotation))
 
@@ -186,21 +184,17 @@ class Neo4JDatabase:
         expression_id: str,
         expression: ExpressionModelInput,
         manifestation: ManifestationModelInput,
-        annotation_id: str,
-        annotation: AnnotationModelInput,
+        annotation: AnnotationModel,
         original_manifestation_id: str,
-        original_annotation_id: str,
-        original_annotation: AnnotationModelInput = None,
+        original_annotation: AnnotationModel = None,
     ) -> str:
         def transaction_function(tx):
             _ = self._execute_create_expression(tx, expression, expression_id)
             manifestation_id = self._execute_create_manifestation(tx, manifestation, expression_id)
-            _ = self._execute_add_annotation(tx, manifestation_id, annotation, annotation_id)
+            _ = self._execute_add_annotation(tx, manifestation_id, annotation)
 
             if original_annotation:
-                _ = self._execute_add_annotation(
-                    tx, original_manifestation_id, original_annotation, original_annotation_id
-                )
+                _ = self._execute_add_annotation(tx, original_manifestation_id, original_annotation)
 
             return manifestation_id
 
@@ -322,7 +316,6 @@ class Neo4JDatabase:
         return out
 
     def _execute_create_expression(self, tx, expression: ExpressionModelInput, expression_id: str | None = None) -> str:
-        # Pre-validation (outside transaction)
         # TODO: move the validation based on language to the database validator
         expression_id = expression_id or generate_id()
         parent_id = expression.parent if expression.parent != "N/A" else None
@@ -401,12 +394,12 @@ class Neo4JDatabase:
 
         manifestation_id = generate_id()
 
-        title_nomen_element_id = None
+        incipit_element_id = None
         if manifestation.incipit_title:
-            alt_titles_data = (
+            alt_incipit_data = (
                 [alt.root for alt in manifestation.alt_incipit_titles] if manifestation.alt_incipit_titles else None
             )
-            title_nomen_element_id = self._create_nomens(tx, manifestation.incipit_title.root, alt_titles_data)
+            incipit_element_id = self._create_nomens(tx, manifestation.incipit_title.root, alt_incipit_data)
 
         result = tx.run(
             Queries.manifestations["create"],
@@ -417,7 +410,7 @@ class Neo4JDatabase:
             type=manifestation.type.value if manifestation.type else None,
             copyright=manifestation.copyright.value if manifestation.copyright else "public",
             colophon=manifestation.colophon,
-            title_nomen_element_id=title_nomen_element_id,
+            incipit_element_id=incipit_element_id,
         )
 
         if not result.single():
@@ -425,15 +418,12 @@ class Neo4JDatabase:
 
         return manifestation_id
 
-    def _execute_add_annotation(
-        self, tx, manifestation_id: str, annotation: AnnotationModelInput, annotation_id: str | None = None
-    ) -> str:
-        annotation_id = annotation_id or generate_id()
+    def _execute_add_annotation(self, tx, manifestation_id: str, annotation: AnnotationModel) -> str:
         tx.run(
             Queries.annotations["create"],
             manifestation_id=manifestation_id,
-            annotation_id=annotation_id,
+            annotation_id=annotation.id,
             type=annotation.type.value,
             aligned_to_id=annotation.aligned_to,
         )
-        return annotation_id
+        return annotation.id

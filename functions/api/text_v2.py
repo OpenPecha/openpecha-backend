@@ -2,9 +2,9 @@ import logging
 
 from flask import Blueprint, Response, jsonify, request
 from identifier import generate_id
-from metadata_model_v2 import (
+from models_v2 import (
     AIContributionModel,
-    AnnotationModelInput,
+    AnnotationModel,
     AnnotationType,
     ContributionModel,
     ContributorRole,
@@ -12,12 +12,13 @@ from metadata_model_v2 import (
     LocalizedString,
     ManifestationModelInput,
     ManifestationType,
+    TextRequestModel,
     TextType,
     TranslationRequestModel,
 )
 from neo4j_database import Neo4JDatabase
 from openpecha.pecha import Pecha
-from openpecha.pecha.annotations import AlignmentAnnotation
+from openpecha.pecha.annotations import AlignmentAnnotation, SegmentationAnnotation
 from openpecha.pecha.serializers import SerializerLogicHandler
 from pecha_handling import retrieve_pecha
 from storage import Storage
@@ -49,8 +50,36 @@ def get_text_v2(manifestation_id: str) -> tuple[Response, int]:
 
 @text_v2_bp.route("", methods=["POST"], strict_slashes=False)
 def create_text_v2() -> tuple[Response, int]:
-    # TODO: implement
-    return jsonify({"message": "Not implemented"}), 501
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "Request body is required"}), 400
+
+    text_request = TextRequestModel.model_validate(data)
+
+    manifestation = ManifestationModelInput(
+        bdrc=text_request.bdrc,
+        wiki=text_request.wiki,
+        type=text_request.type,
+        copyright=text_request.copyright,
+        colophon=text_request.colophon,
+        incipit_title=text_request.incipit_title,
+        alt_incipit_titles=text_request.alt_incipit_titles,
+    )
+    annotation_id = generate_id()
+
+    pecha = Pecha.create_pecha(
+        pecha_id=text_request.expression_id,
+        base_text=text_request.content,
+        annotation_id=annotation_id,
+        annotation=[SegmentationAnnotation.model_validate(a) for a in text_request.annotation],
+    )
+
+    Storage().store_pecha_opf(pecha)
+
+    annotation = AnnotationModel(id=annotation_id, type=AnnotationType.SEGMENTATION)
+    manifestation_id = Neo4JDatabase().create_manifestation(manifestation, annotation, text_request.expression_id)
+
+    return jsonify({"message": f"Text {manifestation_id} created successfully"}), 201
 
 
 @text_v2_bp.route("/<string:original_manifestation_id>/translation", methods=["POST"], strict_slashes=False)
@@ -122,14 +151,20 @@ def create_translation_v2(original_manifestation_id: str) -> tuple[Response, int
     )
 
     if translation_request.original_annotation:
-        annotation = AnnotationModelInput(type=AnnotationType.ALIGNMENT, aligned_to=original_annotation_id)
+        translation_annotation = AnnotationModel(
+            id=translation_annotation_id, type=AnnotationType.ALIGNMENT, aligned_to=original_annotation_id
+        )
     else:
-        annotation = AnnotationModelInput(
-            type=AnnotationType.ALIGNMENT, aligned_to=original_manifestation.segmentation_annotation_id
+        translation_annotation = AnnotationModel(
+            id=translation_annotation_id,
+            type=AnnotationType.ALIGNMENT,
+            aligned_to=original_manifestation.segmentation_annotation_id,
         )
 
     original_annotation = (
-        AnnotationModelInput(type=AnnotationType.ALIGNMENT) if translation_request.original_annotation else None
+        AnnotationModel(id=original_annotation_id, type=AnnotationType.ALIGNMENT)
+        if translation_request.original_annotation
+        else None
     )
 
     # TODO: in case of exception, rollback the stored pecha
@@ -137,10 +172,8 @@ def create_translation_v2(original_manifestation_id: str) -> tuple[Response, int
         expression=translation_expression,
         expression_id=expression_id,
         manifestation=translation_manifestation,
-        annotation=annotation,
-        annotation_id=translation_annotation_id,
+        annotation=translation_annotation,
         original_manifestation_id=original_manifestation_id,
-        original_annotation_id=original_annotation_id,
         original_annotation=original_annotation,
     )
 
