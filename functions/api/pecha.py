@@ -1,12 +1,12 @@
 import json
 import logging
 
-from api.text import validate_bdrc_file, validate_docx_file
+from api.text import validate_docx_file
 from database import Database
 from exceptions import DataConflict, InvalidRequest
 from flask import Blueprint, Response, jsonify, request, send_file
 from metadata_model import MetadataModel, SourceType
-from pecha_handling import process_bdrc_pecha, process_pecha, retrieve_pecha, serialize
+from pecha_handling import process_pecha, retrieve_pecha, serialize
 from pecha_uploader.pipeline import upload
 from pydantic import AnyUrl, ValidationError
 from storage import Storage
@@ -65,10 +65,10 @@ def post_pecha() -> tuple[Response, int]:
         pecha_id = process_pecha(text=text, metadata=metadata, aligned_to=annotation)
         logger.info("Processed text file: %s", text.filename)
 
-    if data:  # data file (BDRC)
-        validate_bdrc_file(data)
-        pecha_id = process_bdrc_pecha(data=data, metadata=metadata)
-        logger.info("Processed data file: %s", data.filename)
+    # if data:  # data file (BDRC)
+    #     validate_bdrc_file(data)
+    #     pecha_id = process_bdrc_pecha(data=data, metadata=metadata)
+    #     logger.info("Processed data file: %s", data.filename)
 
     title = metadata.title[metadata.language] or metadata.title["en"]
     return jsonify({"message": "Text created successfully", "id": pecha_id, "title": title}), 200

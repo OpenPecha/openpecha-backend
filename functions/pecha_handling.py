@@ -12,11 +12,13 @@ from openpecha.pecha import Pecha
 from openpecha.pecha.annotations import AnnotationModel, PechaAlignment
 from openpecha.pecha.layer import AnnotationType
 from openpecha.pecha.parsers.docx import DocxParser
-from openpecha.pecha.parsers.ocr import BdrcParser
 
 # from openpecha.pecha.serializers import SerializerLogicHandler
 from storage import Storage
 from werkzeug.datastructures import FileStorage
+
+# from openpecha.pecha.parsers.ocr import BdrcParser
+
 
 logger = logging.getLogger(__name__)
 
@@ -142,20 +144,20 @@ def parse(
     )
 
 
-def parse_bdrc(data: FileStorage, metadata: MetadataModel, pecha_id: str | None = None) -> Pecha:
-    if not data.filename:
-        raise ValueError("Data has no filename")
+# def parse_bdrc(data: FileStorage, metadata: MetadataModel, pecha_id: str | None = None) -> Pecha:
+#     if not data.filename:
+#         raise ValueError("Data has no filename")
 
-    logger.info("Parsing data file: %s", data.filename)
+#     logger.info("Parsing data file: %s", data.filename)
 
-    path = create_tmp()
-    data.save(path)
+#     path = create_tmp()
+#     data.save(path)
 
-    return BdrcParser().parse(
-        input=path,
-        metadata=metadata.model_dump(),
-        pecha_id=pecha_id,
-    )
+#     return BdrcParser().parse(
+#         input=path,
+#         metadata=metadata.model_dump(),
+#         pecha_id=pecha_id,
+#     )
 
 
 def get_category_chain(category_id: str) -> list[CategoryModel]:
@@ -249,17 +251,17 @@ def process_pecha(
     return pecha.id
 
 
-def process_bdrc_pecha(data: FileStorage, metadata: MetadataModel, pecha_id: str | None = None) -> str:
-    pecha = parse_bdrc(data=data, metadata=metadata, pecha_id=pecha_id)
-    logger.info("Pecha created: %s %s", pecha.id, pecha.pecha_path)
+# def process_bdrc_pecha(data: FileStorage, metadata: MetadataModel, pecha_id: str | None = None) -> str:
+#     pecha = parse_bdrc(data=data, metadata=metadata, pecha_id=pecha_id)
+#     logger.info("Pecha created: %s %s", pecha.id, pecha.pecha_path)
 
-    storage = Storage()
+#     storage = Storage()
 
-    stream = data.stream
-    stream.seek(0)
-    storage.store_bdrc_data(pecha_id=pecha.id, bdrc_data=stream)
-    storage.store_pecha_opf(pecha)
+#     stream = data.stream
+#     stream.seek(0)
+#     storage.store_bdrc_data(pecha_id=pecha.id, bdrc_data=stream)
+#     storage.store_pecha_opf(pecha)
 
-    Database().set_metadata(pecha_id=pecha.id, metadata=metadata)
+#     Database().set_metadata(pecha_id=pecha.id, metadata=metadata)
 
-    return pecha.id
+#     return pecha.id
