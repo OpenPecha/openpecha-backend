@@ -191,10 +191,11 @@ class Neo4JDatabase:
         def transaction_function(tx):
             _ = self._execute_create_expression(tx, expression, expression_id)
             manifestation_id = self._execute_create_manifestation(tx, manifestation, expression_id)
-            _ = self._execute_add_annotation(tx, manifestation_id, annotation)
 
             if original_annotation:
                 _ = self._execute_add_annotation(tx, original_manifestation_id, original_annotation)
+
+            _ = self._execute_add_annotation(tx, manifestation_id, annotation)
 
             return manifestation_id
 

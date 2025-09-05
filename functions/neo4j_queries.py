@@ -269,9 +269,6 @@ CREATE (a:Annotation {id: $annotation_id})-[:HAS_TYPE]->(at),
 CALL (*) {
     WHEN target IS NOT NULL THEN { CREATE (a)-[:ALIGNED_TO]->(target) }
 }
-FOREACH (_ IN CASE WHEN target IS NULL THEN [] ELSE [1] END |
-  CREATE (a)-[:ALIGNED_TO]->(target)
-)
 
 RETURN a.id AS annotation_id
 """
