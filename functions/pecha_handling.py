@@ -104,23 +104,15 @@ def retrieve_pecha(pecha_id: str) -> Pecha:
     extract_path = Path(temp_dir) / "pecha_extracts"
     extract_path.mkdir(exist_ok=True)
 
-    # Extract the ZIP file
+    # Extract ZIP contents to a pecha-specific directory
+    # ZIP always contains pecha files directly (base/, layers/, etc.) without wrapping folder
+    pecha_extract_path = extract_path / pecha_id
+    pecha_extract_path.mkdir(exist_ok=True)
+    
     with zipfile.ZipFile(zip_path) as zip_file:
-        logger.info("ZIP file contents: %s", zip_file.namelist())
-        zip_file.extractall(extract_path)
-
-    # Debug: see what was actually extracted
-    extracted_items = list(extract_path.iterdir())
-    logger.info("Extracted items: %s", extracted_items)
-
-    pecha_path = extract_path / pecha_id
-
-    if not pecha_path.exists():
-        raise FileNotFoundError(f"Pecha directory not found at {pecha_path}")
-
-    logger.info("Pecha directory found at %s", pecha_path)
-
-    return Pecha.from_path(pecha_path)
+        zip_file.extractall(pecha_extract_path)
+    
+    return Pecha.from_path(pecha_extract_path)
 
 
 def get_pecha_chain(pecha_ids: list[str]) -> dict[str, Pecha]:
