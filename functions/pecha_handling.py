@@ -104,24 +104,22 @@ def retrieve_pecha(pecha_id: str) -> Pecha:
     extract_path = Path(temp_dir) / "pecha_extracts"
     extract_path.mkdir(exist_ok=True)
 
-    # Extract ZIP contents to a pecha-specific directory
-    # ZIP always contains pecha files directly (base/, layers/, etc.) without wrapping folder
-    pecha_extract_path = extract_path / pecha_id
-    pecha_extract_path.mkdir(exist_ok=True)
-    
     with zipfile.ZipFile(zip_path) as zip_file:
-        zip_file.extractall(pecha_extract_path)
+        logger.info("Extracting ZIP to: %s", extract_path)
+        zip_file.extractall(extract_path)
     
-    # Debug: check what was extracted
-    extracted_items = list(pecha_extract_path.iterdir())
-    logger.info("Extracted to %s: %s", pecha_extract_path, extracted_items)
+    pecha_path = extract_path / pecha_id
+    logger.info("Looking for pecha at: %s", pecha_path)
+    logger.info("Pecha path exists: %s", pecha_path.exists())
     
-    # Check if expected pecha structure exists
-    base_dir = pecha_extract_path / "base"
-    layers_dir = pecha_extract_path / "layers"
-    logger.info("Base dir exists: %s, Layers dir exists: %s", base_dir.exists(), layers_dir.exists())
+    if pecha_path.exists():
+        contents = list(pecha_path.iterdir())
+        logger.info("Pecha directory contents: %s", contents)
+        base_exists = (pecha_path / "base").exists()
+        layers_exists = (pecha_path / "layers").exists()
+        logger.info("Base dir exists: %s, Layers dir exists: %s", base_exists, layers_exists)
     
-    return Pecha.from_path(pecha_extract_path)
+    return Pecha.from_path(pecha_path)
 
 
 def get_pecha_chain(pecha_ids: list[str]) -> dict[str, Pecha]:
