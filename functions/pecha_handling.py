@@ -101,7 +101,8 @@ def retrieve_pecha(pecha_id: str) -> Pecha:
     zip_path = Storage().retrieve_pecha_opf(pecha_id)
 
     temp_dir = tempfile.gettempdir()
-    extract_path = Path(temp_dir)
+    extract_path = Path(temp_dir) / "pecha_extracts"
+    extract_path.mkdir(exist_ok=True)
 
     # Extract the ZIP file
     with zipfile.ZipFile(zip_path) as zip_file:
@@ -111,6 +112,8 @@ def retrieve_pecha(pecha_id: str) -> Pecha:
 
     if not pecha_path.exists():
         raise FileNotFoundError(f"Pecha directory not found at {pecha_path}")
+
+    logger.info("Pecha directory found at %s", pecha_path)
 
     return Pecha.from_path(pecha_path)
 
