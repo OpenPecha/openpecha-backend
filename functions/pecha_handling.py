@@ -102,8 +102,17 @@ def retrieve_pecha(pecha_id: str) -> Pecha:
 
     temp_dir = tempfile.gettempdir()
     extract_path = Path(temp_dir)
-    zipfile.ZipFile(zip_path).extractall(extract_path)
-    return Pecha.from_path(extract_path / pecha_id)
+
+    # Extract the ZIP file
+    with zipfile.ZipFile(zip_path) as zip_file:
+        zip_file.extractall(extract_path)
+
+    pecha_path = extract_path / pecha_id
+
+    if not pecha_path.exists():
+        raise FileNotFoundError(f"Pecha directory not found at {pecha_path}")
+
+    return Pecha.from_path(pecha_path)
 
 
 def get_pecha_chain(pecha_ids: list[str]) -> dict[str, Pecha]:
