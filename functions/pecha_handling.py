@@ -106,7 +106,12 @@ def retrieve_pecha(pecha_id: str) -> Pecha:
 
     # Extract the ZIP file
     with zipfile.ZipFile(zip_path) as zip_file:
+        logger.info("ZIP file contents: %s", zip_file.namelist())
         zip_file.extractall(extract_path)
+
+    # Debug: see what was actually extracted
+    extracted_items = list(extract_path.iterdir())
+    logger.info("Extracted items: %s", extracted_items)
 
     pecha_path = extract_path / pecha_id
 
