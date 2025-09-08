@@ -112,6 +112,15 @@ def retrieve_pecha(pecha_id: str) -> Pecha:
     with zipfile.ZipFile(zip_path) as zip_file:
         zip_file.extractall(pecha_extract_path)
     
+    # Debug: check what was extracted
+    extracted_items = list(pecha_extract_path.iterdir())
+    logger.info("Extracted to %s: %s", pecha_extract_path, extracted_items)
+    
+    # Check if expected pecha structure exists
+    base_dir = pecha_extract_path / "base"
+    layers_dir = pecha_extract_path / "layers"
+    logger.info("Base dir exists: %s, Layers dir exists: %s", base_dir.exists(), layers_dir.exists())
+    
     return Pecha.from_path(pecha_extract_path)
 
 
