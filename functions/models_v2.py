@@ -175,8 +175,6 @@ class TextRequestModel(OpenPechaModel):
     metadata_id: str
     language: NonEmptyStr
     content: NonEmptyStr
-    title: NonEmptyStr
-    alt_titles: list[NonEmptyStr] | None = None
     author: CreatorRequestModel
     annotation: list[dict]
     copyright: CopyrightStatus = CopyrightStatus.PUBLIC_DOMAIN
