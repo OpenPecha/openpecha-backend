@@ -50,7 +50,7 @@ def get_text_v2(manifestation_id: str) -> tuple[Response, int]:
 
 @text_v2_bp.route("", methods=["POST"], strict_slashes=False)
 def create_text_v2() -> tuple[Response, int]:
-    data = request.get_json()
+    data = request.get_json(force=True, silent=True)
     if not data:
         return jsonify({"error": "Request body is required"}), 400
 
@@ -86,7 +86,7 @@ def create_text_v2() -> tuple[Response, int]:
 def create_translation_v2(original_manifestation_id: str) -> tuple[Response, int]:
     logger.info("Creating translation for manifestation ID: %s", original_manifestation_id)
 
-    data = request.get_json()
+    data = request.get_json(force=True, silent=True)
     if not data:
         return jsonify({"error": "Request body is required"}), 400
 

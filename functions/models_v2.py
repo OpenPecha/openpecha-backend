@@ -181,6 +181,6 @@ class TextRequestModel(OpenPechaModel):
     type: ManifestationType = ManifestationType.DIPLOMATIC
     bdrc: str | None = None
     wiki: str | None = None
-    colophon: LocalizedString | None = None
-    incipit_title: LocalizedString | None = None
-    alt_incipit_titles: list[LocalizedString] | None = None
+    colophon: NonEmptyStr | None = None
+    incipit_title: NonEmptyStr | None = None
+    alt_incipit_titles: list[NonEmptyStr] | None = None
