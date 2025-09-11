@@ -179,5 +179,8 @@ class TextRequestModel(OpenPechaModel):
     annotation: list[dict]
     copyright: CopyrightStatus = CopyrightStatus.PUBLIC_DOMAIN
     type: ManifestationType = ManifestationType.DIPLOMATIC
+    bdrc: str | None = None
+    wiki: str | None = None
+    colophon: LocalizedString | None = None
     incipit_title: LocalizedString | None = None
     alt_incipit_titles: list[LocalizedString] | None = None

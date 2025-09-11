@@ -68,7 +68,7 @@ def create_text_v2() -> tuple[Response, int]:
     annotation_id = generate_id()
 
     pecha = Pecha.create_pecha(
-        pecha_id=text_request.expression_id,
+        pecha_id=text_request.metadata_id,
         base_text=text_request.content,
         annotation_id=annotation_id,
         annotation=[SegmentationAnnotation.model_validate(a) for a in text_request.annotation],
@@ -77,7 +77,7 @@ def create_text_v2() -> tuple[Response, int]:
     Storage().store_pecha_opf(pecha)
 
     annotation = AnnotationModel(id=annotation_id, type=AnnotationType.SEGMENTATION)
-    manifestation_id = Neo4JDatabase().create_manifestation(manifestation, annotation, text_request.expression_id)
+    manifestation_id = Neo4JDatabase().create_manifestation(manifestation, annotation, text_request.metadata_id)
 
     return jsonify({"message": f"Text {manifestation_id} created successfully"}), 201
 
