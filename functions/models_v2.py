@@ -122,13 +122,19 @@ class ManifestationModelBase(OpenPechaModel):
 
     copyright: CopyrightStatus = CopyrightStatus.PUBLIC_DOMAIN
     colophon: NonEmptyStr | None = None
-    incipit_title: NonEmptyStr | None = None
-    alt_incipit_titles: list[NonEmptyStr] | None = None
+    incipit_title: LocalizedString | None = None
+    alt_incipit_titles: list[LocalizedString] | None = None
 
     @model_validator(mode="after")
     def validate_bdrc_for_diplomatic(self):
         if self.type == ManifestationType.DIPLOMATIC and not self.bdrc:
             raise ValueError("When type is 'diplomatic', bdrc must be provided")
+        return self
+
+    @model_validator(mode="after")
+    def validate_alt_incipit_titles(self):
+        if self.alt_incipit_titles and self.incipit_title is None:
+            raise ValueError("alt_incipit_titles can only be set when incipit_title is also provided")
         return self
 
 
@@ -182,5 +188,11 @@ class TextRequestModel(OpenPechaModel):
     bdrc: str | None = None
     wiki: str | None = None
     colophon: NonEmptyStr | None = None
-    incipit_title: NonEmptyStr | None = None
-    alt_incipit_titles: list[NonEmptyStr] | None = None
+    incipit_title: LocalizedString | None = None
+    alt_incipit_titles: list[LocalizedString] | None = None
+
+    @model_validator(mode="after")
+    def validate_alt_incipit_titles(self):
+        if self.alt_incipit_titles and self.incipit_title is None:
+            raise ValueError("alt_incipit_titles can only be set when incipit_title is also provided")
+        return self

@@ -79,7 +79,7 @@ def create_text_v2() -> tuple[Response, int]:
     annotation = AnnotationModel(id=annotation_id, type=AnnotationType.SEGMENTATION)
     manifestation_id = Neo4JDatabase().create_manifestation(manifestation, annotation, text_request.metadata_id)
 
-    return jsonify({"message": f"Text {manifestation_id} created successfully"}), 201
+    return jsonify({"message": "Text created successfully", "id": manifestation_id}), 201
 
 
 @text_v2_bp.route("/<string:original_manifestation_id>/translation", methods=["POST"], strict_slashes=False)
@@ -181,8 +181,8 @@ def create_translation_v2(original_manifestation_id: str) -> tuple[Response, int
         jsonify(
             {
                 "message": "Translation created successfully",
-                "text_id": translation_manifestation_id,
-                "id": expression_id,
+                "id": translation_manifestation_id,
+                "metadata_id": expression_id,
             }
         ),
         201,
