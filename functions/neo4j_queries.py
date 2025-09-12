@@ -44,6 +44,28 @@ class Queries:
 """
 
     @staticmethod
+    def manifestation_fragment(label):
+        return f"""
+{{
+    id: {label}.id,
+    bdrc: {label}.bdrc,
+    wiki: {label}.wiki,
+    type: [({label})-[:HAS_TYPE]->(mt:ManifestationType) | mt.name][0],
+    annotations: [
+        ({label})<-[:ANNOTATION_OF]-(a:Annotation) | {{
+            id: a.id,
+            type: [(a)-[:HAS_TYPE]->(at:AnnotationType) | at.name][0],
+            aligned_to: [(a)-[:ALIGNED_TO]->(target:Annotation) | target.id][0]
+        }}
+    ],
+    colophon: {label}.colophon,
+    copyright: [({label})-[:HAS_COPYRIGHT]->(cs:CopyrightStatus) | cs.name][0],
+    incipit_title: [{Queries.primary_nomen(label, 'HAS_INCIPIT_TITLE')}],
+    alt_incipit_titles: [{Queries.alternative_nomen(label, 'HAS_INCIPIT_TITLE')}]
+}}
+"""
+
+    @staticmethod
     def infer_expression_type(label):
         """Fragment to infer expression type from relationships instead of HAS_TYPE"""
         return f"""
@@ -214,23 +236,13 @@ Queries.manifestations = {
           ($expression_id IS NOT NULL AND (m)-[:MANIFESTATION_OF]->(:Expression {{id: $expression_id}}))
     MATCH (m)-[:MANIFESTATION_OF]->(e:Expression)
 
-    RETURN {{
-        id: m.id,
-        bdrc: m.bdrc,
-        wiki: m.wiki,
-        type: [(m)-[:HAS_TYPE]->(mt:ManifestationType) | mt.name][0],
-        annotations: [
-            (m)<-[:ANNOTATION_OF]-(a:Annotation) | {{
-                id: a.id,
-                type: [(a)-[:HAS_TYPE]->(at:AnnotationType) | at.name][0],
-                aligned_to: [(a)-[:ALIGNED_TO]->(target:Annotation) | target.id][0]
-            }}
-        ],
-        colophon: m.colophon,
-        copyright: [(m)-[:HAS_COPYRIGHT]->(cs:CopyrightStatus) | cs.name][0],
-        incipit_title: [{Queries.primary_nomen('m', 'HAS_INCIPIT_TITLE')}],
-        alt_incipit_titles: [{Queries.alternative_nomen('m', 'HAS_INCIPIT_TITLE')}]
-    }} AS manifestation, e.id AS expression_id
+    RETURN {Queries.manifestation_fragment('m')} AS manifestation, e.id AS expression_id
+""",
+    "fetch_by_annotation": f"""
+    MATCH (a:Annotation {{id: $annotation_id}})-[:ANNOTATION_OF]->(m:Manifestation)
+    MATCH (m)-[:MANIFESTATION_OF]->(e:Expression)
+
+    RETURN {Queries.manifestation_fragment('m')} AS manifestation, e.id AS expression_id
 """,
     "create": """
 MATCH (e:Expression {id: $expression_id})

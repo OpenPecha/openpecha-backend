@@ -86,6 +86,12 @@ class AnnotationModel(OpenPechaModel):
     type: AnnotationType
     aligned_to: str | None = None
 
+    @model_validator(mode="after")
+    def validate_aligned_to(self):
+        if self.aligned_to is not None and self.type != AnnotationType.ALIGNMENT:
+            raise ValueError("aligned_to can only be set when annotation type is ALIGNMENT")
+        return self
+
 
 class ExpressionModelBase(OpenPechaModel):
     bdrc: str | None = None
@@ -146,12 +152,30 @@ class ManifestationModelOutput(ManifestationModelBase):
     id: str
     annotations: list[AnnotationModel] = Field(..., min_length=1)
 
+    @model_validator(mode="after")
+    def validate_annotations(self):
+        # Check that only one annotation has aligned_to
+        aligned_annotations = [ann for ann in self.annotations if ann.aligned_to is not None]
+        if len(aligned_annotations) > 1:
+            raise ValueError("Only one annotation can have aligned_to set")
+        
+        # Check that only one annotation is segmentation
+        segmentation_annotations = [ann for ann in self.annotations if ann.type == AnnotationType.SEGMENTATION]
+        if len(segmentation_annotations) > 1:
+            raise ValueError("Only one annotation can be of type SEGMENTATION")
+        
+        return self
+
     @property
     def segmentation_annotation_id(self) -> str | None:
         return next(
             (annotation.id for annotation in self.annotations if annotation.type == AnnotationType.SEGMENTATION),
             None,
         )
+
+    @property
+    def aligned_to(self) -> str | None:
+        return next((ann.aligned_to for ann in self.annotations if ann.aligned_to), None)
 
 
 class CreatorRequestModel(OpenPechaModel):

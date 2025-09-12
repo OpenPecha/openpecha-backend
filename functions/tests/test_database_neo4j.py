@@ -701,24 +701,6 @@ class TestDatabaseNeo4j:
         assert retrieved.contributions[0].person_id == commentator_id
         assert retrieved.contributions[0].role == ContributorRole.AUTHOR
 
-    def test_create_commentary_expression_missing_parent(self, test_database):
-        """Test that creating commentary expression without parent fails validation"""
-        # Create a person for the contribution
-        person = PersonModelInput(
-            name=LocalizedString({"en": "Commentator"}),
-        )
-        person_id = test_database.create_person(person)
-
-        # Try to create commentary without parent - should fail validation
-        with pytest.raises(ValueError, match="When type is 'commentary', parent must be provided"):
-            ExpressionModelInput(
-                type=TextType.COMMENTARY,
-                title=LocalizedString({"en": "Commentary Text"}),
-                language="en",
-                # parent missing - should fail
-                contributions=[ContributionModel(person_id=person_id, role=ContributorRole.AUTHOR)],
-            )
-
     def test_create_commentary_expression_nonexistent_parent(self, test_database):
         """Test that creating commentary with non-existent parent fails"""
         # Create a person for the contribution

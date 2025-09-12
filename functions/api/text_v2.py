@@ -32,7 +32,12 @@ logger = logging.getLogger(__name__)
 def get_text_v2(manifestation_id: str) -> tuple[Response, int]:
     logger.info("Fetching text for manifestation ID: %s", manifestation_id)
 
-    manifestation, expression_id = Neo4JDatabase().get_manifestation(manifestation_id)
+    aligned = request.args.get("aligned", "false").lower() == "true"
+    logger.info("Aligned parameter: %s", aligned)
+
+    db = Neo4JDatabase()
+
+    manifestation, expression_id = db.get_manifestation(manifestation_id)
     logger.info("Manifestation: %s", manifestation)
 
     pecha = retrieve_pecha(expression_id)
@@ -42,8 +47,30 @@ def get_text_v2(manifestation_id: str) -> tuple[Response, int]:
         "annotations": [a.model_dump() for a in manifestation.annotations],
     }
 
+    source = None
+    if aligned:
+        aligned_to_id = manifestation.aligned_to
+
+        if aligned_to_id:
+            result = db.get_manifestation_by_annotation(aligned_to_id)
+            if result:
+                source_manifestation, source_expression_id = result
+                source_pecha = retrieve_pecha(source_expression_id)
+                source = {
+                    "pecha": source_pecha,
+                    "annotations": [a.model_dump() for a in source_manifestation.annotations],
+                }
+                logger.info("Source manifestation loaded from aligned_to: %s", source_manifestation.id)
+            else:
+                return (
+                    jsonify({"error": f"Could not find manifestation for aligned_to annotation: {aligned_to_id}"}),
+                    400,
+                )
+        else:
+            return jsonify({"error": f"No aligned_to annotation found in manifestation: {manifestation_id}"}), 400
+
     return (
-        SerializerLogicHandler().serialize(target).model_dump(),
+        SerializerLogicHandler().serialize(target, source=source).model_dump(),
         200,
     )
 
