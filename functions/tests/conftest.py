@@ -8,10 +8,16 @@ from mockfirestore.query import Query
 
 
 class MockStorageBucket:
-    _storage: dict[str, bytes] = {}  # class-level dict to persist files by path
+    def __init__(self):
+        self._storage = {}  # class-level dict to persist files by path
 
     def blob(self, path: str):
         return MockBlob(path, self._storage)
+
+    def store_pecha_opf(self, pecha):
+        """Mock method to store pecha OPF files"""
+        # Just simulate storing the pecha without actual file operations
+        pass
 
     def get_blob(self, path: str):
         # Mimics GCS get_blob, returns None if not found
@@ -24,6 +30,7 @@ class MockBlob:
     def __init__(self, path: str, storage: dict):
         self.path = path
         self._storage = storage
+        self.cache_control = None
 
     def upload_from_string(self, data):
         if isinstance(data, str):
@@ -34,6 +41,10 @@ class MockBlob:
     def upload_from_filename(self, filename):
         with open(filename, "rb") as f:
             self._storage[self.path] = f.read()
+        return None
+
+    def upload_from_file(self, file_obj):
+        self._storage[self.path] = file_obj.read()
         return None
 
     def download_as_string(self):
@@ -52,9 +63,23 @@ class MockBlob:
     def exists(self):
         return self.path in self._storage
 
+    def delete(self):
+        if self.path in self._storage:
+            del self._storage[self.path]
+
+    def reload(self):
+        pass
+
+    def make_public(self):
+        pass
+
     @property
     def name(self):
         return self.path
+
+    @property
+    def public_url(self):
+        return f"https://mock-storage.example.com/{self.path}"
 
 
 class MockStorage:

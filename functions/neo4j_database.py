@@ -39,10 +39,15 @@ class Neo4JDatabase:
         self.__validator = Neo4JDatabaseValidator()
         logger.info("Connection to neo4j established.")
 
+    def __del__(self):
+        """Destructor to automatically close the driver when object is garbage collected"""
+        self.__close_driver()
+
     def get_session(self):
         return self.__driver.session()
 
-    def close_driver(self):
+    def __close_driver(self):
+        """Private method to close the Neo4j driver"""
         if self.__driver:
             self.__driver.close()
 

@@ -181,7 +181,6 @@ class TextRequestModel(OpenPechaModel):
     metadata_id: str
     language: NonEmptyStr
     content: NonEmptyStr
-    author: CreatorRequestModel
     annotation: list[dict]
     copyright: CopyrightStatus = CopyrightStatus.PUBLIC_DOMAIN
     type: ManifestationType = ManifestationType.DIPLOMATIC

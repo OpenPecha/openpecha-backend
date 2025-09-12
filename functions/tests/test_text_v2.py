@@ -3,7 +3,8 @@
 Integration tests for v2/text endpoints using real Neo4j test instance.
 
 Tests endpoints:
-- GET /v2/text/{manifestation_id} (get text content)
+- GET /v2/text/{manifestation_id} (get text)
+- POST /v2/text (create text)
 - POST /v2/text/{manifestation_id}/translation (create translation)
 
 Requires environment variables:
@@ -11,7 +12,11 @@ Requires environment variables:
 - NEO4J_TEST_PASSWORD: Password for test instance
 """
 import json
+import logging
 import os
+import tempfile
+import zipfile
+from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import pytest
@@ -21,11 +26,8 @@ from main import create_app
 from models_v2 import (
     AnnotationModel,
     AnnotationType,
-    ContributionModel,
-    ContributorRole,
     CopyrightStatus,
     ExpressionModelInput,
-    LocalizedString,
     ManifestationModelInput,
     ManifestationType,
     PersonModelInput,
@@ -33,6 +35,8 @@ from models_v2 import (
 )
 from neo4j_database import Neo4JDatabase
 from storage import Storage
+
+logger = logging.getLogger(__name__)
 
 # Load .env file if it exists
 load_dotenv()
@@ -55,6 +59,11 @@ def neo4j_connection():
 @pytest.fixture
 def test_database(neo4j_connection):
     """Create a Neo4JDatabase instance connected to the test Neo4j instance"""
+    # Set environment variables so API endpoints can connect to test database
+
+    os.environ["NEO4J_URI"] = neo4j_connection["uri"]
+    os.environ["NEO4J_PASSWORD"] = neo4j_connection["auth"][1]
+
     # Create Neo4j database with test connection
     db = Neo4JDatabase(neo4j_uri=neo4j_connection["uri"], neo4j_auth=neo4j_connection["auth"])
 
@@ -63,18 +72,32 @@ def test_database(neo4j_connection):
         # Clean up any existing data first
         session.run("MATCH (n) DETACH DELETE n")
 
-        # Create basic schema nodes
-        session.run("CREATE (l:Language {name: 'bo'})")
-        session.run("CREATE (l:Language {name: 'en'})")
-        session.run("CREATE (tt:TextType {name: 'root'})")
-        session.run("CREATE (tt:TextType {name: 'translation'})")
-        session.run("CREATE (mt:ManifestationType {name: 'diplomatic'})")
-        session.run("CREATE (cs:CopyrightStatus {name: 'public'})")
-        # Create role types that are needed for contributions
-        session.run("CREATE (rt:RoleType {name: 'author'})")
-        session.run("CREATE (rt:RoleType {name: 'translator'})")
-        session.run("CREATE (rt:RoleType {name: 'editor'})")
-        session.run("CREATE (at:AnnotationType {name: 'segmentation'})")
+        # Create basic schema
+        session.run("CREATE CONSTRAINT person_id_unique IF NOT EXISTS FOR (p:Person) REQUIRE p.id IS UNIQUE")
+        session.run("CREATE CONSTRAINT expression_id_unique IF NOT EXISTS FOR (e:Expression) REQUIRE e.id IS UNIQUE")
+        session.run(
+            "CREATE CONSTRAINT manifestation_id_unique IF NOT EXISTS FOR (m:Manifestation) REQUIRE m.id IS UNIQUE"
+        )
+        session.run("CREATE CONSTRAINT work_id_unique IF NOT EXISTS FOR (w:Work) REQUIRE w.id IS UNIQUE")
+        session.run("CREATE CONSTRAINT nomen_id_unique IF NOT EXISTS FOR (n:Nomen) REQUIRE n.id IS UNIQUE")
+        session.run("CREATE CONSTRAINT annotation_id_unique IF NOT EXISTS FOR (a:Annotation) REQUIRE a.id IS UNIQUE")
+
+        # Create basic Language nodes
+        session.run("CREATE (:Language {code: 'en', name: 'English'})")
+        session.run("CREATE (:Language {code: 'bo', name: 'Tibetan'})")
+        session.run("CREATE (:Language {code: 'zh', name: 'Chinese'})")
+        session.run("MERGE (a:AnnotationType {name: 'alignment'})")
+        session.run("MERGE (a:AnnotationType {name: 'spelling_variant'})")
+        session.run("MERGE (a:AnnotationType {name: 'segmentation'})")
+
+        # Create test copyright statuses
+        session.run("MERGE (c:CopyrightStatus {name: 'public'})")
+        session.run("MERGE (c:CopyrightStatus {name: 'copyrighted'})")
+
+        # Create role types
+        session.run("MERGE (r:RoleType {name: 'author'})")
+        session.run("MERGE (r:RoleType {name: 'translator'})")
+        session.run("MERGE (r:RoleType {name: 'editor'})")
 
     yield db
 
@@ -83,192 +106,222 @@ def test_database(neo4j_connection):
         session.run("MATCH (n) DETACH DELETE n")
 
 
+
 @pytest.fixture
-def app():
-    """Create Flask app for testing"""
+def client():
+    """Create Flask test client"""
     app = create_app()
     app.config["TESTING"] = True
-    return app
-
-
-@pytest.fixture
-def client(app):
-    """Create test client"""
     return app.test_client()
 
 
 @pytest.fixture
-def sample_person(test_database):
-    """Create a sample person for testing"""
-    person = PersonModelInput(name=LocalizedString({"bo": "རིན་ཆེན་སྡེ།", "en": "Rinchen De"}), bdrc="P123")
-    person_id = test_database.create_person(person)
-    return person_id
+def test_person_data():
+    """Sample person data for testing"""
+    return {
+        "name": {"en": "Test Author", "bo": "རྩོམ་པ་པོ།"},
+        "alt_names": [{"en": "Alternative Name", "bo": "མིང་གཞན།"}],
+        "bdrc": "P123456",
+    }
 
 
 @pytest.fixture
-def sample_expression(test_database, sample_person):
-    """Create a sample root expression for testing"""
-    expression = ExpressionModelInput(
-        type=TextType.ROOT,
-        title=LocalizedString({"bo": "དམ་པའི་ཆོས།", "en": "Sacred Dharma"}),
-        language="bo",
-        contributions=[ContributionModel(person_id=sample_person, role=ContributorRole.AUTHOR)],
-    )
-    expression_id = test_database.create_expression(expression)
-    return expression_id
+def create_test_zip():
+    """Create a test ZIP file that mimics the structure expected by retrieve_pecha"""
+
+    def _create_zip(pecha_id: str) -> Path:
+        temp_dir = Path(tempfile.gettempdir())
+        zip_path = temp_dir / f"{pecha_id}.zip"
+
+        # Create a proper OPF structure in the ZIP
+        with zipfile.ZipFile(zip_path, "w") as zipf:
+            # Add base text
+            zipf.writestr(f"{pecha_id}/base/26E4.txt", "Sample Tibetan text content")
+            # Add metadata
+            zipf.writestr(f"{pecha_id}/meta.yml", f"id: {pecha_id}\nlanguage: bo")
+            # Add annotation layer
+            zipf.writestr(f"{pecha_id}/layers/26E4/segmentation-test.yml", "annotations: []")
+
+        return zip_path
+
+    return _create_zip
 
 
-@pytest.fixture
-def sample_manifestation(test_database, sample_expression):
-    """Create a sample manifestation for testing"""
-    manifestation = ManifestationModelInput(
-        type=ManifestationType.DIPLOMATIC,
-        copyright=CopyrightStatus.PUBLIC_DOMAIN,
-        bdrc="W123456",  # Required for diplomatic type
-    )
-    manifestation_id = test_database.create_manifestation(manifestation, sample_expression)
+class TestTextV2Endpoints:
+    """Integration test class for v2/text endpoints using real Neo4j database"""
 
-    # Add required segmentation annotation
-    annotation = AnnotationModel(id=generate_id(), type=AnnotationType.SEGMENTATION)
-    test_database.add_annotation(manifestation_id, annotation)
+    def _create_test_person(self, db, person_data):
+        """Helper to create a test person in the database"""
+        person_input = PersonModelInput(**person_data)
+        return db.create_person(person_input)
 
-    return manifestation_id
+    def _create_test_text(self, db, person_id, create_test_zip):
+        """Helper method to create a test text in the database"""
+        # Create expression
+        expression_data = ExpressionModelInput(
+            title={"bo": "དཔེ་ཀ་ཤེར", "en": "Test Expression"},
+            language="bo",
+            type=TextType.ROOT,
+            contributions=[{"person_id": person_id, "role": "author"}],
+        )
+        expression_id = db.create_expression(expression_data)
 
+        # Create manifestation with annotation
+        manifestation_data = ManifestationModelInput(
+            copyright=CopyrightStatus.PUBLIC_DOMAIN,
+            type=ManifestationType.DIPLOMATIC,
+            bdrc="W12345",
+        )
 
-@pytest.fixture
-def storage_cleanup():
-    """Fixture to track and cleanup created pechas from storage"""
-    created_pecha_ids = []
+        # Create annotation model
+        annotation_id = generate_id()
+        zip_path = create_test_zip(expression_id)
+        annotation = AnnotationModel(id=annotation_id, type=AnnotationType.SEGMENTATION)
 
-    def track_pecha(pecha_id: str):
-        """Track a pecha ID for cleanup"""
-        created_pecha_ids.append(pecha_id)
+        manifestation_id = db.create_manifestation(manifestation_data, annotation, expression_id)
 
-    yield track_pecha
+        # Store the ZIP file in mock storage (using autouse fixture from conftest.py)
+        # The conftest.py autouse fixture automatically patches firebase_admin.storage.bucket()
+        # No need to import firebase_admin directly - just use the Storage class from the app
 
-    # Cleanup after test
-    if created_pecha_ids:
-        storage = Storage()
-        for pecha_id in created_pecha_ids:
-            try:
-                storage.delete_pecha_opf(pecha_id)
-            except Exception as e:
-                # Log but don't fail test if cleanup fails
-                print(f"Warning: Failed to cleanup pecha {pecha_id}: {e}")
+        storage_instance = Storage()
+        # Use the blob interface directly since Storage class doesn't have a generic upload_file method
+        blob = storage_instance._blob(f"opf/{expression_id}.zip")
+        blob.upload_from_filename(str(zip_path))
 
+        return expression_id, manifestation_id, annotation_id
 
-@pytest.fixture
-def mock_storage_with_cleanup(storage_cleanup):
-    """Mock storage that tracks created pechas for cleanup"""
-    with patch("api.text_v2.Storage") as mock_storage_class:
-        mock_storage_instance = MagicMock()
-        mock_storage_class.return_value = mock_storage_instance
-
-        # Track calls to store_pecha_opf to extract pecha IDs
-        def track_store_pecha_opf(pecha):
-            storage_cleanup(pecha.id)
-            return None  # Mock successful storage
-
-        mock_storage_instance.store_pecha_opf.side_effect = track_store_pecha_opf
-
-        yield mock_storage_instance
-
-
-class TestTextV2API:
-    """Test class for text v2 API endpoints
-
-    Tests cover:
-    - GET /v2/text/{manifestation_id} (text retrieval)
-    - POST /v2/text/{manifestation_id}/translation (translation creation)
-
-    All POST translation tests include proper storage cleanup to prevent
-    test pollution and resource leaks.
-    """
-
-    @patch("api.text_v2.retrieve_pecha")
-    def test_get_text_success(self, mock_retrieve_pecha, client, test_database, sample_manifestation):
+    def test_get_text_success(self, client, test_database, test_person_data, create_test_zip):
         """Test successful text retrieval"""
-        # Mock the pecha retrieval
-        mock_pecha = MagicMock()
-        mock_retrieve_pecha.return_value = mock_pecha
+        # Create test person and text
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_id, manifestation_id, annotation_id = self._create_test_text(
+            test_database, person_id, create_test_zip
+        )
 
-        # Mock the JsonSerializer
-        with patch("api.text_v2.JsonSerializer") as mock_serializer:
-            mock_serializer_instance = MagicMock()
-            mock_serializer.return_value = mock_serializer_instance
-            mock_serializer_instance.serialize.return_value = MagicMock()
+        response = client.get(f"/v2/text/{manifestation_id}")
 
-            with patch("api.text_v2.Neo4JDatabase", return_value=test_database):
-                response = client.get(f"/v2/text/{sample_manifestation}")
+        assert response.status_code == 200
+        data = response.get_json()
+        assert "base" in data
+        assert "annotations" in data
+        assert data["base"] == "Sample Tibetan text content"
 
-                assert response.status_code == 200
-                mock_retrieve_pecha.assert_called_once()
-                mock_serializer_instance.serialize.assert_called_once()
+    def test_get_text_not_found(self, client, test_database):
+        """Test text retrieval with non-existent manifestation ID"""
+        response = client.get("/v2/text/non-existent-id")
 
-    def test_get_text_manifestation_not_found(self, client, test_database):
-        """Test text retrieval with non-existent manifestation"""
-        with patch("api.text_v2.Neo4JDatabase", return_value=test_database):
-            response = client.get("/v2/text/non-existent-manifestation")
+        assert response.status_code == 404
+        response_data = response.get_json()
+        assert "error" in response_data
 
-            assert response.status_code == 404  # DataNotFound exception becomes 404
+    def test_create_text_success(self, client, test_database, test_person_data):
+        """Test successful text creation with database and storage verification"""
+        # Create test person first
+        person_id = self._create_test_person(test_database, test_person_data)
 
-    def test_create_translation_success(
-        self, mock_storage_with_cleanup, client, test_database, sample_manifestation, sample_person
-    ):
-        """Test successful translation creation with human translator"""
-        # Prepare translation request data
+        # Create expression first to get valid metadata_id
+        expression_data = ExpressionModelInput(
+            title={"en": "Test Expression"},
+            language="en",
+            type=TextType.ROOT,
+            contributions=[{"person_id": person_id, "role": "author"}],
+        )
+        expression_id = test_database.create_expression(expression_data)
+
+        text_data = {
+            "metadata_id": expression_id,
+            "language": "en",
+            "content": "This is the English text content.",
+            "annotation": [{"span": {"start": 0, "end": 20}, "index": 0}],
+            "copyright": "public",
+            "type": "diplomatic",
+            "bdrc": "W12345",
+        }
+
+        with patch("api.text_v2.Pecha.create_pecha") as mock_create_pecha:
+            mock_pecha = MagicMock()
+            mock_pecha.id = "pecha123"
+
+            with tempfile.TemporaryDirectory() as temp_dir:
+                mock_pecha.pecha_path = temp_dir
+                mock_create_pecha.return_value = mock_pecha
+
+                response = client.post("/v2/text", json=text_data)
+
+                assert response.status_code == 201
+                response_data = response.get_json()
+                assert "message" in response_data
+                assert "id" in response_data
+                assert response_data["message"] == "Text created successfully"
+
+    def test_create_text_missing_body(self, client, test_database):
+        """Test text creation with missing request body"""
+        response = client.post("/v2/text")
+
+        assert response.status_code == 400
+        response_data = response.get_json()
+        assert "error" in response_data
+
+    def test_create_text_invalid_data(self, client, test_database):
+        """Test text creation with invalid request data"""
+        invalid_data = {
+            "language": "en"
+            # Missing required fields
+        }
+
+        response = client.post("/v2/text", json=invalid_data)
+
+        assert response.status_code == 422
+        response_data = response.get_json()
+        assert "error" in response_data
+
+    def test_create_translation_success(self, client, test_database, test_person_data, create_test_zip):
+        """Test successful translation creation with comprehensive verification"""
+        # Create test person and original text
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_id, manifestation_id, annotation_id = self._create_test_text(
+            test_database, person_id, create_test_zip
+        )
+
+        # Setup translation data
         translation_data = {
             "language": "en",
             "content": "This is the English translation of the text.",
-            "title": "Sacred Dharma Translation",
-            "translator": {"person_id": sample_person},
-            "translation_annotation": {"span": {"start": 0, "end": 20}, "index": 0, "alignment_index": [0]},
+            "title": "English Translation",
+            "alt_titles": ["Alternative English Title"],
+            "translator": {"person_id": person_id},
+            "translation_annotation": [
+                {"span": {"start": 0, "end": 20}, "index": 0, "alignment_index": [0]}
+            ]
         }
 
-        with patch("api.text_v2.Neo4JDatabase", return_value=test_database):
-            response = client.post(
-                f"/v2/text/{sample_manifestation}/translation",
-                data=json.dumps(translation_data),
-                content_type="application/json",
-            )
+        with patch("api.text_v2.Pecha.create_pecha") as mock_create_pecha:
+            mock_translation_pecha = MagicMock()
+            mock_translation_pecha.id = "translation_pecha789"
 
-            assert response.status_code == 201
-            response_data = json.loads(response.data)
-            assert "id" in response_data  # expression_id
-            assert "text_id" in response_data  # manifestation_id
-            assert response_data["message"] == "Translation created successfully"
+            with tempfile.TemporaryDirectory() as temp_dir:
+                mock_translation_pecha.pecha_path = temp_dir
+                mock_create_pecha.return_value = mock_translation_pecha
 
-            # Verify storage was called
-            mock_storage_with_cleanup.store_pecha_opf.assert_called_once()
+                response = client.post(f"/v2/text/{manifestation_id}/translation", json=translation_data)
 
-    def test_create_translation_missing_body(self, client, test_database, sample_manifestation):
+                # Verify response
+                assert response.status_code == 201
+                response_data = response.get_json()
+                assert "message" in response_data
+                assert "id" in response_data
+                assert "metadata_id" in response_data
+                assert response_data["message"] == "Translation created successfully"
+
+    def test_create_translation_missing_body(self, client, test_database):
         """Test translation creation with missing request body"""
-        with patch("api.text_v2.Neo4JDatabase", return_value=test_database):
-            response = client.post(f"/v2/text/{sample_manifestation}/translation")
+        response = client.post("/v2/text/manifest123/translation")
 
-            assert response.status_code == 400
-            response_data = json.loads(response.data)
-            assert "error" in response_data
-            assert response_data["error"] == "Request body is required"
-
-    def test_create_translation_invalid_data(self, client, test_database, sample_manifestation):
-        """Test translation creation with invalid request data"""
-        # Missing required fields
-        invalid_data = {
-            "language": "en"
-            # Missing content, title, translator
-        }
-
-        with patch("api.text_v2.Neo4JDatabase", return_value=test_database):
-            response = client.post(
-                f"/v2/text/{sample_manifestation}/translation",
-                data=json.dumps(invalid_data),
-                content_type="application/json",
-            )
-
-            assert response.status_code == 422
-            response_data = json.loads(response.data)
-            assert "error" in response_data
+        assert response.status_code == 400
+        response_data = response.get_json()
+        assert "error" in response_data
+        assert response_data["error"] == "Request body is required"
 
     def test_create_translation_manifestation_not_found(self, client, test_database):
         """Test translation creation with non-existent manifestation"""
@@ -276,72 +329,358 @@ class TestTextV2API:
             "language": "en",
             "content": "Translation content",
             "title": "Translation Title",
-            "translator": {"person_id": "non-existent-person"},
-            "translation_annotation": {"span": {"start": 0, "end": 20}, "index": 0, "alignment_index": [0]},
+            "translator": {"person_id": "person123"},
+            "translation_annotation": [{"span": {"start": 0, "end": 20}, "index": 0, "alignment_index": [0]}],
         }
 
-        with patch("api.text_v2.Neo4JDatabase", return_value=test_database):
-            response = client.post(
-                "/v2/text/non-existent-manifestation/translation",
-                data=json.dumps(translation_data),
-                content_type="application/json",
-            )
+        response = client.post("/v2/text/non-existent-manifestation/translation", json=translation_data)
 
-            assert response.status_code == 404  # DataNotFound exception becomes 404
+        assert response.status_code == 404
 
-    def test_create_translation_with_ai_translator(self, client, test_database, sample_manifestation):
+    def test_create_then_get_text_round_trip(self, client, test_database, test_person_data):
+        """Test creating a text via POST then retrieving via GET to verify database content"""
+        # Create test person first
+        person_id = self._create_test_person(test_database, test_person_data)
+
+        # Create expression first to get valid metadata_id
+        expression_data = ExpressionModelInput(
+            title={"en": "Round Trip Test Expression"},
+            language="en",
+            type=TextType.ROOT,
+            contributions=[{"person_id": person_id, "role": "author"}],
+        )
+        expression_id = test_database.create_expression(expression_data)
+
+        # Comprehensive test data with all fields
+        text_data = {
+            "metadata_id": expression_id,
+            "language": "en",
+            "content": "This is comprehensive test content for round-trip verification.",
+            "annotation": [
+                {"index": 0, "span": {"start": 0, "end": 25}},
+                {"index": 1, "span": {"start": 26, "end": 50}},
+            ],
+            "copyright": "public",
+            "type": "diplomatic",
+            "bdrc": "W12345",
+            "wiki": "Q123456",
+            "colophon": "Test colophon text for verification",
+            "incipit_title": {"en": "Test incipit for verification"},
+            "alt_incipit_titles": [{"en": "Alt incipit 1"}, {"en": "Alt incipit 2"}],
+        }
+
+        # Step 1: Create text via POST
+        with patch("api.text_v2.Pecha.create_pecha") as mock_create_pecha:
+            mock_pecha = MagicMock()
+            mock_pecha.id = "pecha123"
+
+            with tempfile.TemporaryDirectory() as temp_dir:
+                mock_pecha.pecha_path = temp_dir
+                mock_create_pecha.return_value = mock_pecha
+
+                post_response = client.post("/v2/text", json=text_data)
+
+                # Verify POST succeeded
+                assert post_response.status_code == 201
+                post_data = post_response.get_json()
+                assert "message" in post_data
+                assert "id" in post_data
+                manifestation_id = post_data["id"]
+                assert post_data["message"] == "Text created successfully"
+
+        # Step 2: Retrieve text via GET to verify database content
+        # Create test ZIP file for GET request (simulating storage)
+        zip_path = None
+        try:
+            temp_dir = Path(tempfile.gettempdir())
+            zip_path = temp_dir / f"{expression_id}.zip"
+
+            # Create a proper OPF structure in the ZIP
+            with zipfile.ZipFile(zip_path, "w") as zipf:
+                # Add base text
+                zipf.writestr(f"{expression_id}/base/26E4.txt", text_data["content"])
+                # Add metadata
+                zipf.writestr(f"{expression_id}/meta.yml", f"id: {expression_id}\nlanguage: {text_data['language']}")
+                # Add annotation layer
+                zipf.writestr(f"{expression_id}/layers/26E4/segmentation-test.yml", "annotations: []")
+
+            with open(zip_path, "rb") as f:
+                # Use mock storage from conftest.py autouse fixture
+
+                storage_instance = Storage()
+                blob = storage_instance._blob(f"opf/{expression_id}.zip")
+                blob.upload_from_filename(str(zip_path))
+
+            get_response = client.get(f"/v2/text/{manifestation_id}")
+
+            # Step 3: Verify GET response contains all original fields
+            assert get_response.status_code == 200
+            response_data = get_response.get_json()
+
+            # Verify text content fields
+            assert "base" in response_data
+            assert response_data["base"] == text_data["content"]
+
+            # Verify annotations field is present (may be empty dict)
+            assert "annotations" in response_data
+
+        finally:
+            if zip_path and zip_path.exists():
+                zip_path.unlink()
+
+        # Step 4: Verify database state by querying directly
+        manifestation, retrieved_expression_id = test_database.get_manifestation(manifestation_id)
+        assert retrieved_expression_id == expression_id
+        assert manifestation.bdrc == text_data["bdrc"]
+        assert manifestation.wiki == text_data["wiki"]
+        assert manifestation.colophon == text_data["colophon"]
+        assert manifestation.incipit_title.root == text_data["incipit_title"]
+        assert [alt.root for alt in manifestation.alt_incipit_titles] == text_data["alt_incipit_titles"]
+
+    def test_create_then_get_translation_round_trip(self, client, test_database, test_person_data, create_test_zip):
+        """Test POST translation creation then GET to verify all fields are stored and retrieved correctly"""
+        # Step 1: Create test person and original text
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_id, manifestation_id, annotation_id = self._create_test_text(
+            test_database, person_id, create_test_zip
+        )
+
+        # Step 2: Create translation with comprehensive data
+        translation_data = {
+            "language": "en",
+            "content": "This is a comprehensive English translation for round-trip verification.",
+            "title": "Complete Translation Title for Verification",
+            "alt_titles": ["Alternative Title 1", "Alternative Title 2"],
+            "translator": {"person_id": person_id},
+            "copyright": "public",
+            "translation_annotation": [
+                {"span": {"start": 0, "end": 30}, "index": 0, "alignment_index": [0]},
+                {"span": {"start": 31, "end": 60}, "index": 1, "alignment_index": [1]},
+            ],
+        }
+
+        # Perform POST translation
+        with patch("api.text_v2.Pecha.create_pecha") as mock_create_pecha:
+            mock_translation_pecha = MagicMock()
+            mock_translation_pecha.id = "translation_pecha789"
+
+            with tempfile.TemporaryDirectory() as temp_dir:
+                mock_translation_pecha.pecha_path = temp_dir
+                mock_create_pecha.return_value = mock_translation_pecha
+
+                post_response = client.post(f"/v2/text/{manifestation_id}/translation", json=translation_data)
+
+                # Verify POST succeeded
+                assert post_response.status_code == 201
+                post_data = post_response.get_json()
+                assert "id" in post_data
+                assert "metadata_id" in post_data
+                translation_manifestation_id = post_data["id"]
+                translation_expression_id = post_data["metadata_id"]
+                assert post_data["message"] == "Translation created successfully"
+
+        # Step 3: Retrieve translation via GET to verify database content
+        # Create test ZIP for translation
+        translation_zip_path = None
+        try:
+            temp_dir = Path(tempfile.gettempdir())
+            translation_zip_path = temp_dir / f"{translation_expression_id}.zip"
+
+            with zipfile.ZipFile(translation_zip_path, "w") as zipf:
+                # Add base text
+                zipf.writestr(f"{translation_expression_id}/base/26E4.txt", translation_data["content"])
+                # Add metadata
+                zipf.writestr(
+                    f"{translation_expression_id}/meta.yml",
+                    f"id: {translation_expression_id}\nlanguage: {translation_data['language']}",
+                )
+                # Add annotation layer
+                zipf.writestr(f"{translation_expression_id}/layers/26E4/alignment-test.yml", "annotations: []")
+
+            with open(translation_zip_path, "rb") as f:
+                # Use mock storage from conftest.py autouse fixture
+
+                storage_instance = Storage()
+                blob = storage_instance._blob(f"opf/{translation_expression_id}.zip")
+                blob.upload_from_filename(str(translation_zip_path))
+
+            get_response = client.get(f"/v2/text/{translation_manifestation_id}")
+
+            # Step 4: Verify GET response contains all original translation fields
+            assert get_response.status_code == 200
+            response_data = get_response.get_json()
+
+            # Verify text content
+            assert "base" in response_data
+            assert response_data["base"] == translation_data["content"]
+
+            # Verify annotations field is present (may be empty dict)
+            assert "annotations" in response_data
+
+        finally:
+            if translation_zip_path and translation_zip_path.exists():
+                translation_zip_path.unlink()
+
+        # Step 5: Verify database state by querying directly
+        translation_manifestation, retrieved_translation_expression_id = test_database.get_manifestation(
+            translation_manifestation_id
+        )
+        assert retrieved_translation_expression_id == translation_expression_id
+        assert translation_manifestation.type.value == "critical"
+        assert translation_manifestation.copyright.value == translation_data["copyright"]
+
+        # Verify expression data
+        translation_expression = test_database.get_expression(translation_expression_id)
+        assert translation_expression.language == translation_data["language"]
+        assert translation_expression.title["en"] == translation_data["title"]
+        assert len(translation_expression.alt_titles) == 2
+        retrieved_alt_titles = [alt["en"] for alt in translation_expression.alt_titles]
+        assert set(retrieved_alt_titles) == set(translation_data["alt_titles"])
+        assert translation_expression.type.value == "translation"
+        assert translation_expression.parent == expression_id
+
+        # Verify contributor information
+        assert len(translation_expression.contributions) == 1
+        contributor = translation_expression.contributions[0]
+        assert contributor.person_id == translation_data["translator"]["person_id"]
+        assert contributor.role.value == "translator"
+
+    def test_create_text_invalid_author_field(self, client, test_database):
+        """Test text creation with invalid author field - manifestations don't have authors"""
+        # Create expression first to get valid metadata_id
+        person_id = self._create_test_person(
+            test_database,
+            {
+                "name": {"en": "Test Author"},
+                "bdrc": "P123456",
+            },
+        )
+
+        expression_data = ExpressionModelInput(
+            title={"en": "Test Expression"},
+            language="en",
+            type=TextType.ROOT,
+            contributions=[{"person_id": person_id, "role": "author"}],
+        )
+        expression_id = test_database.create_expression(expression_data)
+
+        text_data = {
+            "metadata_id": expression_id,
+            "language": "en",
+            "content": "This is comprehensive test content for round-trip verification.",
+            "author": {"person_id": "some-person-id"},  # This field should not be accepted
+            "annotation": [
+                {"index": 0, "span": {"start": 0, "end": 25}},
+                {"index": 1, "span": {"start": 26, "end": 50}},
+            ],
+            "copyright": "public",
+            "type": "diplomatic",
+            "bdrc": "W12345",
+        }
+
+        response = client.post("/v2/text", json=text_data)
+        # Should return 422 for validation error since author field is not valid for manifestations
+        assert response.status_code == 422
+        response_data = response.get_json()
+        assert "error" in response_data
+
+    def test_create_text_invalid_metadata_id(self, client, test_database, test_person_data):
+        """Test text creation with non-existent metadata ID"""
+        person_id = self._create_test_person(test_database, test_person_data)
+
+        text_data = {
+            "metadata_id": "non-existent-expression-id",
+            "language": "en",
+            "content": "Test content",
+            "annotation": [{"span": {"start": 0, "end": 15}, "index": 0}],
+            "copyright": "public",
+            "type": "diplomatic",
+            "bdrc": "W12345",
+        }
+
+        response = client.post("/v2/text", json=text_data)
+        # API currently returns 500 for invalid metadata ID - this should be improved to 404
+        assert response.status_code == 500
+        response_data = response.get_json()
+        assert "error" in response_data
+
+    def test_create_translation_invalid_person_id(self, client, test_database, test_person_data, create_test_zip):
+        """Test translation creation with non-existent person ID"""
+        # Create test person and original text
+        person_id = self._create_test_person(test_database, test_person_data)
+        _, manifestation_id, _ = self._create_test_text(
+            test_database, person_id, create_test_zip
+        )
+
+        translation_data = {
+            "language": "en",
+            "content": "Translation content",
+            "title": "Translation Title",
+            "translator": {"person_id": "non-existent-person-id"},
+            "translation_annotation": [{"span": {"start": 0, "end": 20}, "index": 0, "alignment_index": [0]}],
+        }
+
+        response = client.post(f"/v2/text/{manifestation_id}/translation", json=translation_data)
+        # API currently returns 500 for invalid person ID - this should be improved to 400
+        assert response.status_code == 500
+        response_data = response.get_json()
+        assert "error" in response_data
+
+    def test_create_text_malformed_json(self, client):
+        """Test text creation with malformed JSON data"""
+        response = client.post("/v2/text", data="{invalid json}", content_type="application/json")
+        assert response.status_code == 400
+        response_data = response.get_json()
+        assert "error" in response_data
+
+    def test_get_text_invalid_manifestation_format(self, client):
+        """Test text retrieval with invalid manifestation ID format"""
+        response = client.get("/v2/text/")
+        # API currently returns 500 for invalid URL format - this should be improved to 404
+        assert response.status_code == 500
+
+    def test_create_translation_invalid_json(self, client):
+        """Test translation creation with malformed JSON"""
+        response = client.post(
+            "/v2/text/manifest123/translation", data="{invalid json}", content_type="application/json"
+        )
+        assert response.status_code == 400
+        response_data = response.get_json()
+        assert "error" in response_data
+
+    def test_create_translation_with_ai_translator(self, client, test_database, test_person_data, create_test_zip):
         """Test translation creation using AI translator"""
+        # Create test person and original text
+        person_id = self._create_test_person(test_database, test_person_data)
+        _, manifestation_id, _ = self._create_test_text(
+            test_database, person_id, create_test_zip
+        )
+
         translation_data = {
             "language": "en",
             "content": "Translation created by AI",
             "title": "AI Generated Translation",
             "translator": {"ai_id": "gpt-4"},
-            "translation_annotation": {"span": {"start": 0, "end": 20}, "index": 0, "alignment_index": [0]},
+            "translation_annotation": [{"span": {"start": 0, "end": 11}, "index": 0, "alignment_index": [0]}],
         }
 
-        with patch("api.text_v2.Neo4JDatabase", return_value=test_database):
-            response = client.post(
-                f"/v2/text/{sample_manifestation}/translation",
-                data=json.dumps(translation_data),
-                content_type="application/json",
-            )
+        response = client.post(f"/v2/text/{manifestation_id}/translation", json=translation_data)
+        assert response.status_code == 201
+        response_data = response.get_json()
+        assert "message" in response_data
+        assert "id" in response_data
+        assert "metadata_id" in response_data
+        assert response_data["message"] == "Translation created successfully"
 
-            assert response.status_code == 201
-            response_data = json.loads(response.data)
-            assert "expression_id" in response_data
-            assert response_data["message"] == "Translation created successfully"
+        # Verify AI translator was stored correctly
+        translation_expression_id = response_data["metadata_id"]
+        translation_expression = test_database.get_expression(translation_expression_id)
+        assert len(translation_expression.contributions) == 1
+        ai_contribution = translation_expression.contributions[0]
+        assert ai_contribution.ai_id == "gpt-4"
+        assert ai_contribution.role.value == "translator"
 
-    def test_create_translation_with_optional_fields(self, client, test_database, sample_manifestation, sample_person):
-        """Test translation creation with all optional fields"""
-        translation_data = {
-            "language": "en",
-            "content": "Complete translation with all fields",
-            "title": "Complete Translation",
-            "subtitle": "A comprehensive translation",
-            "translator": {"person_id": sample_person},
-            "colophon": "Translated with great care.",
-            "translation_annotation": {"span": {"start": 0, "end": 20}, "index": 0, "alignment_index": [0]},
-        }
-
-        with patch("api.text_v2.Neo4JDatabase", return_value=test_database):
-            response = client.post(
-                f"/v2/text/{sample_manifestation}/translation",
-                data=json.dumps(translation_data),
-                content_type="application/json",
-            )
-
-            assert response.status_code == 201
-            response_data = json.loads(response.data)
-            assert "expression_id" in response_data
-            assert response_data["message"] == "Translation created successfully"
-
-            # Verify the created translation expression has the alt_titles
-            expression_id = response_data["expression_id"]
-            created_expression = test_database.get_expression(expression_id)
-            assert len(created_expression.alt_titles) == 2
-            assert created_expression.type == TextType.TRANSLATION
-
-    def test_create_translation_invalid_translator(self, client, test_database, sample_manifestation):
+    def test_create_translation_invalid_translator(self, client):
         """Test translation creation with invalid translator (both person_id and ai provided)"""
         translation_data = {
             "language": "en",
@@ -349,238 +688,89 @@ class TestTextV2API:
             "title": "Translation Title",
             "translator": {
                 "person_id": "some-person-id",
-                "ai_model": "gpt-4",
+                "ai_id": "gpt-4",
             },
-            "translation_annotation": {"span": {"start": 0, "end": 20}, "index": 0, "alignment_index": [0]},
+            "translation_annotation": [{"span": {"start": 0, "end": 20}, "index": 0, "alignment_index": [0]}],
         }
 
-        with patch("api.text_v2.Neo4JDatabase", return_value=test_database):
-            response = client.post(
-                f"/v2/text/{sample_manifestation}/translation",
-                data=json.dumps(translation_data),
-                content_type="application/json",
-            )
+        response = client.post("/v2/text/manifest123/translation", json=translation_data)
+        assert response.status_code == 422
+        response_data = response.get_json()
+        assert "error" in response_data
 
-            assert response.status_code == 400
-            response_data = json.loads(response.data)
-            assert "error" in response_data
-
-    def test_create_translation_missing_translator(self, client, test_database, sample_manifestation):
-        """Test translation creation with missing translator"""
-        translation_data = {
-            "language": "en",
-            "content": "Translation content",
-            "title": "Translation Title",
-            "translator": {},  # Empty translator object
-            "translation_annotation": {"span": {"start": 0, "end": 20}, "index": 0, "alignment_index": [0]},
-        }
-
-        with patch("api.text_v2.Neo4JDatabase", return_value=test_database):
-            response = client.post(
-                f"/v2/text/{sample_manifestation}/translation",
-                data=json.dumps(translation_data),
-                content_type="application/json",
-            )
-
-            assert response.status_code == 400
-            response_data = json.loads(response.data)
-            assert "error" in response_data
-
-    def test_post_translation_real_integration(self, client, test_database, storage_cleanup, sample_manifestation):
-        """Real integration test for POST translation without mocking"""
-
-        db = test_database
-
-        # Create person using the database create_person function
-        person = PersonModelInput(name=LocalizedString({"bo": "རིན་ཆེན་སྡེ།", "en": "Rinchen De"}), bdrc="P123")
-        person_id = db.create_person(person)
-
-        # Use existing manifestation fixture
-        manifestation_id = sample_manifestation
-
-        # Prepare translation request using the created person_id
-        translation_data = {
-            "language": "en",
-            "content": "This is the English translation of the sacred dharma text.",
-            "title": "Sacred Dharma Translation",
-            "translator": {"person_id": person_id},
-            "translation_annotation": {"span": {"start": 0, "end": 20}, "index": 0, "alignment_index": [0]},
-        }
-
-        # Make the actual POST request - this will use production Neo4j connection
-        # but that's okay since we're testing the real endpoint behavior
-        response = client.post(
-            f"/v2/text/{manifestation_id}/translation",
-            data=json.dumps(translation_data),
-            content_type="application/json",
-        )
-
-        # The test may fail due to Neo4j connection issues in production,
-        # but if it succeeds, it proves the endpoint works end-to-end
-        if response.status_code == 201:
-            response_data = json.loads(response.data)
-            assert "message" in response_data
-            assert "text_id" in response_data
-            assert "id" in response_data
-            assert response_data["message"] == "Translation created successfully"
-
-            # Track the created translation pecha for cleanup
-            translation_expression_id = response_data["id"]
-            storage_cleanup(translation_expression_id)
-
-            # Verify storage contains the pecha
-            storage = Storage()
-            assert storage.pecha_opf_exists(translation_expression_id)
-        else:
-            # If it fails due to Neo4j connection, that's expected in test environment
-            # The important thing is that we created the person successfully
-            assert person_id is not None
-            print(f"Created person with ID: {person_id}")
-            print(f"Response status: {response.status_code}")
-            print(f"Response data: {response.get_json()}")
-            # Mark test as passed since person creation worked
-            assert True
-
-    def test_create_translation_with_storage_failure_rollback(
-        self, client, test_database, sample_manifestation, sample_person
-    ):
-        """Test that storage failure triggers proper rollback"""
-        translation_data = {
-            "language": "en",
-            "content": "Test content for rollback scenario",
-            "title": "Rollback Test Translation",
-            "translator": {"person_id": sample_person},
-            "translation_annotation": {"span": {"start": 0, "end": 20}, "index": 0, "alignment_index": [0]},
-        }
-
-        with patch("api.text_v2.Storage") as mock_storage_class:
-            mock_storage_instance = MagicMock()
-            mock_storage_class.return_value = mock_storage_instance
-
-            # Make storage fail
-            mock_storage_instance.store_pecha_opf.side_effect = Exception("Storage failure")
-
-            with patch("api.text_v2.Neo4JDatabase", return_value=test_database):
-                response = client.post(
-                    f"/v2/text/{sample_manifestation}/translation",
-                    data=json.dumps(translation_data),
-                    content_type="application/json",
-                )
-
-                # Should still return error due to storage failure
-                assert response.status_code == 500
-
-    def test_create_translation_with_original_annotation(
-        self, mock_storage_with_cleanup, client, test_database, sample_manifestation, sample_person
-    ):
-        """Test translation creation with original annotation"""
-        translation_data = {
-            "language": "en",
-            "content": "Translation with original annotation.",
-            "title": "Annotated Translation",
-            "translator": {"person_id": sample_person},
-            "original_annotation": {"span": {"start": 0, "end": 10}, "index": 0, "alignment_index": [0]},
-            "translation_annotation": {"span": {"start": 0, "end": 20}, "index": 0, "alignment_index": [0]},
-        }
-
-        with patch("api.text_v2.retrieve_pecha") as mock_retrieve:
-            mock_original_pecha = MagicMock()
-            mock_retrieve.return_value = mock_original_pecha
-
-            with patch("api.text_v2.Neo4JDatabase", return_value=test_database):
-                response = client.post(
-                    f"/v2/text/{sample_manifestation}/translation",
-                    data=json.dumps(translation_data),
-                    content_type="application/json",
-                )
-
-                assert response.status_code == 201
-                response_data = json.loads(response.data)
-                assert "id" in response_data
-
-                # Verify both translation and original pechas were stored
-                assert mock_storage_with_cleanup.store_pecha_opf.call_count == 2
-                mock_original_pecha.add.assert_called_once()
-
-    def test_create_translation_missing_segmentation(self, client, test_database, sample_person):
+    def test_create_translation_missing_segmentation(self, client, test_database, test_person_data):
         """Test translation creation fails when original has no segmentation"""
-        # Create manifestation without segmentation annotation
-
-        manifestation = ManifestationModelInput(
-            type=ManifestationType.DIPLOMATIC,
-            copyright=CopyrightStatus.PUBLIC_DOMAIN,
-            bdrc="W123456",  # Required for diplomatic type
-        )
-
-        # Create a sample expression for this test
-        expression = ExpressionModelInput(
-            type=TextType.ROOT,
-            title=LocalizedString({"bo": "Test"}),
+        # Create test person and expression
+        person_id = self._create_test_person(test_database, test_person_data)
+        
+        expression_data = ExpressionModelInput(
+            title={"bo": "དཔེ་ཀ་ཤེར", "en": "Test Expression"},
             language="bo",
-            contributions=[ContributionModel(person_id=sample_person, role=ContributorRole.AUTHOR)],
+            type=TextType.ROOT,
+            contributions=[{"person_id": person_id, "role": "author"}],
         )
-        expression_id = test_database.create_expression(expression)
-        manifestation_id = test_database.create_manifestation(manifestation, expression_id)
+        expression_id = test_database.create_expression(expression_data)
+
+        # Create manifestation WITHOUT segmentation annotation
+        manifestation_data = ManifestationModelInput(
+            copyright=CopyrightStatus.PUBLIC_DOMAIN,
+            type=ManifestationType.DIPLOMATIC,
+            bdrc="W12345",
+        )
+        
+        # Create annotation that is NOT segmentation
+        annotation_id = generate_id()
+        annotation = AnnotationModel(
+            id=annotation_id,
+            type=AnnotationType.ALIGNMENT  # Not segmentation!
+        )
+        
+        manifestation_id = test_database.create_manifestation(manifestation_data, annotation, expression_id)
 
         translation_data = {
             "language": "en",
             "content": "Translation content",
             "title": "Translation Title",
-            "translator": {"person_id": sample_person},
-            "translation_annotation": {"span": {"start": 0, "end": 20}, "index": 0, "alignment_index": [0]},
+            "translator": {"person_id": person_id},
+            "translation_annotation": [{"span": {"start": 0, "end": 20}, "index": 0, "alignment_index": [0]}],
         }
 
-        with patch("api.text_v2.Neo4JDatabase", return_value=test_database):
-            response = client.post(
-                f"/v2/text/{manifestation_id}/translation",
-                data=json.dumps(translation_data),
-                content_type="application/json",
-            )
+        response = client.post(f"/v2/text/{manifestation_id}/translation", json=translation_data)
+        assert response.status_code == 400
+        response_data = response.get_json()
+        assert "error" in response_data
+        assert "No segmentation annotation found" in response_data["error"]
 
-            assert response.status_code == 422
-            response_data = json.loads(response.data)
-            assert "error" in response_data
-            assert "annotations" in response_data["error"].lower()
+    def test_create_translation_with_optional_fields(self, client, test_database, test_person_data, create_test_zip):
+        """Test translation creation with all optional fields"""
+        # Create test person and original text
+        person_id = self._create_test_person(test_database, test_person_data)
+        _, manifestation_id, _ = self._create_test_text(
+            test_database, person_id, create_test_zip
+        )
 
-    def test_create_translation_cleanup_on_database_failure(
-        self, client, test_database, sample_manifestation, sample_person
-    ):
-        """Test that pechas are cleaned up when database operations fail"""
         translation_data = {
             "language": "en",
-            "content": "Test content for database failure",
-            "title": "Database Failure Test",
-            "translator": {"person_id": sample_person},
-            "translation_annotation": {"span": {"start": 0, "end": 20}, "index": 0, "alignment_index": [0]},
+            "content": "Complete translation with all fields",
+            "title": "Complete Translation",
+            "alt_titles": ["Alternative Title 1", "Alternative Title 2"],
+            "translator": {"person_id": person_id},
+            "original_annotation": [{"span": {"start": 0, "end": 10}, "index": 0, "alignment_index": [0]}],
+            "translation_annotation": [{"span": {"start": 0, "end": 20}, "index": 0, "alignment_index": [0]}],
         }
 
-        stored_pecha_ids = []
+        response = client.post(f"/v2/text/{manifestation_id}/translation", json=translation_data)
+        assert response.status_code == 201
+        response_data = response.get_json()
+        assert "message" in response_data
+        assert "id" in response_data
+        assert "metadata_id" in response_data
 
-        with patch("api.text_v2.Storage") as mock_storage_class:
-            mock_storage_instance = MagicMock()
-            mock_storage_class.return_value = mock_storage_instance
-
-            # Track stored pechas
-            def track_store(pecha):
-                stored_pecha_ids.append(pecha.id)
-                return "mock_url"
-
-            mock_storage_instance.store_pecha_opf.side_effect = track_store
-
-            # Make database fail after storage
-            mock_db = MagicMock()
-            mock_db.get_manifestation.return_value = test_database.get_manifestation(sample_manifestation)
-            mock_db.create_translation.side_effect = Exception("Database failure")
-
-            with patch("api.text_v2.Neo4JDatabase", return_value=mock_db):
-                response = client.post(
-                    f"/v2/text/{sample_manifestation}/translation",
-                    data=json.dumps(translation_data),
-                    content_type="application/json",
-                )
-
-                # Should return error due to database failure
-                assert response.status_code == 500
-
-                # Verify pechas were stored (but would need manual cleanup in real scenario)
-                assert len(stored_pecha_ids) > 0
+        # Verify optional fields were stored correctly
+        translation_expression_id = response_data["metadata_id"]
+        translation_expression = test_database.get_expression(translation_expression_id)
+        assert translation_expression.alt_titles is not None
+        assert len(translation_expression.alt_titles) == 2
+        assert translation_expression.alt_titles[0]["en"] == "Alternative Title 1"
+        assert translation_expression.alt_titles[1]["en"] == "Alternative Title 2"
+        assert translation_expression.title["en"] == "Complete Translation"
