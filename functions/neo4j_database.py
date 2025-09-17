@@ -125,7 +125,6 @@ class Neo4JDatabase:
             return self._process_manifestation_data(d["manifestation"]), d["expression_id"]
 
     def get_manifestation_by_annotation(self, annotation_id: str) -> tuple[ManifestationModelOutput, str] | None:
-        """Find the manifestation that contains the given annotation ID and return it with expression ID"""
         with self.__driver.session() as session:
             record = session.execute_read(
                 lambda tx: tx.run(

@@ -158,12 +158,12 @@ class ManifestationModelOutput(ManifestationModelBase):
         aligned_annotations = [ann for ann in self.annotations if ann.aligned_to is not None]
         if len(aligned_annotations) > 1:
             raise ValueError("Only one annotation can have aligned_to set")
-        
+
         # Check that only one annotation is segmentation
         segmentation_annotations = [ann for ann in self.annotations if ann.type == AnnotationType.SEGMENTATION]
         if len(segmentation_annotations) > 1:
             raise ValueError("Only one annotation can be of type SEGMENTATION")
-        
+
         return self
 
     @property
@@ -203,7 +203,6 @@ class TranslationRequestModel(OpenPechaModel):
 
 class TextRequestModel(OpenPechaModel):
     metadata_id: str
-    language: NonEmptyStr
     content: NonEmptyStr
     annotation: list[dict]
     copyright: CopyrightStatus = CopyrightStatus.PUBLIC_DOMAIN

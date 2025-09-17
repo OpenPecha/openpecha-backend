@@ -229,7 +229,6 @@ class TestTextV2Endpoints:
 
         text_data = {
             "metadata_id": expression_id,
-            "language": "en",
             "content": "This is the English text content.",
             "annotation": [{"span": {"start": 0, "end": 20}, "index": 0}],
             "copyright": "public",
@@ -535,12 +534,12 @@ class TestTextV2Endpoints:
         """Test GET text with aligned=true parameter - successful alignment"""
         # Create a simple test that focuses on our endpoint logic
         person_id = self._create_test_person(test_database, test_person_data)
-        
+
         # Create source text
         source_expression_id, source_manifestation_id = self._create_test_text(
             test_database, person_id, create_test_zip
         )
-        
+
         # Get the source segmentation annotation ID
         source_manifestation, _ = test_database.get_manifestation(source_manifestation_id)
         source_segmentation_id = source_manifestation.segmentation_annotation_id
@@ -552,9 +551,7 @@ class TestTextV2Endpoints:
         )
 
         alignment_annotation = AnnotationModel(
-            id=generate_id(),
-            type=AnnotationType.ALIGNMENT,
-            aligned_to=source_segmentation_id
+            id=generate_id(), type=AnnotationType.ALIGNMENT, aligned_to=source_segmentation_id
         )
 
         target_manifestation_id = test_database.create_manifestation(
@@ -564,13 +561,13 @@ class TestTextV2Endpoints:
         # Test GET with aligned=true on the target
         # This should find the source manifestation via the aligned_to annotation
         response = client.get(f"/v2/text/{target_manifestation_id}?aligned=true")
-        
+
         # The test should pass our endpoint logic but may fail at serializer level
         # We're mainly testing that our endpoint correctly:
         # 1. Finds the aligned_to annotation
         # 2. Looks up the source manifestation
         # 3. Attempts to serialize with both target and source
-        
+
         # If it fails due to serializer issues, that's expected for now
         # The important thing is that our endpoint logic works
         if response.status_code == 500:
@@ -592,7 +589,7 @@ class TestTextV2Endpoints:
 
         # Test GET with aligned=true on text that has no aligned_to
         response = client.get(f"/v2/text/{manifestation_id}?aligned=true")
-        
+
         assert response.status_code == 400
         response_data = response.get_json()
         assert "error" in response_data
@@ -601,7 +598,7 @@ class TestTextV2Endpoints:
     def test_get_text_aligned_invalid_aligned_to(self, client, test_database, test_person_data, create_test_zip):
         """Test GET text with aligned=true but aligned_to points to non-existent annotation - should return 400"""
         person_id = self._create_test_person(test_database, test_person_data)
-        
+
         # Use the working pattern to create a base text first
         expression_id, _ = self._create_test_text(test_database, person_id, create_test_zip)
 
@@ -612,18 +609,14 @@ class TestTextV2Endpoints:
         )
 
         alignment_annotation = AnnotationModel(
-            id=generate_id(),
-            type=AnnotationType.ALIGNMENT,
-            aligned_to="non-existent-annotation-id"
+            id=generate_id(), type=AnnotationType.ALIGNMENT, aligned_to="non-existent-annotation-id"
         )
 
-        manifestation_id = test_database.create_manifestation(
-            manifestation_data, alignment_annotation, expression_id
-        )
+        manifestation_id = test_database.create_manifestation(manifestation_data, alignment_annotation, expression_id)
 
         # Test GET with aligned=true
         response = client.get(f"/v2/text/{manifestation_id}?aligned=true")
-        
+
         assert response.status_code == 400
         response_data = response.get_json()
         assert "error" in response_data
@@ -636,7 +629,7 @@ class TestTextV2Endpoints:
 
         # Test GET with aligned=false (explicit)
         response = client.get(f"/v2/text/{manifestation_id}?aligned=false")
-        
+
         assert response.status_code == 200
         response_data = response.get_json()
         assert "base" in response_data
@@ -663,7 +656,6 @@ class TestTextV2Endpoints:
 
         text_data = {
             "metadata_id": expression_id,
-            "language": "en",
             "content": "This is comprehensive test content for round-trip verification.",
             "author": {"person_id": "some-person-id"},  # This field should not be accepted
             "annotation": [
@@ -687,7 +679,6 @@ class TestTextV2Endpoints:
 
         text_data = {
             "metadata_id": "non-existent-expression-id",
-            "language": "en",
             "content": "Test content",
             "annotation": [{"span": {"start": 0, "end": 15}, "index": 0}],
             "copyright": "public",
