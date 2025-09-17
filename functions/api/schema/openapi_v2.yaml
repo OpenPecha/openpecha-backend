@@ -1,0 +1,903 @@
+openapi: '3.1.0'
+info:
+  title: OpenPecha API v2
+  version: '2.0.0'
+servers:
+  - url: https://api-l25bgmwqoa-uc.a.run.app
+    description: Development
+  - url: https://api-aq25662yyq-uc.a.run.app
+    description: Production
+
+paths:
+  /v2/text/{text_id}:
+    get:
+      summary: Retrieve text by text ID
+      description: Fetch text content for a given text ID with optional alignment
+      tags:
+        - Text v2
+      parameters:
+        - name: text_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the text to retrieve
+        - name: aligned
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: Whether to include aligned source text
+      responses:
+        "200":
+          description: Text retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  target:
+                    type: object
+                    properties:
+                      pecha:
+                        type: object
+                      annotations:
+                        type: array
+                        items:
+                          type: object
+                  source:
+                    type: object
+                    properties:
+                      pecha:
+                        type: object
+                      annotations:
+                        type: array
+                        items:
+                          type: object
+              examples:
+                success:
+                  summary: Text with alignment
+                  value:
+                    target:
+                      pecha:
+                        id: "I12345678"
+                        base_text: "This is the target text content"
+                      annotations:
+                        - id: "A12345678"
+                          type: "segmentation"
+                    source:
+                      pecha:
+                        id: "I87654321"
+                        base_text: "This is the source text content"
+                      annotations:
+                        - id: "A87654321"
+                          type: "alignment"
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+  /v2/text:
+    post:
+      summary: Create a new text
+      description: Create a new text with manifestation and annotation data
+      tags:
+        - Text v2
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - metadata_id
+                - content
+                - annotation
+              properties:
+                metadata_id:
+                  type: string
+                  description: ID of the associated metadata
+                content:
+                  type: string
+                  description: The text content
+                annotation:
+                  type: array
+                  items:
+                    type: object
+                  description: Segmentation annotation data
+                copyright:
+                  type: string
+                  enum: [public, copyrighted]
+                  default: public
+                type:
+                  type: string
+                  enum: [diplomatic, critical, collated]
+                  default: diplomatic
+                bdrc:
+                  type: string
+                wiki:
+                  type: string
+                colophon:
+                  type: string
+                incipit_title:
+                  type: object
+                  additionalProperties:
+                    type: string
+                alt_incipit_titles:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties:
+                      type: string
+            examples:
+              valid_text:
+                summary: Valid text creation request
+                value:
+                  metadata_id: "M12345678"
+                  content: "This is the text content to be stored"
+                  annotation:
+                    - span:
+                        start: 0
+                        end: 20
+                      index: 0
+                      alignment_index: [0]
+                  copyright: "public"
+                  type: "diplomatic"
+                  bdrc: "W123456"
+      responses:
+        "201":
+          description: Text created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - "Text created successfully"
+                  id:
+                    type: string
+                    examples:
+                      - "T12345678"
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "422":
+          $ref: '#/components/responses/ValidationError'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+  /v2/text/{original_text_id}/translation:
+    post:
+      summary: Create a translation
+      description: Create a translation of an existing text
+      tags:
+        - Text v2
+      parameters:
+        - name: original_text_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the original text to translate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - language
+                - content
+                - title
+                - translator
+                - translation_annotation
+              properties:
+                language:
+                  type: string
+                  description: Target language code
+                content:
+                  type: string
+                  description: The translated text content
+                title:
+                  type: string
+                  description: Title of the translation
+                alt_titles:
+                  type: array
+                  items:
+                    type: string
+                translator:
+                  type: object
+                  properties:
+                    person_id:
+                      type: string
+                    person_bdrc_id:
+                      type: string
+                    ai_id:
+                      type: string
+                translation_annotation:
+                  type: array
+                  items:
+                    type: object
+                  description: Alignment annotation for translation
+                original_annotation:
+                  type: array
+                  items:
+                    type: object
+                  description: Optional alignment annotation for original text
+                copyright:
+                  type: string
+                  enum: [public, copyrighted]
+                  default: public
+            examples:
+              valid_translation:
+                summary: Valid translation creation request
+                value:
+                  language: "en"
+                  content: "This is the translated text content"
+                  title: "Translated Title"
+                  translator:
+                    person_id: "P12345678"
+                  translation_annotation:
+                    - span:
+                        start: 0
+                        end: 20
+                      index: 0
+                      alignment_index: [0]
+                  copyright: "public"
+      responses:
+        "201":
+          description: Translation created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - "Translation created successfully"
+                  id:
+                    type: string
+                    examples:
+                      - "T12345678"
+                  metadata_id:
+                    type: string
+                    examples:
+                      - "M12345678"
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "422":
+          $ref: '#/components/responses/ValidationError'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+  /v2/metadata:
+    get:
+      summary: Retrieve all metadata
+      description: Fetch all metadata with optional filtering and pagination
+      tags:
+        - Metadata v2
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Number of results per page
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: Number of results to skip
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [root, commentary, translation]
+          description: Filter by text type
+        - name: language
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by language code
+        - name: author
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by author name
+      responses:
+        "200":
+          description: Metadata retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    type:
+                      type: string
+                      enum: [root, commentary, translation]
+                    title:
+                      type: object
+                      additionalProperties:
+                        type: string
+                    alt_titles:
+                      type: array
+                      items:
+                        type: object
+                        additionalProperties:
+                          type: string
+                    language:
+                      type: string
+                    contributions:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          person_id:
+                            type: string
+                          person_bdrc_id:
+                            type: string
+                          role:
+                            type: string
+                            enum: [author, translator, reviser]
+                    date:
+                      type: string
+                    bdrc:
+                      type: string
+                    wiki:
+                      type: string
+                    parent:
+                      type: string
+              examples:
+                success:
+                  summary: List of metadata
+                  value:
+                    - id: "M12345678"
+                      type: "root"
+                      title:
+                        en: "Sample Expression"
+                        bo: "དཔེ་མཚོན་ཚིག་སྒྲུབ།"
+                      language: "bo"
+                      contributions:
+                        - person_id: "P12345678"
+                          role: "author"
+                      date: "2024-01-01"
+                      bdrc: "W123456"
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+    post:
+      summary: Create metadata
+      description: Create a new metadata record
+      tags:
+        - Metadata v2
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - type
+                - title
+                - language
+                - contributions
+              properties:
+                type:
+                  type: string
+                  enum: [root, commentary, translation]
+                title:
+                  type: object
+                  additionalProperties:
+                    type: string
+                  description: Localized title
+                alt_titles:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties:
+                      type: string
+                  description: Alternative localized titles
+                language:
+                  type: string
+                  description: Primary language code
+                contributions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      person_id:
+                        type: string
+                      person_bdrc_id:
+                        type: string
+                      role:
+                        type: string
+                        enum: [author, translator, reviser]
+                date:
+                  type: string
+                bdrc:
+                  type: string
+                wiki:
+                  type: string
+                parent:
+                  type: string
+                  description: Parent metadata ID (required for commentary/translation)
+            examples:
+              root_metadata:
+                summary: Root metadata creation
+                value:
+                  type: "root"
+                  title:
+                    en: "Sample Root Text"
+                    bo: "རྩ་བའི་གཞུང་དཔེ།"
+                  language: "bo"
+                  contributions:
+                    - person_id: "P12345678"
+                      role: "author"
+                  date: "2024-01-01"
+                  bdrc: "W123456"
+              translation_metadata:
+                summary: Translation metadata creation
+                value:
+                  type: "translation"
+                  title:
+                    en: "English Translation"
+                  language: "en"
+                  contributions:
+                    - person_bdrc_id: "P87654321"
+                      role: "translator"
+                  parent: "M12345678"
+      responses:
+        "201":
+          description: Expression created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - "Metadata created successfully"
+                  id:
+                    type: string
+                    examples:
+                      - "M12345678"
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "422":
+          $ref: '#/components/responses/ValidationError'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+  /v2/metadata/{metadata_id}:
+    get:
+      summary: Retrieve metadata by ID
+      description: Fetch a specific metadata by its ID
+      tags:
+        - Metadata v2
+      parameters:
+        - name: metadata_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the metadata to retrieve
+      responses:
+        "200":
+          description: Metadata retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  type:
+                    type: string
+                    enum: [root, commentary, translation]
+                  title:
+                    type: object
+                    additionalProperties:
+                      type: string
+                  alt_titles:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties:
+                        type: string
+                  language:
+                    type: string
+                  contributions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        person_id:
+                          type: string
+                        person_bdrc_id:
+                          type: string
+                        role:
+                          type: string
+                          enum: [author, translator, reviser]
+                  date:
+                    type: string
+                  bdrc:
+                    type: string
+                  wiki:
+                    type: string
+                  parent:
+                    type: string
+              examples:
+                success:
+                  summary: Single metadata
+                  value:
+                    id: "M12345678"
+                    type: "root"
+                    title:
+                      en: "Sample Expression"
+                      bo: "དཔེ་མཚོན་ཚིག་སྒྲུབ།"
+                    language: "bo"
+                    contributions:
+                      - person_id: "P12345678"
+                        role: "author"
+                    date: "2024-01-01"
+                    bdrc: "W123456"
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+  /v2/metadata/{metadata_id}/texts:
+    get:
+      summary: Get texts for metadata
+      description: Retrieve all texts associated with a metadata
+      tags:
+        - Metadata v2
+      parameters:
+        - name: metadata_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the metadata
+      responses:
+        "200":
+          description: Texts retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    type:
+                      type: string
+                      enum: [diplomatic, critical, collated]
+                    copyright:
+                      type: string
+                      enum: [public, copyrighted]
+                    annotations:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                          type:
+                            type: string
+                            enum: [segmentation, alignment, spelling_variant]
+                          aligned_to:
+                            type: string
+                    bdrc:
+                      type: string
+                    wiki:
+                      type: string
+                    colophon:
+                      type: string
+                    incipit_title:
+                      type: object
+                      additionalProperties:
+                        type: string
+                    alt_incipit_titles:
+                      type: array
+                      items:
+                        type: object
+                        additionalProperties:
+                          type: string
+              examples:
+                success:
+                  summary: List of texts
+                  value:
+                    - id: "T12345678"
+                      type: "diplomatic"
+                      copyright: "public"
+                      annotations:
+                        - id: "A12345678"
+                          type: "segmentation"
+                      bdrc: "W123456"
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+  /persons:
+    get:
+      summary: Retrieve all persons
+      description: Fetch all persons from the database
+      tags:
+        - Persons
+      responses:
+        "200":
+          description: Persons retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    name:
+                      type: object
+                      additionalProperties:
+                        type: string
+                    alt_names:
+                      type: array
+                      items:
+                        type: object
+                        additionalProperties:
+                          type: string
+                    bdrc:
+                      type: string
+                    wiki:
+                      type: string
+              examples:
+                success:
+                  summary: List of persons
+                  value:
+                    - id: "P12345678"
+                      name:
+                        en: "John Doe"
+                        bo: "ཇོན་དོ།"
+                      alt_names:
+                        - en: "J. Doe"
+                          bo: "ཇོན།"
+                      bdrc: "P123456"
+                      wiki: "Q123456"
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+    post:
+      summary: Create a person
+      description: Create a new person record
+      tags:
+        - Persons
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - name
+              properties:
+                name:
+                  type: object
+                  additionalProperties:
+                    type: string
+                  description: Localized name
+                alt_names:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties:
+                      type: string
+                  description: Alternative localized names
+                bdrc:
+                  type: string
+                  description: BDRC identifier
+                wiki:
+                  type: string
+                  description: Wikidata identifier
+            examples:
+              valid_person:
+                summary: Valid person creation
+                value:
+                  name:
+                    en: "John Doe"
+                    bo: "ཇོན་དོ།"
+                  alt_names:
+                    - en: "J. Doe"
+                      bo: "ཇོན།"
+                  bdrc: "P123456"
+                  wiki: "Q123456"
+      responses:
+        "201":
+          description: Person created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - "Person created successfully"
+                  _id:
+                    type: string
+                    examples:
+                      - "P12345678"
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "422":
+          $ref: '#/components/responses/ValidationError'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+  /persons/{person_id}:
+    get:
+      summary: Retrieve person by ID
+      description: Fetch a specific person by their ID
+      tags:
+        - Persons
+      parameters:
+        - name: person_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the person to retrieve
+      responses:
+        "200":
+          description: Person retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  name:
+                    type: object
+                    additionalProperties:
+                      type: string
+                  alt_names:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties:
+                        type: string
+                  bdrc:
+                    type: string
+                  wiki:
+                    type: string
+              examples:
+                success:
+                  summary: Single person
+                  value:
+                    id: "P12345678"
+                    name:
+                      en: "John Doe"
+                      bo: "ཇོན་དོ།"
+                    alt_names:
+                      - en: "J. Doe"
+                        bo: "ཇོན།"
+                    bdrc: "P123456"
+                    wiki: "Q123456"
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+components:
+  responses:
+    InvalidRequest:
+      description: There was an error with the request
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                description: Error message
+                examples:
+                  - "There was an error with the request"
+            required:
+              - error
+      
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                description: Error message
+                examples:
+                  - "Resource was not found"
+            required:
+              - error
+  
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+              details:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    loc:
+                      type: array
+                      items:
+                        type: string
+                    msg:
+                      type: string
+                    type:
+                      type: string
+            required:
+              - error
+              - details
+          examples:
+            fieldMissing:
+              value:
+                error: "Validation error"
+                details: [
+                  {
+                    "loc": ["body", "title"],
+                    "msg": "field required", 
+                    "type": "value_error.missing"
+                  }
+                ]
+
+    ServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                description: Error message
+                examples:
+                  - "There was an error on the server"
+            required:
+              - error

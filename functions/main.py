@@ -11,7 +11,7 @@ from api.metadata import metadata_bp
 from api.metadata_v2 import metadata_v2_bp
 from api.pecha import pecha_bp
 from api.persons import persons_bp
-from api.schema import schema_bp
+from api.schema import schema_bp, schema_v2_bp
 from api.text import text_bp
 from api.text_v2 import text_v2_bp
 from exceptions import OpenPechaException
@@ -53,6 +53,7 @@ def create_app(testing=False):
     app.register_blueprint(categories_bp, url_prefix="/categories")
     app.register_blueprint(annotation_bp, url_prefix="/annotation")
     app.register_blueprint(persons_bp, url_prefix="/v2/persons")
+    app.register_blueprint(schema_v2_bp, url_prefix="/v2/schema")
 
     @app.after_request
     def add_no_cache_headers(response):

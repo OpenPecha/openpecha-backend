@@ -6,6 +6,7 @@ from metadata_model import MetadataModel
 from openpecha.pecha.annotations import AnnotationModel
 
 schema_bp = Blueprint("schema", __name__)
+schema_v2_bp = Blueprint("schema_v2", __name__)
 
 
 @schema_bp.after_request
@@ -39,5 +40,12 @@ def get_annotation_schema() -> tuple[Response, int]:
 @schema_bp.route("/openapi", methods=["GET"])
 def get_openapi_spec() -> Response:
     schema_path = os.path.join(os.path.dirname(__file__), "schema/openapi.yaml")
+
+    return send_file(schema_path, mimetype="application/x-yaml")
+
+
+@schema_v2_bp.route("/openapi", methods=["GET"])
+def get_openapi_spec_v2() -> Response:
+    schema_path = os.path.join(os.path.dirname(__file__), "schema/openapi_v2.yaml")
 
     return send_file(schema_path, mimetype="application/x-yaml")

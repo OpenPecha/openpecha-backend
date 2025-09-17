@@ -56,7 +56,7 @@ def post_metadata_v2() -> tuple[Response, int]:
     expression_id = Neo4JDatabase().create_expression(expression)
     logger.info("Successfully created expression with ID: %s", expression_id)
 
-    return jsonify({"message": "Expression created successfully", "id": expression_id}), 201
+    return jsonify({"message": "Metadata created successfully", "id": expression_id}), 201
 
 
 @metadata_v2_bp.route("/<string:expression_id>/texts", methods=["GET"], strict_slashes=False)

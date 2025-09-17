@@ -25,8 +25,6 @@ from main import create_app
 from models_v2 import (
     AnnotationModel,
     AnnotationType,
-    ContributionModel,
-    ContributorRole,
     CopyrightStatus,
     ExpressionModelInput,
     ManifestationModelInput,
