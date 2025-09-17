@@ -14,7 +14,7 @@ window.onload = async function() {
     const apiEndpoint = await getApiEndpoint();
     if (!apiEndpoint) throw new Error("Failed to get API endpoint");
     
-    const schemaUrl = `${apiEndpoint}/schema/openapi`;
+    const schemaUrl = `${apiEndpoint}/v2/schema/openapi`;
     console.log("Using schema URL:", schemaUrl);
     
     window.ui = SwaggerUIBundle({
