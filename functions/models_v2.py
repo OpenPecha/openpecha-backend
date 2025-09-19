@@ -21,7 +21,7 @@ class ContributorRole(str, Enum):
 class AnnotationType(str, Enum):
     SEGMENTATION = "segmentation"
     ALIGNMENT = "alignment"
-    SPELLING_VARIANT = "spelling_variant"
+    VERSION = "version"
 
 
 class ManifestationType(str, Enum):

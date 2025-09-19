@@ -609,7 +609,7 @@ paths:
                             type: string
                           type:
                             type: string
-                            enum: [segmentation, alignment, spelling_variant]
+                            enum: [segmentation, alignment, version]
                           aligned_to:
                             type: string
                     bdrc:

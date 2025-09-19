@@ -86,7 +86,7 @@ def test_database(neo4j_connection):
         session.run("CREATE (:Language {code: 'bo', name: 'Tibetan'})")
         session.run("CREATE (:Language {code: 'zh', name: 'Chinese'})")
         session.run("MERGE (a:AnnotationType {name: 'alignment'})")
-        session.run("MERGE (a:AnnotationType {name: 'spelling_variant'})")
+        session.run("MERGE (a:AnnotationType {name: 'version'})")
         session.run("MERGE (a:AnnotationType {name: 'segmentation'})")
 
         # Create test copyright statuses
