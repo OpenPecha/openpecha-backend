@@ -47,6 +47,8 @@ def get_text_v2(manifestation_id: str) -> tuple[Response, int]:
         "annotations": [a.model_dump() for a in manifestation.annotations],
     }
 
+    logger.info("Serializing with target (%s, expression: %s): %s", manifestation_id, expression_id, target)
+
     source = None
     if aligned:
         aligned_to_id = manifestation.aligned_to
@@ -60,7 +62,12 @@ def get_text_v2(manifestation_id: str) -> tuple[Response, int]:
                     "pecha": source_pecha,
                     "annotations": [a.model_dump() for a in source_manifestation.annotations],
                 }
-                logger.info("Source manifestation loaded from aligned_to: %s", source_manifestation.id)
+                logger.info(
+                    "Serializing with source (%s, expression: %s): %s",
+                    source_manifestation.id,
+                    source_expression_id,
+                    source,
+                )
             else:
                 return (
                     jsonify({"error": f"Could not find manifestation for aligned_to annotation: {aligned_to_id}"}),
