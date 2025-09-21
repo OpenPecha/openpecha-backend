@@ -41,33 +41,40 @@ def get_text_v2(manifestation_id: str) -> tuple[Response, int]:
     logger.info("Manifestation: %s", manifestation)
 
     pecha = retrieve_pecha(expression_id)
+    json = None
 
-    target = {
-        "pecha": pecha,
-        "annotations": [a.model_dump() for a in manifestation.annotations],
-    }
-
-    logger.info("Serializing with target (%s, expression: %s): %s", manifestation_id, expression_id, target)
-
-    source = None
     if aligned:
         aligned_to_id = manifestation.aligned_to
 
         if aligned_to_id:
             result = db.get_manifestation_by_annotation(aligned_to_id)
             if result:
-                source_manifestation, source_expression_id = result
-                source_pecha = retrieve_pecha(source_expression_id)
-                source = {
-                    "pecha": source_pecha,
-                    "annotations": [a.model_dump() for a in source_manifestation.annotations],
+                target_manifestation, target_expression_id = result
+                target_pecha = retrieve_pecha(target_expression_id)
+                target = {
+                    "pecha": target_pecha,
+                    "annotations": [a.model_dump() for a in target_manifestation.annotations],
                 }
+
+                source = {
+                    "pecha": pecha,
+                    "annotations": [a.model_dump() for a in manifestation.annotations],
+                }
+
+                logger.info(
+                    "Serializing with target (%s, expression: %s): %s",
+                    target_manifestation.id,
+                    target_expression_id,
+                    target,
+                )
                 logger.info(
                     "Serializing with source (%s, expression: %s): %s",
-                    source_manifestation.id,
-                    source_expression_id,
+                    manifestation_id,
+                    expression_id,
                     source,
                 )
+
+                json = SerializerLogicHandler().serialize(target, source=source).model_dump()
             else:
                 return (
                     jsonify({"error": f"Could not find manifestation for aligned_to annotation: {aligned_to_id}"}),
@@ -75,11 +82,16 @@ def get_text_v2(manifestation_id: str) -> tuple[Response, int]:
                 )
         else:
             return jsonify({"error": f"No aligned_to annotation found in manifestation: {manifestation_id}"}), 400
+    else:
+        target = {
+            "pecha": pecha,
+            "annotations": [a.model_dump() for a in manifestation.annotations],
+        }
 
-    return (
-        SerializerLogicHandler().serialize(target, source=source).model_dump(),
-        200,
-    )
+        logger.info("Serializing with target (%s, expression: %s): %s", manifestation_id, expression_id, target)
+        json = SerializerLogicHandler().serialize(target).model_dump()
+
+    return (json, 200)
 
 
 @text_v2_bp.route("", methods=["POST"], strict_slashes=False)
