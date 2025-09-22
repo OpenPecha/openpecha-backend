@@ -103,12 +103,13 @@ def retrieve_pecha(pecha_id: str) -> Pecha:
     temp_dir = tempfile.gettempdir()
     extract_path = Path(temp_dir) / "pecha_extracts"
     extract_path.mkdir(exist_ok=True)
+    
+    pecha_path = extract_path / pecha_id
+    pecha_path.mkdir(exist_ok=True)
 
     with zipfile.ZipFile(zip_path) as zip_file:
-        logger.info("Extracting ZIP to: %s", extract_path)
-        zip_file.extractall(extract_path)
-
-    pecha_path = extract_path / pecha_id
+        logger.info("Extracting ZIP to: %s", pecha_path)
+        zip_file.extractall(pecha_path)
     logger.info("Looking for pecha at: %s", pecha_path)
     logger.info("Pecha path exists: %s", pecha_path.exists())
 
