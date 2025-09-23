@@ -110,16 +110,14 @@ def retrieve_pecha(pecha_id: str) -> Pecha:
     with zipfile.ZipFile(zip_path) as zip_file:
         logger.info("Extracting ZIP to: %s", pecha_path)
         zip_file.extractall(pecha_path)
-    logger.info("Looking for pecha at: %s", pecha_path)
-    logger.info("Pecha path exists: %s", pecha_path.exists())
-
-    if pecha_path.exists():
-        contents = list(pecha_path.iterdir())
-        logger.info("Pecha directory contents: %s", contents)
-        base_exists = (pecha_path / "base").exists()
-        layers_exists = (pecha_path / "layers").exists()
-        logger.info("Base dir exists: %s, Layers dir exists: %s", base_exists, layers_exists)
-
+    
+    # Handle nested directory structure: if base/layers don't exist directly, check one level down
+    if not (pecha_path / "base").exists():
+        subdirs = [d for d in pecha_path.iterdir() if d.is_dir()]
+        if subdirs and (subdirs[0] / "base").exists():
+            pecha_path = subdirs[0]
+    
+    logger.info("Using pecha path: %s", pecha_path)
     return Pecha.from_path(pecha_path)
 
 
