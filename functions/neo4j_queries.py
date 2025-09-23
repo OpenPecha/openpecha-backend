@@ -50,16 +50,16 @@ class Queries:
     id: {label}.id,
     bdrc: {label}.bdrc,
     wiki: {label}.wiki,
-    type: [({label})-[:HAS_TYPE]->(mt:ManifestationType) | mt.name][0],
+    type: [({label})-[:HAS_TYPE]->(mf_mt:ManifestationType) | mf_mt.name][0],
     annotations: [
-        ({label})<-[:ANNOTATION_OF]-(a:Annotation) | {{
-            id: a.id,
-            type: [(a)-[:HAS_TYPE]->(at:AnnotationType) | at.name][0],
-            aligned_to: [(a)-[:ALIGNED_TO]->(target:Annotation) | target.id][0]
+        ({label})<-[:ANNOTATION_OF]-(mf_ann:Annotation) | {{
+            id: mf_ann.id,
+            type: [(mf_ann)-[:HAS_TYPE]->(mf_at:AnnotationType) | mf_at.name][0],
+            aligned_to: [(mf_ann)-[:ALIGNED_TO]->(mf_target:Annotation) | mf_target.id][0]
         }}
     ],
     colophon: {label}.colophon,
-    copyright: [({label})-[:HAS_COPYRIGHT]->(cs:CopyrightStatus) | cs.name][0],
+    copyright: [({label})-[:HAS_COPYRIGHT]->(mf_cs:CopyrightStatus) | mf_cs.name][0],
     incipit_title: [{Queries.primary_nomen(label, 'HAS_INCIPIT_TITLE')}],
     alt_incipit_titles: [{Queries.alternative_nomen(label, 'HAS_INCIPIT_TITLE')}]
 }}
@@ -86,26 +86,26 @@ END
     wiki: {label}.wiki,
     type: {Queries.infer_expression_type(label)},
     parent: COALESCE(
-        [({label})-[:TRANSLATION_OF]->(parent:Expression) | parent.id][0],
-        [({label})-[:EXPRESSION_OF]->(w:Work)-[:COMMENTARY_OF]->(:Work)
-        <-[:EXPRESSION_OF]-(parent:Expression) | parent.id][0]
+        [({label})-[:TRANSLATION_OF]->(ef_parent:Expression) | ef_parent.id][0],
+        [({label})-[:EXPRESSION_OF]->(ef_work:Work)-[:COMMENTARY_OF]->(:Work)
+        <-[:EXPRESSION_OF]-(ef_parent:Expression) | ef_parent.id][0]
     ),
     contributors: (
-        [({label})-[:HAS_CONTRIBUTION]->(c:Contribution)-[:BY]->(person:Person) | {{
-            person_id: person.id,
-            person_bdrc_id: person.bdrc,
-            role: [(c)-[:WITH_ROLE]->(rt:RoleType) | rt.name][0]
+        [({label})-[:HAS_CONTRIBUTION]->(ef_contrib:Contribution)-[:BY]->(ef_person:Person) | {{
+            person_id: ef_person.id,
+            person_bdrc_id: ef_person.bdrc,
+            role: [(ef_contrib)-[:WITH_ROLE]->(ef_role:RoleType) | ef_role.name][0]
         }}]
         +
-        [({label})-[:HAS_CONTRIBUTION]->(c:Contribution)-[:BY]->(ai:AI) | {{
-            ai_id: ai.id,
-            role: [(c)-[:WITH_ROLE]->(rt:RoleType) | rt.name][0]
+        [({label})-[:HAS_CONTRIBUTION]->(ef_contrib:Contribution)-[:BY]->(ef_ai:AI) | {{
+            ai_id: ef_ai.id,
+            role: [(ef_contrib)-[:WITH_ROLE]->(ef_role:RoleType) | ef_role.name][0]
         }}]
     ),
     date: {label}.date,
     title: [{Queries.primary_nomen(label, 'HAS_TITLE')}],
     alt_titles: [{Queries.alternative_nomen(label, 'HAS_TITLE')}],
-    language: [({label})-[:HAS_LANGUAGE]->(l:Language) | l.code][0]
+    language: [({label})-[:HAS_LANGUAGE]->(ef_lang:Language) | ef_lang.code][0]
 }}
 """
 
