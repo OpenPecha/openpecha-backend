@@ -90,7 +90,7 @@ class Storage:
 
     def _blob(self, path: str) -> Blob:
         blob = self.bucket.blob(path)
-        blob.cache_control = "no-cache, no-store, must-revalidate"
+        blob.cache_control = "no-store"
 
         return blob
 
