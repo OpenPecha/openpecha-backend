@@ -147,7 +147,7 @@ WITH w, e
 MATCH (n:Nomen) WHERE elementId(n) = $title_nomen_element_id
 MERGE (l:Language {{code: $language_code}})
 CREATE (e)-[:EXPRESSION_OF {{original: $original}}]->(w),
-       (e)-[:HAS_LANGUAGE {{tags: $bcp47_tag}}]->(l),
+       (e)-[:HAS_LANGUAGE {{bcp47: $bcp47_tag}}]->(l),
        (e)-[:HAS_TITLE]->(n)
 RETURN e.id as expression_id
 """,
@@ -176,7 +176,7 @@ MATCH (n:Nomen) WHERE elementId(n) = $title_nomen_element_id
 MERGE (l:Language {{code: $language_code}})
 CREATE (e)-[:EXPRESSION_OF {{original: false}}]->(w),
        (e)-[:TRANSLATION_OF]->(parent),
-       (e)-[:HAS_LANGUAGE {{tags: $bcp47_tag}}]->(l),
+       (e)-[:HAS_LANGUAGE {{bcp47: $bcp47_tag}}]->(l),
        (e)-[:HAS_TITLE]->(n)
 RETURN e.id as expression_id
 """,
@@ -189,7 +189,7 @@ MATCH (n:Nomen) WHERE elementId(n) = $title_nomen_element_id
 MERGE (l:Language {{code: $language_code}})
 CREATE (commentary_work)-[:COMMENTARY_OF]->(parent_work),
        (e)-[:EXPRESSION_OF {{original: true}}]->(commentary_work),
-       (e)-[:HAS_LANGUAGE {{tags: $bcp47_tag}}]->(l),
+       (e)-[:HAS_LANGUAGE {{bcp47: $bcp47_tag}}]->(l),
        (e)-[:HAS_TITLE]->(n)
 RETURN e.id as expression_id
 """,

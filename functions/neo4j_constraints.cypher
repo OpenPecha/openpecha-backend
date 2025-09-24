@@ -24,9 +24,6 @@ CREATE CONSTRAINT annotation_id_unique IF NOT EXISTS FOR (a:Annotation) REQUIRE 
 // Language nodes - each language must have a unique code
 CREATE CONSTRAINT language_code_unique IF NOT EXISTS FOR (l:Language) REQUIRE l.code IS UNIQUE;
 
-// ExpressionType nodes - each expression type must have a unique name
-CREATE CONSTRAINT expression_type_name_unique IF NOT EXISTS FOR (et:ExpressionType) REQUIRE et.name IS UNIQUE;
-
 // RoleType nodes - each role type must have a unique name
 CREATE CONSTRAINT role_type_name_unique IF NOT EXISTS FOR (rt:RoleType) REQUIRE rt.name IS UNIQUE;
 

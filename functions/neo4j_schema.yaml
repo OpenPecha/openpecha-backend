@@ -43,7 +43,7 @@ nodes:
         cardinality: one
         required: true
         properties:
-          tags:
+          bcp47:
             type: string
             required: false
       HAS_CONTRIBUTION:
@@ -176,7 +176,7 @@ nodes:
         cardinality: one
         required: true
         properties:
-          tags:
+          bcp47:
             type: string
             required: true
 
