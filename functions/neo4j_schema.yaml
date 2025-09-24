@@ -38,10 +38,6 @@ nodes:
         target: Expression
         cardinality: one
         required: false
-      HAS_TYPE:
-        target: ExpressionType
-        cardinality: one
-        required: true
       HAS_LANGUAGE:
         target: Language
         cardinality: one
@@ -182,7 +178,7 @@ nodes:
         properties:
           tags:
             type: string
-            required: false
+            required: true
 
   Language:
     properties:
@@ -230,16 +226,6 @@ nodes:
         allowed_values:
           - segmentation
           - alignment
-
-  ExpressionType:
-    enum: true
-    properties:
-      name:
-        type: string
-        unique: true
-        allowed_values:
-          - translation
-          - original
 
   RoleType:
     enum: true
