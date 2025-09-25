@@ -21,6 +21,18 @@ class Queries:
     """
 
     @staticmethod
+    def manifestation_alignment_sources(label):
+        return f"""
+        [({label})<-[:ANNOTATION_OF]-(target_ann:Annotation)<-[:ALIGNED_TO]-(source_ann:Annotation)-[:ANNOTATION_OF]->(source_m:Manifestation) | source_m.id]
+    """
+
+    @staticmethod
+    def manifestation_alignment_targets(label):
+        return f"""
+        [({label})<-[:ANNOTATION_OF]-(this_ann:Annotation)-[:ALIGNED_TO]->(target_ann:Annotation)-[:ANNOTATION_OF]->(target_m:Manifestation) | target_m.id]
+    """
+
+    @staticmethod
     def person_fragment(label):
         return f"""
 {{
@@ -61,7 +73,9 @@ class Queries:
     colophon: {label}.colophon,
     copyright: [({label})-[:HAS_COPYRIGHT]->(mf_cs:CopyrightStatus) | mf_cs.name][0],
     incipit_title: [{Queries.primary_nomen(label, 'HAS_INCIPIT_TITLE')}],
-    alt_incipit_titles: [{Queries.alternative_nomen(label, 'HAS_INCIPIT_TITLE')}]
+    alt_incipit_titles: [{Queries.alternative_nomen(label, 'HAS_INCIPIT_TITLE')}],
+    alignment_sources: {Queries.manifestation_alignment_sources(label)},
+    alignment_targets: {Queries.manifestation_alignment_targets(label)}
 }}
 """
 
