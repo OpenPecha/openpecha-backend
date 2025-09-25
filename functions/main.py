@@ -4,11 +4,9 @@ import traceback
 
 import firebase_admin
 from api.api import api_bp
-from api.category import categories_bp
-from api.languages import languages_bp
 from api.metadata_v2 import metadata_v2_bp
 from api.persons import persons_bp
-from api.schema import schema_bp, schema_v2_bp
+from api.schema import schema_v2_bp
 from api.text_v2 import text_v2_bp
 from exceptions import OpenPechaException
 from firebase_admin import credentials
@@ -39,11 +37,8 @@ def create_app(testing=False):
     app.json.ensure_ascii = False
 
     app.register_blueprint(metadata_v2_bp, url_prefix="/v2/metadata")
-    app.register_blueprint(languages_bp, url_prefix="/languages")
-    app.register_blueprint(schema_bp, url_prefix="/schema")
     app.register_blueprint(api_bp, url_prefix="/api")
     app.register_blueprint(text_v2_bp, url_prefix="/v2/text")
-    app.register_blueprint(categories_bp, url_prefix="/categories")
     app.register_blueprint(persons_bp, url_prefix="/v2/persons")
     app.register_blueprint(schema_v2_bp, url_prefix="/v2/schema")
 

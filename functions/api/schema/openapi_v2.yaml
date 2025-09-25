@@ -832,6 +832,31 @@ paths:
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/ServerError'
+  /api/version:
+      get:
+        summary: Get API version and Git SHA
+        description: Returns the current API version and the Git commit SHA of the deployed code.
+        operationId: getVersion
+        tags:
+            - API
+        responses:
+            "200":
+              description: Successfully retrieved version information
+              content:
+                application/json:
+                  schema:
+                    type: object
+                    properties:
+                      version:
+                          type: string
+                          examples: 
+                            - "0.1.0"
+                      git_sha:
+                          type: string
+                          examples:
+                            - "b706d2b1a5d0176df374da25c970274b2e0f7770"
+            "500":
+              $ref: '#/components/responses/ServerError'
 
 components:
   responses:
