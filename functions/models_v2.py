@@ -201,20 +201,7 @@ class TranslationRequestModel(OpenPechaModel):
     copyright: CopyrightStatus = CopyrightStatus.PUBLIC_DOMAIN
 
 
-class TextRequestModel(OpenPechaModel):
-    metadata_id: str
-    content: NonEmptyStr
+class InstanceRequestModel(OpenPechaModel):
+    metadata: ManifestationModelInput
     annotation: list[dict]
-    copyright: CopyrightStatus = CopyrightStatus.PUBLIC_DOMAIN
-    type: ManifestationType = ManifestationType.DIPLOMATIC
-    bdrc: str | None = None
-    wiki: str | None = None
-    colophon: NonEmptyStr | None = None
-    incipit_title: LocalizedString | None = None
-    alt_incipit_titles: list[LocalizedString] | None = None
-
-    @model_validator(mode="after")
-    def validate_alt_incipit_titles(self):
-        if self.alt_incipit_titles and self.incipit_title is None:
-            raise ValueError("alt_incipit_titles can only be set when incipit_title is also provided")
-        return self
+    content: NonEmptyStr

@@ -1,7 +1,7 @@
 openapi: '3.1.0'
 info:
   title: OpenPecha API v2
-  version: '2.0.0'
+  version: '2.1.0'
 servers:
   - url: https://api-l25bgmwqoa-uc.a.run.app
     description: Development
@@ -9,19 +9,19 @@ servers:
     description: Production
 
 paths:
-  /v2/text/{text_id}:
+  /v2/instances/{instance_id}:
     get:
-      summary: Retrieve text by text ID
-      description: Fetch text content for a given text ID with optional alignment
+      summary: Retrieve instance by instance ID
+      description: Fetch instance content for a given instance ID with optional alignment
       tags:
-        - Text v2
+        - Instances
       parameters:
-        - name: text_id
+        - name: instance_id
           in: path
           required: true
           schema:
             type: string
-          description: The ID of the text to retrieve
+          description: The ID of the instance to retrieve
         - name: aligned
           in: query
           required: false
@@ -31,7 +31,7 @@ paths:
           description: Whether to include aligned source text
       responses:
         "200":
-          description: Text retrieved successfully
+          description: Instance retrieved successfully
           content:
             application/json:
               schema:
@@ -80,12 +80,95 @@ paths:
         "500":
           $ref: '#/components/responses/ServerError'
 
-  /v2/text:
-    post:
-      summary: Create a new text
-      description: Create a new text with manifestation and annotation data
+  /v2/texts/{text_id}/instances:
+    get:
+      summary: Get instances for text
+      description: Retrieve all instances associated with a text
       tags:
-        - Text v2
+        - Instances
+      parameters:
+        - name: text_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the text
+      responses:
+        "200":
+          description: Instances retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    type:
+                      type: string
+                      enum: [diplomatic, critical, collated]
+                    copyright:
+                      type: string
+                      enum: [public, copyrighted]
+                    annotations:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                          type:
+                            type: string
+                            enum: [segmentation, alignment, version]
+                          aligned_to:
+                            type: string
+                    bdrc:
+                      type: string
+                    wiki:
+                      type: string
+                    colophon:
+                      type: string
+                    incipit_title:
+                      type: object
+                      additionalProperties:
+                        type: string
+                    alt_incipit_titles:
+                      type: array
+                      items:
+                        type: object
+                        additionalProperties:
+                          type: string
+              examples:
+                success:
+                  summary: List of instances
+                  value:
+                    - id: "I12345678"
+                      type: "diplomatic"
+                      copyright: "public"
+                      annotations:
+                        - id: "A12345678"
+                          type: "segmentation"
+                      bdrc: "W123456"
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+    post:
+      summary: Create a new instance
+      description: Create a new instance with metadata and annotation for a specific text
+      tags:
+        - Instances
+      parameters:
+        - name: text_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the text to create an instance for
       requestBody:
         required: true
         content:
@@ -93,63 +176,75 @@ paths:
             schema:
               type: object
               required:
-                - metadata_id
-                - content
+                - metadata
                 - annotation
+                - content
               properties:
-                metadata_id:
-                  type: string
-                  description: ID of the associated metadata
-                content:
-                  type: string
-                  description: The text content
+                metadata:
+                  type: object
+                  required:
+                    - type
+                  properties:
+                    type:
+                      type: string
+                      enum: [diplomatic, critical, collated]
+                      description: Type of manifestation
+                    copyright:
+                      type: string
+                      enum: [public, copyrighted]
+                      default: public
+                      description: Copyright status
+                    bdrc:
+                      type: string
+                      description: BDRC identifier (required for diplomatic type)
+                    wiki:
+                      type: string
+                      description: Wiki identifier
+                    colophon:
+                      type: string
+                      description: Colophon text
+                    incipit_title:
+                      type: object
+                      additionalProperties:
+                        type: string
+                      description: Localized incipit title
+                    alt_incipit_titles:
+                      type: array
+                      items:
+                        type: object
+                        additionalProperties:
+                          type: string
+                      description: Alternative localized incipit titles
                 annotation:
                   type: array
                   items:
                     type: object
-                  description: Segmentation annotation data
-                copyright:
+                  description: Annotation data
+                content:
                   type: string
-                  enum: [public, copyrighted]
-                  default: public
-                type:
-                  type: string
-                  enum: [diplomatic, critical, collated]
-                  default: diplomatic
-                bdrc:
-                  type: string
-                wiki:
-                  type: string
-                colophon:
-                  type: string
-                incipit_title:
-                  type: object
-                  additionalProperties:
-                    type: string
-                alt_incipit_titles:
-                  type: array
-                  items:
-                    type: object
-                    additionalProperties:
-                      type: string
+                  description: The text content
             examples:
-              valid_text:
-                summary: Valid text creation request
+              valid_instance:
+                summary: Valid instance creation request
                 value:
-                  metadata_id: "M12345678"
-                  content: "This is the text content to be stored"
+                  metadata:
+                    type: "diplomatic"
+                    copyright: "public"
+                    bdrc: "W123456"
+                    colophon: "Sample colophon text"
+                    incipit_title:
+                      en: "Opening words"
+                      bo: "དབུ་ཚིག"
                   annotation:
                     - span:
                         start: 0
                         end: 20
                       index: 0
                       alignment_index: [0]
-                  copyright: "public"
-                  type: "diplomatic"
-                  bdrc: "W123456"
+                  content: "This is the text content to be stored"
       responses:
         "201":
-          description: Text created successfully
+          description: Instance created successfully
           content:
             application/json:
               schema:
@@ -158,11 +253,11 @@ paths:
                   message:
                     type: string
                     examples:
-                      - "Text created successfully"
+                      - "Instance created successfully"
                   id:
                     type: string
                     examples:
-                      - "T12345678"
+                      - "ABC12345678"
         "400":
           $ref: '#/components/responses/InvalidRequest'
         "422":
@@ -170,19 +265,19 @@ paths:
         "500":
           $ref: '#/components/responses/ServerError'
 
-  /v2/text/{original_text_id}/translation:
+  /v2/instances/{instance_id}/translation:
     post:
       summary: Create a translation
-      description: Create a translation of an existing text
+      description: Create a translation of an existing instance
       tags:
-        - Text v2
+        - Instances
       parameters:
-        - name: original_text_id
+        - name: instance_id
           in: path
           required: true
           schema:
             type: string
-          description: The ID of the original text to translate
+          description: The ID of the original instance to translate
       requestBody:
         required: true
         content:
@@ -263,11 +358,11 @@ paths:
                   id:
                     type: string
                     examples:
-                      - "T12345678"
-                  metadata_id:
+                      - "ABC12345678"
+                  text_id:
                     type: string
                     examples:
-                      - "M12345678"
+                      - "ABC12345678"
         "400":
           $ref: '#/components/responses/InvalidRequest'
         "422":
@@ -275,12 +370,12 @@ paths:
         "500":
           $ref: '#/components/responses/ServerError'
 
-  /v2/metadata:
+  /v2/texts:
     get:
-      summary: Retrieve all metadata
-      description: Fetch all metadata with optional filtering and pagination
+      summary: Retrieve all texts
+      description: Fetch all texts with optional filtering and pagination
       tags:
-        - Metadata v2
+        - Texts
       parameters:
         - name: limit
           in: query
@@ -320,7 +415,7 @@ paths:
           description: Filter by author name
       responses:
         "200":
-          description: Metadata retrieved successfully
+          description: Texts retrieved successfully
           content:
             application/json:
               schema:
@@ -367,9 +462,9 @@ paths:
                       type: string
               examples:
                 success:
-                  summary: List of metadata
+                  summary: List of texts
                   value:
-                    - id: "M12345678"
+                    - id: "ABC12345678"
                       type: "root"
                       title:
                         en: "Sample Expression"
@@ -386,10 +481,10 @@ paths:
           $ref: '#/components/responses/ServerError'
 
     post:
-      summary: Create metadata
-      description: Create a new metadata record
+      summary: Create text
+      description: Create a new text record
       tags:
-        - Metadata v2
+        - Texts
       requestBody:
         required: true
         content:
@@ -442,8 +537,8 @@ paths:
                   type: string
                   description: Parent metadata ID (required for commentary/translation)
             examples:
-              root_metadata:
-                summary: Root metadata creation
+              root_text:
+                summary: Root text creation
                 value:
                   type: "root"
                   title:
@@ -455,8 +550,8 @@ paths:
                       role: "author"
                   date: "2024-01-01"
                   bdrc: "W123456"
-              translation_metadata:
-                summary: Translation metadata creation
+              translation_text:
+                summary: Translation text creation
                 value:
                   type: "translation"
                   title:
@@ -465,10 +560,10 @@ paths:
                   contributions:
                     - person_bdrc_id: "P87654321"
                       role: "translator"
-                  parent: "M12345678"
+                  parent: "T12345678"
       responses:
         "201":
-          description: Expression created successfully
+          description: Text created successfully
           content:
             application/json:
               schema:
@@ -477,11 +572,11 @@ paths:
                   message:
                     type: string
                     examples:
-                      - "Metadata created successfully"
+                      - "Text created successfully"
                   id:
                     type: string
                     examples:
-                      - "M12345678"
+                      - "T12345678"
         "400":
           $ref: '#/components/responses/InvalidRequest'
         "422":
@@ -489,19 +584,19 @@ paths:
         "500":
           $ref: '#/components/responses/ServerError'
 
-  /v2/metadata/{metadata_id}:
+  /v2/texts/{text_id}:
     get:
-      summary: Retrieve metadata by ID
-      description: Fetch a specific metadata by its ID
+      summary: Retrieve text by ID
+      description: Fetch a specific text by its ID
       tags:
-        - Metadata v2
+        - Texts
       parameters:
-        - name: metadata_id
+        - name: text_id
           in: path
           required: true
           schema:
             type: string
-          description: The ID of the metadata to retrieve
+          description: The ID of the text to retrieve
       responses:
         "200":
           description: Metadata retrieved successfully
@@ -549,9 +644,9 @@ paths:
                     type: string
               examples:
                 success:
-                  summary: Single metadata
+                  summary: Single text
                   value:
-                    id: "M12345678"
+                    id: "T12345678"
                     type: "root"
                     title:
                       en: "Sample Expression"
@@ -562,83 +657,6 @@ paths:
                         role: "author"
                     date: "2024-01-01"
                     bdrc: "W123456"
-        "400":
-          $ref: '#/components/responses/InvalidRequest'
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "500":
-          $ref: '#/components/responses/ServerError'
-
-  /v2/metadata/{metadata_id}/texts:
-    get:
-      summary: Get texts for metadata
-      description: Retrieve all texts associated with a metadata
-      tags:
-        - Metadata v2
-      parameters:
-        - name: metadata_id
-          in: path
-          required: true
-          schema:
-            type: string
-          description: The ID of the metadata
-      responses:
-        "200":
-          description: Texts retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    id:
-                      type: string
-                    type:
-                      type: string
-                      enum: [diplomatic, critical, collated]
-                    copyright:
-                      type: string
-                      enum: [public, copyrighted]
-                    annotations:
-                      type: array
-                      items:
-                        type: object
-                        properties:
-                          id:
-                            type: string
-                          type:
-                            type: string
-                            enum: [segmentation, alignment, version]
-                          aligned_to:
-                            type: string
-                    bdrc:
-                      type: string
-                    wiki:
-                      type: string
-                    colophon:
-                      type: string
-                    incipit_title:
-                      type: object
-                      additionalProperties:
-                        type: string
-                    alt_incipit_titles:
-                      type: array
-                      items:
-                        type: object
-                        additionalProperties:
-                          type: string
-              examples:
-                success:
-                  summary: List of texts
-                  value:
-                    - id: "T12345678"
-                      type: "diplomatic"
-                      copyright: "public"
-                      annotations:
-                        - id: "A12345678"
-                          type: "segmentation"
-                      bdrc: "W123456"
         "400":
           $ref: '#/components/responses/InvalidRequest'
         "404":
