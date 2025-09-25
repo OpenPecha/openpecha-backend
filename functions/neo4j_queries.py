@@ -23,13 +23,17 @@ class Queries:
     @staticmethod
     def manifestation_alignment_sources(label):
         return f"""
-        [({label})<-[:ANNOTATION_OF]-(target_ann:Annotation)<-[:ALIGNED_TO]-(source_ann:Annotation)-[:ANNOTATION_OF]->(source_m:Manifestation) | source_m.id]
+        [({label})<-[:ANNOTATION_OF]-(target_ann:Annotation)
+         <-[:ALIGNED_TO]-(source_ann:Annotation)
+         -[:ANNOTATION_OF]->(source_m:Manifestation) | source_m.id]
     """
 
     @staticmethod
     def manifestation_alignment_targets(label):
         return f"""
-        [({label})<-[:ANNOTATION_OF]-(this_ann:Annotation)-[:ALIGNED_TO]->(target_ann:Annotation)-[:ANNOTATION_OF]->(target_m:Manifestation) | target_m.id]
+        [({label})<-[:ANNOTATION_OF]-(this_ann:Annotation)
+         -[:ALIGNED_TO]->(target_ann:Annotation)
+         -[:ANNOTATION_OF]->(target_m:Manifestation) | target_m.id]
     """
 
     @staticmethod
