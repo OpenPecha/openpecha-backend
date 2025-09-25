@@ -628,6 +628,16 @@ paths:
                         type: object
                         additionalProperties:
                           type: string
+                    alignment_sources:
+                      type: array
+                      items:
+                        type: string
+                      description: List of manifestation IDs that have annotations aligned to this manifestation
+                    alignment_targets:
+                      type: array
+                      items:
+                        type: string
+                      description: List of manifestation IDs that this manifestation's annotations are aligned to
               examples:
                 success:
                   summary: List of texts
@@ -638,7 +648,12 @@ paths:
                       annotations:
                         - id: "A12345678"
                           type: "segmentation"
+                        - id: "A87654321"
+                          type: "alignment"
+                          aligned_to: "A11111111"
                       bdrc: "W123456"
+                      alignment_sources: []
+                      alignment_targets: ["T87654321", "T11111111"]
         "400":
           $ref: '#/components/responses/InvalidRequest'
         "404":
