@@ -3,16 +3,10 @@ import os
 import traceback
 
 import firebase_admin
-from api.annotation import annotation_bp
 from api.api import api_bp
-from api.category import categories_bp
 from api.instances_v2 import instances_v2_bp
-from api.languages import languages_bp
-from api.metadata import metadata_bp
-from api.pecha import pecha_bp
 from api.persons import persons_bp
-from api.schema import schema_bp, schema_v2_bp
-from api.text import text_bp
+from api.schema import schema_v2_bp
 from api.texts_v2 import texts_v2_bp
 from exceptions import OpenPechaException
 from firebase_admin import credentials
@@ -42,16 +36,9 @@ def create_app(testing=False):
     app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
     app.json.ensure_ascii = False
 
-    app.register_blueprint(pecha_bp, url_prefix="/pecha")
-    app.register_blueprint(metadata_bp, url_prefix="/metadata")
     app.register_blueprint(texts_v2_bp, url_prefix="/v2/texts")
-    app.register_blueprint(languages_bp, url_prefix="/languages")
-    app.register_blueprint(schema_bp, url_prefix="/schema")
     app.register_blueprint(api_bp, url_prefix="/api")
-    app.register_blueprint(text_bp, url_prefix="/text")
     app.register_blueprint(instances_v2_bp, url_prefix="/v2/instances")
-    app.register_blueprint(categories_bp, url_prefix="/categories")
-    app.register_blueprint(annotation_bp, url_prefix="/annotation")
     app.register_blueprint(persons_bp, url_prefix="/v2/persons")
     app.register_blueprint(schema_v2_bp, url_prefix="/v2/schema")
 

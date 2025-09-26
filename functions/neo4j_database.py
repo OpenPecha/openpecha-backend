@@ -100,6 +100,8 @@ class Neo4JDatabase:
             colophon=manifestation_data.get("colophon"),
             incipit_title=incipit_title,
             alt_incipit_titles=alt_incipit_titles,
+            alignment_sources=manifestation_data.get("alignment_sources"),
+            alignment_targets=manifestation_data.get("alignment_targets"),
         )
 
     def get_manifestations_by_expression(self, expression_id: str) -> list[ManifestationModelOutput]:
@@ -127,9 +129,7 @@ class Neo4JDatabase:
     def get_manifestation_by_annotation(self, annotation_id: str) -> tuple[ManifestationModelOutput, str] | None:
         with self.__driver.session() as session:
             record = session.execute_read(
-                lambda tx: tx.run(
-                    Queries.manifestations["fetch_by_annotation"], annotation_id=annotation_id
-                ).single()
+                lambda tx: tx.run(Queries.manifestations["fetch_by_annotation"], annotation_id=annotation_id).single()
             )
             if record is None:
                 return None

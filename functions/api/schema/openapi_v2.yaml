@@ -139,6 +139,17 @@ paths:
                         type: object
                         additionalProperties:
                           type: string
+                    alignment_sources:
+                      type: array
+                      items:
+                        type: string
+                      description: List of manifestation IDs that have annotations aligned to this manifestation
+                    alignment_targets:
+                      type: array
+                      items:
+                        type: string
+                      description: List of manifestation IDs that this manifestation's annotations are aligned to
+
               examples:
                 success:
                   summary: List of instances
@@ -149,6 +160,12 @@ paths:
                       annotations:
                         - id: "A12345678"
                           type: "segmentation"
+                        - id: "A87654321"
+                          type: "alignment"
+                          aligned_to: "A11111111"
+                      bdrc: "W123456"
+                      alignment_sources: []
+                      alignment_targets: ["T87654321", "T11111111"]
                       bdrc: "W123456"
         "400":
           $ref: '#/components/responses/InvalidRequest'
@@ -835,6 +852,32 @@ paths:
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/ServerError'
+
+  /api/version:
+      get:
+        summary: Get API version and Git SHA
+        description: Returns the current API version and the Git commit SHA of the deployed code.
+        operationId: getVersion
+        tags:
+            - API
+        responses:
+            "200":
+              description: Successfully retrieved version information
+              content:
+                application/json:
+                  schema:
+                    type: object
+                    properties:
+                      version:
+                          type: string
+                          examples: 
+                            - "0.1.0"
+                      git_sha:
+                          type: string
+                          examples:
+                            - "b706d2b1a5d0176df374da25c970274b2e0f7770"
+            "500":
+              $ref: '#/components/responses/ServerError'
 
 components:
   responses:

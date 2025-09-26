@@ -151,6 +151,8 @@ class ManifestationModelInput(ManifestationModelBase):
 class ManifestationModelOutput(ManifestationModelBase):
     id: str
     annotations: list[AnnotationModel] = Field(..., min_length=1)
+    alignment_sources: list[str] | None = None
+    alignment_targets: list[str] | None = None
 
     @model_validator(mode="after")
     def validate_annotations(self):
