@@ -2,7 +2,7 @@ import logging
 
 from exceptions import InvalidRequest
 from flask import Blueprint, Response, jsonify, request
-from models_v2 import PersonModelInput
+from models import PersonModelInput
 from neo4j_database import Neo4JDatabase
 
 persons_bp = Blueprint("persons", __name__)

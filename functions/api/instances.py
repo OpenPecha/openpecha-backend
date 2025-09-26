@@ -2,7 +2,7 @@ import logging
 
 from flask import Blueprint, Response, jsonify, request
 from identifier import generate_id
-from models_v2 import (
+from models import (
     AIContributionModel,
     AnnotationModel,
     AnnotationType,
@@ -22,13 +22,13 @@ from openpecha.pecha.serializers import SerializerLogicHandler
 from pecha_handling import retrieve_pecha
 from storage import Storage
 
-instances_v2_bp = Blueprint("instances_v2", __name__)
+instances_bp = Blueprint("instances", __name__)
 
 logger = logging.getLogger(__name__)
 
 
-@instances_v2_bp.route("/<string:manifestation_id>", methods=["GET"], strict_slashes=False)
-def get_instance_v2(manifestation_id: str) -> tuple[Response, int]:
+@instances_bp.route("/<string:manifestation_id>", methods=["GET"], strict_slashes=False)
+def get_instance(manifestation_id: str) -> tuple[Response, int]:
     logger.info("Fetching with manifestation ID: %s", manifestation_id)
 
     aligned = request.args.get("aligned", "false").lower() == "true"
@@ -93,8 +93,8 @@ def get_instance_v2(manifestation_id: str) -> tuple[Response, int]:
     return (json, 200)
 
 
-@instances_v2_bp.route("/<string:original_manifestation_id>/translation", methods=["POST"], strict_slashes=False)
-def create_translation_v2(original_manifestation_id: str) -> tuple[Response, int]:
+@instances_bp.route("/<string:original_manifestation_id>/translation", methods=["POST"], strict_slashes=False)
+def create_translation(original_manifestation_id: str) -> tuple[Response, int]:
     logger.info("Creating translation for manifestation ID: %s", original_manifestation_id)
 
     data = request.get_json(force=True, silent=True)

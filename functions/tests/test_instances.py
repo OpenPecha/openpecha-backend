@@ -22,7 +22,7 @@ import pytest
 from dotenv import load_dotenv
 from identifier import generate_id
 from main import create_app
-from models_v2 import (
+from models import (
     AnnotationModel,
     AnnotationType,
     CopyrightStatus,
@@ -234,7 +234,7 @@ class TestTextV2Endpoints:
             "bdrc": "W12345",
         }
 
-        with patch("api.text_v2.Pecha.create_pecha") as mock_create_pecha:
+        with patch("api.instances.Pecha.create_pecha") as mock_create_pecha:
             mock_pecha = MagicMock()
             mock_pecha.id = "pecha123"
 
@@ -287,7 +287,7 @@ class TestTextV2Endpoints:
             "translation_annotation": [{"span": {"start": 0, "end": 20}, "index": 0, "alignment_index": [0]}],
         }
 
-        with patch("api.text_v2.Pecha.create_pecha") as mock_create_pecha:
+        with patch("api.instances.Pecha.create_pecha") as mock_create_pecha:
             mock_translation_pecha = MagicMock()
             mock_translation_pecha.id = "translation_pecha789"
 
@@ -361,7 +361,7 @@ class TestTextV2Endpoints:
         }
 
         # Step 1: Create text via POST
-        with patch("api.text_v2.Pecha.create_pecha") as mock_create_pecha:
+        with patch("api.instances.Pecha.create_pecha") as mock_create_pecha:
             mock_pecha = MagicMock()
             mock_pecha.id = "pecha123"
 
@@ -446,7 +446,7 @@ class TestTextV2Endpoints:
         }
 
         # Perform POST translation
-        with patch("api.text_v2.Pecha.create_pecha") as mock_create_pecha:
+        with patch("api.instances.Pecha.create_pecha") as mock_create_pecha:
             mock_translation_pecha = MagicMock()
             mock_translation_pecha.id = "translation_pecha789"
 

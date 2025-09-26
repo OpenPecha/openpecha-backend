@@ -17,7 +17,7 @@ import pytest
 from dotenv import load_dotenv
 from exceptions import DataNotFound
 from identifier import generate_id
-from models_v2 import (
+from models import (
     AnnotationModel,
     AnnotationType,
     ContributionModel,

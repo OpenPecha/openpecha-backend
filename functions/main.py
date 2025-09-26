@@ -4,10 +4,10 @@ import traceback
 
 import firebase_admin
 from api.api import api_bp
-from api.instances_v2 import instances_v2_bp
+from api.instances import instances_bp
 from api.persons import persons_bp
-from api.schema import schema_v2_bp
-from api.texts_v2 import texts_v2_bp
+from api.schema import schema_bp
+from api.texts import texts_bp
 from exceptions import OpenPechaException
 from firebase_admin import credentials
 from firebase_functions import https_fn, options
@@ -36,11 +36,11 @@ def create_app(testing=False):
     app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
     app.json.ensure_ascii = False
 
-    app.register_blueprint(texts_v2_bp, url_prefix="/v2/texts")
+    app.register_blueprint(texts_bp, url_prefix="/v2/texts")
     app.register_blueprint(api_bp, url_prefix="/api")
-    app.register_blueprint(instances_v2_bp, url_prefix="/v2/instances")
+    app.register_blueprint(instances_bp, url_prefix="/v2/instances")
     app.register_blueprint(persons_bp, url_prefix="/v2/persons")
-    app.register_blueprint(schema_v2_bp, url_prefix="/v2/schema")
+    app.register_blueprint(schema_bp, url_prefix="/v2/schema")
 
     @app.after_request
     def add_no_cache_headers(response):

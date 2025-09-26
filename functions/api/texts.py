@@ -3,19 +3,19 @@ import logging
 from exceptions import InvalidRequest
 from flask import Blueprint, Response, jsonify, request
 from identifier import generate_id
-from models_v2 import AnnotationModel, AnnotationType, ExpressionModelInput, InstanceRequestModel
+from models import AnnotationModel, AnnotationType, ExpressionModelInput, InstanceRequestModel
 from neo4j_database import Neo4JDatabase
 from openpecha.pecha import Pecha
 from openpecha.pecha.annotations import SegmentationAnnotation
 from storage import Storage
 
-texts_v2_bp = Blueprint("texts_v2", __name__)
+texts_bp = Blueprint("texts", __name__)
 
 logger = logging.getLogger(__name__)
 
 
-@texts_v2_bp.route("", methods=["GET"], strict_slashes=False)
-def get_all_texts_v2() -> tuple[Response, int]:
+@texts_bp.route("", methods=["GET"], strict_slashes=False)
+def get_all_texts() -> tuple[Response, int]:
     limit = request.args.get("limit", 20, type=int)
     offset = request.args.get("offset", 0, type=int)
 
@@ -40,15 +40,15 @@ def get_all_texts_v2() -> tuple[Response, int]:
     return jsonify(response_data), 200
 
 
-@texts_v2_bp.route("/<string:expression_id>", methods=["GET"], strict_slashes=False)
-def get_texts_v2(expression_id: str) -> tuple[Response, int]:
+@texts_bp.route("/<string:expression_id>", methods=["GET"], strict_slashes=False)
+def get_texts(expression_id: str) -> tuple[Response, int]:
     db = Neo4JDatabase()
     expression = db.get_expression(expression_id=expression_id)
     return jsonify(expression.model_dump()), 200
 
 
-@texts_v2_bp.route("", methods=["POST"], strict_slashes=False)
-def post_texts_v2() -> tuple[Response, int]:
+@texts_bp.route("", methods=["POST"], strict_slashes=False)
+def post_texts() -> tuple[Response, int]:
     if not (data := request.get_json()):
         raise InvalidRequest("No JSON data provided")
 
@@ -62,16 +62,16 @@ def post_texts_v2() -> tuple[Response, int]:
     return jsonify({"message": "Text created successfully", "id": expression_id}), 201
 
 
-@texts_v2_bp.route("/<string:expression_id>/instances", methods=["GET"], strict_slashes=False)
-def get_instances_v2(expression_id: str) -> tuple[Response, int]:
+@texts_bp.route("/<string:expression_id>/instances", methods=["GET"], strict_slashes=False)
+def get_instances(expression_id: str) -> tuple[Response, int]:
     db = Neo4JDatabase()
     manifestations = db.get_manifestations_by_expression(expression_id)
     response_data = [manifestation.model_dump() for manifestation in manifestations]
     return jsonify(response_data), 200
 
 
-@texts_v2_bp.route("/<string:expression_id>/instances", methods=["POST"], strict_slashes=False)
-def create_instance_v2(expression_id: str) -> tuple[Response, int]:
+@texts_bp.route("/<string:expression_id>/instances", methods=["POST"], strict_slashes=False)
+def create_instance(expression_id: str) -> tuple[Response, int]:
     data = request.get_json(force=True, silent=True)
     if not data:
         return jsonify({"error": "Request body is required"}), 400

@@ -18,7 +18,7 @@ from unittest.mock import patch
 import pytest
 from dotenv import load_dotenv
 from main import create_app
-from models_v2 import ExpressionModelInput, PersonModelInput
+from models import ExpressionModelInput, PersonModelInput
 from neo4j_database import Neo4JDatabase
 
 # Load .env file if it exists
@@ -84,7 +84,7 @@ def client():
 @pytest.fixture
 def patched_client(client, test_database):
     """Create Flask test client with Neo4j database patched to use test instance"""
-    with patch("api.metadata_v2.Neo4JDatabase") as mock_db_class:
+    with patch("api.texts.Neo4JDatabase") as mock_db_class:
         mock_db_class.return_value = test_database
         yield client
 
@@ -120,7 +120,7 @@ class TestGetAllMetadataV2:
 
     def test_get_all_metadata_empty_database(self, client, test_database):
         """Test getting all metadata from empty database"""
-        with patch("api.metadata_v2.Neo4JDatabase") as mock_db_class:
+        with patch("api.texts.Neo4JDatabase") as mock_db_class:
             mock_db_class.return_value = test_database
 
             response = client.get("/v2/metadata/")
@@ -132,7 +132,7 @@ class TestGetAllMetadataV2:
 
     def test_get_all_metadata_default_pagination(self, client, test_database, test_person_data, test_expression_data):
         """Test default pagination (limit=20, offset=0)"""
-        with patch("api.metadata_v2.Neo4JDatabase") as mock_db_class:
+        with patch("api.texts.Neo4JDatabase") as mock_db_class:
             mock_db_class.return_value = test_database
 
             # Create test person first
@@ -156,7 +156,7 @@ class TestGetAllMetadataV2:
 
     def test_get_all_metadata_custom_pagination(self, client, test_database, test_person_data):
         """Test custom pagination parameters"""
-        with patch("api.metadata_v2.Neo4JDatabase") as mock_db_class:
+        with patch("api.texts.Neo4JDatabase") as mock_db_class:
             mock_db_class.return_value = test_database
 
             # Create test person
@@ -185,7 +185,7 @@ class TestGetAllMetadataV2:
 
     def test_get_all_metadata_filter_by_type(self, client, test_database, test_person_data):
         """Test filtering by expression type"""
-        with patch("api.metadata_v2.Neo4JDatabase") as mock_db_class:
+        with patch("api.texts.Neo4JDatabase") as mock_db_class:
             mock_db_class.return_value = test_database
 
             # Create test person
@@ -233,7 +233,7 @@ class TestGetAllMetadataV2:
 
     def test_get_all_metadata_filter_by_language(self, client, test_database, test_person_data):
         """Test filtering by language"""
-        with patch("api.metadata_v2.Neo4JDatabase") as mock_db_class:
+        with patch("api.texts.Neo4JDatabase") as mock_db_class:
             mock_db_class.return_value = test_database
 
             # Create test person
@@ -280,7 +280,7 @@ class TestGetAllMetadataV2:
 
     def test_get_all_metadata_multiple_filters(self, client, test_database, test_person_data):
         """Test combining multiple filters"""
-        with patch("api.metadata_v2.Neo4JDatabase") as mock_db_class:
+        with patch("api.texts.Neo4JDatabase") as mock_db_class:
             mock_db_class.return_value = test_database
 
             # Create test person
@@ -320,7 +320,7 @@ class TestGetAllMetadataV2:
 
     def test_get_all_metadata_invalid_limit(self, client, test_database):
         """Test invalid limit parameters"""
-        with patch("api.metadata_v2.Neo4JDatabase") as mock_db_class:
+        with patch("api.texts.Neo4JDatabase") as mock_db_class:
             mock_db_class.return_value = test_database
 
             # Test limit too low
@@ -343,7 +343,7 @@ class TestGetAllMetadataV2:
 
     def test_get_all_metadata_invalid_offset(self, client, test_database):
         """Test invalid offset parameters"""
-        with patch("api.metadata_v2.Neo4JDatabase") as mock_db_class:
+        with patch("api.texts.Neo4JDatabase") as mock_db_class:
             mock_db_class.return_value = test_database
 
             # Test negative offset
@@ -360,7 +360,7 @@ class TestGetAllMetadataV2:
 
     def test_get_all_metadata_edge_pagination(self, client, test_database, test_person_data):
         """Test edge cases for pagination"""
-        with patch("api.metadata_v2.Neo4JDatabase") as mock_db_class:
+        with patch("api.metadata.Neo4JDatabase") as mock_db_class:
             mock_db_class.return_value = test_database
 
             # Create test person
@@ -401,7 +401,7 @@ class TestGetSingleMetadataV2:
 
     def test_get_single_metadata_success(self, client, test_database, test_person_data, test_expression_data):
         """Test successfully retrieving a single expression"""
-        with patch("api.metadata_v2.Neo4JDatabase") as mock_db_class:
+        with patch("api.texts.Neo4JDatabase") as mock_db_class:
             mock_db_class.return_value = test_database
 
             # Create test person
@@ -431,7 +431,7 @@ class TestGetSingleMetadataV2:
 
     def test_get_single_metadata_translation_expression(self, client, test_database, test_person_data):
         """Test retrieving TRANSLATION expression with parent relationship"""
-        with patch("api.metadata_v2.Neo4JDatabase") as mock_db_class:
+        with patch("api.texts.Neo4JDatabase") as mock_db_class:
             mock_db_class.return_value = test_database
 
             # Create test person
@@ -470,7 +470,7 @@ class TestGetSingleMetadataV2:
 
     def test_get_single_metadata_not_found(self, client, test_database):
         """Test retrieving non-existent expression"""
-        with patch("api.metadata_v2.Neo4JDatabase") as mock_db_class:
+        with patch("api.texts.Neo4JDatabase") as mock_db_class:
             mock_db_class.return_value = test_database
 
             response = client.get("/v2/metadata/nonexistent_id")
@@ -485,7 +485,7 @@ class TestPostMetadataV2:
 
     def test_create_root_expression_success(self, client, test_database, test_person_data):
         """Test successfully creating a ROOT expression"""
-        with patch("api.metadata_v2.Neo4JDatabase") as mock_db_class:
+        with patch("api.texts.Neo4JDatabase") as mock_db_class:
             mock_db_class.return_value = test_database
 
             # Create test person first
@@ -519,7 +519,7 @@ class TestPostMetadataV2:
 
     def test_create_expression_missing_json(self, client, test_database):
         """Test POST with no JSON data"""
-        with patch("api.metadata_v2.Neo4JDatabase") as mock_db_class:
+        with patch("api.texts.Neo4JDatabase") as mock_db_class:
             mock_db_class.return_value = test_database
 
             response = client.post("/v2/metadata", content_type="application/json")
@@ -530,7 +530,7 @@ class TestPostMetadataV2:
 
     def test_create_expression_invalid_json(self, client, test_database):
         """Test POST with invalid JSON"""
-        with patch("api.metadata_v2.Neo4JDatabase") as mock_db_class:
+        with patch("api.texts.Neo4JDatabase") as mock_db_class:
             mock_db_class.return_value = test_database
 
             response = client.post("/v2/metadata", data="invalid json", content_type="application/json")
@@ -541,7 +541,7 @@ class TestPostMetadataV2:
 
     def test_create_expression_missing_required_fields(self, client, test_database):
         """Test POST with missing required fields"""
-        with patch("api.metadata_v2.Neo4JDatabase") as mock_db_class:
+        with patch("api.texts.Neo4JDatabase") as mock_db_class:
             mock_db_class.return_value = test_database
 
             # Missing title field
@@ -555,7 +555,7 @@ class TestPostMetadataV2:
 
     def test_create_expression_invalid_type(self, client, test_database):
         """Test POST with invalid expression type"""
-        with patch("api.metadata_v2.Neo4JDatabase") as mock_db_class:
+        with patch("api.texts.Neo4JDatabase") as mock_db_class:
             mock_db_class.return_value = test_database
 
             expression_data = {"type": "invalid_type", "title": {"en": "Test"}, "language": "en", "contributions": []}
@@ -568,7 +568,7 @@ class TestPostMetadataV2:
 
     def test_create_root_expression_with_parent_fails(self, client, test_database):
         """Test that ROOT expression with parent fails validation"""
-        with patch("api.metadata_v2.Neo4JDatabase") as mock_db_class:
+        with patch("api.texts.Neo4JDatabase") as mock_db_class:
             mock_db_class.return_value = test_database
 
             expression_data = {
@@ -588,7 +588,7 @@ class TestPostMetadataV2:
 
     def test_create_commentary_without_parent_fails(self, client, test_database):
         """Test that COMMENTARY expression without parent fails validation"""
-        with patch("api.metadata_v2.Neo4JDatabase") as mock_db_class:
+        with patch("api.texts.Neo4JDatabase") as mock_db_class:
             mock_db_class.return_value = test_database
 
             expression_data = {

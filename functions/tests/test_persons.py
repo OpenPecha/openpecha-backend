@@ -19,7 +19,7 @@ from unittest.mock import patch
 import pytest
 from dotenv import load_dotenv
 from main import create_app
-from models_v2 import PersonModelInput
+from models import PersonModelInput
 from neo4j_database import Neo4JDatabase
 
 logger = logging.getLogger(__name__)
