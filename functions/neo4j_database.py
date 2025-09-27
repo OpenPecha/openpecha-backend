@@ -196,6 +196,29 @@ class Neo4JDatabase:
         with self.__driver.session() as session:
             return session.execute_write(lambda tx: self._execute_add_annotation(tx, manifestation_id, annotation))
 
+    def create_commentary(
+        self,
+        expression: ExpressionModelInput,
+        expression_id: str,
+        manifestation: ManifestationModelInput,
+        annotation: AnnotationModel,
+        original_manifestation_id: str,
+        original_annotation: AnnotationModel = None,
+    ) -> str:
+        def transaction_function(tx):
+            _ = self._execute_create_expression(tx, expression, expression_id)
+            manifestation_id = self._execute_create_manifestation(tx, manifestation, expression_id)
+
+            if original_annotation:
+                _ = self._execute_add_annotation(tx, original_manifestation_id, original_annotation)
+
+            _ = self._execute_add_annotation(tx, manifestation_id, annotation)
+
+            return manifestation_id
+
+        with self.__driver.session() as session:
+            return session.execute_write(transaction_function)
+
     def create_translation(
         self,
         expression_id: str,

@@ -9,12 +9,7 @@ nodes:
         type: string
         required: false
         unique: true
-    relationships:
-      COMMENTARY_OF:
-        target: Work
-        cardinality: one
-        required: false
-
+      
   Expression:
     properties:
       wiki:
@@ -35,6 +30,10 @@ nodes:
             type: boolean
             required: true
       TRANSLATION_OF:
+        target: Expression
+        cardinality: one
+        required: false
+      COMMENTARY_OF:
         target: Expression
         cardinality: one
         required: false

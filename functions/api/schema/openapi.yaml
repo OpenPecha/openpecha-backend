@@ -387,6 +387,109 @@ paths:
         "500":
           $ref: '#/components/responses/ServerError'
 
+  /v2/instances/{instance_id}/commentary:
+    post:
+      summary: Create a commentary
+      description: Create a commentary of an existing instance
+      tags:
+        - Instances
+      parameters:
+        - name: instance_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the original instance to comment on
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - language
+                - content
+                - title
+                - author
+                - commentary_annotation
+              properties:
+                language:
+                  type: string
+                  description: Language code for the commentary
+                content:
+                  type: string
+                  description: The commentary text content
+                title:
+                  type: string
+                  description: Title of the commentary
+                alt_titles:
+                  type: array
+                  items:
+                    type: string
+                author:
+                  type: object
+                  properties:
+                    person_id:
+                      type: string
+                    person_bdrc_id:
+                      type: string
+                commentary_annotation:
+                  type: array
+                  items:
+                    type: object
+                  description: Alignment annotation for commentary
+                original_annotation:
+                  type: array
+                  items:
+                    type: object
+                  description: Optional alignment annotation for original text
+                copyright:
+                  type: string
+                  enum: [public, copyrighted]
+                  default: public
+            examples:
+              valid_commentary:
+                summary: Valid commentary creation request
+                value:
+                  language: "bo"
+                  content: "This is the commentary text content explaining the original"
+                  title: "Commentary on Original Text"
+                  author:
+                    person_id: "P12345678"
+                  commentary_annotation:
+                    - span:
+                        start: 0
+                        end: 20
+                      index: 0
+                      alignment_index: [0]
+                  copyright: "public"
+      responses:
+        "201":
+          description: Commentary created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - "Commentary created successfully"
+                  id:
+                    type: string
+                    examples:
+                      - "ABC12345678"
+                  text_id:
+                    type: string
+                    examples:
+                      - "ABC12345678"
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "422":
+          $ref: '#/components/responses/ValidationError'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
   /v2/texts:
     get:
       summary: Retrieve all texts

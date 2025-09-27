@@ -203,6 +203,17 @@ class TranslationRequestModel(OpenPechaModel):
     copyright: CopyrightStatus = CopyrightStatus.PUBLIC_DOMAIN
 
 
+class CommentaryRequestModel(OpenPechaModel):
+    language: NonEmptyStr
+    content: NonEmptyStr
+    title: NonEmptyStr
+    alt_titles: list[NonEmptyStr] | None = None
+    author: CreatorRequestModel
+    original_annotation: list[dict] | None = None
+    commentary_annotation: list[dict]
+    copyright: CopyrightStatus = CopyrightStatus.PUBLIC_DOMAIN
+
+
 class InstanceRequestModel(OpenPechaModel):
     metadata: ManifestationModelInput
     annotation: list[dict]

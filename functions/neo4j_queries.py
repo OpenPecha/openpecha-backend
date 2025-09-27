@@ -89,7 +89,7 @@ class Queries:
         return f"""
 CASE
     WHEN ({label})-[:EXPRESSION_OF {{original: false}}]->(:Work) THEN 'translation'
-    WHEN ({label})-[:EXPRESSION_OF]->(:Work)-[:COMMENTARY_OF]->(:Work) THEN 'commentary'
+    WHEN ({label})-[:COMMENTARY_OF]->(:Expression) THEN 'commentary'
     WHEN ({label})-[:EXPRESSION_OF {{original: true}}]->(:Work) THEN 'root'
     ELSE null
 END
@@ -105,8 +105,7 @@ END
     type: {Queries.infer_expression_type(label)},
     parent: COALESCE(
         [({label})-[:TRANSLATION_OF]->(ef_parent:Expression) | ef_parent.id][0],
-        [({label})-[:EXPRESSION_OF]->(ef_work:Work)-[:COMMENTARY_OF]->(:Work)
-        <-[:EXPRESSION_OF]-(ef_parent:Expression) | ef_parent.id][0]
+        [({label})-[:COMMENTARY_OF]->(ef_parent:Expression) | ef_parent.id][0]
     ),
     contributors: (
         [({label})-[:HAS_CONTRIBUTION]->(ef_contrib:Contribution)-[:BY]->(ef_person:Person) | {{
@@ -199,13 +198,13 @@ CREATE (e)-[:EXPRESSION_OF {{original: false}}]->(w),
 RETURN e.id as expression_id
 """,
     "create_commentary": f"""
-MATCH (parent:Expression {{id: $parent_id}})-[:EXPRESSION_OF]->(parent_work:Work)
+MATCH (parent:Expression {{id: $parent_id}})
 CREATE (commentary_work:Work {{id: $work_id}})
 {Queries.create_expression_base('e')}
-WITH parent, parent_work, commentary_work, e
+WITH parent, commentary_work, e
 MATCH (n:Nomen) WHERE elementId(n) = $title_nomen_element_id
 MERGE (l:Language {{code: $language_code}})
-CREATE (commentary_work)-[:COMMENTARY_OF]->(parent_work),
+CREATE (e)-[:COMMENTARY_OF]->(parent),
        (e)-[:EXPRESSION_OF {{original: true}}]->(commentary_work),
        (e)-[:HAS_LANGUAGE {{bcp47: $bcp47_tag}}]->(l),
        (e)-[:HAS_TITLE]->(n)

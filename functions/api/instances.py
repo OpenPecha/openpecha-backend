@@ -6,6 +6,7 @@ from models import (
     AIContributionModel,
     AnnotationModel,
     AnnotationType,
+    CommentaryRequestModel,
     ContributionModel,
     ContributorRole,
     ExpressionModelInput,
@@ -91,6 +92,109 @@ def get_instance(manifestation_id: str) -> tuple[Response, int]:
         json = SerializerLogicHandler().serialize(target).model_dump()
 
     return (json, 200)
+
+
+@instances_bp.route("/<string:original_manifestation_id>/commentary", methods=["POST"], strict_slashes=False)
+def create_commentary(original_manifestation_id: str) -> tuple[Response, int]:
+    logger.info("Creating commentary for manifestation ID: %s", original_manifestation_id)
+
+    data = request.get_json(force=True, silent=True)
+    if not data:
+        return jsonify({"error": "Request body is required"}), 400
+
+    commentary_request = CommentaryRequestModel.model_validate(data)
+    db = Neo4JDatabase()
+
+    # Get original manifestation and validate segmentation
+    original_manifestation, original_expression_id = db.get_manifestation(original_manifestation_id)
+    if not original_manifestation.segmentation_annotation_id:
+        return jsonify({"error": "No segmentation annotation found for original text"}), 400
+
+    expression_id = generate_id()
+    commentary_annotation_id = generate_id()
+    original_annotation_id = generate_id()
+
+    # Create and store commentary pecha
+    commentary_pecha = Pecha.create_pecha(
+        pecha_id=expression_id,
+        base_text=commentary_request.content,
+        annotation_id=commentary_annotation_id,
+        annotation=[AlignmentAnnotation.model_validate(a) for a in commentary_request.commentary_annotation],
+    )
+
+    storage = Storage()
+    storage.store_pecha_opf(commentary_pecha)
+
+    # Handle optional original annotation
+    if commentary_request.original_annotation:
+        original_pecha = retrieve_pecha(original_expression_id)
+        original_pecha.add(
+            annotation_id=original_annotation_id,
+            annotation=[AlignmentAnnotation.model_validate(a) for a in commentary_request.original_annotation],
+        )
+        storage.store_pecha_opf(original_pecha)
+
+    # Create commentary expression
+    commentary_expression = ExpressionModelInput(
+        type=TextType.COMMENTARY,
+        title=LocalizedString({commentary_request.language: commentary_request.title}),
+        alt_titles=(
+            [LocalizedString({commentary_request.language: alt_title}) for alt_title in commentary_request.alt_titles]
+            if commentary_request.alt_titles
+            else None
+        ),
+        language=commentary_request.language,
+        contributions=[
+            ContributionModel(
+                person_id=commentary_request.commentator.person_id,
+                person_bdrc_id=commentary_request.commentator.person_bdrc_id,
+                role=ContributorRole.AUTHOR,
+            )
+        ],
+        parent=original_expression_id,
+    )
+
+    commentary_manifestation = ManifestationModelInput(
+        type=ManifestationType.CRITICAL, copyright=commentary_request.copyright
+    )
+
+    if commentary_request.original_annotation:
+        commentary_annotation = AnnotationModel(
+            id=commentary_annotation_id, type=AnnotationType.ALIGNMENT, aligned_to=original_annotation_id
+        )
+    else:
+        commentary_annotation = AnnotationModel(
+            id=commentary_annotation_id,
+            type=AnnotationType.ALIGNMENT,
+            aligned_to=original_manifestation.segmentation_annotation_id,
+        )
+
+    original_annotation = (
+        AnnotationModel(id=original_annotation_id, type=AnnotationType.ALIGNMENT)
+        if commentary_request.original_annotation
+        else None
+    )
+
+    # TODO: in case of exception, rollback the stored pecha
+    commentary_manifestation_id = db.create_commentary(
+        expression=commentary_expression,
+        expression_id=expression_id,
+        manifestation=commentary_manifestation,
+        annotation=commentary_annotation,
+        original_manifestation_id=original_manifestation_id,
+        original_annotation=original_annotation,
+    )
+
+    return (
+        jsonify(
+            {
+                "message": "Commentary created successfully",
+                "id": commentary_manifestation_id,
+                "metadata_id": expression_id,
+            }
+        ),
+        201,
+    )
 
 
 @instances_bp.route("/<string:original_manifestation_id>/translation", methods=["POST"], strict_slashes=False)
