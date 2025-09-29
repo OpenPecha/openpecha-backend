@@ -192,25 +192,15 @@ class CreatorRequestModel(OpenPechaModel):
         return self
 
 
-class TranslationRequestModel(OpenPechaModel):
-    language: NonEmptyStr
-    content: NonEmptyStr
-    title: NonEmptyStr
-    alt_titles: list[NonEmptyStr] | None = None
-    translator: CreatorRequestModel
-    original_annotation: list[dict] | None = None
-    translation_annotation: list[dict]
-    copyright: CopyrightStatus = CopyrightStatus.PUBLIC_DOMAIN
-
-
-class CommentaryRequestModel(OpenPechaModel):
+class AlignedTextRequestModel(OpenPechaModel):
     language: NonEmptyStr
     content: NonEmptyStr
     title: NonEmptyStr
     alt_titles: list[NonEmptyStr] | None = None
     author: CreatorRequestModel
-    original_annotation: list[dict] | None = None
-    commentary_annotation: list[dict]
+    target_annotation: list[dict] | None = None
+    alignment_annotation: list[dict]
+    annotation: list[dict]
     copyright: CopyrightStatus = CopyrightStatus.PUBLIC_DOMAIN
 
 
