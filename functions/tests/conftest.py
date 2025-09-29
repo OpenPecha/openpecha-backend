@@ -13,8 +13,6 @@ class MockStorageBucket:
         return MockBlob(path, self._storage)
 
     def store_pecha_opf(self, pecha):
-        """Mock method to store pecha OPF files"""
-        # Just simulate storing the pecha without actual file operations
         pass
 
     def get_blob(self, path: str):

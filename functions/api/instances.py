@@ -103,7 +103,6 @@ def create_aligned_text(
         return jsonify({"error": "No segmentation annotation found for target text"}), 400
 
     expression_id = generate_id()
-    target_annotation_id = generate_id()
     alignment_annotation_id = generate_id()
 
     pecha = Pecha.create_pecha(
@@ -124,6 +123,7 @@ def create_aligned_text(
     storage.store_pecha_opf(pecha)
 
     if request_model.target_annotation:
+        target_annotation_id = generate_id()
         target_pecha = retrieve_pecha(target_expression_id)
         target_pecha.add(
             annotation_id=target_annotation_id,
@@ -162,21 +162,16 @@ def create_aligned_text(
 
     manifestation = ManifestationModelInput(type=ManifestationType.CRITICAL, copyright=request_model.copyright)
 
-    if request_model.target_annotation:
-        alignment_annotation = AnnotationModel(
-            id=alignment_annotation_id, type=AnnotationType.ALIGNMENT, aligned_to=target_annotation_id
-        )
-    else:
-        alignment_annotation = AnnotationModel(
-            id=alignment_annotation_id,
-            type=AnnotationType.ALIGNMENT,
-            aligned_to=target_manifestation.segmentation_annotation_id,
-        )
+    alignment_annotation = AnnotationModel(
+        id=alignment_annotation_id,
+        type=AnnotationType.ALIGNMENT,
+        aligned_to=(
+            target_annotation_id if request_model.target_annotation else target_manifestation.segmentation_annotation_id
+        ),
+    )
 
     annotation = (
-        AnnotationModel(id=annotation_id, type=AnnotationType.SEGMENTATION)
-        if request_model.annotation
-        else None
+        AnnotationModel(id=annotation_id, type=AnnotationType.SEGMENTATION) if request_model.annotation else None
     )
 
     target_annotation = (
