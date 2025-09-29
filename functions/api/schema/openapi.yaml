@@ -166,7 +166,6 @@ paths:
                       bdrc: "W123456"
                       alignment_sources: []
                       alignment_targets: ["T87654321", "T11111111"]
-                      bdrc: "W123456"
         "400":
           $ref: '#/components/responses/InvalidRequest'
         "404":
