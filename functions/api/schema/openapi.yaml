@@ -381,8 +381,8 @@ paths:
                   message:
                     type: string
                     examples:
-                      - "Translation created successfully"
-                  id:
+                      - "Text created successfully"
+                  instance_id:
                     type: string
                     examples:
                       - "ABC12345678"
@@ -494,8 +494,8 @@ paths:
                   message:
                     type: string
                     examples:
-                      - "Commentary created successfully"
-                  id:
+                      - "Text created successfully"
+                  instance_id:
                     type: string
                     examples:
                       - "ABC12345678"
@@ -589,6 +589,8 @@ paths:
                             type: string
                           person_bdrc_id:
                             type: string
+                          ai_id:
+                            type: string
                           role:
                             type: string
                             enum: [author, translator, reviser]
@@ -615,6 +617,15 @@ paths:
                           role: "author"
                       date: "2024-01-01"
                       bdrc: "W123456"
+                    - id: "DEF87654321"
+                      type: "translation"
+                      title:
+                        en: "AI Generated Translation"
+                      language: "en"
+                      contributions:
+                        - ai_id: "gpt-4"
+                          role: "translator"
+                      parent: "ABC12345678"
         "400":
           $ref: '#/components/responses/InvalidRequest'
         "500":
@@ -664,6 +675,8 @@ paths:
                         type: string
                       person_bdrc_id:
                         type: string
+                      ai_id:
+                        type: string
                       role:
                         type: string
                         enum: [author, translator, reviser]
@@ -675,7 +688,7 @@ paths:
                   type: string
                 parent:
                   type: string
-                  description: Parent metadata ID (required for commentary/translation)
+                  description: Parent metadata ID (required for commentary)
             examples:
               root_text:
                 summary: Root text creation
@@ -699,6 +712,16 @@ paths:
                   language: "en"
                   contributions:
                     - person_bdrc_id: "P87654321"
+                      role: "translator"
+              ai_translation_text:
+                summary: AI translation text creation
+                value:
+                  type: "translation"
+                  title:
+                    en: "AI English Translation"
+                  language: "en"
+                  contributions:
+                    - ai_id: "gpt-4"
                       role: "translator"
                   parent: "T12345678"
       responses:
@@ -771,6 +794,8 @@ paths:
                           type: string
                         person_bdrc_id:
                           type: string
+                        ai_id:
+                          type: string
                         role:
                           type: string
                           enum: [author, translator, reviser]
@@ -804,7 +829,7 @@ paths:
         "500":
           $ref: '#/components/responses/ServerError'
 
-  /persons:
+  /v2/persons:
     get:
       summary: Retrieve all persons
       description: Fetch all persons from the database
@@ -919,7 +944,7 @@ paths:
         "500":
           $ref: '#/components/responses/ServerError'
 
-  /persons/{person_id}:
+  /v2/persons/{person_id}:
     get:
       summary: Retrieve person by ID
       description: Fetch a specific person by their ID
