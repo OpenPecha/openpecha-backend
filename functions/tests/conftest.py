@@ -3,8 +3,6 @@ from unittest.mock import patch
 
 import pytest
 from main import create_app
-from mockfirestore.collection import CollectionReference
-from mockfirestore.query import Query
 
 
 class MockStorageBucket:
@@ -93,41 +91,6 @@ def mock_storage():
 
     with patch("firebase_admin.storage.bucket", return_value=mock_storage_bucket):
         yield mock_storage_bucket
-
-
-@pytest.fixture(autouse=True)
-def patch_mockfirestore():
-    """
-    This fixture patches the MockFirestore classes with the count() method.
-    The autouse=True ensures it runs for all tests automatically.
-    """
-
-    # Create a mock aggregation query that mimics Firestore count() functionality
-    class MockAggregationQuery:
-        def __init__(self, parent):
-            self.parent = parent
-
-        def get(self):
-            # Count documents in the collection or query result
-            docs = list(self.parent.stream())
-            count = len(docs)
-
-            # The real Firestore returns a structure that's accessed like:
-            # result[0][0].value
-            # So we need to match this exact structure
-            class AggregationResult:
-                def __init__(self, count):
-                    self.value = count
-
-            return [(AggregationResult(count),)]
-
-    # Define the count methods
-    def count_method(self):
-        return MockAggregationQuery(self)
-
-    # Patch the classes
-    CollectionReference.count = count_method
-    Query.count = count_method
 
 
 @pytest.fixture(autouse=True)

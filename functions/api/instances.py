@@ -103,21 +103,21 @@ def create_aligned_text(
         return jsonify({"error": "No segmentation annotation found for target text"}), 400
 
     expression_id = generate_id()
-    annotation_id = generate_id()
     target_annotation_id = generate_id()
+    alignment_annotation_id = generate_id()
 
     pecha = Pecha.create_pecha(
         pecha_id=expression_id,
         base_text=request_model.content,
-        annotation_id=annotation_id,
-        annotation=[SegmentationAnnotation.model_validate(a) for a in request_model.annotation],
+        annotation_id=alignment_annotation_id,
+        annotation=[AlignmentAnnotation.model_validate(a) for a in request_model.alignment_annotation],
     )
 
-    if request_model.alignment_annotation:
-        alignment_annotation_id = generate_id()
+    if request_model.annotation:
+        annotation_id = generate_id()
         pecha.add(
-            annotation_id=alignment_annotation_id,
-            annotation=[AlignmentAnnotation.model_validate(a) for a in request_model.alignment_annotation],
+            annotation_id=annotation_id,
+            annotation=[SegmentationAnnotation.model_validate(a) for a in request_model.annotation],
         )
 
     storage = Storage()
@@ -163,16 +163,21 @@ def create_aligned_text(
     manifestation = ManifestationModelInput(type=ManifestationType.CRITICAL, copyright=request_model.copyright)
 
     if request_model.target_annotation:
-        annotation = AnnotationModel(id=annotation_id, type=AnnotationType.ALIGNMENT, aligned_to=target_annotation_id)
+        alignment_annotation = AnnotationModel(
+            id=alignment_annotation_id, type=AnnotationType.ALIGNMENT, aligned_to=target_annotation_id
+        )
     else:
-        annotation = AnnotationModel(
-            id=annotation_id,
+        alignment_annotation = AnnotationModel(
+            id=alignment_annotation_id,
             type=AnnotationType.ALIGNMENT,
             aligned_to=target_manifestation.segmentation_annotation_id,
         )
 
-    if request_model.alignment_annotation:
-        annotation.aligned_to = alignment_annotation_id
+    annotation = (
+        AnnotationModel(id=annotation_id, type=AnnotationType.SEGMENTATION)
+        if request_model.annotation
+        else None
+    )
 
     target_annotation = (
         AnnotationModel(id=target_annotation_id, type=AnnotationType.ALIGNMENT)
@@ -185,8 +190,9 @@ def create_aligned_text(
         expression=expression,
         expression_id=expression_id,
         manifestation=manifestation,
-        annotation=annotation,
         target_manifestation_id=target_manifestation_id,
+        annotation=annotation,
+        alignment_annotation=alignment_annotation,
         target_annotation=target_annotation,
     )
 

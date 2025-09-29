@@ -200,7 +200,7 @@ class AlignedTextRequestModel(OpenPechaModel):
     author: CreatorRequestModel
     target_annotation: list[dict] | None = None
     alignment_annotation: list[dict]
-    annotation: list[dict]
+    annotation: list[dict] | None = None
     copyright: CopyrightStatus = CopyrightStatus.PUBLIC_DOMAIN
 
 

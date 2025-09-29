@@ -304,8 +304,8 @@ paths:
                 - language
                 - content
                 - title
-                - translator
-                - translation_annotation
+                - author
+                - alignment_annotation
               properties:
                 language:
                   type: string
@@ -320,7 +320,7 @@ paths:
                   type: array
                   items:
                     type: string
-                translator:
+                author:
                   type: object
                   properties:
                     person_id:
@@ -329,16 +329,22 @@ paths:
                       type: string
                     ai_id:
                       type: string
-                translation_annotation:
+                  description: Creator of the translation (exactly one field required)
+                alignment_annotation:
                   type: array
                   items:
                     type: object
-                  description: Alignment annotation for translation
-                original_annotation:
+                  description: Alignment annotation for translation (required)
+                annotation:
                   type: array
                   items:
                     type: object
-                  description: Optional alignment annotation for original text
+                  description: Optional segmentation annotation for translation
+                target_annotation:
+                  type: array
+                  items:
+                    type: object
+                  description: Optional newa alignment annotation for original text
                 copyright:
                   type: string
                   enum: [public, copyrighted]
@@ -350,14 +356,19 @@ paths:
                   language: "en"
                   content: "This is the translated text content"
                   title: "Translated Title"
-                  translator:
+                  author:
                     person_id: "P12345678"
-                  translation_annotation:
+                  alignment_annotation:
                     - span:
                         start: 0
                         end: 20
                       index: 0
                       alignment_index: [0]
+                  annotation:
+                    - span:
+                        start: 0
+                        end: 35
+                      index: 0
                   copyright: "public"
       responses:
         "201":
@@ -410,7 +421,7 @@ paths:
                 - content
                 - title
                 - author
-                - commentary_annotation
+                - alignment_annotation
               properties:
                 language:
                   type: string
@@ -432,16 +443,21 @@ paths:
                       type: string
                     person_bdrc_id:
                       type: string
-                commentary_annotation:
+                alignment_annotation:
                   type: array
                   items:
                     type: object
-                  description: Alignment annotation for commentary
-                original_annotation:
+                  description: Alignment annotation for commentary (required)
+                annotation:
                   type: array
                   items:
                     type: object
-                  description: Optional alignment annotation for original text
+                  description: Optional segmentation annotation for commentary
+                target_annotation:
+                  type: array
+                  items:
+                    type: object
+                  description: Optional new alignment annotation for original text
                 copyright:
                   type: string
                   enum: [public, copyrighted]
@@ -455,12 +471,17 @@ paths:
                   title: "Commentary on Original Text"
                   author:
                     person_id: "P12345678"
-                  commentary_annotation:
+                  alignment_annotation:
                     - span:
                         start: 0
                         end: 20
                       index: 0
                       alignment_index: [0]
+                  annotation:
+                    - span:
+                        start: 0
+                        end: 50
+                      index: 0
                   copyright: "public"
       responses:
         "201":
