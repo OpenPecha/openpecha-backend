@@ -186,8 +186,8 @@ def create_aligned_text(
             expression_id=expression_id,
             manifestation=manifestation,
             target_manifestation_id=target_manifestation_id,
-            annotation=annotation,
             alignment_annotation=alignment_annotation,
+            annotation=annotation,
             target_annotation=target_annotation,
         )
     except Exception as e:
