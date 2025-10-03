@@ -197,7 +197,7 @@ class AlignedTextRequestModel(OpenPechaModel):
     content: NonEmptyStr
     title: NonEmptyStr
     alt_titles: list[NonEmptyStr] | None = None
-    author: CreatorRequestModel
+    author: CreatorRequestModel | None = None
     target_annotation: list[dict] | None = None
     alignment_annotation: list[dict]
     annotation: list[dict] | None = None
