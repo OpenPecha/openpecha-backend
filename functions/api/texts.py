@@ -87,7 +87,7 @@ def create_instance(expression_id: str) -> tuple[Response, int]:
         annotation=[SegmentationAnnotation.model_validate(a) for a in instance_request.annotation],
     )
 
-    Storage().store_pecha_opf(pecha)
+    Storage().store_pecha(pecha)
 
     annotation = AnnotationModel(id=annotation_id, type=AnnotationType.SEGMENTATION)
     manifestation_id = Neo4JDatabase().create_manifestation(instance_request.metadata, annotation, expression_id)

@@ -10,7 +10,7 @@ logger = logging.getLogger(__name__)
 
 
 def retrieve_pecha(pecha_id: str) -> Pecha:
-    zip_path = Storage().retrieve_pecha_opf(pecha_id)
+    zip_path = Storage().retrieve_pecha(pecha_id)
 
     temp_dir = tempfile.gettempdir()
     extract_path = Path(temp_dir) / "pecha_extracts"

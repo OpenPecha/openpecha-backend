@@ -120,7 +120,7 @@ def create_aligned_text(
         )
 
     storage = Storage()
-    storage.store_pecha_opf(pecha)
+    storage.store_pecha(pecha)
 
     if request_model.target_annotation:
         target_annotation_id = generate_id()
@@ -129,7 +129,7 @@ def create_aligned_text(
             annotation_id=target_annotation_id,
             annotation=[AlignmentAnnotation.model_validate(a) for a in request_model.target_annotation],
         )
-        storage.store_pecha_opf(target_pecha)
+        storage.store_pecha(target_pecha)
 
     # Build contributions based on text type
     creator = request_model.author
@@ -180,16 +180,19 @@ def create_aligned_text(
         else None
     )
 
-    # TODO: in case of exception, rollback the stored pecha
-    manifestation_id = db.create_aligned_text(
-        expression=expression,
-        expression_id=expression_id,
-        manifestation=manifestation,
-        target_manifestation_id=target_manifestation_id,
-        annotation=annotation,
-        alignment_annotation=alignment_annotation,
-        target_annotation=target_annotation,
-    )
+    try:
+        manifestation_id = db.create_aligned_text(
+            expression=expression,
+            expression_id=expression_id,
+            manifestation=manifestation,
+            target_manifestation_id=target_manifestation_id,
+            annotation=annotation,
+            alignment_annotation=alignment_annotation,
+            target_annotation=target_annotation,
+        )
+    except Exception as e:
+        storage.rollback_pecha(expression_id)
+        raise e
 
     return (
         jsonify(
