@@ -304,7 +304,6 @@ paths:
                 - language
                 - content
                 - title
-                - author
                 - alignment_annotation
               properties:
                 language:
@@ -329,7 +328,7 @@ paths:
                       type: string
                     ai_id:
                       type: string
-                  description: Creator of the translation (exactly one field required)
+                  description: Creator of the translation (optional)
                 alignment_annotation:
                   type: array
                   items:
@@ -420,7 +419,6 @@ paths:
                 - language
                 - content
                 - title
-                - author
                 - alignment_annotation
               properties:
                 language:
