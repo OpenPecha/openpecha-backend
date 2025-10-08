@@ -220,6 +220,7 @@ RETURN {Queries.person_fragment('person')} AS person
     "fetch_all": f"""
 MATCH (person:Person)
 RETURN {Queries.person_fragment('person')} AS person
+SKIP $offset LIMIT $limit
 """,
     "create": """
 MATCH (n:Nomen) WHERE elementId(n) = $primary_name_element_id

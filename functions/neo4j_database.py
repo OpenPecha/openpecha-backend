@@ -147,9 +147,14 @@ class Neo4JDatabase:
         with self.__driver.session() as session:
             return session.execute_write(transaction_function)
 
-    def get_all_persons(self) -> list[PersonModelOutput]:
+    def get_all_persons(self, offset: int = 0, limit: int = 20) -> list[PersonModelOutput]:
+        params = {
+            "offset": offset,
+            "limit": limit,
+        }
+
         with self.__driver.session() as session:
-            result = session.run(Queries.persons["fetch_all"])
+            result = session.run(Queries.persons["fetch_all"], params)
             return [
                 person_model
                 for record in result

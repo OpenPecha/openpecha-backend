@@ -18,7 +18,15 @@ def get_person(person_id: str) -> tuple[Response, int]:
 
 @persons_bp.route("/", methods=["GET"], strict_slashes=False)
 def get_all_persons() -> tuple[Response, int]:
-    persons = Neo4JDatabase().get_all_persons()
+    limit = request.args.get("limit", 20, type=int)
+    offset = request.args.get("offset", 0, type=int)
+
+    if limit < 1 or limit > 100:
+        raise InvalidRequest("Limit must be between 1 and 100")
+    if offset < 0:
+        raise InvalidRequest("Offset must be non-negative")
+
+    persons = Neo4JDatabase().get_all_persons(offset=offset, limit=limit)
     return jsonify([person.model_dump() for person in persons]), 200
 
 
