@@ -16,6 +16,7 @@ class ContributorRole(str, Enum):
     TRANSLATOR = "translator"
     REVISER = "reviser"
     AUTHOR = "author"
+    SCHOLAR = "scholar"
 
 
 class AnnotationType(str, Enum):

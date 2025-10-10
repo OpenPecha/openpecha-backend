@@ -232,8 +232,13 @@ nodes:
       name:
         type: string
         unique: true
+        required: true
         allowed_values:
           - reviser
           - author
           - translator
+          - scholar
+        description:
+          type: string
+          required: false
   
