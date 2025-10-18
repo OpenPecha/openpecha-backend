@@ -1,11 +1,11 @@
 # pylint: disable=redefined-outer-name
 """
-Integration tests for v2/text endpoints using real Neo4j test instance.
+Integration tests for v2/instances endpoints using real Neo4j test instance.
 
 Tests endpoints:
-- GET /v2/text/{manifestation_id} (get text)
-- POST /v2/text (create text)
-- POST /v2/text/{manifestation_id}/translation (create translation)
+- GET /v2/instances/{instance_id}/ (get instance)
+- POST /v2/texts/{text_id}/instances/ (create instance)
+- POST /v2/instances/{instance_id}/translation (create translation)
 
 Requires environment variables:
 - NEO4J_TEST_URI: Neo4j test instance URI
@@ -145,8 +145,8 @@ def create_test_zip():
     return _create_zip
 
 
-class TestTextV2Endpoints:
-    """Integration test class for v2/text endpoints using real Neo4j database"""
+class TestInstancesV2Endpoints:
+    """Integration test class for v2/instances endpoints using real Neo4j database"""
 
     def _create_test_person(self, db, person_data):
         """Helper to create a test person in the database"""
@@ -190,12 +190,12 @@ class TestTextV2Endpoints:
         return expression_id, manifestation_id
 
     def test_get_text_success(self, client, test_database, test_person_data, create_test_zip):
-        """Test successful text retrieval"""
+        """Test successful instance retrieval"""
         # Create test person and text
         person_id = self._create_test_person(test_database, test_person_data)
         _, manifestation_id = self._create_test_text(test_database, person_id, create_test_zip)
 
-        response = client.get(f"/v2/text/{manifestation_id}")
+        response = client.get(f"/v2/instances/{manifestation_id}/")
 
         assert response.status_code == 200
         data = response.get_json()
@@ -204,19 +204,19 @@ class TestTextV2Endpoints:
         assert data["base"] == "Sample Tibetan text content"
 
     def test_get_text_not_found(self, client):
-        """Test text retrieval with non-existent manifestation ID"""
-        response = client.get("/v2/text/non-existent-id")
+        """Test instance retrieval with non-existent manifestation ID"""
+        response = client.get("/v2/instances/non-existent-id/")
 
         assert response.status_code == 404
         response_data = response.get_json()
         assert "error" in response_data
 
     def test_create_text_success(self, client, test_database, test_person_data):
-        """Test successful text creation with database and storage verification"""
+        """Test successful instance creation with database and storage verification"""
         # Create test person first
         person_id = self._create_test_person(test_database, test_person_data)
 
-        # Create expression first to get valid metadata_id
+        # Create expression first to get valid text_id
         expression_data = ExpressionModelInput(
             title={"en": "Test Expression"},
             language="en",
@@ -226,12 +226,13 @@ class TestTextV2Endpoints:
         expression_id = test_database.create_expression(expression_data)
 
         text_data = {
-            "metadata_id": expression_id,
             "content": "This is the English text content.",
             "annotation": [{"span": {"start": 0, "end": 20}, "index": 0}],
-            "copyright": "public",
-            "type": "diplomatic",
-            "bdrc": "W12345",
+            "metadata": {
+                "copyright": "public",
+                "type": "diplomatic",
+                "bdrc": "W12345",
+            },
         }
 
         with patch("api.instances.Pecha.create_pecha") as mock_create_pecha:
@@ -242,30 +243,49 @@ class TestTextV2Endpoints:
                 mock_pecha.pecha_path = temp_dir
                 mock_create_pecha.return_value = mock_pecha
 
-                response = client.post("/v2/text", json=text_data)
+                response = client.post(f"/v2/texts/{expression_id}/instances/", json=text_data)
 
                 assert response.status_code == 201
                 response_data = response.get_json()
                 assert "message" in response_data
                 assert "id" in response_data
-                assert response_data["message"] == "Text created successfully"
+                assert response_data["message"] == "Instance created successfully"
 
-    def test_create_text_missing_body(self, client):
-        """Test text creation with missing request body"""
-        response = client.post("/v2/text")
+    def test_create_text_missing_body(self, client, test_database, test_person_data):
+        """Test instance creation with missing request body"""
+        # Create expression first
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_data = ExpressionModelInput(
+            title={"en": "Test Expression"},
+            language="en",
+            type=TextType.ROOT,
+            contributions=[{"person_id": person_id, "role": "author"}],
+        )
+        expression_id = test_database.create_expression(expression_data)
+        
+        response = client.post(f"/v2/texts/{expression_id}/instances/")
 
         assert response.status_code == 400
         response_data = response.get_json()
         assert "error" in response_data
 
-    def test_create_text_invalid_data(self, client):
-        """Test text creation with invalid request data"""
+    def test_create_text_invalid_data(self, client, test_database, test_person_data):
+        """Test instance creation with invalid request data"""
+        # Create expression first
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_data = ExpressionModelInput(
+            title={"en": "Test Expression"},
+            language="en",
+            type=TextType.ROOT,
+            contributions=[{"person_id": person_id, "role": "author"}],
+        )
+        expression_id = test_database.create_expression(expression_data)
+        
         invalid_data = {
-            "language": "en"
             # Missing required fields
         }
 
-        response = client.post("/v2/text", json=invalid_data)
+        response = client.post(f"/v2/texts/{expression_id}/instances/", json=invalid_data)
 
         assert response.status_code == 422
         response_data = response.get_json()
@@ -283,8 +303,8 @@ class TestTextV2Endpoints:
             "content": "This is the English translation of the text.",
             "title": "English Translation",
             "alt_titles": ["Alternative English Title"],
-            "translator": {"person_id": person_id},
-            "translation_annotation": [{"span": {"start": 0, "end": 20}, "index": 0, "alignment_index": [0]}],
+            "author": {"person_id": person_id},
+            "alignment_annotation": [{"span": {"start": 0, "end": 20}, "index": 0, "alignment_index": [0]}],
         }
 
         with patch("api.instances.Pecha.create_pecha") as mock_create_pecha:
@@ -295,19 +315,19 @@ class TestTextV2Endpoints:
                 mock_translation_pecha.pecha_path = temp_dir
                 mock_create_pecha.return_value = mock_translation_pecha
 
-                response = client.post(f"/v2/text/{manifestation_id}/translation", json=translation_data)
+                response = client.post(f"/v2/instances/{manifestation_id}/translation", json=translation_data)
 
                 # Verify response
                 assert response.status_code == 201
                 response_data = response.get_json()
                 assert "message" in response_data
-                assert "id" in response_data
-                assert "metadata_id" in response_data
-                assert response_data["message"] == "Translation created successfully"
+                assert "instance_id" in response_data
+                assert "text_id" in response_data
+                assert response_data["message"] == "Text created successfully"
 
     def test_create_translation_missing_body(self, client):
         """Test translation creation with missing request body"""
-        response = client.post("/v2/text/manifest123/translation")
+        response = client.post("/v2/instances/manifest123/translation")
 
         assert response.status_code == 400
         response_data = response.get_json()
@@ -320,11 +340,11 @@ class TestTextV2Endpoints:
             "language": "en",
             "content": "Translation content",
             "title": "Translation Title",
-            "translator": {"person_id": "person123"},
-            "translation_annotation": [{"span": {"start": 0, "end": 20}, "index": 0, "alignment_index": [0]}],
+            "author": {"person_id": "person123"},
+            "alignment_annotation": [{"span": {"start": 0, "end": 20}, "index": 0, "alignment_index": [0]}],
         }
 
-        response = client.post("/v2/text/non-existent-manifestation/translation", json=translation_data)
+        response = client.post("/v2/instances/non-existent-manifestation/translation", json=translation_data)
 
         assert response.status_code == 404
 
@@ -344,20 +364,20 @@ class TestTextV2Endpoints:
 
         # Comprehensive test data with all fields
         text_data = {
-            "metadata_id": expression_id,
-            "language": "en",
             "content": "This is comprehensive test content for round-trip verification.",
             "annotation": [
                 {"index": 0, "span": {"start": 0, "end": 25}},
                 {"index": 1, "span": {"start": 26, "end": 50}},
             ],
-            "copyright": "public",
-            "type": "diplomatic",
-            "bdrc": "W12345",
-            "wiki": "Q123456",
-            "colophon": "Test colophon text for verification",
-            "incipit_title": {"en": "Test incipit for verification"},
-            "alt_incipit_titles": [{"en": "Alt incipit 1"}, {"en": "Alt incipit 2"}],
+            "metadata": {
+                "copyright": "public",
+                "type": "diplomatic",
+                "bdrc": "W12345",
+                "wiki": "Q123456",
+                "colophon": "Test colophon text for verification",
+                "incipit_title": {"en": "Test incipit for verification"},
+                "alt_incipit_titles": [{"en": "Alt incipit 1"}, {"en": "Alt incipit 2"}],
+            },
         }
 
         # Step 1: Create text via POST
@@ -369,7 +389,7 @@ class TestTextV2Endpoints:
                 mock_pecha.pecha_path = temp_dir
                 mock_create_pecha.return_value = mock_pecha
 
-                post_response = client.post("/v2/text", json=text_data)
+                post_response = client.post(f"/v2/texts/{expression_id}/instances/", json=text_data)
 
                 # Verify POST succeeded
                 assert post_response.status_code == 201
@@ -377,7 +397,7 @@ class TestTextV2Endpoints:
                 assert "message" in post_data
                 assert "id" in post_data
                 manifestation_id = post_data["id"]
-                assert post_data["message"] == "Text created successfully"
+                assert post_data["message"] == "Instance created successfully"
 
         # Step 2: Retrieve text via GET to verify database content
         # Create test ZIP file for GET request (simulating storage)
@@ -391,7 +411,7 @@ class TestTextV2Endpoints:
                 # Add base text
                 zipf.writestr(f"{expression_id}/base/26E4.txt", text_data["content"])
                 # Add metadata
-                zipf.writestr(f"{expression_id}/meta.yml", f"id: {expression_id}\nlanguage: {text_data['language']}")
+                zipf.writestr(f"{expression_id}/meta.yml", f"id: {expression_id}\nlanguage: en")
                 # Add annotation layer
                 zipf.writestr(f"{expression_id}/layers/26E4/segmentation-test.yml", "annotations: []")
 
@@ -399,7 +419,7 @@ class TestTextV2Endpoints:
             blob = storage_instance.bucket.blob(f"opf/{expression_id}.zip")
             blob.upload_from_filename(str(zip_path))
 
-            get_response = client.get(f"/v2/text/{manifestation_id}")
+            get_response = client.get(f"/v2/instances/{manifestation_id}/")
 
             # Step 3: Verify GET response contains all original fields
             assert get_response.status_code == 200
@@ -419,11 +439,11 @@ class TestTextV2Endpoints:
         # Step 4: Verify database state by querying directly
         manifestation, retrieved_expression_id = test_database.get_manifestation(manifestation_id)
         assert retrieved_expression_id == expression_id
-        assert manifestation.bdrc == text_data["bdrc"]
-        assert manifestation.wiki == text_data["wiki"]
-        assert manifestation.colophon == text_data["colophon"]
-        assert manifestation.incipit_title.root == text_data["incipit_title"]
-        assert [alt.root for alt in manifestation.alt_incipit_titles] == text_data["alt_incipit_titles"]
+        assert manifestation.bdrc == text_data["metadata"]["bdrc"]
+        assert manifestation.wiki == text_data["metadata"]["wiki"]
+        assert manifestation.colophon == text_data["metadata"]["colophon"]
+        assert manifestation.incipit_title.root == text_data["metadata"]["incipit_title"]
+        assert [alt.root for alt in manifestation.alt_incipit_titles] == text_data["metadata"]["alt_incipit_titles"]
 
     def test_create_then_get_translation_round_trip(self, client, test_database, test_person_data, create_test_zip):
         """Test POST translation creation then GET to verify all fields are stored and retrieved correctly"""
@@ -437,9 +457,9 @@ class TestTextV2Endpoints:
             "content": "This is a comprehensive English translation for round-trip verification.",
             "title": "Complete Translation Title for Verification",
             "alt_titles": ["Alternative Title 1", "Alternative Title 2"],
-            "translator": {"person_id": person_id},
+            "author": {"person_id": person_id},
             "copyright": "public",
-            "translation_annotation": [
+            "alignment_annotation": [
                 {"span": {"start": 0, "end": 30}, "index": 0, "alignment_index": [0]},
                 {"span": {"start": 31, "end": 60}, "index": 1, "alignment_index": [1]},
             ],
@@ -454,16 +474,16 @@ class TestTextV2Endpoints:
                 mock_translation_pecha.pecha_path = temp_dir
                 mock_create_pecha.return_value = mock_translation_pecha
 
-                post_response = client.post(f"/v2/text/{manifestation_id}/translation", json=translation_data)
+                post_response = client.post(f"/v2/instances/{manifestation_id}/translation", json=translation_data)
 
                 # Verify POST succeeded
                 assert post_response.status_code == 201
                 post_data = post_response.get_json()
-                assert "id" in post_data
-                assert "metadata_id" in post_data
-                translation_manifestation_id = post_data["id"]
-                translation_expression_id = post_data["metadata_id"]
-                assert post_data["message"] == "Translation created successfully"
+                assert "instance_id" in post_data
+                assert "text_id" in post_data
+                translation_manifestation_id = post_data["instance_id"]
+                translation_expression_id = post_data["text_id"]
+                assert post_data["message"] == "Text created successfully"
 
         # Step 3: Retrieve translation via GET to verify database content
         # Create test ZIP for translation
@@ -487,7 +507,7 @@ class TestTextV2Endpoints:
             blob = storage_instance.bucket.blob(f"opf/{translation_expression_id}.zip")
             blob.upload_from_filename(str(translation_zip_path))
 
-            get_response = client.get(f"/v2/text/{translation_manifestation_id}")
+            get_response = client.get(f"/v2/instances/{translation_manifestation_id}/")
 
             # Step 4: Verify GET response contains all original translation fields
             assert get_response.status_code == 200
@@ -525,22 +545,87 @@ class TestTextV2Endpoints:
         # Verify contributor information
         assert len(translation_expression.contributions) == 1
         contributor = translation_expression.contributions[0]
-        assert contributor.person_id == translation_data["translator"]["person_id"]
+        assert contributor.person_id == translation_data["author"]["person_id"]
         assert contributor.role.value == "translator"
 
     def test_get_text_aligned_success(self, client, test_database, test_person_data, create_test_zip):
         """Test GET text with aligned=true parameter - successful alignment"""
+        from openpecha.pecha import Pecha
+        from openpecha.pecha.annotations import AlignmentAnnotation, SegmentationAnnotation
+        
         # Create a simple test that focuses on our endpoint logic
         person_id = self._create_test_person(test_database, test_person_data)
 
-        # Create source text
-        source_expression_id, source_manifestation_id = self._create_test_text(
-            test_database, person_id, create_test_zip
+        # Create source expression
+        source_expression_data = ExpressionModelInput(
+            title={"bo": "དཔེ་ཀ་མ་དཔེ", "en": "Source Text"},
+            language="bo",
+            type=TextType.ROOT,
+            contributions=[{"person_id": person_id, "role": "author"}],
+        )
+        source_expression_id = test_database.create_expression(source_expression_data)
+
+        # Create source pecha with segmentation annotation
+        source_segmentation_id = generate_id()
+        source_pecha = Pecha.create_pecha(
+            pecha_id=source_expression_id,
+            base_text="This is the source Tibetan text.",
+            annotation_id=source_segmentation_id,
+            annotation=[
+                SegmentationAnnotation(
+                    id=generate_id(),
+                    span={"start": 0, "end": 32},
+                    index=0,
+                )
+            ],
+        )
+        
+        # Store the source pecha
+        storage_instance = Storage()
+        storage_instance.store_pecha(source_pecha)
+        
+        # Create source manifestation
+        source_manifestation_data = ManifestationModelInput(
+            type=ManifestationType.CRITICAL,
+            copyright=CopyrightStatus.PUBLIC_DOMAIN,
+        )
+        source_segmentation_annotation = AnnotationModel(
+            id=source_segmentation_id, type=AnnotationType.SEGMENTATION
+        )
+        source_manifestation_id = test_database.create_manifestation(
+            source_manifestation_data, source_segmentation_annotation, source_expression_id
         )
 
-        # Get the source segmentation annotation ID
-        source_manifestation, _ = test_database.get_manifestation(source_manifestation_id)
-        source_segmentation_id = source_manifestation.segmentation_annotation_id
+        # Create target expression for the aligned text
+        target_expression_data = ExpressionModelInput(
+            title={"bo": "དཔེ་ཀ་ཤེར་གཉིས་པ", "en": "Test Target Expression"},
+            language="en",  # Different language for translation
+            type=TextType.TRANSLATION,
+            contributions=[{"person_id": person_id, "role": "translator"}],
+            parent=source_expression_id,
+        )
+        target_expression_id = test_database.create_expression(target_expression_data)
+
+        # Create a pecha with alignment annotation for the target
+        alignment_annotation_id = generate_id()
+        target_pecha = Pecha.create_pecha(
+            pecha_id=target_expression_id,
+            base_text="This is the aligned translation text.",
+            annotation_id=alignment_annotation_id,
+            annotation=[
+                AlignmentAnnotation(
+                    id=generate_id(),
+                    span={"start": 0, "end": 37},
+                    index=0,
+                    alignment_index=[0],
+                    target=source_segmentation_id,
+                )
+            ],
+        )
+        
+        # Store the target pecha in storage
+        storage_instance = Storage()
+        storage_instance.store_pecha(target_pecha)
 
         # Create target manifestation with alignment annotation pointing to source segmentation
         target_manifestation_data = ManifestationModelInput(
@@ -549,36 +634,28 @@ class TestTextV2Endpoints:
         )
 
         alignment_annotation = AnnotationModel(
-            id=generate_id(), type=AnnotationType.ALIGNMENT, aligned_to=source_segmentation_id
+            id=alignment_annotation_id, type=AnnotationType.ALIGNMENT, aligned_to=source_segmentation_id
         )
 
         target_manifestation_id = test_database.create_manifestation(
-            target_manifestation_data, alignment_annotation, source_expression_id
+            target_manifestation_data, alignment_annotation, target_expression_id
         )
 
         # Test GET with aligned=true on the target
         # This should find the source manifestation via the aligned_to annotation
-        response = client.get(f"/v2/text/{target_manifestation_id}?aligned=true")
+        response = client.get(f"/v2/instances/{target_manifestation_id}/?aligned=true")
 
-        # The test should pass our endpoint logic but may fail at serializer level
-        # We're mainly testing that our endpoint correctly:
-        # 1. Finds the aligned_to annotation
-        # 2. Looks up the source manifestation
-        # 3. Attempts to serialize with both target and source
-
-        # If it fails due to serializer issues, that's expected for now
-        # The important thing is that our endpoint logic works
-        if response.status_code == 500:
-            # Check that it's the expected serializer error
-            response_data = response.get_json()
-            assert "error" in response_data
-            assert "No aligned_to annotation found" in response_data["error"]
-        else:
-            # If serialization works, verify the response structure
-            assert response.status_code == 200
-            response_data = response.get_json()
-            assert "base" in response_data
-            assert "annotations" in response_data
+        # Verify aligned serialization response structure
+        assert response.status_code == 200
+        response_data = response.get_json()
+        assert "source_base" in response_data
+        assert "target_base" in response_data
+        assert "transformed_annotation" in response_data
+        assert "untransformed_annotation" in response_data
+        
+        # Verify the content
+        assert response_data["source_base"] == "This is the aligned translation text."
+        assert response_data["target_base"] == "This is the source Tibetan text."
 
     def test_get_text_aligned_no_aligned_to(self, client, test_database, test_person_data, create_test_zip):
         """Test GET text with aligned=true but no aligned_to annotation - should return 400"""
@@ -586,7 +663,7 @@ class TestTextV2Endpoints:
         _, manifestation_id = self._create_test_text(test_database, person_id, create_test_zip)
 
         # Test GET with aligned=true on text that has no aligned_to
-        response = client.get(f"/v2/text/{manifestation_id}?aligned=true")
+        response = client.get(f"/v2/instances/{manifestation_id}/?aligned=true")
 
         assert response.status_code == 400
         response_data = response.get_json()
@@ -613,7 +690,7 @@ class TestTextV2Endpoints:
         manifestation_id = test_database.create_manifestation(manifestation_data, alignment_annotation, expression_id)
 
         # Test GET with aligned=true
-        response = client.get(f"/v2/text/{manifestation_id}?aligned=true")
+        response = client.get(f"/v2/instances/{manifestation_id}/?aligned=true")
 
         assert response.status_code == 400
         response_data = response.get_json()
@@ -626,7 +703,7 @@ class TestTextV2Endpoints:
         _, manifestation_id = self._create_test_text(test_database, person_id, create_test_zip)
 
         # Test GET with aligned=false (explicit)
-        response = client.get(f"/v2/text/{manifestation_id}?aligned=false")
+        response = client.get(f"/v2/instances/{manifestation_id}/?aligned=false")
 
         assert response.status_code == 200
         response_data = response.get_json()
@@ -634,8 +711,8 @@ class TestTextV2Endpoints:
         assert "annotations" in response_data
 
     def test_create_text_invalid_author_field(self, client, test_database):
-        """Test text creation with invalid author field - manifestations don't have authors"""
-        # Create expression first to get valid metadata_id
+        """Test instance creation with invalid author field - manifestations don't have authors"""
+        # Create expression first to get valid text_id
         person_id = self._create_test_person(
             test_database,
             {
@@ -653,39 +730,41 @@ class TestTextV2Endpoints:
         expression_id = test_database.create_expression(expression_data)
 
         text_data = {
-            "metadata_id": expression_id,
             "content": "This is comprehensive test content for round-trip verification.",
             "author": {"person_id": "some-person-id"},  # This field should not be accepted
             "annotation": [
                 {"index": 0, "span": {"start": 0, "end": 25}},
                 {"index": 1, "span": {"start": 26, "end": 50}},
             ],
-            "copyright": "public",
-            "type": "diplomatic",
-            "bdrc": "W12345",
+            "metadata": {
+                "copyright": "public",
+                "type": "diplomatic",
+                "bdrc": "W12345",
+            },
         }
 
-        response = client.post("/v2/text", json=text_data)
+        response = client.post(f"/v2/texts/{expression_id}/instances/", json=text_data)
         # Should return 422 for validation error since author field is not valid for manifestations
         assert response.status_code == 422
         response_data = response.get_json()
         assert "error" in response_data
 
-    def test_create_text_invalid_metadata_id(self, client, test_database, test_person_data):
-        """Test text creation with non-existent metadata ID"""
+    def test_create_text_invalid_text_id(self, client, test_database, test_person_data):
+        """Test instance creation with non-existent text ID"""
         _ = self._create_test_person(test_database, test_person_data)
 
         text_data = {
-            "metadata_id": "non-existent-expression-id",
             "content": "Test content",
             "annotation": [{"span": {"start": 0, "end": 15}, "index": 0}],
-            "copyright": "public",
-            "type": "diplomatic",
-            "bdrc": "W12345",
+            "metadata": {
+                "copyright": "public",
+                "type": "diplomatic",
+                "bdrc": "W12345",
+            },
         }
 
-        response = client.post("/v2/text", json=text_data)
-        # API currently returns 500 for invalid metadata ID - this should be improved to 404
+        response = client.post("/v2/texts/non-existent-expression-id/instances/", json=text_data)
+        # API currently returns 500 for invalid text ID - this should be improved to 404
         assert response.status_code == 500
         response_data = response.get_json()
         assert "error" in response_data
@@ -700,33 +779,43 @@ class TestTextV2Endpoints:
             "language": "en",
             "content": "Translation content",
             "title": "Translation Title",
-            "translator": {"person_id": "non-existent-person-id"},
-            "translation_annotation": [{"span": {"start": 0, "end": 20}, "index": 0, "alignment_index": [0]}],
+            "author": {"person_id": "non-existent-person-id"},
+            "alignment_annotation": [{"span": {"start": 0, "end": 20}, "index": 0, "alignment_index": [0]}],
         }
 
-        response = client.post(f"/v2/text/{manifestation_id}/translation", json=translation_data)
+        response = client.post(f"/v2/instances/{manifestation_id}/translation", json=translation_data)
         # API currently returns 500 for invalid person ID - this should be improved to 400
         assert response.status_code == 500
         response_data = response.get_json()
         assert "error" in response_data
 
-    def test_create_text_malformed_json(self, client):
-        """Test text creation with malformed JSON data"""
-        response = client.post("/v2/text", data="{invalid json}", content_type="application/json")
+    def test_create_text_malformed_json(self, client, test_database, test_person_data):
+        """Test instance creation with malformed JSON data"""
+        # Create expression first
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_data = ExpressionModelInput(
+            title={"en": "Test Expression"},
+            language="en",
+            type=TextType.ROOT,
+            contributions=[{"person_id": person_id, "role": "author"}],
+        )
+        expression_id = test_database.create_expression(expression_data)
+        
+        response = client.post(f"/v2/texts/{expression_id}/instances/", data="{invalid json}", content_type="application/json")
         assert response.status_code == 400
         response_data = response.get_json()
         assert "error" in response_data
 
     def test_get_text_invalid_manifestation_format(self, client):
-        """Test text retrieval with invalid manifestation ID format"""
-        response = client.get("/v2/text/")
+        """Test instance retrieval with invalid manifestation ID format"""
+        response = client.get("/v2/instances/")
         # API currently returns 500 for invalid URL format - this should be improved to 404
         assert response.status_code == 500
 
     def test_create_translation_invalid_json(self, client):
         """Test translation creation with malformed JSON"""
         response = client.post(
-            "/v2/text/manifest123/translation", data="{invalid json}", content_type="application/json"
+            "/v2/instances/manifest123/translation", data="{invalid json}", content_type="application/json"
         )
         assert response.status_code == 400
         response_data = response.get_json()
@@ -742,20 +831,20 @@ class TestTextV2Endpoints:
             "language": "en",
             "content": "Translation created by AI",
             "title": "AI Generated Translation",
-            "translator": {"ai_id": "gpt-4"},
-            "translation_annotation": [{"span": {"start": 0, "end": 11}, "index": 0, "alignment_index": [0]}],
+            "author": {"ai_id": "gpt-4"},
+            "alignment_annotation": [{"span": {"start": 0, "end": 11}, "index": 0, "alignment_index": [0]}],
         }
 
-        response = client.post(f"/v2/text/{manifestation_id}/translation", json=translation_data)
+        response = client.post(f"/v2/instances/{manifestation_id}/translation", json=translation_data)
         assert response.status_code == 201
         response_data = response.get_json()
         assert "message" in response_data
-        assert "id" in response_data
-        assert "metadata_id" in response_data
-        assert response_data["message"] == "Translation created successfully"
+        assert "instance_id" in response_data
+        assert "text_id" in response_data
+        assert response_data["message"] == "Text created successfully"
 
         # Verify AI translator was stored correctly
-        translation_expression_id = response_data["metadata_id"]
+        translation_expression_id = response_data["text_id"]
         translation_expression = test_database.get_expression(translation_expression_id)
         assert len(translation_expression.contributions) == 1
         ai_contribution = translation_expression.contributions[0]
@@ -768,14 +857,14 @@ class TestTextV2Endpoints:
             "language": "en",
             "content": "Translation content",
             "title": "Translation Title",
-            "translator": {
+            "author": {
                 "person_id": "some-person-id",
                 "ai_id": "gpt-4",
             },
-            "translation_annotation": [{"span": {"start": 0, "end": 20}, "index": 0, "alignment_index": [0]}],
+            "alignment_annotation": [{"span": {"start": 0, "end": 20}, "index": 0, "alignment_index": [0]}],
         }
 
-        response = client.post("/v2/text/manifest123/translation", json=translation_data)
+        response = client.post("/v2/instances/manifest123/translation", json=translation_data)
         assert response.status_code == 422
         response_data = response.get_json()
         assert "error" in response_data
@@ -810,11 +899,11 @@ class TestTextV2Endpoints:
             "language": "en",
             "content": "Translation content",
             "title": "Translation Title",
-            "translator": {"person_id": person_id},
-            "translation_annotation": [{"span": {"start": 0, "end": 20}, "index": 0, "alignment_index": [0]}],
+            "author": {"person_id": person_id},
+            "alignment_annotation": [{"span": {"start": 0, "end": 20}, "index": 0, "alignment_index": [0]}],
         }
 
-        response = client.post(f"/v2/text/{manifestation_id}/translation", json=translation_data)
+        response = client.post(f"/v2/instances/{manifestation_id}/translation", json=translation_data)
         assert response.status_code == 400
         response_data = response.get_json()
         assert "error" in response_data
@@ -831,20 +920,20 @@ class TestTextV2Endpoints:
             "content": "Complete translation with all fields",
             "title": "Complete Translation",
             "alt_titles": ["Alternative Title 1", "Alternative Title 2"],
-            "translator": {"person_id": person_id},
-            "original_annotation": [{"span": {"start": 0, "end": 10}, "index": 0, "alignment_index": [0]}],
-            "translation_annotation": [{"span": {"start": 0, "end": 20}, "index": 0, "alignment_index": [0]}],
+            "author": {"person_id": person_id},
+            "target_annotation": [{"span": {"start": 0, "end": 10}, "index": 0, "alignment_index": [0]}],
+            "alignment_annotation": [{"span": {"start": 0, "end": 20}, "index": 0, "alignment_index": [0]}],
         }
 
-        response = client.post(f"/v2/text/{manifestation_id}/translation", json=translation_data)
+        response = client.post(f"/v2/instances/{manifestation_id}/translation", json=translation_data)
         assert response.status_code == 201
         response_data = response.get_json()
         assert "message" in response_data
-        assert "id" in response_data
-        assert "metadata_id" in response_data
+        assert "instance_id" in response_data
+        assert "text_id" in response_data
 
         # Verify optional fields were stored correctly
-        translation_expression_id = response_data["metadata_id"]
+        translation_expression_id = response_data["text_id"]
         translation_expression = test_database.get_expression(translation_expression_id)
         assert translation_expression.alt_titles is not None
         assert len(translation_expression.alt_titles) == 2

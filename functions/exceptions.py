@@ -19,3 +19,7 @@ class InvalidRequest(OpenPechaException):
 
 class DataConflict(OpenPechaException):
     status_code = 409
+
+
+class ValidationError(OpenPechaException):
+    status_code = 422

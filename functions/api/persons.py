@@ -1,6 +1,6 @@
 import logging
 
-from exceptions import InvalidRequest
+from exceptions import InvalidRequest, ValidationError
 from flask import Blueprint, Response, jsonify, request
 from models import PersonModelInput
 from neo4j_database import Neo4JDatabase
@@ -22,9 +22,9 @@ def get_all_persons() -> tuple[Response, int]:
     offset = request.args.get("offset", 0, type=int)
 
     if limit < 1 or limit > 100:
-        raise InvalidRequest("Limit must be between 1 and 100")
+        raise ValidationError("Limit must be between 1 and 100")
     if offset < 0:
-        raise InvalidRequest("Offset must be non-negative")
+        raise ValidationError("Offset must be non-negative")
 
     persons = Neo4JDatabase().get_all_persons(offset=offset, limit=limit)
     return jsonify([person.model_dump() for person in persons]), 200

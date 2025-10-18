@@ -1,11 +1,11 @@
 # pylint: disable=redefined-outer-name
-"""
-Integration tests for v2/metadata endpoints using real Neo4j test instance.
+"""Integration tests for v2/texts endpoints using real Neo4j test instance.
 
 Tests endpoints:
-- GET /v2/metadata (get all expressions with filtering and pagination)
-- GET /v2/metadata/{id} (get single expression)
-- POST /v2/metadata (create expression)
+- GET /v2/texts/ (get all texts with filtering and pagination)
+- GET /v2/texts/{text_id} (get single text)
+- POST /v2/texts/ (create text)
+- GET /v2/texts/{text_id}/instances/ (get instances of a text)
 
 Requires environment variables:
 - NEO4J_TEST_URI: Neo4j test instance URI
@@ -115,15 +115,15 @@ def test_expression_data():
     }
 
 
-class TestGetAllMetadataV2:
-    """Tests for GET /v2/metadata endpoint (get all expressions)"""
+class TestGetAllTextsV2:
+    """Tests for GET /v2/texts/ endpoint (get all texts)"""
 
     def test_get_all_metadata_empty_database(self, client, test_database):
-        """Test getting all metadata from empty database"""
+        """Test getting all texts from empty database"""
         with patch("api.texts.Neo4JDatabase") as mock_db_class:
             mock_db_class.return_value = test_database
 
-            response = client.get("/v2/metadata/")
+            response = client.get("/v2/texts/")
 
             assert response.status_code == 200
             data = json.loads(response.data)
@@ -144,7 +144,7 @@ class TestGetAllMetadataV2:
             expression = ExpressionModelInput.model_validate(test_expression_data)
             expression_id = test_database.create_expression(expression)
 
-            response = client.get("/v2/metadata/")
+            response = client.get("/v2/texts/")
 
             assert response.status_code == 200
             data = json.loads(response.data)
@@ -177,7 +177,7 @@ class TestGetAllMetadataV2:
                 expression_ids.append(expr_id)
 
             # Test limit=2, offset=1
-            response = client.get("/v2/metadata?limit=2&offset=1")
+            response = client.get("/v2/texts?limit=2&offset=1")
 
             assert response.status_code == 200
             data = json.loads(response.data)
@@ -214,7 +214,7 @@ class TestGetAllMetadataV2:
             translation_id = test_database.create_expression(translation_expression)
 
             # Filter by root type
-            response = client.get("/v2/metadata?type=root")
+            response = client.get("/v2/texts?type=root")
 
             assert response.status_code == 200
             data = json.loads(response.data)
@@ -223,7 +223,7 @@ class TestGetAllMetadataV2:
             assert data[0]["type"] == "root"
 
             # Filter by translation type
-            response = client.get("/v2/metadata?type=translation")
+            response = client.get("/v2/texts?type=translation")
 
             assert response.status_code == 200
             data = json.loads(response.data)
@@ -261,7 +261,7 @@ class TestGetAllMetadataV2:
             bo_id = test_database.create_expression(bo_expression)
 
             # Filter by English
-            response = client.get("/v2/metadata?language=en")
+            response = client.get("/v2/texts?language=en")
 
             assert response.status_code == 200
             data = json.loads(response.data)
@@ -270,7 +270,7 @@ class TestGetAllMetadataV2:
             assert data[0]["language"] == "en"
 
             # Filter by Tibetan
-            response = client.get("/v2/metadata?language=bo")
+            response = client.get("/v2/texts?language=bo")
 
             assert response.status_code == 200
             data = json.loads(response.data)
@@ -309,7 +309,7 @@ class TestGetAllMetadataV2:
             test_database.create_expression(translation_expression)
 
             # Filter by type=root AND language=en
-            response = client.get("/v2/metadata?type=root&language=en")
+            response = client.get("/v2/texts?type=root&language=en")
 
             assert response.status_code == 200
             data = json.loads(response.data)
@@ -324,19 +324,19 @@ class TestGetAllMetadataV2:
             mock_db_class.return_value = test_database
 
             # Test limit too low
-            response = client.get("/v2/metadata?limit=0")
+            response = client.get("/v2/texts?limit=0")
             assert response.status_code == 400
             data = json.loads(response.data)
             assert "Limit must be between 1 and 100" in data["error"]
 
             # Test non-integer limit (Flask converts to None, then defaults to 20)
-            response = client.get("/v2/metadata?limit=abc")
+            response = client.get("/v2/texts?limit=abc")
             assert response.status_code == 200
             data = json.loads(response.data)
             assert isinstance(data, list)  # Should return empty list with default pagination
 
             # Test limit too high
-            response = client.get("/v2/metadata?limit=101")
+            response = client.get("/v2/texts?limit=101")
             assert response.status_code == 400
             data = json.loads(response.data)
             assert "Limit must be between 1 and 100" in data["error"]
@@ -347,13 +347,13 @@ class TestGetAllMetadataV2:
             mock_db_class.return_value = test_database
 
             # Test negative offset
-            response = client.get("/v2/metadata?offset=-1")
+            response = client.get("/v2/texts?offset=-1")
             assert response.status_code == 400
             data = json.loads(response.data)
             assert "Offset must be non-negative" in data["error"]
 
             # Test non-integer offset (Flask converts to None, then defaults to 0)
-            response = client.get("/v2/metadata?offset=abc")
+            response = client.get("/v2/texts?offset=abc")
             assert response.status_code == 200
             data = json.loads(response.data)
             assert isinstance(data, list)  # Should return empty list with default pagination
@@ -378,26 +378,26 @@ class TestGetAllMetadataV2:
             test_database.create_expression(expression)
 
             # Test limit=1 (minimum)
-            response = client.get("/v2/metadata?limit=1")
+            response = client.get("/v2/texts?limit=1")
             assert response.status_code == 200
             data = json.loads(response.data)
             assert len(data) == 1
 
             # Test limit=100 (maximum)
-            response = client.get("/v2/metadata?limit=100")
+            response = client.get("/v2/texts?limit=100")
             assert response.status_code == 200
             data = json.loads(response.data)
             assert len(data) == 1
 
             # Test large offset (beyond available data)
-            response = client.get("/v2/metadata?offset=1000")
+            response = client.get("/v2/texts?offset=1000")
             assert response.status_code == 200
             data = json.loads(response.data)
             assert len(data) == 0
 
 
-class TestGetSingleMetadataV2:
-    """Tests for GET /v2/metadata/{id} endpoint (get single expression)"""
+class TestGetSingleTextV2:
+    """Tests for GET /v2/texts/{text_id} endpoint (get single text)"""
 
     def test_get_single_metadata_success(self, client, test_database, test_person_data, test_expression_data):
         """Test successfully retrieving a single expression"""
@@ -413,7 +413,7 @@ class TestGetSingleMetadataV2:
             expression = ExpressionModelInput.model_validate(test_expression_data)
             expression_id = test_database.create_expression(expression)
 
-            response = client.get(f"/v2/metadata/{expression_id}")
+            response = client.get(f"/v2/texts/{expression_id}")
 
             assert response.status_code == 200
             data = json.loads(response.data)
@@ -473,15 +473,15 @@ class TestGetSingleMetadataV2:
         with patch("api.texts.Neo4JDatabase") as mock_db_class:
             mock_db_class.return_value = test_database
 
-            response = client.get("/v2/metadata/nonexistent_id")
+            response = client.get("/v2/texts/nonexistent_id")
 
             assert response.status_code == 404
             data = json.loads(response.data)
             assert "not found" in data["error"].lower()
 
 
-class TestPostMetadataV2:
-    """Tests for POST /v2/metadata endpoint (create expression)"""
+class TestPostTextV2:
+    """Tests for POST /v2/texts/ endpoint (create text)"""
 
     def test_create_root_expression_success(self, client, test_database, test_person_data):
         """Test successfully creating a ROOT expression"""
@@ -500,7 +500,7 @@ class TestPostMetadataV2:
                 "contributions": [{"person_id": person_id, "role": "author"}],
             }
 
-            response = client.post("/v2/metadata", data=json.dumps(expression_data), content_type="application/json")
+            response = client.post("/v2/texts", data=json.dumps(expression_data), content_type="application/json")
 
             assert response.status_code == 201
             data = json.loads(response.data)
@@ -510,7 +510,7 @@ class TestPostMetadataV2:
 
             # Verify the expression was created by retrieving it
             created_id = data["id"]
-            verify_response = client.get(f"/v2/metadata/{created_id}")
+            verify_response = client.get(f"/v2/texts/{created_id}")
             assert verify_response.status_code == 200
             verify_data = json.loads(verify_response.data)
             assert verify_data["type"] == "root"
@@ -522,7 +522,7 @@ class TestPostMetadataV2:
         with patch("api.texts.Neo4JDatabase") as mock_db_class:
             mock_db_class.return_value = test_database
 
-            response = client.post("/v2/metadata", content_type="application/json")
+            response = client.post("/v2/texts", content_type="application/json")
 
             assert response.status_code == 500  # Flask returns 500 for empty JSON
             data = json.loads(response.data)
@@ -533,7 +533,7 @@ class TestPostMetadataV2:
         with patch("api.texts.Neo4JDatabase") as mock_db_class:
             mock_db_class.return_value = test_database
 
-            response = client.post("/v2/metadata", data="invalid json", content_type="application/json")
+            response = client.post("/v2/texts", data="invalid json", content_type="application/json")
 
             assert response.status_code == 500
             data = json.loads(response.data)
@@ -547,7 +547,7 @@ class TestPostMetadataV2:
             # Missing title field
             expression_data = {"type": "root", "language": "en", "contributions": []}
 
-            response = client.post("/v2/metadata", data=json.dumps(expression_data), content_type="application/json")
+            response = client.post("/v2/texts", data=json.dumps(expression_data), content_type="application/json")
 
             assert response.status_code == 422  # Proper validation error status
             data = json.loads(response.data)
@@ -560,7 +560,7 @@ class TestPostMetadataV2:
 
             expression_data = {"type": "invalid_type", "title": {"en": "Test"}, "language": "en", "contributions": []}
 
-            response = client.post("/v2/metadata", data=json.dumps(expression_data), content_type="application/json")
+            response = client.post("/v2/texts", data=json.dumps(expression_data), content_type="application/json")
 
             assert response.status_code == 422  # Proper validation error status
             data = json.loads(response.data)
@@ -579,7 +579,7 @@ class TestPostMetadataV2:
                 "contributions": [],
             }
 
-            response = client.post("/v2/metadata", data=json.dumps(expression_data), content_type="application/json")
+            response = client.post("/v2/texts", data=json.dumps(expression_data), content_type="application/json")
 
             assert response.status_code == 422  # Proper validation error status
             data = json.loads(response.data)
@@ -598,7 +598,7 @@ class TestPostMetadataV2:
                 "contributions": [],
             }
 
-            response = client.post("/v2/metadata", data=json.dumps(expression_data), content_type="application/json")
+            response = client.post("/v2/texts", data=json.dumps(expression_data), content_type="application/json")
 
             assert response.status_code == 422  # Proper validation error status
             data = json.loads(response.data)

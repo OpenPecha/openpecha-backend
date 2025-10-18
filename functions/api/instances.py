@@ -80,7 +80,7 @@ def get_instance(manifestation_id: str) -> tuple[Response, int]:
                     400,
                 )
         else:
-            return jsonify({"error": f"No aligned_to annotation found in instance: {manifestation_id}"}), 400
+            return jsonify({"error": f"No aligned_to annotation found in instance: {manifestation_id}"}), 422
     else:
         target = {
             "pecha": pecha,

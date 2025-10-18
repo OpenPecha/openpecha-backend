@@ -185,6 +185,173 @@ class TestGetAllPersonsV2:
             assert "Alt Name 1" in alt_name_texts
             assert "Alt Name 2" in alt_name_texts
 
+    def test_get_all_persons_with_default_pagination(self, client, test_database):
+        """Test default pagination (limit=20, offset=0)"""
+        with patch("api.persons.Neo4JDatabase") as mock_db_class:
+            mock_db_class.return_value = test_database
+
+            # Create 25 test persons
+            for i in range(25):
+                person_data = {"name": {"en": f"Person {i+1}"}}
+                person = PersonModelInput.model_validate(person_data)
+                test_database.create_person(person)
+
+            # Request without pagination params (should use defaults)
+            response = client.get("/v2/persons/")
+
+            assert response.status_code == 200
+            data = json.loads(response.data)
+            # Default limit is 20, so should get 20 persons
+            assert len(data) == 20
+
+    def test_get_all_persons_with_custom_limit(self, client, test_database):
+        """Test pagination with custom limit"""
+        with patch("api.persons.Neo4JDatabase") as mock_db_class:
+            mock_db_class.return_value = test_database
+
+            # Create 15 test persons
+            for i in range(15):
+                person_data = {"name": {"en": f"Person {i+1}"}}
+                person = PersonModelInput.model_validate(person_data)
+                test_database.create_person(person)
+
+            # Request with limit=5
+            response = client.get("/v2/persons/?limit=5")
+
+            assert response.status_code == 200
+            data = json.loads(response.data)
+            assert len(data) == 5
+
+    def test_get_all_persons_with_custom_offset(self, client, test_database):
+        """Test pagination with custom offset"""
+        with patch("api.persons.Neo4JDatabase") as mock_db_class:
+            mock_db_class.return_value = test_database
+
+            # Create 10 test persons with identifiable names
+            created_ids = []
+            for i in range(10):
+                person_data = {"name": {"en": f"Person {i+1:02d}"}}
+                person = PersonModelInput.model_validate(person_data)
+                person_id = test_database.create_person(person)
+                created_ids.append(person_id)
+
+            # Request first page (offset=0, limit=5)
+            response1 = client.get("/v2/persons/?limit=5&offset=0")
+            assert response1.status_code == 200
+            data1 = json.loads(response1.data)
+            assert len(data1) == 5
+
+            # Request second page (offset=5, limit=5)
+            response2 = client.get("/v2/persons/?limit=5&offset=5")
+            assert response2.status_code == 200
+            data2 = json.loads(response2.data)
+            assert len(data2) == 5
+
+            # Verify no overlap between pages
+            ids1 = [p["id"] for p in data1]
+            ids2 = [p["id"] for p in data2]
+            assert len(set(ids1) & set(ids2)) == 0  # No common IDs
+
+    def test_get_all_persons_limit_edge_cases(self, client, test_database):
+        """Test pagination limit edge cases (min=1, max=100)"""
+        with patch("api.persons.Neo4JDatabase") as mock_db_class:
+            mock_db_class.return_value = test_database
+
+            # Create some test persons
+            for i in range(5):
+                person_data = {"name": {"en": f"Person {i+1}"}}
+                person = PersonModelInput.model_validate(person_data)
+                test_database.create_person(person)
+
+            # Test limit=1
+            response = client.get("/v2/persons/?limit=1")
+            assert response.status_code == 200
+            data = json.loads(response.data)
+            assert len(data) == 1
+
+            # Test limit=100 (max allowed)
+            response = client.get("/v2/persons/?limit=100")
+            assert response.status_code == 200
+            data = json.loads(response.data)
+            assert len(data) == 5  # Only 5 persons exist
+
+    def test_get_all_persons_invalid_limit_too_low(self, client, test_database):
+        """Test pagination with limit less than 1"""
+        with patch("api.persons.Neo4JDatabase") as mock_db_class:
+            mock_db_class.return_value = test_database
+
+            response = client.get("/v2/persons/?limit=0")
+            assert response.status_code == 422
+            data = json.loads(response.data)
+            assert "error" in data
+            assert "Limit must be between 1 and 100" in data["error"]
+
+    def test_get_all_persons_invalid_limit_too_high(self, client, test_database):
+        """Test pagination with limit greater than 100"""
+        with patch("api.persons.Neo4JDatabase") as mock_db_class:
+            mock_db_class.return_value = test_database
+
+            response = client.get("/v2/persons/?limit=101")
+            assert response.status_code == 422
+            data = json.loads(response.data)
+            assert "error" in data
+            assert "Limit must be between 1 and 100" in data["error"]
+
+    def test_get_all_persons_invalid_offset_negative(self, client, test_database):
+        """Test pagination with negative offset"""
+        with patch("api.persons.Neo4JDatabase") as mock_db_class:
+            mock_db_class.return_value = test_database
+
+            response = client.get("/v2/persons/?offset=-1")
+            assert response.status_code == 422
+            data = json.loads(response.data)
+            assert "error" in data
+            assert "Offset must be non-negative" in data["error"]
+
+    def test_get_all_persons_offset_beyond_results(self, client, test_database):
+        """Test pagination with offset beyond available results"""
+        with patch("api.persons.Neo4JDatabase") as mock_db_class:
+            mock_db_class.return_value = test_database
+
+            # Create 5 test persons
+            for i in range(5):
+                person_data = {"name": {"en": f"Person {i+1}"}}
+                person = PersonModelInput.model_validate(person_data)
+                test_database.create_person(person)
+
+            # Request with offset=100 (beyond all results)
+            response = client.get("/v2/persons/?offset=100")
+            assert response.status_code == 200
+            data = json.loads(response.data)
+            assert len(data) == 0  # Should return empty list
+
+    def test_get_all_persons_pagination_consistency(self, client, test_database):
+        """Test that paginated results cover all data without duplication"""
+        with patch("api.persons.Neo4JDatabase") as mock_db_class:
+            mock_db_class.return_value = test_database
+
+            # Create 30 test persons
+            all_created_ids = []
+            for i in range(30):
+                person_data = {"name": {"en": f"Person {i+1:02d}"}}
+                person = PersonModelInput.model_validate(person_data)
+                person_id = test_database.create_person(person)
+                all_created_ids.append(person_id)
+
+            # Fetch all persons using pagination (3 pages of 10)
+            all_fetched_ids = []
+            for page in range(3):
+                response = client.get(f"/v2/persons/?limit=10&offset={page*10}")
+                assert response.status_code == 200
+                data = json.loads(response.data)
+                fetched_ids = [p["id"] for p in data]
+                all_fetched_ids.extend(fetched_ids)
+
+            # Verify we got all persons exactly once
+            assert len(all_fetched_ids) == 30
+            assert len(set(all_fetched_ids)) == 30  # No duplicates
+            assert set(all_fetched_ids) == set(all_created_ids)  # Same set of IDs
+
 
 class TestGetSinglePersonV2:
     """Tests for GET /v2/persons/{id} endpoint (get single person)"""

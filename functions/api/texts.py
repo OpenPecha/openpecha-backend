@@ -73,7 +73,7 @@ def get_instances(expression_id: str) -> tuple[Response, int]:
 @texts_bp.route("/<string:expression_id>/instances", methods=["POST"], strict_slashes=False)
 def create_instance(expression_id: str) -> tuple[Response, int]:
     data = request.get_json(force=True, silent=True)
-    if not data:
+    if data is None:
         return jsonify({"error": "Request body is required"}), 400
 
     instance_request = InstanceRequestModel.model_validate(data)
