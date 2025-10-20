@@ -109,8 +109,12 @@ class ExpressionModelBase(OpenPechaModel):
     def validate_parent_field(self):
         if self.type == TextType.ROOT and self.parent is not None:
             raise ValueError("When type is 'root', parent must be None")
-        if self.type in [TextType.COMMENTARY] and self.parent is None:
-            raise ValueError(f"When type is '{self.type.value}', parent must be provided")
+        if self.type in [TextType.COMMENTARY, TextType.TRANSLATION] and self.parent is None:
+            msg = (
+                f"When type is '{self.type.value}', parent must be provided "
+                "(use 'N/A' for standalone translations/commentaries)"
+            )
+            raise ValueError(msg)
         return self
 
 
