@@ -59,18 +59,24 @@ class Neo4JDatabase:
                 raise DataNotFound(f"Expression with ID '{expression_id}' not found")
 
             expression = record.data()["expression"]
+            expression_type = TextType(expression.get("type"))
+            parent = expression.get("parent")
+
+            # Convert None to "N/A" for standalone translations/commentaries
+            if expression_type in [TextType.TRANSLATION, TextType.COMMENTARY] and parent is None:
+                parent = "N/A"
 
             return ExpressionModelOutput(
                 id=expression.get("id"),
                 bdrc=expression.get("bdrc"),
                 wiki=expression.get("wiki"),
-                type=TextType(expression.get("type")),
+                type=expression_type,
                 contributions=self._build_contributions(expression.get("contributors")),
                 date=expression.get("date"),
                 title=self.__convert_to_localized_text(expression.get("title")),
                 alt_titles=[self.__convert_to_localized_text(alt) for alt in expression.get("alt_titles")],
                 language=expression.get("language"),
-                parent=expression.get("parent"),
+                parent=parent,
             )
 
     def _process_manifestation_data(self, manifestation_data: dict) -> ManifestationModelOutput:
@@ -285,11 +291,17 @@ class Neo4JDatabase:
                 if expression_type is None:
                     raise ValueError(f"Expression type invalid for expression {expression_data['id']}")
 
+                text_type = TextType(expression_type)
+
+                # Convert None to "N/A" for standalone translations/commentaries
+                if text_type in [TextType.TRANSLATION, TextType.COMMENTARY] and parent is None:
+                    parent = "N/A"
+
                 expression = ExpressionModelOutput(
                     id=expression_data["id"],
                     bdrc=expression_data["bdrc"],
                     wiki=expression_data["wiki"],
-                    type=TextType(expression_type),
+                    type=text_type,
                     contributions=self._build_contributions(expression_data.get("contributors")),
                     date=expression_data["date"],
                     title=self.__convert_to_localized_text(expression_data["title"]),

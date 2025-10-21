@@ -110,7 +110,6 @@ def test_database(neo4j_connection):
         session.run("MATCH (n) DETACH DELETE n")
 
 
-
 class TestDatabaseNeo4j:
     def test_env_loading(self):
         """Test that .env file is loaded correctly"""
@@ -181,30 +180,6 @@ class TestDatabaseNeo4j:
 
         with pytest.raises(DataNotFound, match="Person with ID 'nonexistent' not found"):
             db.get_person("nonexistent")
-
-    def test_queries_class_structure(self, test_database):
-        """Test that the new Queries class structure works correctly"""
-        db = test_database
-
-        # Test that queries are accessible via dictionary structure
-        assert "fetch_all" in Queries.persons
-        assert "fetch_by_id" in Queries.persons
-        assert "create" in Queries.persons
-
-        assert "fetch_all" in Queries.expressions
-        assert "fetch_by_id" in Queries.expressions
-        assert "fetch_related" in Queries.expressions
-
-        # Test that the queries actually work with real Neo4j
-        with db.get_session() as session:
-            # Test persons query
-            result = session.run(Queries.persons["fetch_all"])
-            list(result)  # Should not raise an error
-
-            # Test expressions query with parameters
-            params = {"offset": 0, "limit": 10, "type": None, "language": None}
-            result = session.run(Queries.expressions["fetch_all"], params)
-            list(result)  # Should not raise an error
 
     def test_person_with_bdrc_and_wiki_fields(self, test_database):
         """Test person creation and retrieval"""

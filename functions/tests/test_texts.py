@@ -360,7 +360,7 @@ class TestGetAllTextsV2:
 
     def test_get_all_metadata_edge_pagination(self, client, test_database, test_person_data):
         """Test edge cases for pagination"""
-        with patch("api.metadata.Neo4JDatabase") as mock_db_class:
+        with patch("api.texts.Neo4JDatabase") as mock_db_class:
             mock_db_class.return_value = test_database
 
             # Create test person
@@ -459,7 +459,7 @@ class TestGetSingleTextV2:
             translation_expression = ExpressionModelInput.model_validate(translation_data)
             translation_id = test_database.create_expression(translation_expression)
 
-            response = client.get(f"/v2/metadata/{translation_id}")
+            response = client.get(f"/v2/texts/{translation_id}")
 
             assert response.status_code == 200
             data = json.loads(response.data)
@@ -505,7 +505,7 @@ class TestPostTextV2:
             assert response.status_code == 201
             data = json.loads(response.data)
             assert "message" in data
-            assert "Expression created successfully" in data["message"]
+            assert "Text created successfully" in data["message"]
             assert "id" in data
 
             # Verify the expression was created by retrieving it
