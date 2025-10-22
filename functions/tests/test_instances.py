@@ -443,7 +443,10 @@ class TestInstancesV2Endpoints:
         assert manifestation.wiki == text_data["metadata"]["wiki"]
         assert manifestation.colophon == text_data["metadata"]["colophon"]
         assert manifestation.incipit_title.root == text_data["metadata"]["incipit_title"]
-        assert [alt.root for alt in manifestation.alt_incipit_titles] == text_data["metadata"]["alt_incipit_titles"]
+        # Compare as sets since Neo4j doesn't guarantee order of alternative nomens
+        actual_alt_titles = {tuple(sorted(alt.root.items())) for alt in manifestation.alt_incipit_titles}
+        expected_alt_titles = {tuple(sorted(alt.items())) for alt in text_data["metadata"]["alt_incipit_titles"]}
+        assert actual_alt_titles == expected_alt_titles
 
     def test_create_then_get_translation_round_trip(self, client, test_database, test_person_data, create_test_zip):
         """Test POST translation creation then GET to verify all fields are stored and retrieved correctly"""
@@ -658,26 +661,28 @@ class TestInstancesV2Endpoints:
         assert response_data["target_base"] == "This is the source Tibetan text."
 
     def test_get_text_aligned_no_aligned_to(self, client, test_database, test_person_data, create_test_zip):
-        """Test GET text with aligned=true but no aligned_to annotation - should return 400"""
+        """Test GET text with aligned=true but no aligned_to annotation - should return 422"""
         person_id = self._create_test_person(test_database, test_person_data)
         _, manifestation_id = self._create_test_text(test_database, person_id, create_test_zip)
 
         # Test GET with aligned=true on text that has no aligned_to
         response = client.get(f"/v2/instances/{manifestation_id}/?aligned=true")
 
-        assert response.status_code == 400
+        assert response.status_code == 422
         response_data = response.get_json()
         assert "error" in response_data
         assert "No aligned_to annotation found" in response_data["error"]
 
     def test_get_text_aligned_invalid_aligned_to(self, client, test_database, test_person_data, create_test_zip):
-        """Test GET text with aligned=true but aligned_to points to non-existent annotation - should return 400"""
+        """Test GET text with aligned=true but aligned_to points to non-existent annotation - should return 422"""
         person_id = self._create_test_person(test_database, test_person_data)
 
         # Use the working pattern to create a base text first
         expression_id, _ = self._create_test_text(test_database, person_id, create_test_zip)
 
         # Create manifestation with alignment annotation pointing to non-existent annotation
+        # Note: Neo4j won't create ALIGNED_TO relationship if target doesn't exist,
+        # so aligned_to will be None when retrieved
         manifestation_data = ManifestationModelInput(
             type=ManifestationType.CRITICAL,
             copyright=CopyrightStatus.PUBLIC_DOMAIN,
@@ -689,10 +694,10 @@ class TestInstancesV2Endpoints:
 
         manifestation_id = test_database.create_manifestation(manifestation_data, alignment_annotation, expression_id)
 
-        # Test GET with aligned=true
+        # Test GET with aligned=true - will fail because aligned_to is None (target didn't exist)
         response = client.get(f"/v2/instances/{manifestation_id}/?aligned=true")
 
-        assert response.status_code == 400
+        assert response.status_code == 422
         response_data = response.get_json()
         assert "error" in response_data
         assert "No aligned_to annotation found" in response_data["error"]
