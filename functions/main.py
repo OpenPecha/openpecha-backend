@@ -62,6 +62,8 @@ def create_app(testing=False):
             # for some reason if ctx is in the error dict, it will break the response, we need to remove it
             errors = [{k: v for k, v in err.items() if k != "ctx"} for err in e.errors()]
             return jsonify({"error": "Validation error", "details": errors}), 422
+        if isinstance(e, NotImplementedError):
+            return jsonify({"error": str(e)}), 501
         if isinstance(e, OpenPechaException):
             return jsonify(e.to_dict()), e.status_code
 

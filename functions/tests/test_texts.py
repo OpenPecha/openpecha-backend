@@ -13,7 +13,6 @@ Requires environment variables:
 """
 import json
 import os
-from unittest.mock import patch
 
 import pytest
 from dotenv import load_dotenv
@@ -42,6 +41,10 @@ def neo4j_connection():
 @pytest.fixture
 def test_database(neo4j_connection):
     """Create a Neo4JDatabase instance connected to the test Neo4j instance"""
+    # Set environment variables so API endpoints can connect to test database
+    os.environ["NEO4J_URI"] = neo4j_connection["uri"]
+    os.environ["NEO4J_PASSWORD"] = neo4j_connection["auth"][1]
+
     # Create Neo4j database with test connection
     db = Neo4JDatabase(neo4j_uri=neo4j_connection["uri"], neo4j_auth=neo4j_connection["auth"])
 
@@ -82,14 +85,6 @@ def client():
 
 
 @pytest.fixture
-def patched_client(client, test_database):
-    """Create Flask test client with Neo4j database patched to use test instance"""
-    with patch("api.texts.Neo4JDatabase") as mock_db_class:
-        mock_db_class.return_value = test_database
-        yield client
-
-
-@pytest.fixture
 def test_person_data():
     """Sample person data for testing"""
     return {
@@ -120,280 +115,260 @@ class TestGetAllTextsV2:
 
     def test_get_all_metadata_empty_database(self, client, test_database):
         """Test getting all texts from empty database"""
-        with patch("api.texts.Neo4JDatabase") as mock_db_class:
-            mock_db_class.return_value = test_database
+        response = client.get("/v2/texts/")
 
-            response = client.get("/v2/texts/")
-
-            assert response.status_code == 200
-            data = json.loads(response.data)
-            assert isinstance(data, list)
-            assert len(data) == 0
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert isinstance(data, list)
+        assert len(data) == 0
 
     def test_get_all_metadata_default_pagination(self, client, test_database, test_person_data, test_expression_data):
         """Test default pagination (limit=20, offset=0)"""
-        with patch("api.texts.Neo4JDatabase") as mock_db_class:
-            mock_db_class.return_value = test_database
+        # Create test person first
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
 
-            # Create test person first
-            person = PersonModelInput.model_validate(test_person_data)
-            person_id = test_database.create_person(person)
+        # Create test expression
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
+        expression_id = test_database.create_expression(expression)
 
-            # Create test expression
-            test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
-            expression = ExpressionModelInput.model_validate(test_expression_data)
-            expression_id = test_database.create_expression(expression)
+        response = client.get("/v2/texts/")
 
-            response = client.get("/v2/texts/")
-
-            assert response.status_code == 200
-            data = json.loads(response.data)
-            assert isinstance(data, list)
-            assert len(data) == 1
-            assert data[0]["id"] == expression_id
-            assert data[0]["type"] == "root"
-            assert data[0]["title"]["en"] == "Test Expression"
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert isinstance(data, list)
+        assert len(data) == 1
+        assert data[0]["id"] == expression_id
+        assert data[0]["type"] == "root"
+        assert data[0]["title"]["en"] == "Test Expression"
 
     def test_get_all_metadata_custom_pagination(self, client, test_database, test_person_data):
         """Test custom pagination parameters"""
-        with patch("api.texts.Neo4JDatabase") as mock_db_class:
-            mock_db_class.return_value = test_database
 
-            # Create test person
-            person = PersonModelInput.model_validate(test_person_data)
-            person_id = test_database.create_person(person)
+        # Create test person
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
 
-            # Create multiple expressions
-            expression_ids = []
-            for i in range(5):
-                expr_data = {
-                    "type": "root",
-                    "title": {"en": f"Expression {i+1}", "bo": f"ཚིག་སྒྲུབ་{i+1}།"},
-                    "language": "en",
-                    "contributions": [{"person_id": person_id, "role": "author"}],
-                }
-                expression = ExpressionModelInput.model_validate(expr_data)
-                expr_id = test_database.create_expression(expression)
-                expression_ids.append(expr_id)
-
-            # Test limit=2, offset=1
-            response = client.get("/v2/texts?limit=2&offset=1")
-
-            assert response.status_code == 200
-            data = json.loads(response.data)
-            assert len(data) == 2
-
-    def test_get_all_metadata_filter_by_type(self, client, test_database, test_person_data):
-        """Test filtering by expression type"""
-        with patch("api.texts.Neo4JDatabase") as mock_db_class:
-            mock_db_class.return_value = test_database
-
-            # Create test person
-            person = PersonModelInput.model_validate(test_person_data)
-            person_id = test_database.create_person(person)
-
-            # Create ROOT expression
-            root_data = {
-                "type": "root",
-                "title": {"en": "Root Expression", "bo": "རྩ་བའི་ཚིག་སྒྲུབ།"},
-                "language": "en",
-                "contributions": [{"person_id": person_id, "role": "author"}],
-            }
-            root_expression = ExpressionModelInput.model_validate(root_data)
-            root_id = test_database.create_expression(root_expression)
-
-            # Create TRANSLATION expression
-            translation_data = {
-                "type": "translation",
-                "title": {"en": "Translation Expression", "bo": "སྒྱུར་བའི་ཚིག་སྒྲུབ།"},
-                "language": "bo",
-                "parent": root_id,
-                "contributions": [{"person_id": person_id, "role": "translator"}],
-            }
-            translation_expression = ExpressionModelInput.model_validate(translation_data)
-            translation_id = test_database.create_expression(translation_expression)
-
-            # Filter by root type
-            response = client.get("/v2/texts?type=root")
-
-            assert response.status_code == 200
-            data = json.loads(response.data)
-            assert len(data) == 1
-            assert data[0]["id"] == root_id
-            assert data[0]["type"] == "root"
-
-            # Filter by translation type
-            response = client.get("/v2/texts?type=translation")
-
-            assert response.status_code == 200
-            data = json.loads(response.data)
-            assert len(data) == 1
-            assert data[0]["id"] == translation_id
-            assert data[0]["type"] == "translation"
-
-    def test_get_all_metadata_filter_by_language(self, client, test_database, test_person_data):
-        """Test filtering by language"""
-        with patch("api.texts.Neo4JDatabase") as mock_db_class:
-            mock_db_class.return_value = test_database
-
-            # Create test person
-            person = PersonModelInput.model_validate(test_person_data)
-            person_id = test_database.create_person(person)
-
-            # Create English expression
-            en_data = {
-                "type": "root",
-                "title": {"en": "English Expression"},
-                "language": "en",
-                "contributions": [{"person_id": person_id, "role": "author"}],
-            }
-            en_expression = ExpressionModelInput.model_validate(en_data)
-            en_id = test_database.create_expression(en_expression)
-
-            # Create Tibetan expression
-            bo_data = {
-                "type": "root",
-                "title": {"bo": "བོད་ཡིག་ཚིག་སྒྲུབ།"},
-                "language": "bo",
-                "contributions": [{"person_id": person_id, "role": "author"}],
-            }
-            bo_expression = ExpressionModelInput.model_validate(bo_data)
-            bo_id = test_database.create_expression(bo_expression)
-
-            # Filter by English
-            response = client.get("/v2/texts?language=en")
-
-            assert response.status_code == 200
-            data = json.loads(response.data)
-            assert len(data) == 1
-            assert data[0]["id"] == en_id
-            assert data[0]["language"] == "en"
-
-            # Filter by Tibetan
-            response = client.get("/v2/texts?language=bo")
-
-            assert response.status_code == 200
-            data = json.loads(response.data)
-            assert len(data) == 1
-            assert data[0]["id"] == bo_id
-            assert data[0]["language"] == "bo"
-
-    def test_get_all_metadata_multiple_filters(self, client, test_database, test_person_data):
-        """Test combining multiple filters"""
-        with patch("api.texts.Neo4JDatabase") as mock_db_class:
-            mock_db_class.return_value = test_database
-
-            # Create test person
-            person = PersonModelInput.model_validate(test_person_data)
-            person_id = test_database.create_person(person)
-
-            # Create ROOT expression
-            root_data = {
-                "type": "root",
-                "title": {"en": "Root Expression"},
-                "language": "en",
-                "contributions": [{"person_id": person_id, "role": "author"}],
-            }
-            root_expression = ExpressionModelInput.model_validate(root_data)
-            root_id = test_database.create_expression(root_expression)
-
-            # Create TRANSLATION expression in Tibetan
-            translation_data = {
-                "type": "translation",
-                "title": {"bo": "སྒྱུར་བའི་ཚིག་སྒྲུབ།"},
-                "language": "bo",
-                "parent": root_id,
-                "contributions": [{"person_id": person_id, "role": "translator"}],
-            }
-            translation_expression = ExpressionModelInput.model_validate(translation_data)
-            test_database.create_expression(translation_expression)
-
-            # Filter by type=root AND language=en
-            response = client.get("/v2/texts?type=root&language=en")
-
-            assert response.status_code == 200
-            data = json.loads(response.data)
-            assert len(data) == 1
-            assert data[0]["id"] == root_id
-            assert data[0]["type"] == "root"
-            assert data[0]["language"] == "en"
-
-    def test_get_all_metadata_invalid_limit(self, client, test_database):
-        """Test invalid limit parameters"""
-        with patch("api.texts.Neo4JDatabase") as mock_db_class:
-            mock_db_class.return_value = test_database
-
-            # Test limit too low
-            response = client.get("/v2/texts?limit=0")
-            assert response.status_code == 400
-            data = json.loads(response.data)
-            assert "Limit must be between 1 and 100" in data["error"]
-
-            # Test non-integer limit (Flask converts to None, then defaults to 20)
-            response = client.get("/v2/texts?limit=abc")
-            assert response.status_code == 200
-            data = json.loads(response.data)
-            assert isinstance(data, list)  # Should return empty list with default pagination
-
-            # Test limit too high
-            response = client.get("/v2/texts?limit=101")
-            assert response.status_code == 400
-            data = json.loads(response.data)
-            assert "Limit must be between 1 and 100" in data["error"]
-
-    def test_get_all_metadata_invalid_offset(self, client, test_database):
-        """Test invalid offset parameters"""
-        with patch("api.texts.Neo4JDatabase") as mock_db_class:
-            mock_db_class.return_value = test_database
-
-            # Test negative offset
-            response = client.get("/v2/texts?offset=-1")
-            assert response.status_code == 400
-            data = json.loads(response.data)
-            assert "Offset must be non-negative" in data["error"]
-
-            # Test non-integer offset (Flask converts to None, then defaults to 0)
-            response = client.get("/v2/texts?offset=abc")
-            assert response.status_code == 200
-            data = json.loads(response.data)
-            assert isinstance(data, list)  # Should return empty list with default pagination
-
-    def test_get_all_metadata_edge_pagination(self, client, test_database, test_person_data):
-        """Test edge cases for pagination"""
-        with patch("api.texts.Neo4JDatabase") as mock_db_class:
-            mock_db_class.return_value = test_database
-
-            # Create test person
-            person = PersonModelInput.model_validate(test_person_data)
-            person_id = test_database.create_person(person)
-
-            # Create one expression
+        # Create multiple expressions
+        expression_ids = []
+        for i in range(5):
             expr_data = {
                 "type": "root",
-                "title": {"en": "Single Expression"},
+                "title": {"en": f"Expression {i+1}", "bo": f"ཚིག་སྒྲུབ་{i+1}།"},
                 "language": "en",
                 "contributions": [{"person_id": person_id, "role": "author"}],
             }
             expression = ExpressionModelInput.model_validate(expr_data)
-            test_database.create_expression(expression)
+            expr_id = test_database.create_expression(expression)
+            expression_ids.append(expr_id)
 
-            # Test limit=1 (minimum)
-            response = client.get("/v2/texts?limit=1")
-            assert response.status_code == 200
-            data = json.loads(response.data)
-            assert len(data) == 1
+        # Test limit=2, offset=1
+        response = client.get("/v2/texts?limit=2&offset=1")
 
-            # Test limit=100 (maximum)
-            response = client.get("/v2/texts?limit=100")
-            assert response.status_code == 200
-            data = json.loads(response.data)
-            assert len(data) == 1
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 2
 
-            # Test large offset (beyond available data)
-            response = client.get("/v2/texts?offset=1000")
-            assert response.status_code == 200
-            data = json.loads(response.data)
-            assert len(data) == 0
+    def test_get_all_metadata_filter_by_type(self, client, test_database, test_person_data):
+        """Test filtering by expression type"""
+
+        # Create test person
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        # Create ROOT expression
+        root_data = {
+            "type": "root",
+            "title": {"en": "Root Expression", "bo": "རྩ་བའི་ཚིག་སྒྲུབ།"},
+            "language": "en",
+            "contributions": [{"person_id": person_id, "role": "author"}],
+        }
+        root_expression = ExpressionModelInput.model_validate(root_data)
+        root_id = test_database.create_expression(root_expression)
+
+        # Create TRANSLATION expression
+        translation_data = {
+            "type": "translation",
+            "title": {"en": "Translation Expression", "bo": "སྒྱུར་བའི་ཚིག་སྒྲུབ།"},
+            "language": "bo",
+            "parent": root_id,
+            "contributions": [{"person_id": person_id, "role": "translator"}],
+        }
+        translation_expression = ExpressionModelInput.model_validate(translation_data)
+        translation_id = test_database.create_expression(translation_expression)
+
+        # Filter by root type
+        response = client.get("/v2/texts?type=root")
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 1
+        assert data[0]["id"] == root_id
+        assert data[0]["type"] == "root"
+
+        # Filter by translation type
+        response = client.get("/v2/texts?type=translation")
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 1
+        assert data[0]["id"] == translation_id
+        assert data[0]["type"] == "translation"
+
+    def test_get_all_metadata_filter_by_language(self, client, test_database, test_person_data):
+        """Test filtering by language"""
+
+        # Create test person
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        # Create English expression
+        en_data = {
+            "type": "root",
+            "title": {"en": "English Expression"},
+            "language": "en",
+            "contributions": [{"person_id": person_id, "role": "author"}],
+        }
+        en_expression = ExpressionModelInput.model_validate(en_data)
+        en_id = test_database.create_expression(en_expression)
+
+        # Create Tibetan expression
+        bo_data = {
+            "type": "root",
+            "title": {"bo": "བོད་ཡིག་ཚིག་སྒྲུབ།"},
+            "language": "bo",
+            "contributions": [{"person_id": person_id, "role": "author"}],
+        }
+        bo_expression = ExpressionModelInput.model_validate(bo_data)
+        bo_id = test_database.create_expression(bo_expression)
+
+        # Filter by English
+        response = client.get("/v2/texts?language=en")
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 1
+        assert data[0]["id"] == en_id
+        assert data[0]["language"] == "en"
+
+        # Filter by Tibetan
+        response = client.get("/v2/texts?language=bo")
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 1
+        assert data[0]["id"] == bo_id
+        assert data[0]["language"] == "bo"
+
+    def test_get_all_metadata_multiple_filters(self, client, test_database, test_person_data):
+        """Test combining multiple filters"""
+
+        # Create test person
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        # Create ROOT expression
+        root_data = {
+            "type": "root",
+            "title": {"en": "Root Expression"},
+            "language": "en",
+            "contributions": [{"person_id": person_id, "role": "author"}],
+        }
+        root_expression = ExpressionModelInput.model_validate(root_data)
+        root_id = test_database.create_expression(root_expression)
+
+        # Create TRANSLATION expression in Tibetan
+        translation_data = {
+            "type": "translation",
+            "title": {"bo": "སྒྱུར་བའི་ཚིག་སྒྲུབ།"},
+            "language": "bo",
+            "parent": root_id,
+            "contributions": [{"person_id": person_id, "role": "translator"}],
+        }
+        translation_expression = ExpressionModelInput.model_validate(translation_data)
+        test_database.create_expression(translation_expression)
+
+        # Filter by type=root AND language=en
+        response = client.get("/v2/texts?type=root&language=en")
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 1
+        assert data[0]["id"] == root_id
+        assert data[0]["type"] == "root"
+        assert data[0]["language"] == "en"
+
+    def test_get_all_metadata_invalid_limit(self, client):
+        """Test invalid limit parameters"""
+
+        # Test limit too low
+        response = client.get("/v2/texts?limit=0")
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert "Limit must be between 1 and 100" in data["error"]
+
+        # Test non-integer limit (Flask converts to None, then defaults to 20)
+        response = client.get("/v2/texts?limit=abc")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert isinstance(data, list)  # Should return empty list with default pagination
+
+        # Test limit too high
+        response = client.get("/v2/texts?limit=101")
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert "Limit must be between 1 and 100" in data["error"]
+
+    def test_get_all_metadata_invalid_offset(self, client):
+        """Test invalid offset parameters"""
+
+        # Test negative offset
+        response = client.get("/v2/texts?offset=-1")
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert "Offset must be non-negative" in data["error"]
+
+        # Test non-integer offset (Flask converts to None, then defaults to 0)
+        response = client.get("/v2/texts?offset=abc")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert isinstance(data, list)  # Should return empty list with default pagination
+
+    def test_get_all_metadata_edge_pagination(self, client, test_database, test_person_data):
+        """Test edge cases for pagination"""
+
+        # Create test person
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        # Create one expression
+        expr_data = {
+            "type": "root",
+            "title": {"en": "Single Expression"},
+            "language": "en",
+            "contributions": [{"person_id": person_id, "role": "author"}],
+        }
+        expression = ExpressionModelInput.model_validate(expr_data)
+        test_database.create_expression(expression)
+
+        # Test limit=1 (minimum)
+        response = client.get("/v2/texts?limit=1")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 1
+
+        # Test limit=100 (maximum)
+        response = client.get("/v2/texts?limit=100")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 1
+
+        # Test large offset (beyond available data)
+        response = client.get("/v2/texts?offset=1000")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 0
 
 
 class TestGetSingleTextV2:
@@ -401,83 +376,77 @@ class TestGetSingleTextV2:
 
     def test_get_single_metadata_success(self, client, test_database, test_person_data, test_expression_data):
         """Test successfully retrieving a single expression"""
-        with patch("api.texts.Neo4JDatabase") as mock_db_class:
-            mock_db_class.return_value = test_database
 
-            # Create test person
-            person = PersonModelInput.model_validate(test_person_data)
-            person_id = test_database.create_person(person)
+        # Create test person
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
 
-            # Create test expression
-            test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
-            expression = ExpressionModelInput.model_validate(test_expression_data)
-            expression_id = test_database.create_expression(expression)
+        # Create test expression
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
+        expression_id = test_database.create_expression(expression)
 
-            response = client.get(f"/v2/texts/{expression_id}")
+        response = client.get(f"/v2/texts/{expression_id}")
 
-            assert response.status_code == 200
-            data = json.loads(response.data)
-            assert data["id"] == expression_id
-            assert data["type"] == "root"
-            assert data["title"]["en"] == "Test Expression"
-            assert data["title"]["bo"] == "བརྟག་དཔྱད་ཚིག་སྒྲུབ།"
-            assert data["language"] == "en"
-            assert data["date"] == "2024-01-01"
-            assert data["bdrc"] == "W123456"
-            assert data["wiki"] == "Q789012"
-            assert len(data["contributions"]) == 1
-            assert data["contributions"][0]["role"] == "author"
-            assert data["parent"] is None
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data["id"] == expression_id
+        assert data["type"] == "root"
+        assert data["title"]["en"] == "Test Expression"
+        assert data["title"]["bo"] == "བརྟག་དཔྱད་ཚིག་སྒྲུབ།"
+        assert data["language"] == "en"
+        assert data["date"] == "2024-01-01"
+        assert data["bdrc"] == "W123456"
+        assert data["wiki"] == "Q789012"
+        assert len(data["contributions"]) == 1
+        assert data["contributions"][0]["role"] == "author"
+        assert data["parent"] is None
 
     def test_get_single_metadata_translation_expression(self, client, test_database, test_person_data):
         """Test retrieving TRANSLATION expression with parent relationship"""
-        with patch("api.texts.Neo4JDatabase") as mock_db_class:
-            mock_db_class.return_value = test_database
 
-            # Create test person
-            person = PersonModelInput.model_validate(test_person_data)
-            person_id = test_database.create_person(person)
+        # Create test person
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
 
-            # Create parent ROOT expression
-            root_data = {
-                "type": "root",
-                "title": {"en": "Parent Root Expression"},
-                "language": "en",
-                "contributions": [{"person_id": person_id, "role": "author"}],
-            }
-            root_expression = ExpressionModelInput.model_validate(root_data)
-            parent_id = test_database.create_expression(root_expression)
+        # Create parent ROOT expression
+        root_data = {
+            "type": "root",
+            "title": {"en": "Parent Root Expression"},
+            "language": "en",
+            "contributions": [{"person_id": person_id, "role": "author"}],
+        }
+        root_expression = ExpressionModelInput.model_validate(root_data)
+        parent_id = test_database.create_expression(root_expression)
 
-            # Create TRANSLATION expression
-            translation_data = {
-                "type": "translation",
-                "title": {"bo": "སྒྱུར་བའི་ཚིག་སྒྲུབ།", "en": "Translation Expression"},
-                "language": "bo",
-                "parent": parent_id,
-                "contributions": [{"person_id": person_id, "role": "translator"}],
-            }
-            translation_expression = ExpressionModelInput.model_validate(translation_data)
-            translation_id = test_database.create_expression(translation_expression)
+        # Create TRANSLATION expression
+        translation_data = {
+            "type": "translation",
+            "title": {"bo": "སྒྱུར་བའི་ཚིག་སྒྲུབ།", "en": "Translation Expression"},
+            "language": "bo",
+            "parent": parent_id,
+            "contributions": [{"person_id": person_id, "role": "translator"}],
+        }
+        translation_expression = ExpressionModelInput.model_validate(translation_data)
+        translation_id = test_database.create_expression(translation_expression)
 
-            response = client.get(f"/v2/texts/{translation_id}")
+        response = client.get(f"/v2/texts/{translation_id}")
 
-            assert response.status_code == 200
-            data = json.loads(response.data)
-            assert data["type"] == "translation"
-            assert data["parent"] == parent_id
-            assert data["language"] == "bo"
-            assert data["contributions"][0]["role"] == "translator"
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data["type"] == "translation"
+        assert data["parent"] == parent_id
+        assert data["language"] == "bo"
+        assert data["contributions"][0]["role"] == "translator"
 
-    def test_get_single_metadata_not_found(self, client, test_database):
+    def test_get_single_metadata_not_found(self, client):
         """Test retrieving non-existent expression"""
-        with patch("api.texts.Neo4JDatabase") as mock_db_class:
-            mock_db_class.return_value = test_database
 
-            response = client.get("/v2/texts/nonexistent_id")
+        response = client.get("/v2/texts/nonexistent_id")
 
-            assert response.status_code == 404
-            data = json.loads(response.data)
-            assert "not found" in data["error"].lower()
+        assert response.status_code == 404
+        data = json.loads(response.data)
+        assert "not found" in data["error"].lower()
 
 
 class TestPostTextV2:
@@ -485,122 +454,175 @@ class TestPostTextV2:
 
     def test_create_root_expression_success(self, client, test_database, test_person_data):
         """Test successfully creating a ROOT expression"""
-        with patch("api.texts.Neo4JDatabase") as mock_db_class:
-            mock_db_class.return_value = test_database
+        # Create test person first
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
 
-            # Create test person first
-            person = PersonModelInput.model_validate(test_person_data)
-            person_id = test_database.create_person(person)
+        # Create ROOT expression
+        expression_data = {
+            "type": "root",
+            "title": {"en": "New Root Expression", "bo": "རྩ་བའི་ཚིག་སྒྲུབ་གསར་པ།"},
+            "language": "en",
+            "contributions": [{"person_id": person_id, "role": "author"}],
+        }
 
-            # Create ROOT expression
-            expression_data = {
-                "type": "root",
-                "title": {"en": "New Root Expression", "bo": "རྩ་བའི་ཚིག་སྒྲུབ་གསར་པ།"},
-                "language": "en",
-                "contributions": [{"person_id": person_id, "role": "author"}],
-            }
+        response = client.post("/v2/texts", data=json.dumps(expression_data), content_type="application/json")
 
-            response = client.post("/v2/texts", data=json.dumps(expression_data), content_type="application/json")
+        assert response.status_code == 201
+        data = json.loads(response.data)
+        assert "message" in data
+        assert "Text created successfully" in data["message"]
+        assert "id" in data
 
-            assert response.status_code == 201
-            data = json.loads(response.data)
-            assert "message" in data
-            assert "Text created successfully" in data["message"]
-            assert "id" in data
+        # Verify the expression was created by retrieving it
+        created_id = data["id"]
+        verify_response = client.get(f"/v2/texts/{created_id}")
+        assert verify_response.status_code == 200
+        verify_data = json.loads(verify_response.data)
+        assert verify_data["type"] == "root"
+        assert verify_data["title"]["en"] == "New Root Expression"
+        assert verify_data["parent"] is None
 
-            # Verify the expression was created by retrieving it
-            created_id = data["id"]
-            verify_response = client.get(f"/v2/texts/{created_id}")
-            assert verify_response.status_code == 200
-            verify_data = json.loads(verify_response.data)
-            assert verify_data["type"] == "root"
-            assert verify_data["title"]["en"] == "New Root Expression"
-            assert verify_data["parent"] is None
-
-    def test_create_expression_missing_json(self, client, test_database):
+    def test_create_expression_missing_json(self, client):
         """Test POST with no JSON data"""
-        with patch("api.texts.Neo4JDatabase") as mock_db_class:
-            mock_db_class.return_value = test_database
 
-            response = client.post("/v2/texts", content_type="application/json")
+        response = client.post("/v2/texts", content_type="application/json")
 
-            assert response.status_code == 500  # Flask returns 500 for empty JSON
-            data = json.loads(response.data)
-            assert "error" in data
+        assert response.status_code == 500  # Flask returns 500 for empty JSON
+        data = json.loads(response.data)
+        assert "error" in data
 
-    def test_create_expression_invalid_json(self, client, test_database):
+    def test_create_expression_invalid_json(self, client):
         """Test POST with invalid JSON"""
-        with patch("api.texts.Neo4JDatabase") as mock_db_class:
-            mock_db_class.return_value = test_database
 
-            response = client.post("/v2/texts", data="invalid json", content_type="application/json")
+        response = client.post("/v2/texts", data="invalid json", content_type="application/json")
 
-            assert response.status_code == 500
-            data = json.loads(response.data)
-            assert "error" in data
+        assert response.status_code == 500
+        data = json.loads(response.data)
+        assert "error" in data
 
-    def test_create_expression_missing_required_fields(self, client, test_database):
+    def test_create_expression_missing_required_fields(self, client):
         """Test POST with missing required fields"""
-        with patch("api.texts.Neo4JDatabase") as mock_db_class:
-            mock_db_class.return_value = test_database
 
-            # Missing title field
-            expression_data = {"type": "root", "language": "en", "contributions": []}
+        # Missing title field
+        expression_data = {"type": "root", "language": "en", "contributions": []}
 
-            response = client.post("/v2/texts", data=json.dumps(expression_data), content_type="application/json")
+        response = client.post("/v2/texts", data=json.dumps(expression_data), content_type="application/json")
 
-            assert response.status_code == 422  # Proper validation error status
-            data = json.loads(response.data)
-            assert "error" in data
+        assert response.status_code == 422  # Proper validation error status
+        data = json.loads(response.data)
+        assert "error" in data
 
-    def test_create_expression_invalid_type(self, client, test_database):
+    def test_create_expression_invalid_type(self, client):
         """Test POST with invalid expression type"""
-        with patch("api.texts.Neo4JDatabase") as mock_db_class:
-            mock_db_class.return_value = test_database
+        expression_data = {"type": "invalid_type", "title": {"en": "Test"}, "language": "en", "contributions": []}
 
-            expression_data = {"type": "invalid_type", "title": {"en": "Test"}, "language": "en", "contributions": []}
+        response = client.post("/v2/texts", data=json.dumps(expression_data), content_type="application/json")
 
-            response = client.post("/v2/texts", data=json.dumps(expression_data), content_type="application/json")
+        assert response.status_code == 422  # Proper validation error status
+        data = json.loads(response.data)
+        assert "error" in data
 
-            assert response.status_code == 422  # Proper validation error status
-            data = json.loads(response.data)
-            assert "error" in data
-
-    def test_create_root_expression_with_parent_fails(self, client, test_database):
+    def test_create_root_expression_with_parent_fails(self, client):
         """Test that ROOT expression with parent fails validation"""
-        with patch("api.texts.Neo4JDatabase") as mock_db_class:
-            mock_db_class.return_value = test_database
+        expression_data = {
+            "type": "root",
+            "title": {"en": "Test"},
+            "language": "en",
+            "parent": "some_parent_id",
+            "contributions": [],
+        }
 
-            expression_data = {
-                "type": "root",
-                "title": {"en": "Test"},
-                "language": "en",
-                "parent": "some_parent_id",
-                "contributions": [],
-            }
+        response = client.post("/v2/texts", data=json.dumps(expression_data), content_type="application/json")
 
-            response = client.post("/v2/texts", data=json.dumps(expression_data), content_type="application/json")
+        assert response.status_code == 422  # Proper validation error status
+        data = json.loads(response.data)
+        assert "error" in data
+        assert "parent must be None" in data["details"][0]["msg"]
 
-            assert response.status_code == 422  # Proper validation error status
-            data = json.loads(response.data)
-            assert "error" in data
-            assert "parent must be None" in data["details"][0]["msg"]
-
-    def test_create_commentary_without_parent_fails(self, client, test_database):
+    def test_create_commentary_without_parent_fails(self, client):
         """Test that COMMENTARY expression without parent fails validation"""
-        with patch("api.texts.Neo4JDatabase") as mock_db_class:
-            mock_db_class.return_value = test_database
+        expression_data = {
+            "type": "commentary",
+            "title": {"en": "Test Commentary"},
+            "language": "en",
+            "contributions": [],
+        }
 
-            expression_data = {
-                "type": "commentary",
-                "title": {"en": "Test Commentary"},
-                "language": "en",
-                "contributions": [],
-            }
+        response = client.post("/v2/texts", data=json.dumps(expression_data), content_type="application/json")
 
-            response = client.post("/v2/texts", data=json.dumps(expression_data), content_type="application/json")
+        assert response.status_code == 422  # Proper validation error status
+        data = json.loads(response.data)
+        assert "error" in data
+        assert "parent must be provided" in data["details"][0]["msg"]
 
-            assert response.status_code == 422  # Proper validation error status
-            data = json.loads(response.data)
-            assert "error" in data
-            assert "parent must be provided" in data["details"][0]["msg"]
+    def test_create_translation_without_parent_fails(self, client):
+        """Test that TRANSLATION expression without parent fails validation"""
+        expression_data = {
+            "type": "translation",
+            "title": {"en": "Test Translation"},
+            "language": "en",
+            "contributions": [],
+        }
+
+        response = client.post("/v2/texts", data=json.dumps(expression_data), content_type="application/json")
+
+        assert response.status_code == 422  # Proper validation error status
+        data = json.loads(response.data)
+        assert "error" in data
+        assert "parent must be provided" in data["details"][0]["msg"]
+
+    def test_create_standalone_commentary_with_na_parent_not_implemented(self, client, test_database, test_person_data):
+        """Test that standalone COMMENTARY with parent='N/A' returns Not Implemented error"""
+        # Create test person first
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        # Try to create standalone COMMENTARY expression
+        expression_data = {
+            "type": "commentary",
+            "title": {"en": "Standalone Commentary", "bo": "མཆན་འགྲེལ་རང་དབང་།"},
+            "language": "en",
+            "parent": "N/A",
+            "contributions": [{"person_id": person_id, "role": "author"}],
+        }
+
+        response = client.post("/v2/texts", data=json.dumps(expression_data), content_type="application/json")
+
+        assert response.status_code == 501  # Not Implemented
+        data = json.loads(response.data)
+        assert "error" in data
+        assert "not yet supported" in data["error"].lower()
+
+    def test_create_standalone_translation_with_na_parent_success(self, client, test_person_data, test_database):
+        """Test successfully creating a standalone TRANSLATION with parent='N/A'"""
+        # Create test person first
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        # Create standalone TRANSLATION expression
+        expression_data = {
+            "type": "translation",
+            "title": {"en": "Standalone Translation", "bo": "སྒྱུར་བ་རང་དབང་།"},
+            "language": "bo",
+            "parent": "N/A",
+            "contributions": [{"person_id": person_id, "role": "translator"}],
+        }
+
+        response = client.post("/v2/texts", data=json.dumps(expression_data), content_type="application/json")
+
+        assert response.status_code == 201
+        data = json.loads(response.data)
+        assert "message" in data
+        assert "Text created successfully" in data["message"]
+        assert "id" in data
+
+        # Verify the expression was created by retrieving it
+        created_id = data["id"]
+        verify_response = client.get(f"/v2/texts/{created_id}")
+        assert verify_response.status_code == 200
+        verify_data = json.loads(verify_response.data)
+        assert verify_data["type"] == "translation"
+        assert verify_data["title"]["en"] == "Standalone Translation"
+        # Standalone commentaries/translations return parent as "N/A"
+        assert verify_data["parent"] == "N/A"

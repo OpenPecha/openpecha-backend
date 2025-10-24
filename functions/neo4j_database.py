@@ -390,6 +390,8 @@ class Neo4JDatabase:
                 else:
                     tx.run(Queries.expressions["create_translation"], **common_params)
             case TextType.COMMENTARY:
+                if expression.parent == "N/A":
+                    raise NotImplementedError("Standalone COMMENTARY texts (parent='N/A') are not yet supported")
                 tx.run(Queries.expressions["create_commentary"], work_id=work_id, **common_params)
 
         for contribution in expression.contributions:

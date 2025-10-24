@@ -94,9 +94,9 @@ def test_database(neo4j_connection):
         session.run("MERGE (c:CopyrightStatus {name: 'copyrighted'})")
 
         # Create role types
-        session.run("MERGE (r:RoleType {name: 'author'})")
         session.run("MERGE (r:RoleType {name: 'translator'})")
-        session.run("MERGE (r:RoleType {name: 'editor'})")
+        session.run("MERGE (r:RoleType {name: 'author'})")
+        session.run("MERGE (r:RoleType {name: 'reviser'})")
 
     yield db
 
@@ -262,7 +262,7 @@ class TestInstancesV2Endpoints:
             contributions=[{"person_id": person_id, "role": "author"}],
         )
         expression_id = test_database.create_expression(expression_data)
-        
+
         response = client.post(f"/v2/texts/{expression_id}/instances/")
 
         assert response.status_code == 400
@@ -280,7 +280,7 @@ class TestInstancesV2Endpoints:
             contributions=[{"person_id": person_id, "role": "author"}],
         )
         expression_id = test_database.create_expression(expression_data)
-        
+
         invalid_data = {
             # Missing required fields
         }
@@ -555,7 +555,7 @@ class TestInstancesV2Endpoints:
         """Test GET text with aligned=true parameter - successful alignment"""
         from openpecha.pecha import Pecha
         from openpecha.pecha.annotations import AlignmentAnnotation, SegmentationAnnotation
-        
+
         # Create a simple test that focuses on our endpoint logic
         person_id = self._create_test_person(test_database, test_person_data)
 
@@ -582,19 +582,17 @@ class TestInstancesV2Endpoints:
                 )
             ],
         )
-        
+
         # Store the source pecha
         storage_instance = Storage()
         storage_instance.store_pecha(source_pecha)
-        
+
         # Create source manifestation
         source_manifestation_data = ManifestationModelInput(
             type=ManifestationType.CRITICAL,
             copyright=CopyrightStatus.PUBLIC_DOMAIN,
         )
-        source_segmentation_annotation = AnnotationModel(
-            id=source_segmentation_id, type=AnnotationType.SEGMENTATION
-        )
+        source_segmentation_annotation = AnnotationModel(id=source_segmentation_id, type=AnnotationType.SEGMENTATION)
         source_manifestation_id = test_database.create_manifestation(
             source_manifestation_data, source_segmentation_annotation, source_expression_id
         )
@@ -625,7 +623,7 @@ class TestInstancesV2Endpoints:
                 )
             ],
         )
-        
+
         # Store the target pecha in storage
         storage_instance = Storage()
         storage_instance.store_pecha(target_pecha)
@@ -655,7 +653,7 @@ class TestInstancesV2Endpoints:
         assert "target_base" in response_data
         assert "transformed_annotation" in response_data
         assert "untransformed_annotation" in response_data
-        
+
         # Verify the content
         assert response_data["source_base"] == "This is the aligned translation text."
         assert response_data["target_base"] == "This is the source Tibetan text."
@@ -805,8 +803,10 @@ class TestInstancesV2Endpoints:
             contributions=[{"person_id": person_id, "role": "author"}],
         )
         expression_id = test_database.create_expression(expression_data)
-        
-        response = client.post(f"/v2/texts/{expression_id}/instances/", data="{invalid json}", content_type="application/json")
+
+        response = client.post(
+            f"/v2/texts/{expression_id}/instances/", data="{invalid json}", content_type="application/json"
+        )
         assert response.status_code == 400
         response_data = response.get_json()
         assert "error" in response_data
