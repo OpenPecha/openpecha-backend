@@ -1,6 +1,6 @@
 import secrets
 
 
-def generate_id(size: int = 16) -> str:
-    chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ_abcdefghijklmnopqrstuvwxyz-"
+def generate_id(size: int = 21) -> str:
+    chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz"
     return "".join(secrets.choice(chars) for _ in range(size))
