@@ -314,15 +314,30 @@ RETURN seg.id as segment_id,
        seg.span_start as span_start,
        seg.span_end as span_end
 """,
-    "find_aligned_segments": """
-MATCH (source_seg:Segment {id: $segment_id})-[:ALIGNED_TO]-(aligned_seg:Segment)
+    "find_aligned_segments_outgoing": """
+MATCH (source_seg:Segment {id: $segment_id})-[:ALIGNED_TO]->(target_seg:Segment)
       -[:SEGMENTATION_OF]->(:Annotation)
       -[:ANNOTATION_OF]->(m:Manifestation)
-RETURN aligned_seg.id as segment_id,
-       aligned_seg.span_start as span_start,
-       aligned_seg.span_end as span_end,
-       m.id as manifestation_id
-"""
+WITH m.id as manifestation_id,
+     collect({
+         segment_id: target_seg.id,
+         span_start: target_seg.span_start,
+         span_end: target_seg.span_end
+     }) as segments
+RETURN manifestation_id, segments
+""",
+    "find_aligned_segments_incoming": """
+MATCH (source_seg:Segment {id: $segment_id})<-[:ALIGNED_TO]-(source_of_seg:Segment)
+      -[:SEGMENTATION_OF]->(:Annotation)
+      -[:ANNOTATION_OF]->(m:Manifestation)
+WITH m.id as manifestation_id,
+     collect({
+         segment_id: source_of_seg.id,
+         span_start: source_of_seg.span_start,
+         span_end: source_of_seg.span_end
+     }) as segments
+RETURN manifestation_id, segments
+""",
 }
 
 Queries.ai = {

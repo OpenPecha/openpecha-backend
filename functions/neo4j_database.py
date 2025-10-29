@@ -165,35 +165,38 @@ class Neo4JDatabase:
                 for data in [record.data()]
             ]
 
-    def find_aligned_segments(self, segment_id: str) -> dict[str, list[SegmentModel]]:
+    def find_aligned_segments(self, segment_id: str) -> dict[str, dict[str, list[SegmentModel]]]:
         """
-        Find all segments aligned to a given segment, grouped by manifestation.
-        Returns a dictionary where keys are manifestation IDs and values are lists of SegmentModel instances.
+        Find all segments aligned to a given segment, separated by direction.
+        Returns a dictionary with 'targets' and 'sources' keys, each containing a dict of
+        manifestation_id -> list of SegmentModel instances.
         """
 
         with self.__driver.session() as session:
-            result = session.execute_read(
-                lambda tx: list(tx.run(Queries.segments["find_aligned_segments"], segment_id=segment_id))
+            targets_result = session.execute_read(
+                lambda tx: list(tx.run(Queries.segments["find_aligned_segments_outgoing"], segment_id=segment_id))
             )
 
-            # Group segments by manifestation
-            manifestations_map = {}
+            sources_result = session.execute_read(
+                lambda tx: list(tx.run(Queries.segments["find_aligned_segments_incoming"], segment_id=segment_id))
+            )
 
-            for record in result:
-                data = record.data()["aligned"]
-                manifestation_id = data["manifestation_id"]
-
-                if manifestation_id not in manifestations_map:
-                    manifestations_map[manifestation_id] = []
-
-                manifestations_map[manifestation_id].append(
-                    SegmentModel(
-                        id=data["segment_id"],
-                        span=(data["span_start"], data["span_end"]),
-                    )
-                )
-
-            return manifestations_map
+            return {
+                "targets": {
+                    record["manifestation_id"]: [
+                        SegmentModel(id=seg["segment_id"], span=(seg["span_start"], seg["span_end"]))
+                        for seg in record["segments"]
+                    ]
+                    for record in targets_result
+                },
+                "sources": {
+                    record["manifestation_id"]: [
+                        SegmentModel(id=seg["segment_id"], span=(seg["span_start"], seg["span_end"]))
+                        for seg in record["segments"]
+                    ]
+                    for record in sources_result
+                },
+            }
 
     def create_manifestation(
         self, manifestation: ManifestationModelInput, annotation: AnnotationModel, expression_id: str

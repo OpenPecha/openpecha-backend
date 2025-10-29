@@ -113,113 +113,194 @@ paths:
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    instance:
+                type: object
+                properties:
+                  targets:
+                    type: array
+                    description: Texts that the selected segments point to (outgoing ALIGNED_TO relationships)
+                    items:
                       type: object
-                      description: Manifestation details
                       properties:
-                        id:
-                          type: string
-                        type:
-                          type: string
-                          enum: [diplomatic, critical, collated]
-                        copyright:
-                          type: string
-                          enum: [public, copyrighted]
-                        bdrc:
-                          type: string
-                        wiki:
-                          type: string
-                        colophon:
-                          type: string
-                        incipit_title:
+                        instance:
                           type: object
-                          additionalProperties:
-                            type: string
-                        alt_incipit_titles:
-                          type: array
-                          items:
-                            type: object
-                            additionalProperties:
+                          description: Manifestation details
+                          properties:
+                            id:
                               type: string
-                        annotations:
-                          type: array
-                          items:
-                            type: object
-                    text:
-                      type: object
-                      description: Expression (text) details
-                      properties:
-                        id:
-                          type: string
-                        type:
-                          type: string
-                          enum: [root, commentary, translation]
-                        title:
+                            type:
+                              type: string
+                              enum: [diplomatic, critical, collated]
+                            copyright:
+                              type: string
+                              enum: [public, copyrighted]
+                            bdrc:
+                              type: string
+                            wiki:
+                              type: string
+                            colophon:
+                              type: string
+                            incipit_title:
+                              type: object
+                              additionalProperties:
+                                type: string
+                            alt_incipit_titles:
+                              type: array
+                              items:
+                                type: object
+                                additionalProperties:
+                                  type: string
+                            annotations:
+                              type: array
+                              items:
+                                type: object
+                        text:
                           type: object
-                          additionalProperties:
-                            type: string
-                        language:
-                          type: string
-                        contributions:
+                          description: Expression (text) details
+                          properties:
+                            id:
+                              type: string
+                            type:
+                              type: string
+                              enum: [root, commentary, translation]
+                            title:
+                              type: object
+                              additionalProperties:
+                                type: string
+                            language:
+                              type: string
+                            contributions:
+                              type: array
+                              items:
+                                type: object
+                            date:
+                              type: string
+                            bdrc:
+                              type: string
+                            wiki:
+                              type: string
+                            parent:
+                              type: string
+                        spans:
                           type: array
+                          description: Merged character spans from aligned segments
                           items:
                             type: object
-                        date:
-                          type: string
-                        bdrc:
-                          type: string
-                        wiki:
-                          type: string
-                        parent:
-                          type: string
-                    spans:
-                      type: array
-                      description: Merged character spans from aligned segments
-                      items:
-                        type: object
-                        properties:
-                          start:
-                            type: integer
-                          end:
-                            type: integer
+                            properties:
+                              start:
+                                type: integer
+                              end:
+                                type: integer
+                  sources:
+                    type: array
+                    description: Texts whose segments point to the selected segments (incoming ALIGNED_TO relationships)
+                    items:
+                      type: object
+                      properties:
+                        instance:
+                          type: object
+                          description: Manifestation details
+                          properties:
+                            id:
+                              type: string
+                            type:
+                              type: string
+                              enum: [diplomatic, critical, collated]
+                            copyright:
+                              type: string
+                              enum: [public, copyrighted]
+                            bdrc:
+                              type: string
+                            wiki:
+                              type: string
+                            colophon:
+                              type: string
+                            incipit_title:
+                              type: object
+                              additionalProperties:
+                                type: string
+                            alt_incipit_titles:
+                              type: array
+                              items:
+                                type: object
+                                additionalProperties:
+                                  type: string
+                            annotations:
+                              type: array
+                              items:
+                                type: object
+                        text:
+                          type: object
+                          description: Expression (text) details
+                          properties:
+                            id:
+                              type: string
+                            type:
+                              type: string
+                              enum: [root, commentary, translation]
+                            title:
+                              type: object
+                              additionalProperties:
+                                type: string
+                            language:
+                              type: string
+                            contributions:
+                              type: array
+                              items:
+                                type: object
+                            date:
+                              type: string
+                            bdrc:
+                              type: string
+                            wiki:
+                              type: string
+                            parent:
+                              type: string
+                        spans:
+                          type: array
+                          description: Merged character spans from aligned segments
+                          items:
+                            type: object
+                            properties:
+                              start:
+                                type: integer
+                              end:
+                                type: integer
               examples:
                 success:
-                  summary: Related texts with merged spans
+                  summary: Related texts with merged spans separated by direction
                   value:
-                    - instance:
-                        id: "I87654321"
-                        type: "diplomatic"
-                        copyright: "public"
-                        bdrc: "W789012"
-                      text:
-                        id: "T87654321"
-                        type: "translation"
-                        title:
-                          en: "English Translation"
-                        language: "en"
-                        parent: "T12345678"
-                      spans:
-                        - start: 0
-                          end: 150
-                        - start: 200
-                          end: 350
-                    - instance:
-                        id: "I11111111"
-                        type: "critical"
-                        copyright: "public"
-                      text:
-                        id: "T11111111"
-                        type: "commentary"
-                        title:
-                          bo: "འགྲེལ་པ།"
-                        language: "bo"
-                      spans:
-                        - start: 50
-                          end: 100
+                    targets:
+                      - instance:
+                          id: "I87654321"
+                          type: "diplomatic"
+                          copyright: "public"
+                          bdrc: "W789012"
+                        text:
+                          id: "T87654321"
+                          type: "translation"
+                          title:
+                            en: "English Translation"
+                          language: "en"
+                          parent: "T12345678"
+                        spans:
+                          - start: 0
+                            end: 150
+                          - start: 200
+                            end: 350
+                    sources:
+                      - instance:
+                          id: "I11111111"
+                          type: "critical"
+                          copyright: "public"
+                        text:
+                          id: "T11111111"
+                          type: "root"
+                          title:
+                            bo: "མ་ཕྱི།"
+                          language: "bo"
+                        spans:
+                          - start: 50
+                            end: 100
         "400":
           description: Invalid request
           content:

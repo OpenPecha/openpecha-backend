@@ -267,34 +267,48 @@ def get_related_texts(manifestation_id: str) -> tuple[Response, int]:
         error_msg = f"No segments found containing span [{start}, {end}) in instance '{manifestation_id}'"
         return jsonify({"error": error_msg}), 404
 
-    # For each matching segment, find all aligned segments and group by manifestation
-    related_manifestations_map = {}
+    # For each matching segment, find all aligned segments separated by direction
+    targets_map = {}
+    sources_map = {}
 
     for source_segment in matching_segments:
-        for manifestation_id, segments in db.find_aligned_segments(source_segment.id).items():
-            existing = related_manifestations_map.setdefault(manifestation_id, [])
+        aligned = db.find_aligned_segments(source_segment.id)
+        
+        # Process targets (outgoing relationships)
+        for manifestation_id, segments in aligned["targets"].items():
+            existing = targets_map.setdefault(manifestation_id, [])
+            existing.extend(seg for seg in segments if seg not in existing)
+        
+        # Process sources (incoming relationships)
+        for manifestation_id, segments in aligned["sources"].items():
+            existing = sources_map.setdefault(manifestation_id, [])
             existing.extend(seg for seg in segments if seg not in existing)
 
-    # Fetch full manifestation and expression details, and merge spans
-    result = []
-    for manifestation_id, segments in related_manifestations_map.items():
-        manifestation_model, expression_id = db.get_manifestation(manifestation_id)
-        expression_model = db.get_expression(expression_id)
+    def build_related_texts(manifestations_map):
+        """Helper to build the related texts structure from a manifestations map"""
+        result = []
+        for manifestation_id, segments in manifestations_map.items():
+            manifestation_model, expression_id = db.get_manifestation(manifestation_id)
+            expression_model = db.get_expression(expression_id)
 
-        # Merge neighboring/overlapping spans
-        merged_spans = []
-        for span in sorted([seg.span for seg in segments], key=lambda s: s[0]):
-            if merged_spans and span[0] <= merged_spans[-1][1]:
-                merged_spans[-1] = (merged_spans[-1][0], max(merged_spans[-1][1], span[1]))
-            else:
-                merged_spans.append(span)
+            # Merge neighboring/overlapping spans
+            merged_spans = []
+            for span in sorted([seg.span for seg in segments], key=lambda s: s[0]):
+                if merged_spans and span[0] <= merged_spans[-1][1]:
+                    merged_spans[-1] = (merged_spans[-1][0], max(merged_spans[-1][1], span[1]))
+                else:
+                    merged_spans.append(span)
 
-        result.append(
-            {
-                "text": expression_model.model_dump(),
-                "instance": manifestation_model.model_dump(),
-                "spans": [{"start": s[0], "end": s[1]} for s in merged_spans],
-            }
-        )
+            result.append(
+                {
+                    "text": expression_model.model_dump(),
+                    "instance": manifestation_model.model_dump(),
+                    "spans": [{"start": s[0], "end": s[1]} for s in merged_spans],
+                }
+            )
+        return result
 
-    return jsonify(result), 200
+    return jsonify({
+        "targets": build_related_texts(targets_map),
+        "sources": build_related_texts(sources_map),
+    }), 200
