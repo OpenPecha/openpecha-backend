@@ -17,6 +17,7 @@ from models import (
     ManifestationType,
     PersonModelInput,
     PersonModelOutput,
+    SegmentModel,
     TextType,
 )
 from neo4j import GraphDatabase
@@ -141,6 +142,58 @@ class Neo4JDatabase:
                 return None
             d = record.data()
             return self._process_manifestation_data(d["manifestation"]), d["expression_id"]
+
+    def find_segments_by_span(self, manifestation_id: str, span_start: int, span_end: int) -> list[SegmentModel]:
+        with self.__driver.session() as session:
+            result = session.execute_read(
+                lambda tx: list(
+                    tx.run(
+                        Queries.segments["find_by_span"],
+                        manifestation_id=manifestation_id,
+                        span_start=span_start,
+                        span_end=span_end,
+                    )
+                )
+            )
+
+            return [
+                SegmentModel(
+                    id=data["segment_id"],
+                    span=(data["span_start"], data["span_end"]),
+                )
+                for record in result
+                for data in [record.data()]
+            ]
+
+    def find_aligned_segments(self, segment_id: str) -> dict[str, list[SegmentModel]]:
+        """
+        Find all segments aligned to a given segment, grouped by manifestation.
+        Returns a dictionary where keys are manifestation IDs and values are lists of SegmentModel instances.
+        """
+
+        with self.__driver.session() as session:
+            result = session.execute_read(
+                lambda tx: list(tx.run(Queries.segments["find_aligned_segments"], segment_id=segment_id))
+            )
+
+            # Group segments by manifestation
+            manifestations_map = {}
+
+            for record in result:
+                data = record.data()["aligned"]
+                manifestation_id = data["manifestation_id"]
+
+                if manifestation_id not in manifestations_map:
+                    manifestations_map[manifestation_id] = []
+
+                manifestations_map[manifestation_id].append(
+                    SegmentModel(
+                        id=data["segment_id"],
+                        span=(data["span_start"], data["span_end"]),
+                    )
+                )
+
+            return manifestations_map
 
     def create_manifestation(
         self, manifestation: ManifestationModelInput, annotation: AnnotationModel, expression_id: str

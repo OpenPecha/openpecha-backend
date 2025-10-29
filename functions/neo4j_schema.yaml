@@ -114,6 +114,28 @@ nodes:
         cardinality: one
         required: true
 
+  Segment:
+    properties:
+      id:
+        type: string
+        required: true
+        unique: true
+      span_start:
+        type: integer
+        required: true
+      span_end:
+        type: integer
+        required: true
+    relationships:
+      SEGMENTATION_OF:
+        target: Annotation
+        cardinality: one
+        required: true
+      ALIGNED_TO:
+        target: Segment
+        cardinality: one
+        required: false
+
   Contribution:
     relationships:
       BY:

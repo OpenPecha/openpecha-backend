@@ -304,6 +304,27 @@ RETURN a.id AS annotation_id
 """
 }
 
+Queries.segments = {
+    "find_by_span": """
+MATCH (m:Manifestation {id: $manifestation_id})
+      <-[:ANNOTATION_OF]-(:Annotation)
+      <-[:SEGMENTATION_OF]-(seg:Segment)
+WHERE seg.span_start <= $span_end AND seg.span_end >= $span_start
+RETURN seg.id as segment_id,
+       seg.span_start as span_start,
+       seg.span_end as span_end
+""",
+    "find_aligned_segments": """
+MATCH (source_seg:Segment {id: $segment_id})-[:ALIGNED_TO]-(aligned_seg:Segment)
+      -[:SEGMENTATION_OF]->(:Annotation)
+      -[:ANNOTATION_OF]->(m:Manifestation)
+RETURN aligned_seg.id as segment_id,
+       aligned_seg.span_start as span_start,
+       aligned_seg.span_end as span_end,
+       m.id as manifestation_id
+"""
+}
+
 Queries.ai = {
     "find_or_create": """
     MERGE (ai:AI {id: $ai_id})

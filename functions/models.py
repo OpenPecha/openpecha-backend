@@ -94,6 +94,11 @@ class AnnotationModel(OpenPechaModel):
         return self
 
 
+class SegmentModel(OpenPechaModel):
+    id: str
+    span: tuple[int, int]
+
+
 class ExpressionModelBase(OpenPechaModel):
     bdrc: str | None = None
     wiki: str | None = None

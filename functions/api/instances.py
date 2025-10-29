@@ -230,3 +230,71 @@ def create_translation(original_manifestation_id: str) -> tuple[Response, int]:
     request_model = AlignedTextRequestModel.model_validate(data)
 
     return create_aligned_text(request_model, TextType.TRANSLATION, original_manifestation_id)
+
+
+@instances_bp.route("/<string:manifestation_id>/related", methods=["GET"], strict_slashes=False)
+def get_related_texts(manifestation_id: str) -> tuple[Response, int]:
+    """
+    Find all related manifestations and their segments aligned to segments containing a given character span.
+
+    Query parameters:
+    - start: Start character position (required)
+    - end: End character position (required)
+
+    Returns a list of related manifestations with their annotations and aligned segments.
+    """
+    logger.info("Finding related texts for manifestation ID: %s", manifestation_id)
+
+    # Get and validate character span parameters
+    start_str = request.args.get("span_start")
+    end_str = request.args.get("span_end")
+
+    if not start_str or not end_str:
+        return jsonify({"error": "Both 'span_start' and 'span_end' query parameters are required"}), 400
+
+    start = int(start_str)
+    end = int(end_str)
+
+    if start < 0 or end < 0 or start >= end:
+        return jsonify({"error": "Invalid span: 'span_start' must be >= 0, 'span_end' must be > span_start"}), 400
+
+    db = Neo4JDatabase()
+
+    # Find segments from database that overlap with the given character span
+    matching_segments = db.find_segments_by_span(manifestation_id, start, end)
+
+    if not matching_segments:
+        error_msg = f"No segments found containing span [{start}, {end}) in instance '{manifestation_id}'"
+        return jsonify({"error": error_msg}), 404
+
+    # For each matching segment, find all aligned segments and group by manifestation
+    related_manifestations_map = {}
+
+    for source_segment in matching_segments:
+        for manifestation_id, segments in db.find_aligned_segments(source_segment.id).items():
+            existing = related_manifestations_map.setdefault(manifestation_id, [])
+            existing.extend(seg for seg in segments if seg not in existing)
+
+    # Fetch full manifestation and expression details, and merge spans
+    result = []
+    for manifestation_id, segments in related_manifestations_map.items():
+        manifestation_model, expression_id = db.get_manifestation(manifestation_id)
+        expression_model = db.get_expression(expression_id)
+
+        # Merge neighboring/overlapping spans
+        merged_spans = []
+        for span in sorted([seg.span for seg in segments], key=lambda s: s[0]):
+            if merged_spans and span[0] <= merged_spans[-1][1]:
+                merged_spans[-1] = (merged_spans[-1][0], max(merged_spans[-1][1], span[1]))
+            else:
+                merged_spans.append(span)
+
+        result.append(
+            {
+                "text": expression_model.model_dump(),
+                "instance": manifestation_model.model_dump(),
+                "spans": [{"start": s[0], "end": s[1]} for s in merged_spans],
+            }
+        )
+
+    return jsonify(result), 200

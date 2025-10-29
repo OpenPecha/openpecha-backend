@@ -80,6 +80,185 @@ paths:
         "500":
           $ref: '#/components/responses/ServerError'
 
+  /v2/instances/{instance_id}/related:
+    get:
+      summary: Find related texts
+      description: Find all related texts, instances and their aligned segments for a given character span in an instance
+      tags:
+        - Instances
+      parameters:
+        - name: instance_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the instance to find related texts for
+        - name: span_start
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 0
+          description: Start character position of the span
+        - name: span_end
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+          description: End character position of the span (must be greater than start)
+      responses:
+        "200":
+          description: Related texts retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    instance:
+                      type: object
+                      description: Manifestation details
+                      properties:
+                        id:
+                          type: string
+                        type:
+                          type: string
+                          enum: [diplomatic, critical, collated]
+                        copyright:
+                          type: string
+                          enum: [public, copyrighted]
+                        bdrc:
+                          type: string
+                        wiki:
+                          type: string
+                        colophon:
+                          type: string
+                        incipit_title:
+                          type: object
+                          additionalProperties:
+                            type: string
+                        alt_incipit_titles:
+                          type: array
+                          items:
+                            type: object
+                            additionalProperties:
+                              type: string
+                        annotations:
+                          type: array
+                          items:
+                            type: object
+                    text:
+                      type: object
+                      description: Expression (text) details
+                      properties:
+                        id:
+                          type: string
+                        type:
+                          type: string
+                          enum: [root, commentary, translation]
+                        title:
+                          type: object
+                          additionalProperties:
+                            type: string
+                        language:
+                          type: string
+                        contributions:
+                          type: array
+                          items:
+                            type: object
+                        date:
+                          type: string
+                        bdrc:
+                          type: string
+                        wiki:
+                          type: string
+                        parent:
+                          type: string
+                    spans:
+                      type: array
+                      description: Merged character spans from aligned segments
+                      items:
+                        type: object
+                        properties:
+                          start:
+                            type: integer
+                          end:
+                            type: integer
+              examples:
+                success:
+                  summary: Related texts with merged spans
+                  value:
+                    - instance:
+                        id: "I87654321"
+                        type: "diplomatic"
+                        copyright: "public"
+                        bdrc: "W789012"
+                      text:
+                        id: "T87654321"
+                        type: "translation"
+                        title:
+                          en: "English Translation"
+                        language: "en"
+                        parent: "T12345678"
+                      spans:
+                        - start: 0
+                          end: 150
+                        - start: 200
+                          end: 350
+                    - instance:
+                        id: "I11111111"
+                        type: "critical"
+                        copyright: "public"
+                      text:
+                        id: "T11111111"
+                        type: "commentary"
+                        title:
+                          bo: "འགྲེལ་པ།"
+                        language: "bo"
+                      spans:
+                        - start: 50
+                          end: 100
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              examples:
+                missing_params:
+                  summary: Missing parameters
+                  value:
+                    error: "Both 'start' and 'end' query parameters are required"
+                invalid_integers:
+                  summary: Invalid parameter types
+                  value:
+                    error: "'start' and 'end' must be valid integers"
+                invalid_span:
+                  summary: Invalid span range
+                  value:
+                    error: "Invalid span: 'start' must be >= 0, 'end' must be > start"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              examples:
+                no_segments:
+                  summary: No segments found
+                  value:
+                    error: "No segments found containing span [0, 100) in instance 'I12345678'"
+        "500":
+          $ref: '#/components/responses/ServerError'
+
   /v2/texts/{text_id}/instances:
     get:
       summary: Get instances for text
