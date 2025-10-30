@@ -263,18 +263,18 @@ def get_related_texts(manifestation_id: str) -> tuple[Response, int]:
     logger.info("Finding related texts for manifestation ID: %s", manifestation_id)
 
     span = SpanModel(
-        span_start=int(request.args.get("span_start", -1)),
-        span_end=int(request.args.get("span_end", -1)),
+        start=int(request.args.get("span_start", -1)),
+        end=int(request.args.get("span_end", -1)),
     )
 
     db = Neo4JDatabase()
 
     # Find segments from database that overlap with the given character span
-    matching_segments = db.find_segments_by_span(manifestation_id, span.span_start, span.span_end)
+    matching_segments = db.find_segments_by_span(manifestation_id, span)
 
     if not matching_segments:
         error_msg = (
-            f"No segments found containing span [{span.span_start}, {span.span_end}) in instance '{manifestation_id}'"
+            f"No segments found containing span [{span.start}, {span.end}) in instance '{manifestation_id}'"
         )
         return jsonify({"error": error_msg}), 404
 

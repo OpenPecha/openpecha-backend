@@ -94,11 +94,6 @@ class AnnotationModel(OpenPechaModel):
         return self
 
 
-class SegmentModel(OpenPechaModel):
-    id: str
-    span: tuple[int, int]
-
-
 class SpanModel(OpenPechaModel):
     start: int = Field(..., ge=0, description="Start character position (inclusive)")
     end: int = Field(..., ge=1, description="End character position (exclusive)")
@@ -108,6 +103,11 @@ class SpanModel(OpenPechaModel):
         if self.start >= self.end:
             raise ValueError("'start' must be less than 'end'")
         return self
+
+
+class SegmentModel(OpenPechaModel):
+    id: str
+    span: SpanModel
 
 
 class ExpressionModelBase(OpenPechaModel):

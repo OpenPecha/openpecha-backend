@@ -18,6 +18,7 @@ from models import (
     PersonModelInput,
     PersonModelOutput,
     SegmentModel,
+    SpanModel,
     TextType,
 )
 from neo4j import GraphDatabase
@@ -143,15 +144,15 @@ class Neo4JDatabase:
             d = record.data()
             return self._process_manifestation_data(d["manifestation"]), d["expression_id"]
 
-    def find_segments_by_span(self, manifestation_id: str, span_start: int, span_end: int) -> list[SegmentModel]:
+    def find_segments_by_span(self, manifestation_id: str, span: SpanModel) -> list[SegmentModel]:
         with self.__driver.session() as session:
             result = session.execute_read(
                 lambda tx: list(
                     tx.run(
                         Queries.segments["find_by_span"],
                         manifestation_id=manifestation_id,
-                        span_start=span_start,
-                        span_end=span_end,
+                        span_start=span.start,
+                        span_end=span.end,
                     )
                 )
             )
@@ -169,7 +170,7 @@ class Neo4JDatabase:
         """
         Find all segments aligned to a given segment, separated by direction.
         Returns a dictionary with 'targets' and 'sources' keys, each containing a dict of
-        manifestation_id -> list of SegmentModel instances.
+        manifestation_id -> list of SegmentModelOutput instances.
         """
 
         with self.__driver.session() as session:
@@ -209,7 +210,7 @@ class Neo4JDatabase:
         def transaction_function(tx):
             if expression:
                 self._execute_create_expression(tx, expression, expression_id)
-            
+
             manifestation_id = self._execute_create_manifestation(tx, manifestation, expression_id)
             self._execute_add_annotation(tx, manifestation_id, annotation)
             self._create_segments(tx, annotation.id, annotation_segments)
@@ -293,12 +294,12 @@ class Neo4JDatabase:
             self._create_segments(tx, annotation.id, annotation_segments)
 
             _ = self._execute_add_annotation(tx, manifestation_id, alignment_annotation)
-            alignment_seg_ids = self._create_segments(tx, alignment_annotation.id, alignment_segments)
+            alignment_segs = self._create_segments(tx, alignment_annotation.id, alignment_segments)
 
             _ = self._execute_add_annotation(tx, target_manifestation_id, target_annotation)
-            target_seg_ids = self._create_segments(tx, target_annotation.id, target_segments)
+            target_segs = self._create_segments(tx, target_annotation.id, target_segments)
 
-            self._create_segment_alignments(tx, alignment_segments, alignment_seg_ids, target_seg_ids)
+            self._create_segment_alignments(tx, alignment_segs, target_segs)
 
             return manifestation_id
 
@@ -540,58 +541,56 @@ class Neo4JDatabase:
         )
         return annotation.id
 
-    def _create_segments(self, tx, annotation_id: str, segments: list[dict]) -> dict[int, str]:
+    def _create_segments(self, tx, annotation_id: str, segment_inputs: list[dict]) -> list[dict]:
         """
         Create segments for an annotation in a single batch query.
 
         Args:
             tx: Neo4j transaction
             annotation_id: ID of the annotation to attach segments to
-            segments: List of segment dicts with 'span', 'index', and optionally 'alignment_index'
+            segment_inputs: List of segment input models
 
         Returns:
-            Dictionary mapping segment index to segment ID
+            List of segment dicts with generated IDs included
         """
         # Prepare batch data with generated IDs
-        segments_data = [
+        segments = [
             {
                 "id": generate_id(),
+                "index": seg["index"],
                 "span_start": seg["span"]["start"],
                 "span_end": seg["span"]["end"],
-                "index": seg["index"],
+                "alignment_index": seg["alignment_index"],
             }
-            for seg in segments
+            for seg in segment_inputs
         ]
 
         # Create all segments in one query
         tx.run(
             Queries.segments["create_batch"],
             annotation_id=annotation_id,
-            segments=segments_data,
+            segments=segments,
         )
 
-        # Build index -> ID mapping from the data we prepared
-        return {seg["index"]: seg["id"] for seg in segments_data}
+        return segments
 
-    def _create_segment_alignments(
-        self, tx, alignment_segments: list[dict], alignment_seg_ids: dict[int, str], target_seg_ids: dict[int, str]
-    ):
+    def _create_segment_alignments(self, tx, alignment_segments: list[dict], target_segments: list[dict]):
         """
         Create ALIGNED_TO relationships between segments in a single batch query.
 
         Args:
             tx: Neo4j transaction
-            alignment_segments: List of alignment segment dicts with 'index' and 'alignment_index' (integer)
-            alignment_seg_ids: Dictionary mapping alignment segment index to segment ID
-            target_seg_ids: Dictionary mapping target segment index to segment ID
+            alignment_segments: Segment dicts with 'id', 'index', and 'alignment_index'
+            target_segments: Segment dicts with 'id' and 'index'
         """
-        # Build list of all alignments to create
-        alignments = [
-            {"source_id": alignment_seg_ids[seg["index"]], "target_id": target_seg_ids[seg["alignment_index"]]}
-            for seg in alignment_segments
-            if seg["index"] in alignment_seg_ids and seg["alignment_index"] in target_seg_ids
-        ]
+        target_index_to_id = {seg["index"]: seg["id"] for seg in target_segments}
 
-        # Create all alignments in one query if there are any
+        alignments = []
+        for seg in alignment_segments:
+            for target_idx in seg.get("alignment_index") or []:
+                if target_idx not in target_index_to_id:
+                    raise ValueError(f"Segment {seg['index']} aligns to non-existent target {target_idx}")
+                alignments.append({"source_id": seg["id"], "target_id": target_index_to_id[target_idx]})
+
         if alignments:
             tx.run(Queries.segments["create_alignments_batch"], alignments=alignments)
