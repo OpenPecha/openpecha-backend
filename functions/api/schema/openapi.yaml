@@ -106,7 +106,7 @@ paths:
           schema:
             type: integer
             minimum: 1
-          description: End character position of the span (must be greater than start)
+          description: End character position of the span (exclusive, must be greater than start)
       responses:
         "200":
           description: Related texts retrieved successfully
@@ -117,7 +117,7 @@ paths:
                 properties:
                   targets:
                     type: array
-                    description: Texts that the selected segments point to (outgoing ALIGNED_TO relationships)
+                    description: Texts that the selected segments point to
                     items:
                       type: object
                       properties:
@@ -192,7 +192,7 @@ paths:
                                 type: integer
                   sources:
                     type: array
-                    description: Texts whose segments point to the selected segments (incoming ALIGNED_TO relationships)
+                    description: Texts whose segments point to the selected segments
                     items:
                       type: object
                       properties:
@@ -337,6 +337,76 @@ paths:
                   summary: No segments found
                   value:
                     error: "No segments found containing span [0, 100) in instance 'I12345678'"
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+  /v2/instances/{instance_id}/excerpt:
+    get:
+      summary: Get text excerpt
+      description: Retrieve a specific excerpt (substring) of the base text content for a given instance based on character span
+      tags:
+        - Instances
+      parameters:
+        - name: instance_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the instance to retrieve excerpt from
+        - name: span_start
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 0
+          description: Start character position of the excerpt (inclusive)
+        - name: span_end
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+          description: End character position of the excerpt (exclusive, must be greater than span_start)
+      responses:
+        "200":
+          description: Excerpt retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  excerpt:
+                    type: string
+                    description: The extracted text content from the specified character span
+              examples:
+                success:
+                  summary: Excerpt from position 2 to 4
+                  value:
+                    excerpt: "hj"
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              examples:
+                missing_params:
+                  summary: Missing required parameters
+                  value:
+                    error: "Both 'span_start' and 'span_end' query parameters are required"
+                invalid_span:
+                  summary: Invalid span range
+                  value:
+                    error: "Invalid span: 'span_start' must be >= 0, 'span_end' must be > span_start"
+                span_exceeds:
+                  summary: Span exceeds text length
+                  value:
+                    error: "span_end (1000) exceeds base text length (500)"
+        "404":
+          $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/ServerError'
 
@@ -564,7 +634,7 @@ paths:
                 - language
                 - content
                 - title
-                - alignment_annotation
+                - annotation
               properties:
                 language:
                   type: string
@@ -589,21 +659,21 @@ paths:
                     ai_id:
                       type: string
                   description: Creator of the translation (optional)
-                alignment_annotation:
-                  type: array
-                  items:
-                    type: object
-                  description: Alignment annotation for translation (required)
                 annotation:
                   type: array
                   items:
                     type: object
-                  description: Optional segmentation annotation for translation
+                  description: Segmentation annotation for translation (required)
+                alignment_annotation:
+                  type: array
+                  items:
+                    type: object
+                  description: Alignment annotation for translation (optional, must be provided together with target_annotation)
                 target_annotation:
                   type: array
                   items:
                     type: object
-                  description: Optional newa alignment annotation for original text
+                  description: Alignment annotation for original text (optional, must be provided together with alignment_annotation)
                 copyright:
                   type: string
                   enum: [public, copyrighted]
@@ -617,17 +687,17 @@ paths:
                   title: "Translated Title"
                   author:
                     person_id: "P12345678"
+                  annotation:
+                    - span:
+                        start: 0
+                        end: 35
+                      index: 0
                   alignment_annotation:
                     - span:
                         start: 0
                         end: 20
                       index: 0
                       alignment_index: [0]
-                  annotation:
-                    - span:
-                        start: 0
-                        end: 35
-                      index: 0
                   copyright: "public"
       responses:
         "201":
@@ -679,7 +749,7 @@ paths:
                 - language
                 - content
                 - title
-                - alignment_annotation
+                - annotation
               properties:
                 language:
                   type: string
@@ -701,21 +771,21 @@ paths:
                       type: string
                     person_bdrc_id:
                       type: string
-                alignment_annotation:
-                  type: array
-                  items:
-                    type: object
-                  description: Alignment annotation for commentary (required)
                 annotation:
                   type: array
                   items:
                     type: object
-                  description: Optional segmentation annotation for commentary
+                  description: Segmentation annotation for commentary (required)
+                alignment_annotation:
+                  type: array
+                  items:
+                    type: object
+                  description: Alignment annotation for commentary (optional, must be provided together with target_annotation)
                 target_annotation:
                   type: array
                   items:
                     type: object
-                  description: Optional new alignment annotation for original text
+                  description: Alignment annotation for original text (optional, must be provided together with alignment_annotation)
                 copyright:
                   type: string
                   enum: [public, copyrighted]
@@ -729,17 +799,17 @@ paths:
                   title: "Commentary on Original Text"
                   author:
                     person_id: "P12345678"
+                  annotation:
+                    - span:
+                        start: 0
+                        end: 50
+                      index: 0
                   alignment_annotation:
                     - span:
                         start: 0
                         end: 20
                       index: 0
                       alignment_index: [0]
-                  annotation:
-                    - span:
-                        start: 0
-                        end: 50
-                      index: 0
                   copyright: "public"
       responses:
         "201":

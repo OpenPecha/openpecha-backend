@@ -99,6 +99,17 @@ class SegmentModel(OpenPechaModel):
     span: tuple[int, int]
 
 
+class SpanModel(OpenPechaModel):
+    start: int = Field(..., ge=0, description="Start character position (inclusive)")
+    end: int = Field(..., ge=1, description="End character position (exclusive)")
+
+    @model_validator(mode="after")
+    def validate_span_range(self):
+        if self.start >= self.end:
+            raise ValueError("'start' must be less than 'end'")
+        return self
+
+
 class ExpressionModelBase(OpenPechaModel):
     bdrc: str | None = None
     wiki: str | None = None
@@ -209,9 +220,15 @@ class AlignedTextRequestModel(OpenPechaModel):
     alt_titles: list[NonEmptyStr] | None = None
     author: CreatorRequestModel | None = None
     target_annotation: list[dict] | None = None
-    alignment_annotation: list[dict]
-    annotation: list[dict] | None = None
+    alignment_annotation: list[dict] | None = None
+    annotation: list[dict]
     copyright: CopyrightStatus = CopyrightStatus.PUBLIC_DOMAIN
+
+    @model_validator(mode="after")
+    def validate_alignment_annotations(self):
+        if (self.target_annotation is not None) != (self.alignment_annotation is not None):
+            raise ValueError("Both target_annotation and alignment_annotation must be provided together, or neither")
+        return self
 
 
 class InstanceRequestModel(OpenPechaModel):

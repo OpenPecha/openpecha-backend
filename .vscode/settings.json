@@ -26,7 +26,8 @@
     },
     "flake8.args": [
         "--exclude=tests",
-        "--max-line-length=120"
+        "--max-line-length=120",
+        "--extend-ignore=E203"
     ],
     "flake8.ignorePatterns": [
         "**/tests/*.py"

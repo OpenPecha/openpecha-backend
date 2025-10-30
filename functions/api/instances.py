@@ -13,6 +13,7 @@ from models import (
     LocalizedString,
     ManifestationModelInput,
     ManifestationType,
+    SpanModel,
     TextType,
 )
 from neo4j_database import Neo4JDatabase
@@ -93,7 +94,7 @@ def get_instance(manifestation_id: str) -> tuple[Response, int]:
     return (json, 200)
 
 
-def create_aligned_text(
+def _create_aligned_text(
     request_model: AlignedTextRequestModel, text_type: TextType, target_manifestation_id: str
 ) -> tuple[Response, int]:
     db = Neo4JDatabase()
@@ -103,20 +104,20 @@ def create_aligned_text(
         return jsonify({"error": "No segmentation annotation found for target text"}), 400
 
     expression_id = generate_id()
-    alignment_annotation_id = generate_id()
+    annotation_id = generate_id()
 
     pecha = Pecha.create_pecha(
         pecha_id=expression_id,
         base_text=request_model.content,
-        annotation_id=alignment_annotation_id,
-        annotation=[AlignmentAnnotation.model_validate(a) for a in request_model.alignment_annotation],
+        annotation_id=annotation_id,
+        annotation=[SegmentationAnnotation.model_validate(a) for a in request_model.annotation],
     )
 
-    if request_model.annotation:
-        annotation_id = generate_id()
+    if request_model.alignment_annotation:
+        alignment_annotation_id = generate_id()
         pecha.add(
-            annotation_id=annotation_id,
-            annotation=[SegmentationAnnotation.model_validate(a) for a in request_model.annotation],
+            annotation_id=alignment_annotation_id,
+            annotation=[AlignmentAnnotation.model_validate(a) for a in request_model.alignment_annotation],
         )
 
     storage = Storage()
@@ -162,16 +163,18 @@ def create_aligned_text(
 
     manifestation = ManifestationModelInput(type=ManifestationType.CRITICAL, copyright=request_model.copyright)
 
-    alignment_annotation = AnnotationModel(
-        id=alignment_annotation_id,
-        type=AnnotationType.ALIGNMENT,
-        aligned_to=(
-            target_annotation_id if request_model.target_annotation else target_manifestation.segmentation_annotation_id
-        ),
-    )
-
     annotation = (
         AnnotationModel(id=annotation_id, type=AnnotationType.SEGMENTATION) if request_model.annotation else None
+    )
+
+    alignment_annotation = (
+        AnnotationModel(
+            id=alignment_annotation_id,
+            type=AnnotationType.ALIGNMENT,
+            aligned_to=target_annotation_id,
+        )
+        if request_model.alignment_annotation
+        else None
     )
 
     target_annotation = (
@@ -216,7 +219,7 @@ def create_commentary(original_manifestation_id: str) -> tuple[Response, int]:
 
     request_model = AlignedTextRequestModel.model_validate(data)
 
-    return create_aligned_text(request_model, TextType.COMMENTARY, original_manifestation_id)
+    return _create_aligned_text(request_model, TextType.COMMENTARY, original_manifestation_id)
 
 
 @instances_bp.route("/<string:original_manifestation_id>/translation", methods=["POST"], strict_slashes=False)
@@ -229,42 +232,50 @@ def create_translation(original_manifestation_id: str) -> tuple[Response, int]:
 
     request_model = AlignedTextRequestModel.model_validate(data)
 
-    return create_aligned_text(request_model, TextType.TRANSLATION, original_manifestation_id)
+    return _create_aligned_text(request_model, TextType.TRANSLATION, original_manifestation_id)
+
+
+@instances_bp.route("/<string:manifestation_id>/excerpt", methods=["GET"], strict_slashes=False)
+def get_excerpt(manifestation_id: str) -> tuple[Response, int]:
+    logger.info("Fetching excerpt for manifestation ID: %s", manifestation_id)
+
+    span = SpanModel(
+        start=int(request.args.get("span_start", -1)),
+        end=int(request.args.get("span_end", -1)),
+    )
+
+    db = Neo4JDatabase()
+
+    _, expression_id = db.get_manifestation(manifestation_id)
+
+    pecha = retrieve_pecha(expression_id)
+    base_text = next(iter(pecha.bases.values()))
+
+    if span.end > len(base_text):
+        return jsonify({"error": f"span end ({span.end}) exceeds base text length ({len(base_text)})"}), 400
+
+    return jsonify({"excerpt": base_text[span.start : span.end]}), 200
 
 
 @instances_bp.route("/<string:manifestation_id>/related", methods=["GET"], strict_slashes=False)
 def get_related_texts(manifestation_id: str) -> tuple[Response, int]:
-    """
-    Find all related manifestations and their segments aligned to segments containing a given character span.
 
-    Query parameters:
-    - start: Start character position (required)
-    - end: End character position (required)
-
-    Returns a list of related manifestations with their annotations and aligned segments.
-    """
     logger.info("Finding related texts for manifestation ID: %s", manifestation_id)
 
-    # Get and validate character span parameters
-    start_str = request.args.get("span_start")
-    end_str = request.args.get("span_end")
-
-    if not start_str or not end_str:
-        return jsonify({"error": "Both 'span_start' and 'span_end' query parameters are required"}), 400
-
-    start = int(start_str)
-    end = int(end_str)
-
-    if start < 0 or end < 0 or start >= end:
-        return jsonify({"error": "Invalid span: 'span_start' must be >= 0, 'span_end' must be > span_start"}), 400
+    span = SpanModel(
+        span_start=int(request.args.get("span_start", -1)),
+        span_end=int(request.args.get("span_end", -1)),
+    )
 
     db = Neo4JDatabase()
 
     # Find segments from database that overlap with the given character span
-    matching_segments = db.find_segments_by_span(manifestation_id, start, end)
+    matching_segments = db.find_segments_by_span(manifestation_id, span.span_start, span.span_end)
 
     if not matching_segments:
-        error_msg = f"No segments found containing span [{start}, {end}) in instance '{manifestation_id}'"
+        error_msg = (
+            f"No segments found containing span [{span.span_start}, {span.span_end}) in instance '{manifestation_id}'"
+        )
         return jsonify({"error": error_msg}), 404
 
     # For each matching segment, find all aligned segments separated by direction
@@ -273,12 +284,12 @@ def get_related_texts(manifestation_id: str) -> tuple[Response, int]:
 
     for source_segment in matching_segments:
         aligned = db.find_aligned_segments(source_segment.id)
-        
+
         # Process targets (outgoing relationships)
         for manifestation_id, segments in aligned["targets"].items():
             existing = targets_map.setdefault(manifestation_id, [])
             existing.extend(seg for seg in segments if seg not in existing)
-        
+
         # Process sources (incoming relationships)
         for manifestation_id, segments in aligned["sources"].items():
             existing = sources_map.setdefault(manifestation_id, [])
@@ -308,7 +319,12 @@ def get_related_texts(manifestation_id: str) -> tuple[Response, int]:
             )
         return result
 
-    return jsonify({
-        "targets": build_related_texts(targets_map),
-        "sources": build_related_texts(sources_map),
-    }), 200
+    return (
+        jsonify(
+            {
+                "targets": build_related_texts(targets_map),
+                "sources": build_related_texts(sources_map),
+            }
+        ),
+        200,
+    )

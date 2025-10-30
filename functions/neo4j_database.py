@@ -269,21 +269,21 @@ class Neo4JDatabase:
         expression_id: str,
         manifestation: ManifestationModelInput,
         target_manifestation_id: str,
-        alignment_annotation: AnnotationModel,
-        annotation: AnnotationModel = None,
+        annotation: AnnotationModel,
+        alignment_annotation: AnnotationModel = None,
         target_annotation: AnnotationModel = None,
     ) -> str:
         def transaction_function(tx):
             _ = self._execute_create_expression(tx, expression, expression_id)
             manifestation_id = self._execute_create_manifestation(tx, manifestation, expression_id)
 
+            _ = self._execute_add_annotation(tx, manifestation_id, annotation)
+
+            if alignment_annotation:
+                _ = self._execute_add_annotation(tx, manifestation_id, alignment_annotation)
+
             if target_annotation:
                 _ = self._execute_add_annotation(tx, target_manifestation_id, target_annotation)
-
-            if annotation:
-                _ = self._execute_add_annotation(tx, manifestation_id, annotation)
-
-            _ = self._execute_add_annotation(tx, manifestation_id, alignment_annotation)
 
             return manifestation_id
 
