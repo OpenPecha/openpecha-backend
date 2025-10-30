@@ -305,6 +305,22 @@ RETURN a.id AS annotation_id
 }
 
 Queries.segments = {
+    "create_batch": """
+MATCH (a:Annotation {id: $annotation_id})
+UNWIND $segments AS seg
+CREATE (s:Segment {
+    id: seg.id,
+    span_start: seg.span_start,
+    span_end: seg.span_end
+})
+CREATE (s)-[:SEGMENTATION_OF]->(a)
+""",
+    "create_alignments_batch": """
+UNWIND $alignments AS alignment
+MATCH (source:Segment {id: alignment.source_id})
+MATCH (target:Segment {id: alignment.target_id})
+CREATE (source)-[:ALIGNED_TO]->(target)
+""",
     "find_by_span": """
 MATCH (m:Manifestation {id: $manifestation_id})
       <-[:ANNOTATION_OF]-(:Annotation)

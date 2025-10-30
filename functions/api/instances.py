@@ -99,9 +99,7 @@ def _create_aligned_text(
 ) -> tuple[Response, int]:
     db = Neo4JDatabase()
 
-    target_manifestation, target_expression_id = db.get_manifestation(target_manifestation_id)
-    if not target_manifestation.segmentation_annotation_id:
-        return jsonify({"error": "No segmentation annotation found for target text"}), 400
+    _, target_expression_id = db.get_manifestation(target_manifestation_id)
 
     expression_id = generate_id()
     annotation_id = generate_id()
@@ -113,23 +111,24 @@ def _create_aligned_text(
         annotation=[SegmentationAnnotation.model_validate(a) for a in request_model.annotation],
     )
 
-    if request_model.alignment_annotation:
+    aligned = request_model.alignment_annotation is not None
+
+    if aligned:
         alignment_annotation_id = generate_id()
         pecha.add(
             annotation_id=alignment_annotation_id,
             annotation=[AlignmentAnnotation.model_validate(a) for a in request_model.alignment_annotation],
         )
 
-    storage = Storage()
-    storage.store_pecha(pecha)
-
-    if request_model.target_annotation:
         target_annotation_id = generate_id()
         target_pecha = retrieve_pecha(target_expression_id)
         target_pecha.add(
             annotation_id=target_annotation_id,
             annotation=[AlignmentAnnotation.model_validate(a) for a in request_model.target_annotation],
         )
+
+        storage = Storage()
+        storage.store_pecha(pecha)
         storage.store_pecha(target_pecha)
 
     # Build contributions based on text type
@@ -162,37 +161,38 @@ def _create_aligned_text(
     )
 
     manifestation = ManifestationModelInput(type=ManifestationType.CRITICAL, copyright=request_model.copyright)
-
-    annotation = (
-        AnnotationModel(id=annotation_id, type=AnnotationType.SEGMENTATION) if request_model.annotation else None
-    )
-
-    alignment_annotation = (
-        AnnotationModel(
-            id=alignment_annotation_id,
-            type=AnnotationType.ALIGNMENT,
-            aligned_to=target_annotation_id,
-        )
-        if request_model.alignment_annotation
-        else None
-    )
-
-    target_annotation = (
-        AnnotationModel(id=target_annotation_id, type=AnnotationType.ALIGNMENT)
-        if request_model.target_annotation
-        else None
-    )
+    annotation = AnnotationModel(id=annotation_id, type=AnnotationType.SEGMENTATION)
 
     try:
-        manifestation_id = db.create_aligned_text(
-            expression=expression,
-            expression_id=expression_id,
-            manifestation=manifestation,
-            target_manifestation_id=target_manifestation_id,
-            alignment_annotation=alignment_annotation,
-            annotation=annotation,
-            target_annotation=target_annotation,
-        )
+        if aligned:
+            alignment_annotation = AnnotationModel(
+                id=alignment_annotation_id,
+                type=AnnotationType.ALIGNMENT,
+                aligned_to=target_annotation_id,
+            )
+
+            target_annotation = AnnotationModel(id=target_annotation_id, type=AnnotationType.ALIGNMENT)
+
+            manifestation_id = db.create_aligned_manifestation(
+                expression=expression,
+                expression_id=expression_id,
+                manifestation=manifestation,
+                target_manifestation_id=target_manifestation_id,
+                annotation=annotation,
+                annotation_segments=request_model.annotation,
+                alignment_annotation=alignment_annotation,
+                alignment_segments=request_model.alignment_annotation,
+                target_annotation=target_annotation,
+                target_segments=request_model.target_annotation,
+            )
+        else:
+            manifestation_id = db.create_manifestation(
+                expression=expression,
+                expression_id=expression_id,
+                manifestation=manifestation,
+                annotation=annotation,
+                annotation_segments=request_model.annotation,
+            )
     except Exception as e:
         storage.rollback_pecha(expression_id)
         raise e

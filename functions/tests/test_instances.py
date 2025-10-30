@@ -304,7 +304,7 @@ class TestInstancesV2Endpoints:
             "title": "English Translation",
             "alt_titles": ["Alternative English Title"],
             "author": {"person_id": person_id},
-            "alignment_annotation": [{"span": {"start": 0, "end": 20}, "index": 0, "alignment_index": [0]}],
+            "alignment_annotation": [{"span": {"start": 0, "end": 20}, "index": 0, "alignment_index": 0}],
         }
 
         with patch("api.instances.Pecha.create_pecha") as mock_create_pecha:
@@ -341,7 +341,7 @@ class TestInstancesV2Endpoints:
             "content": "Translation content",
             "title": "Translation Title",
             "author": {"person_id": "person123"},
-            "alignment_annotation": [{"span": {"start": 0, "end": 20}, "index": 0, "alignment_index": [0]}],
+            "alignment_annotation": [{"span": {"start": 0, "end": 20}, "index": 0, "alignment_index": 0}],
         }
 
         response = client.post("/v2/instances/non-existent-manifestation/translation", json=translation_data)
@@ -463,8 +463,8 @@ class TestInstancesV2Endpoints:
             "author": {"person_id": person_id},
             "copyright": "public",
             "alignment_annotation": [
-                {"span": {"start": 0, "end": 30}, "index": 0, "alignment_index": [0]},
-                {"span": {"start": 31, "end": 60}, "index": 1, "alignment_index": [1]},
+                {"span": {"start": 0, "end": 30}, "index": 0, "alignment_index": 0},
+                {"span": {"start": 31, "end": 60}, "index": 1, "alignment_index": 1},
             ],
         }
 
@@ -783,7 +783,7 @@ class TestInstancesV2Endpoints:
             "content": "Translation content",
             "title": "Translation Title",
             "author": {"person_id": "non-existent-person-id"},
-            "alignment_annotation": [{"span": {"start": 0, "end": 20}, "index": 0, "alignment_index": [0]}],
+            "alignment_annotation": [{"span": {"start": 0, "end": 20}, "index": 0, "alignment_index": 0}],
         }
 
         response = client.post(f"/v2/instances/{manifestation_id}/translation", json=translation_data)
@@ -837,7 +837,7 @@ class TestInstancesV2Endpoints:
             "content": "Translation created by AI",
             "title": "AI Generated Translation",
             "author": {"ai_id": "gpt-4"},
-            "alignment_annotation": [{"span": {"start": 0, "end": 11}, "index": 0, "alignment_index": [0]}],
+            "alignment_annotation": [{"span": {"start": 0, "end": 11}, "index": 0, "alignment_index": 0}],
         }
 
         response = client.post(f"/v2/instances/{manifestation_id}/translation", json=translation_data)
@@ -866,7 +866,7 @@ class TestInstancesV2Endpoints:
                 "person_id": "some-person-id",
                 "ai_id": "gpt-4",
             },
-            "alignment_annotation": [{"span": {"start": 0, "end": 20}, "index": 0, "alignment_index": [0]}],
+            "alignment_annotation": [{"span": {"start": 0, "end": 20}, "index": 0, "alignment_index": 0}],
         }
 
         response = client.post("/v2/instances/manifest123/translation", json=translation_data)
@@ -905,7 +905,7 @@ class TestInstancesV2Endpoints:
             "content": "Translation content",
             "title": "Translation Title",
             "author": {"person_id": person_id},
-            "alignment_annotation": [{"span": {"start": 0, "end": 20}, "index": 0, "alignment_index": [0]}],
+            "alignment_annotation": [{"span": {"start": 0, "end": 20}, "index": 0, "alignment_index": 0}],
         }
 
         response = client.post(f"/v2/instances/{manifestation_id}/translation", json=translation_data)
@@ -926,8 +926,8 @@ class TestInstancesV2Endpoints:
             "title": "Complete Translation",
             "alt_titles": ["Alternative Title 1", "Alternative Title 2"],
             "author": {"person_id": person_id},
-            "target_annotation": [{"span": {"start": 0, "end": 10}, "index": 0, "alignment_index": [0]}],
-            "alignment_annotation": [{"span": {"start": 0, "end": 20}, "index": 0, "alignment_index": [0]}],
+            "target_annotation": [{"span": {"start": 0, "end": 10}, "index": 0, "alignment_index": 0}],
+            "alignment_annotation": [{"span": {"start": 0, "end": 20}, "index": 0, "alignment_index": 0}],
         }
 
         response = client.post(f"/v2/instances/{manifestation_id}/translation", json=translation_data)

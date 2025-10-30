@@ -90,6 +90,11 @@ def create_instance(expression_id: str) -> tuple[Response, int]:
     Storage().store_pecha(pecha)
 
     annotation = AnnotationModel(id=annotation_id, type=AnnotationType.SEGMENTATION)
-    manifestation_id = Neo4JDatabase().create_manifestation(instance_request.metadata, annotation, expression_id)
+    manifestation_id = Neo4JDatabase().create_manifestation(
+        manifestation=instance_request.metadata,
+        annotation=annotation,
+        annotation_segments=instance_request.annotation,
+        expression_id=expression_id,
+    )
 
     return jsonify({"message": "Instance created successfully", "id": manifestation_id}), 201

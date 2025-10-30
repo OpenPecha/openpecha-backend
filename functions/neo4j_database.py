@@ -199,11 +199,20 @@ class Neo4JDatabase:
             }
 
     def create_manifestation(
-        self, manifestation: ManifestationModelInput, annotation: AnnotationModel, expression_id: str
+        self,
+        manifestation: ManifestationModelInput,
+        annotation: AnnotationModel,
+        expression_id: str,
+        annotation_segments: list[dict],
+        expression: ExpressionModelInput = None,
     ) -> str:
         def transaction_function(tx):
+            if expression:
+                self._execute_create_expression(tx, expression, expression_id)
+            
             manifestation_id = self._execute_create_manifestation(tx, manifestation, expression_id)
             self._execute_add_annotation(tx, manifestation_id, annotation)
+            self._create_segments(tx, annotation.id, annotation_segments)
             return manifestation_id
 
         with self.__driver.session() as session:
@@ -263,27 +272,33 @@ class Neo4JDatabase:
         with self.__driver.session() as session:
             return session.execute_write(lambda tx: self._execute_add_annotation(tx, manifestation_id, annotation))
 
-    def create_aligned_text(
+    def create_aligned_manifestation(
         self,
         expression: ExpressionModelInput,
         expression_id: str,
         manifestation: ManifestationModelInput,
         target_manifestation_id: str,
         annotation: AnnotationModel,
-        alignment_annotation: AnnotationModel = None,
-        target_annotation: AnnotationModel = None,
+        annotation_segments: list[dict],
+        alignment_annotation: AnnotationModel,
+        alignment_segments: list[dict],
+        target_annotation: AnnotationModel,
+        target_segments: list[dict],
     ) -> str:
         def transaction_function(tx):
             _ = self._execute_create_expression(tx, expression, expression_id)
             manifestation_id = self._execute_create_manifestation(tx, manifestation, expression_id)
 
             _ = self._execute_add_annotation(tx, manifestation_id, annotation)
+            self._create_segments(tx, annotation.id, annotation_segments)
 
-            if alignment_annotation:
-                _ = self._execute_add_annotation(tx, manifestation_id, alignment_annotation)
+            _ = self._execute_add_annotation(tx, manifestation_id, alignment_annotation)
+            alignment_seg_ids = self._create_segments(tx, alignment_annotation.id, alignment_segments)
 
-            if target_annotation:
-                _ = self._execute_add_annotation(tx, target_manifestation_id, target_annotation)
+            _ = self._execute_add_annotation(tx, target_manifestation_id, target_annotation)
+            target_seg_ids = self._create_segments(tx, target_annotation.id, target_segments)
+
+            self._create_segment_alignments(tx, alignment_segments, alignment_seg_ids, target_seg_ids)
 
             return manifestation_id
 
@@ -524,3 +539,59 @@ class Neo4JDatabase:
             aligned_to_id=annotation.aligned_to,
         )
         return annotation.id
+
+    def _create_segments(self, tx, annotation_id: str, segments: list[dict]) -> dict[int, str]:
+        """
+        Create segments for an annotation in a single batch query.
+
+        Args:
+            tx: Neo4j transaction
+            annotation_id: ID of the annotation to attach segments to
+            segments: List of segment dicts with 'span', 'index', and optionally 'alignment_index'
+
+        Returns:
+            Dictionary mapping segment index to segment ID
+        """
+        # Prepare batch data with generated IDs
+        segments_data = [
+            {
+                "id": generate_id(),
+                "span_start": seg["span"]["start"],
+                "span_end": seg["span"]["end"],
+                "index": seg["index"],
+            }
+            for seg in segments
+        ]
+
+        # Create all segments in one query
+        tx.run(
+            Queries.segments["create_batch"],
+            annotation_id=annotation_id,
+            segments=segments_data,
+        )
+
+        # Build index -> ID mapping from the data we prepared
+        return {seg["index"]: seg["id"] for seg in segments_data}
+
+    def _create_segment_alignments(
+        self, tx, alignment_segments: list[dict], alignment_seg_ids: dict[int, str], target_seg_ids: dict[int, str]
+    ):
+        """
+        Create ALIGNED_TO relationships between segments in a single batch query.
+
+        Args:
+            tx: Neo4j transaction
+            alignment_segments: List of alignment segment dicts with 'index' and 'alignment_index' (integer)
+            alignment_seg_ids: Dictionary mapping alignment segment index to segment ID
+            target_seg_ids: Dictionary mapping target segment index to segment ID
+        """
+        # Build list of all alignments to create
+        alignments = [
+            {"source_id": alignment_seg_ids[seg["index"]], "target_id": target_seg_ids[seg["alignment_index"]]}
+            for seg in alignment_segments
+            if seg["index"] in alignment_seg_ids and seg["alignment_index"] in target_seg_ids
+        ]
+
+        # Create all alignments in one query if there are any
+        if alignments:
+            tx.run(Queries.segments["create_alignments_batch"], alignments=alignments)
