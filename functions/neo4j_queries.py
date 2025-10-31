@@ -310,8 +310,8 @@ MATCH (a:Annotation {id: $annotation_id})
 UNWIND $segments AS seg
 CREATE (s:Segment {
     id: seg.id,
-    span_start: seg.span_start,
-    span_end: seg.span_end
+    span_start: seg.span.start,
+    span_end: seg.span.end
 })
 CREATE (s)-[:SEGMENTATION_OF]->(a)
 """,

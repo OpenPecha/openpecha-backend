@@ -163,6 +163,12 @@ def _create_aligned_text(
     manifestation = ManifestationModelInput(type=ManifestationType.CRITICAL, copyright=request_model.copyright)
     annotation = AnnotationModel(id=annotation_id, type=AnnotationType.SEGMENTATION)
 
+    def add_ids(segments):
+        with_ids = [{**seg, "id": generate_id()} for seg in segments]
+        return with_ids, {seg["index"]: seg["id"] for seg in with_ids}
+
+    annotation_segments_with_ids, _ = add_ids(request_model.annotation)
+
     try:
         if aligned:
             alignment_annotation = AnnotationModel(
@@ -173,17 +179,28 @@ def _create_aligned_text(
 
             target_annotation = AnnotationModel(id=target_annotation_id, type=AnnotationType.ALIGNMENT)
 
+            alignment_segments_with_ids, alignment_id_map = add_ids(request_model.alignment_annotation)
+            target_segments_with_ids, target_id_map = add_ids(request_model.target_annotation)
+
+            # Build alignments with actual IDs
+            alignments = [
+                {"source_id": alignment_id_map[seg["index"]], "target_id": target_id_map[target_idx]}
+                for seg in request_model.alignment_annotation
+                for target_idx in seg.get("alignment_index", [])
+            ]
+
             manifestation_id = db.create_aligned_manifestation(
                 expression=expression,
                 expression_id=expression_id,
                 manifestation=manifestation,
                 target_manifestation_id=target_manifestation_id,
                 annotation=annotation,
-                annotation_segments=request_model.annotation,
+                annotation_segments=annotation_segments_with_ids,
                 alignment_annotation=alignment_annotation,
-                alignment_segments=request_model.alignment_annotation,
+                alignment_segments=alignment_segments_with_ids,
                 target_annotation=target_annotation,
-                target_segments=request_model.target_annotation,
+                target_segments=target_segments_with_ids,
+                alignments=alignments,
             )
         else:
             manifestation_id = db.create_manifestation(
@@ -191,7 +208,7 @@ def _create_aligned_text(
                 expression_id=expression_id,
                 manifestation=manifestation,
                 annotation=annotation,
-                annotation_segments=request_model.annotation,
+                annotation_segments=annotation_segments_with_ids,
             )
     except Exception as e:
         storage.rollback_pecha(expression_id)
