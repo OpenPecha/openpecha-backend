@@ -7,7 +7,7 @@ from models import AnnotationModel, AnnotationType, ExpressionModelInput, Instan
 from neo4j_database import Neo4JDatabase
 from openpecha.pecha import Pecha
 from openpecha.pecha.annotations import SegmentationAnnotation
-from storage import Storage
+from storage import MockStorage
 
 texts_bp = Blueprint("texts", __name__)
 
@@ -80,21 +80,23 @@ def create_instance(expression_id: str) -> tuple[Response, int]:
 
     annotation_id = generate_id()
 
-    pecha = Pecha.create_pecha(
-        pecha_id=expression_id,
-        base_text=instance_request.content,
-        annotation_id=annotation_id,
-        annotation=[SegmentationAnnotation.model_validate(a) for a in instance_request.annotation],
-    )
+    # pecha = Pecha.create_pecha(
+    #     pecha_id=expression_id,
+    #     base_text=instance_request.content,
+    #     annotation_id=annotation_id,
+    #     annotation=[SegmentationAnnotation.model_validate(a) for a in instance_request.annotation],
+    # )
 
-    Storage().store_pecha(pecha)
+    manifestation_id = generate_id()
+    MockStorage().store_pecha(expression_id, manifestation_id, instance_request.content)
 
     annotation = AnnotationModel(id=annotation_id, type=AnnotationType.SEGMENTATION)
-    manifestation_id = Neo4JDatabase().create_manifestation(
+    Neo4JDatabase().create_manifestation(
         manifestation=instance_request.metadata,
         annotation=annotation,
         annotation_segments=instance_request.annotation,
         expression_id=expression_id,
+        manifestation_id=manifestation_id
     )
 
     return jsonify({"message": "Instance created successfully", "id": manifestation_id}), 201

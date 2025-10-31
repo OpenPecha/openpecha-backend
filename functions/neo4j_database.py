@@ -260,15 +260,16 @@ class Neo4JDatabase:
         expression_id: str,
         annotation_segments: list[dict] = None,
         expression: ExpressionModelInput = None,
+        manifestation_id: str = None,
     ) -> str:
         def transaction_function(tx):
             if expression:
                 self._execute_create_expression(tx, expression, expression_id)
 
-            manifestation_id = self._execute_create_manifestation(tx, manifestation, expression_id)
+            self._execute_create_manifestation(tx, manifestation, expression_id, manifestation_id)
             self._execute_add_annotation(tx, manifestation_id, annotation)
             self._create_segments(tx, annotation.id, annotation_segments)
-            return manifestation_id
+            # return manifestation_id
 
         with self.__driver.session() as session:
             return session.execute_write(transaction_function)
@@ -503,10 +504,10 @@ class Neo4JDatabase:
 
         return expression_id
 
-    def _execute_create_manifestation(self, tx, manifestation: ManifestationModelInput, expression_id: str) -> str:
+    def _execute_create_manifestation(self, tx, manifestation: ManifestationModelInput, expression_id: str, manifestation_id: str) -> str:
         self.__validator.validate_expression_exists(tx, expression_id)
 
-        manifestation_id = generate_id()
+        # manifestation_id = generate_id()
 
         incipit_element_id = None
         if manifestation.incipit_title:
@@ -530,7 +531,7 @@ class Neo4JDatabase:
         if not result.single():
             raise DataNotFound(f"Expression '{expression_id}' not found")
 
-        return manifestation_id
+        # return manifestation_id
 
     def _execute_add_annotation(self, tx, manifestation_id: str, annotation: AnnotationModel) -> str:
         tx.run(
