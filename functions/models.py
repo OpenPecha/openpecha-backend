@@ -30,7 +30,7 @@ class AnnotationType(str, Enum):
 class ManifestationType(str, Enum):
     DIPLOMATIC = "diplomatic"
     CRITICAL = "critical"
-    COLLATED = "collated"
+    #COLLATED = "collated"
 
 class Language(str, Enum):
     ENGLISH = "en"
