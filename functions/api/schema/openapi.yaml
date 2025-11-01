@@ -998,7 +998,6 @@ paths:
                   description: Alternative localized titles
                 language:
                   type: string
-                  description: Primary language code
                   enum: [en, bo, zh, sa]
                 contributions:
                   type: array
