@@ -287,6 +287,17 @@ class Neo4JDatabase:
         with self.__driver.session() as session:
             return session.execute_write(transaction_function)
 
+    def has_manifestation_of_type(self, expression_id: str, type: ManifestationType) -> bool:
+        with self.__driver.session() as session:
+            record = session.execute_read(
+                lambda tx: tx.run(
+                    Queries.manifestations["exists_manifestation_by_type_under_expression"],
+                    expression_id=expression_id,
+                    type=type.value,
+                ).single()
+            )
+            return bool(record and record.get("count", 0) > 0)
+
     def create_aligned_manifestation(
         self,
         expression: ExpressionModelInput,

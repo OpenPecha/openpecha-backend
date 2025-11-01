@@ -3,7 +3,7 @@ import logging
 from exceptions import InvalidRequest
 from flask import Blueprint, Response, jsonify, request
 from identifier import generate_id
-from models import AnnotationModel, AnnotationType, ExpressionModelInput, InstanceRequestModel
+from models import AnnotationModel, AnnotationType, ExpressionModelInput, InstanceRequestModel, ManifestationType
 from neo4j_database import Neo4JDatabase
 from openpecha.pecha import Pecha
 from openpecha.pecha.annotations import SegmentationAnnotation
@@ -78,10 +78,9 @@ def create_instance(expression_id: str) -> tuple[Response, int]:
 
     instance_request = InstanceRequestModel.model_validate(data)
 
-    is_critical_manifestation_present: bool = _check_if_critical_manifestation_exists(expression_id = expression_id)
-
-    if is_critical_manifestation_present:
-        raise InvalidRequest("Critical manifestation already present for this expression")
+    if instance_request.metadata.type == ManifestationType.CRITICAL:
+        if Neo4JDatabase().has_manifestation_of_type(expression_id=expression_id, type=ManifestationType.CRITICAL):
+            raise InvalidRequest("Critical manifestation already present for this expression")
 
     manifestation_id = generate_id()
     MockStorage().store_pecha(
@@ -110,14 +109,3 @@ def create_instance(expression_id: str) -> tuple[Response, int]:
         )
 
     return jsonify({"message": "Instance created successfully", "id": manifestation_id}), 201
-
-
-
-def _check_if_critical_manifestation_exists(expression_id: str) -> bool:
-
-    db = Neo4JDatabase()
-    manifestations = db.get_manifestations_by_expression(expression_id)
-    for manifestation in manifestations:
-        if manifestation.type == "critical":
-            return True
-    return False
