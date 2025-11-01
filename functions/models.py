@@ -18,6 +18,8 @@ class ContributorRole(str, Enum):
     AUTHOR = "author"
     SCHOLAR = "scholar"
 
+    
+
 
 class AnnotationType(str, Enum):
     SEGMENTATION = "segmentation"
@@ -30,16 +32,21 @@ class ManifestationType(str, Enum):
     CRITICAL = "critical"
     COLLATED = "collated"
 
-
+class Language(str, Enum):
+    ENGLISH = "en"
+    TIBETAN = "bo"
+    CHINESE = "zh"
+    SANSKRIT = "sa"
+    
 class CopyrightStatus(str, Enum):
     PUBLIC_DOMAIN = "public"
     COPYRIGHTED = "copyrighted"
 
 
-class LocalizedString(RootModel[dict[str, NonEmptyStr]]):
-    root: dict[str, NonEmptyStr] = Field(min_length=1)
+class LocalizedString(RootModel[dict[Language, NonEmptyStr]]):
+    root: dict[Language, NonEmptyStr] = Field(min_length=1)
 
-    def __getitem__(self, item: str) -> str:
+    def __getitem__(self, item: Language) -> str:
         return self.root[item]
 
 
@@ -118,7 +125,7 @@ class ExpressionModelBase(OpenPechaModel):
     date: NonEmptyStr | None = None
     title: LocalizedString
     alt_titles: list[LocalizedString] | None = None
-    language: NonEmptyStr
+    language: Language
     parent: str | None = None
 
     @model_validator(mode="after")
@@ -214,10 +221,10 @@ class CreatorRequestModel(OpenPechaModel):
 
 
 class AlignedTextRequestModel(OpenPechaModel):
-    language: NonEmptyStr
+    language: Language
     content: NonEmptyStr
-    title: NonEmptyStr
-    alt_titles: list[NonEmptyStr] | None = None
+    title: LocalizedString
+    alt_titles: list[LocalizedString] | None = None
     author: CreatorRequestModel | None = None
     target_annotation: list[dict] | None = None
     alignment_annotation: list[dict] | None = None
