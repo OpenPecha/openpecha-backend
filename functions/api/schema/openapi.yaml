@@ -1000,7 +1000,6 @@ paths:
                   type: string
                   description: Primary language code
                   enum: [en, bo, zh, sa]
-
                 contributions:
                   type: array
                   items:
