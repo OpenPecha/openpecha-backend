@@ -233,5 +233,5 @@ class AlignedTextRequestModel(OpenPechaModel):
 
 class InstanceRequestModel(OpenPechaModel):
     metadata: ManifestationModelInput
-    annotation: list[dict]
+    annotation: list[dict] | None = None
     content: NonEmptyStr

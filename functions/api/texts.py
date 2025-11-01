@@ -78,25 +78,46 @@ def create_instance(expression_id: str) -> tuple[Response, int]:
 
     instance_request = InstanceRequestModel.model_validate(data)
 
-    annotation_id = generate_id()
+    is_critical_manifestation_present: bool = _check_if_critical_manifestation_exists(expression_id = expression_id)
 
-    # pecha = Pecha.create_pecha(
-    #     pecha_id=expression_id,
-    #     base_text=instance_request.content,
-    #     annotation_id=annotation_id,
-    #     annotation=[SegmentationAnnotation.model_validate(a) for a in instance_request.annotation],
-    # )
+    if is_critical_manifestation_present:
+        raise InvalidRequest("Critical manifestation already present for this expression")
 
     manifestation_id = generate_id()
-    MockStorage().store_pecha(expression_id, manifestation_id, instance_request.content)
-
-    annotation = AnnotationModel(id=annotation_id, type=AnnotationType.SEGMENTATION)
-    Neo4JDatabase().create_manifestation(
-        manifestation=instance_request.metadata,
-        annotation=annotation,
-        annotation_segments=instance_request.annotation,
-        expression_id=expression_id,
-        manifestation_id=manifestation_id
+    MockStorage().store_pecha(
+        expression_id = expression_id, 
+        manifestation_id = manifestation_id, 
+        base_text = instance_request.content
     )
 
+    if instance_request.annotation:
+        annotation_id = generate_id()
+        annotation = AnnotationModel(id=annotation_id, type=AnnotationType.SEGMENTATION)
+        Neo4JDatabase().create_manifestation(
+            manifestation=instance_request.metadata,
+            annotation=annotation,
+            annotation_segments=instance_request.annotation,
+            expression_id=expression_id,
+            manifestation_id=manifestation_id,
+        )
+    else:
+        Neo4JDatabase().create_manifestation(
+            manifestation=instance_request.metadata,
+            expression_id=expression_id,
+            annotation=None,
+            annotation_segments=None,
+            manifestation_id=manifestation_id,
+        )
+
     return jsonify({"message": "Instance created successfully", "id": manifestation_id}), 201
+
+
+
+def _check_if_critical_manifestation_exists(expression_id: str) -> bool:
+
+    db = Neo4JDatabase()
+    manifestations = db.get_manifestations_by_expression(expression_id)
+    for manifestation in manifestations:
+        if manifestation.type == "critical":
+            return True
+    return False
