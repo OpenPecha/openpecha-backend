@@ -290,9 +290,7 @@ def get_related_texts(manifestation_id: str) -> tuple[Response, int]:
     matching_segments = db.find_segments_by_span(manifestation_id, span)
 
     if not matching_segments:
-        error_msg = (
-            f"No segments found containing span [{span.start}, {span.end}) in instance '{manifestation_id}'"
-        )
+        error_msg = f"No segments found containing span [{span.start}, {span.end}) in instance '{manifestation_id}'"
         return jsonify({"error": error_msg}), 404
 
     # For each matching segment, find all aligned segments separated by direction

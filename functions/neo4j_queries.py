@@ -354,6 +354,17 @@ WITH m.id as manifestation_id,
      }) as segments
 RETURN manifestation_id, segments
 """,
+    "get_by_id": """
+MATCH (seg:Segment {id: $segment_id})
+      -[:SEGMENTATION_OF]->(:Annotation)
+      -[:ANNOTATION_OF]->(m:Manifestation)
+      -[:MANIFESTATION_OF]->(e:Expression)
+RETURN seg.id as segment_id,
+       seg.span_start as span_start,
+       seg.span_end as span_end,
+       m.id as manifestation_id,
+       e.id as expression_id
+""",
 }
 
 Queries.ai = {

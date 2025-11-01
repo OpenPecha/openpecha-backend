@@ -1347,6 +1347,201 @@ paths:
         "500":
           $ref: '#/components/responses/ServerError'
 
+  /v2/segments/{segment_id}/related:
+    get:
+      summary: Find related texts for a segment
+      description: Find all related texts and instances that are aligned to a specific segment
+      tags:
+        - Segments
+      parameters:
+        - name: segment_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the segment to find related texts for
+      responses:
+        "200":
+          description: Related texts retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  targets:
+                    type: array
+                    description: Texts that this segment points to (outgoing alignments)
+                    items:
+                      type: object
+                      properties:
+                        instance:
+                          type: object
+                          description: Manifestation details
+                          properties:
+                            id:
+                              type: string
+                            type:
+                              type: string
+                              enum: [diplomatic, critical, collated]
+                            copyright:
+                              type: string
+                              enum: [public, copyrighted]
+                            bdrc:
+                              type: string
+                            wiki:
+                              type: string
+                        text:
+                          type: object
+                          description: Expression (text) details
+                          properties:
+                            id:
+                              type: string
+                            type:
+                              type: string
+                              enum: [root, commentary, translation]
+                            title:
+                              type: object
+                              additionalProperties:
+                                type: string
+                            language:
+                              type: string
+                        segments:
+                          type: array
+                          description: List of aligned segments with their IDs and spans
+                          items:
+                            type: object
+                            properties:
+                              id:
+                                type: string
+                                description: Segment ID
+                              span:
+                                type: object
+                                properties:
+                                  start:
+                                    type: integer
+                                    description: Start character position
+                                  end:
+                                    type: integer
+                                    description: End character position
+                  sources:
+                    type: array
+                    description: Texts whose segments point to this segment (incoming alignments)
+                    items:
+                      type: object
+                      properties:
+                        instance:
+                          type: object
+                          description: Manifestation details
+                          properties:
+                            id:
+                              type: string
+                            type:
+                              type: string
+                              enum: [diplomatic, critical, collated]
+                            copyright:
+                              type: string
+                              enum: [public, copyrighted]
+                            bdrc:
+                              type: string
+                            wiki:
+                              type: string
+                        text:
+                          type: object
+                          description: Expression (text) details
+                          properties:
+                            id:
+                              type: string
+                            type:
+                              type: string
+                              enum: [root, commentary, translation]
+                            title:
+                              type: object
+                              additionalProperties:
+                                type: string
+                            language:
+                              type: string
+                        segments:
+                          type: array
+                          description: List of aligned segments with their IDs and spans
+                          items:
+                            type: object
+                            properties:
+                              id:
+                                type: string
+                                description: Segment ID
+                              span:
+                                type: object
+                                properties:
+                                  start:
+                                    type: integer
+                                    description: Start character position
+                                  end:
+                                    type: integer
+                                    description: End character position
+              examples:
+                success:
+                  summary: Related texts with segments
+                  value:
+                    targets:
+                      - instance:
+                          id: "M12345678"
+                          type: "critical"
+                          copyright: "public"
+                        text:
+                          id: "E12345678"
+                          type: "translation"
+                          title:
+                            en: "Translation of the Text"
+                          language: "en"
+                        segments:
+                          - id: "SEG001"
+                            span:
+                              start: 0
+                              end: 100
+                          - id: "SEG002"
+                            span:
+                              start: 100
+                              end: 200
+                    sources: []
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+  /v2/segments/{segment_id}/content:
+    get:
+      summary: Get segment text content
+      description: Retrieve the base text content for a segment based on its character span
+      tags:
+        - Segments
+      parameters:
+        - name: segment_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the segment to retrieve text content for
+      responses:
+        "200":
+          description: Segment content retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  content:
+                    type: string
+                    description: The text content of the segment
+              examples:
+                success:
+                  summary: Segment text content
+                  value:
+                    content: "This is the text content of the segment."
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
   /api/version:
       get:
         summary: Get API version and Git SHA
