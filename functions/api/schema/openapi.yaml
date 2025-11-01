@@ -178,7 +178,7 @@ paths:
                               type: string
                             wiki:
                               type: string
-                            parent:
+                            target:
                               type: string
                         spans:
                           type: array
@@ -253,7 +253,7 @@ paths:
                               type: string
                             wiki:
                               type: string
-                            parent:
+                            target:
                               type: string
                         spans:
                           type: array
@@ -281,7 +281,7 @@ paths:
                           title:
                             en: "English Translation"
                           language: "en"
-                          parent: "T12345678"
+                          target: "T12345678"
                         spans:
                           - start: 0
                             end: 150
@@ -659,7 +659,7 @@ paths:
                     ai_id:
                       type: string
                   description: Creator of the translation (optional)
-                annotation:
+                segmentation:
                   type: array
                   items:
                     type: object
@@ -687,7 +687,7 @@ paths:
                   title: "Translated Title"
                   author:
                     person_id: "P12345678"
-                  annotation:
+                  segmentation:
                     - span:
                         start: 0
                         end: 35
@@ -771,7 +771,7 @@ paths:
                       type: string
                     person_bdrc_id:
                       type: string
-                annotation:
+                segmentation:
                   type: array
                   items:
                     type: object
@@ -799,7 +799,7 @@ paths:
                   title: "Commentary on Original Text"
                   author:
                     person_id: "P12345678"
-                  annotation:
+                  segmentation:
                     - span:
                         start: 0
                         end: 50
@@ -928,7 +928,7 @@ paths:
                       type: string
                     wiki:
                       type: string
-                    parent:
+                    target:
                       type: string
               examples:
                 success:
@@ -953,7 +953,7 @@ paths:
                       contributions:
                         - ai_id: "gpt-4"
                           role: "translator"
-                      parent: "ABC12345678"
+                      target: "ABC12345678"
         "400":
           $ref: '#/components/responses/InvalidRequest'
         "500":
@@ -1014,9 +1014,9 @@ paths:
                   type: string
                 wiki:
                   type: string
-                parent:
+                target:
                   type: string
-                  description: Parent metadata ID (required for commentary)
+                  description: Target metadata ID (required for commentary)
             examples:
               root_text:
                 summary: Root text creation
@@ -1051,7 +1051,7 @@ paths:
                   contributions:
                     - ai_id: "gpt-4"
                       role: "translator"
-                  parent: "T12345678"
+                  target: "T12345678"
       responses:
         "201":
           description: Text created successfully
@@ -1133,7 +1133,7 @@ paths:
                     type: string
                   wiki:
                     type: string
-                  parent:
+                  target:
                     type: string
               examples:
                 success:

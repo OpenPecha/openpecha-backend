@@ -119,15 +119,15 @@ class ExpressionModelBase(OpenPechaModel):
     title: LocalizedString
     alt_titles: list[LocalizedString] | None = None
     language: NonEmptyStr
-    parent: str | None = None
+    target: str | None = None
 
     @model_validator(mode="after")
-    def validate_parent_field(self):
-        if self.type == TextType.ROOT and self.parent is not None:
-            raise ValueError("When type is 'root', parent must be None")
-        if self.type in [TextType.COMMENTARY, TextType.TRANSLATION] and self.parent is None:
+    def validate_target_field(self):
+        if self.type == TextType.ROOT and self.target is not None:
+            raise ValueError("When type is 'root', target must be None")
+        if self.type in [TextType.COMMENTARY, TextType.TRANSLATION] and self.target is None:
             msg = (
-                f"When type is '{self.type.value}', parent must be provided "
+                f"When type is '{self.type.value}', target must be provided "
                 "(use 'N/A' for standalone translations/commentaries)"
             )
             raise ValueError(msg)
@@ -221,7 +221,7 @@ class AlignedTextRequestModel(OpenPechaModel):
     author: CreatorRequestModel | None = None
     target_annotation: list[dict] | None = None
     alignment_annotation: list[dict] | None = None
-    annotation: list[dict]
+    segmentation: list[dict]
     copyright: CopyrightStatus = CopyrightStatus.PUBLIC_DOMAIN
 
     @model_validator(mode="after")
