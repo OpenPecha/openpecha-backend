@@ -219,12 +219,11 @@ class CreatorRequestModel(OpenPechaModel):
             raise ValueError("Exactly one of person_id, person_bdrc_id, or ai_id must be provided")
         return self
 
-
 class AlignedTextRequestModel(OpenPechaModel):
     language: Language
     content: NonEmptyStr
-    title: LocalizedString
-    alt_titles: list[LocalizedString] | None = None
+    title: NonEmptyStr
+    alt_titles: list[NonEmptyStr] | None = None
     author: CreatorRequestModel | None = None
     target_annotation: list[dict] | None = None
     alignment_annotation: list[dict] | None = None
