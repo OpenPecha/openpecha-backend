@@ -125,22 +125,16 @@ class Neo4JDatabaseValidator:
         Uses a single query to both check existence and obtain the available codes.
         Raises InvalidRequest with the available codes listed if not found.
         """
-        if not language_code:
-            raise InvalidRequest("Language code is required")
+        query = """
+        MATCH (l:Language)
+        WITH collect(l.code) AS codes
+        RETURN $code IN codes AS exists, codes
+        """
 
         record = session.run(
-            """
-            MATCH (l:Language)
-            WITH collect(toLower(l.code)) AS codes
-            RETURN toLower($code) IN codes AS exists, codes
-            """,
+            query,
             code=language_code.lower(),
         ).single()
 
-        exists = bool(record and record.get("exists", False))
-        if not exists:
-            codes = record.get("codes", []) if record else []
-            available_str = ", ".join(codes) if codes else "<none>"
-            raise InvalidRequest(
-                f"Language '{language_code}' is not present in Neo4j. Available languages: {available_str}"
-            )
+        if not record or not record["exists"]:
+            raise InvalidRequest(f"Language '{language_code}' is not present in Neo4j. Available languages: {', '.join(record['codes'])}")
