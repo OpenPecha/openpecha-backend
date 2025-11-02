@@ -268,19 +268,20 @@ class Neo4JDatabase:
     def create_manifestation(
         self,
         manifestation: ManifestationModelInput,
-        annotation: AnnotationModel,
         expression_id: str,
+        manifestation_id: str,
+        annotation: AnnotationModel = None,
         annotation_segments: list[dict] = None,
-        expression: ExpressionModelInput = None,
+        expression: ExpressionModelInput = None
     ) -> str:
         def transaction_function(tx):
             if expression:
                 self._execute_create_expression(tx, expression, expression_id)
 
-            manifestation_id = self._execute_create_manifestation(tx, manifestation, expression_id)
-            self._execute_add_annotation(tx, manifestation_id, annotation)
-            self._create_segments(tx, annotation.id, annotation_segments)
-            return manifestation_id
+            self._execute_create_manifestation(tx, manifestation, expression_id, manifestation_id)
+            if annotation:
+                self._execute_add_annotation(tx, manifestation_id, annotation)
+                self._create_segments(tx, annotation.id, annotation_segments)
 
         with self.__driver.session() as session:
             return session.execute_write(transaction_function)
@@ -365,6 +366,10 @@ class Neo4JDatabase:
         }
 
         with self.__driver.session() as session:
+            # Validate language filter against Neo4j if provided
+            if params.get("language"):
+                self.__validator.validate_language_code_exists(session, params["language"])
+
             result = session.run(Queries.expressions["fetch_all"], params)
             expressions = []
 
@@ -452,6 +457,8 @@ class Neo4JDatabase:
         work_id = generate_id()
         self.__validator.validate_expression_creation(tx, expression, work_id)
         base_lang_code = expression.language.split("-")[0].lower()
+        # Validate base language exists (single-query validator)
+        self.__validator.validate_language_code_exists(tx, base_lang_code)
         alt_titles_data = [alt_title.root for alt_title in expression.alt_titles] if expression.alt_titles else None
         expression_title_element_id = self._create_nomens(tx, expression.title.root, alt_titles_data)
 
@@ -515,10 +522,10 @@ class Neo4JDatabase:
 
         return expression_id
 
-    def _execute_create_manifestation(self, tx, manifestation: ManifestationModelInput, expression_id: str) -> str:
+    def _execute_create_manifestation(self, tx, manifestation: ManifestationModelInput, expression_id: str, manifestation_id: str) -> str:
         self.__validator.validate_expression_exists(tx, expression_id)
 
-        manifestation_id = generate_id()
+        # manifestation_id = generate_id()
 
         incipit_element_id = None
         if manifestation.incipit_title:
@@ -542,7 +549,7 @@ class Neo4JDatabase:
         if not result.single():
             raise DataNotFound(f"Expression '{expression_id}' not found")
 
-        return manifestation_id
+        # return manifestation_id
 
     def _execute_add_annotation(self, tx, manifestation_id: str, annotation: AnnotationModel) -> str:
         tx.run(

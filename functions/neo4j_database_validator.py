@@ -1,7 +1,9 @@
 import logging
 from typing import List
 
-from models import ExpressionModelInput, TextType
+from models import ExpressionModelInput, TextType, ManifestationType
+from exceptions import InvalidRequest
+from neo4j_queries import Queries
 
 logger = logging.getLogger(__name__)
 
@@ -101,4 +103,44 @@ class Neo4JDatabaseValidator:
             raise DataValidationError(
                 f"Expression {expression_id} does not exist. "
                 "Cannot create manifestation for non-existent expression."
+            )
+
+    def has_manifestation_of_type_for_expression_id(self, session, expression_id: str, type: ManifestationType) -> bool:
+
+        query = """
+        MATCH (e:Expression {id: $expression_id})
+        MATCH (m:Manifestation)-[:MANIFESTATION_OF]->(e)
+        MATCH (m)-[:HAS_TYPE]->(mt:ManifestationType {name: $type})
+        RETURN count(m) AS count
+        """
+
+        result = session.run(query, expression_id=expression_id, type=type.value)
+        record = result.single()
+
+        return bool(record and record.get("count", 0) > 0)
+
+    def validate_language_code_exists(self, session, language_code: str) -> None:
+        """Validate that a given base language code exists.
+
+        Uses a single query to both check existence and obtain the available codes.
+        Raises InvalidRequest with the available codes listed if not found.
+        """
+        if not language_code:
+            raise InvalidRequest("Language code is required")
+
+        record = session.run(
+            """
+            MATCH (l:Language)
+            WITH collect(toLower(l.code)) AS codes
+            RETURN toLower($code) IN codes AS exists, codes
+            """,
+            code=language_code.lower(),
+        ).single()
+
+        exists = bool(record and record.get("exists", False))
+        if not exists:
+            codes = record.get("codes", []) if record else []
+            available_str = ", ".join(codes) if codes else "<none>"
+            raise InvalidRequest(
+                f"Language '{language_code}' is not present in Neo4j. Available languages: {available_str}"
             )

@@ -3,11 +3,10 @@ import logging
 from exceptions import InvalidRequest
 from flask import Blueprint, Response, jsonify, request
 from identifier import generate_id
-from models import AnnotationModel, AnnotationType, ExpressionModelInput, InstanceRequestModel
+from models import AnnotationModel, AnnotationType, ExpressionModelInput, InstanceRequestModel, ManifestationType
 from neo4j_database import Neo4JDatabase
-from openpecha.pecha import Pecha
-from openpecha.pecha.annotations import SegmentationAnnotation
-from storage import Storage
+from storage import MockStorage
+from neo4j_database_validator import Neo4JDatabaseValidator
 
 texts_bp = Blueprint("texts", __name__)
 
@@ -78,23 +77,36 @@ def create_instance(expression_id: str) -> tuple[Response, int]:
 
     instance_request = InstanceRequestModel.model_validate(data)
 
-    annotation_id = generate_id()
+    
+    if instance_request.metadata.type == ManifestationType.CRITICAL:
+        session = Neo4JDatabase().get_session()
+        if Neo4JDatabaseValidator().has_manifestation_of_type_for_expression_id(session=session, expression_id=expression_id, type=ManifestationType.CRITICAL):
+            raise InvalidRequest("Critical manifestation already present for this expression")
 
-    pecha = Pecha.create_pecha(
-        pecha_id=expression_id,
-        base_text=instance_request.content,
-        annotation_id=annotation_id,
-        annotation=[SegmentationAnnotation.model_validate(a) for a in instance_request.annotation],
+    manifestation_id = generate_id()
+    MockStorage().store_base_text(
+        expression_id = expression_id, 
+        manifestation_id = manifestation_id, 
+        base_text = instance_request.content
     )
 
-    Storage().store_pecha(pecha)
-
-    annotation = AnnotationModel(id=annotation_id, type=AnnotationType.SEGMENTATION)
-    manifestation_id = Neo4JDatabase().create_manifestation(
-        manifestation=instance_request.metadata,
-        annotation=annotation,
-        annotation_segments=instance_request.annotation,
-        expression_id=expression_id,
-    )
+    if instance_request.annotation:
+        annotation_id = generate_id()
+        annotation = AnnotationModel(id=annotation_id, type=AnnotationType.SEGMENTATION)
+        Neo4JDatabase().create_manifestation(
+            manifestation=instance_request.metadata,
+            annotation=annotation,
+            annotation_segments=instance_request.annotation,
+            expression_id=expression_id,
+            manifestation_id=manifestation_id,
+        )
+    else:
+        Neo4JDatabase().create_manifestation(
+            manifestation=instance_request.metadata,
+            expression_id=expression_id,
+            annotation=None,
+            annotation_segments=None,
+            manifestation_id=manifestation_id,
+        )
 
     return jsonify({"message": "Instance created successfully", "id": manifestation_id}), 201
