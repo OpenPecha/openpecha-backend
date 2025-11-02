@@ -257,19 +257,19 @@ class Neo4JDatabase:
         self,
         manifestation: ManifestationModelInput,
         expression_id: str,
+        manifestation_id: str,
         annotation: AnnotationModel = None,
         annotation_segments: list[dict] = None,
-        expression: ExpressionModelInput = None,
-        manifestation_id: str = None,
+        expression: ExpressionModelInput = None
     ) -> str:
         def transaction_function(tx):
             if expression:
                 self._execute_create_expression(tx, expression, expression_id)
 
             self._execute_create_manifestation(tx, manifestation, expression_id, manifestation_id)
-            self._execute_add_annotation(tx, manifestation_id, annotation)
-            self._create_segments(tx, annotation.id, annotation_segments)
-            # return manifestation_id
+            if annotation:
+                self._execute_add_annotation(tx, manifestation_id, annotation)
+                self._create_segments(tx, annotation.id, annotation_segments)
 
         with self.__driver.session() as session:
             return session.execute_write(transaction_function)
