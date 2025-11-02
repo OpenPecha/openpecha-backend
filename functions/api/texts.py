@@ -84,7 +84,7 @@ def create_instance(expression_id: str) -> tuple[Response, int]:
             raise InvalidRequest("Critical manifestation already present for this expression")
 
     manifestation_id = generate_id()
-    MockStorage().store_pecha(
+    MockStorage().store_base_text(
         expression_id = expression_id, 
         manifestation_id = manifestation_id, 
         base_text = instance_request.content
