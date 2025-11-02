@@ -3,6 +3,8 @@ info:
   title: OpenPecha API v2
   version: '2.1.0'
 servers:
+  - url: http://127.0.0.1:5001/pecha-backend-dev/us-central1/api
+    description: Local Development
   - url: https://api-l25bgmwqoa-uc.a.run.app
     description: Development
   - url: https://api-aq25662yyq-uc.a.run.app
@@ -168,6 +170,7 @@ paths:
                                 type: string
                             language:
                               type: string
+                              enum: [en, bo, zh, sa]
                             contributions:
                               type: array
                               items:
@@ -243,6 +246,7 @@ paths:
                                 type: string
                             language:
                               type: string
+                              enum: [en, bo, zh, sa]
                             contributions:
                               type: array
                               items:
@@ -638,6 +642,7 @@ paths:
               properties:
                 language:
                   type: string
+                  enum: [en, bo, zh, sa]
                   description: Target language code
                 content:
                   type: string
@@ -753,6 +758,7 @@ paths:
               properties:
                 language:
                   type: string
+                  enum: [en, bo, zh, sa]
                   description: Language code for the commentary
                 content:
                   type: string
@@ -908,6 +914,7 @@ paths:
                           type: string
                     language:
                       type: string
+                      enum: [en, bo, zh, sa]
                     contributions:
                       type: array
                       items:
@@ -993,7 +1000,7 @@ paths:
                   description: Alternative localized titles
                 language:
                   type: string
-                  description: Primary language code
+                  enum: [en, bo, zh, sa]
                 contributions:
                   type: array
                   items:
@@ -1113,6 +1120,7 @@ paths:
                         type: string
                   language:
                     type: string
+                    enum: [en, bo, zh, sa]
                   contributions:
                     type: array
                     items:
