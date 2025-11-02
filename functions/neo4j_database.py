@@ -354,6 +354,10 @@ class Neo4JDatabase:
         }
 
         with self.__driver.session() as session:
+            # Validate language filter against Neo4j if provided
+            if params.get("language"):
+                self.__validator.validate_language_code_exists(session, params["language"])
+
             result = session.run(Queries.expressions["fetch_all"], params)
             expressions = []
 
@@ -441,6 +445,8 @@ class Neo4JDatabase:
         work_id = generate_id()
         self.__validator.validate_expression_creation(tx, expression, work_id)
         base_lang_code = expression.language.split("-")[0].lower()
+        # Validate base language exists (single-query validator)
+        self.__validator.validate_language_code_exists(tx, base_lang_code)
         alt_titles_data = [alt_title.root for alt_title in expression.alt_titles] if expression.alt_titles else None
         expression_title_element_id = self._create_nomens(tx, expression.title.root, alt_titles_data)
 
