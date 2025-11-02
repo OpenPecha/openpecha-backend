@@ -262,12 +262,6 @@ Queries.manifestations = {
 
     RETURN {Queries.manifestation_fragment('m')} AS manifestation, e.id AS expression_id
 """,
-    "exists_manifestation_by_type_under_expression": """
-    MATCH (e:Expression {id: $expression_id})
-    MATCH (m:Manifestation)-[:MANIFESTATION_OF]->(e)
-    MATCH (m)-[:HAS_TYPE]->(mt:ManifestationType {name: $type})
-    RETURN count(m) AS count
-""",
     "create": """
 MATCH (e:Expression {id: $expression_id})
 OPTIONAL MATCH (it:Nomen)

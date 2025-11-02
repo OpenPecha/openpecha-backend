@@ -256,8 +256,8 @@ class Neo4JDatabase:
     def create_manifestation(
         self,
         manifestation: ManifestationModelInput,
-        annotation: AnnotationModel,
         expression_id: str,
+        annotation: AnnotationModel = None,
         annotation_segments: list[dict] = None,
         expression: ExpressionModelInput = None,
         manifestation_id: str = None,
