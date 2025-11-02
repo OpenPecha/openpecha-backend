@@ -1,7 +1,8 @@
 import logging
 from typing import List
 
-from models import ExpressionModelInput, TextType
+from models import ExpressionModelInput, TextType, ManifestationType
+from neo4j_queries import Queries
 
 logger = logging.getLogger(__name__)
 
@@ -102,3 +103,17 @@ class Neo4JDatabaseValidator:
                 f"Expression {expression_id} does not exist. "
                 "Cannot create manifestation for non-existent expression."
             )
+
+    def has_manifestation_of_type_for_expression_id(self, session, expression_id: str, type: ManifestationType) -> bool:
+
+        query = """
+        MATCH (e:Expression {id: $expression_id})
+        MATCH (m:Manifestation)-[:MANIFESTATION_OF]->(e)
+        MATCH (m)-[:HAS_TYPE]->(mt:ManifestationType {name: $type})
+        RETURN count(m) AS count
+        """
+
+        result = session.run(query, expression_id=expression_id, type=type.value)
+        record = result.single()
+
+        return bool(record and record.get("count", 0) > 0)

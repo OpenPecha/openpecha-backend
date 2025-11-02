@@ -103,7 +103,7 @@ class MockStorage:
     def __init__(self) -> None:
         self.bucket = storage.bucket()
 
-    def store_pecha(self, expression_id: str, manifestation_id: str, base_text: str) -> str:
+    def store_text(self, expression_id: str, manifestation_id: str, base_text: str) -> str:
         # Write base_text to temp file for streaming upload
         temp_dir = Path(tempfile.gettempdir())
         temp_file = temp_dir / f"{expression_id}_{manifestation_id}.txt"
@@ -133,7 +133,7 @@ class MockStorage:
 
     @staticmethod
     def _base_text_path(expression_id: str, manifestation_id: str) -> str:
-        return f"opf/{expression_id}/{manifestation_id}.txt"
+        return f"base/{expression_id}/{manifestation_id}.txt"
 
     def _blob(self, path: str) -> Blob:
         blob = self.bucket.blob(path)

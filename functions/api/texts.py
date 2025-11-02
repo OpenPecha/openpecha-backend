@@ -5,9 +5,8 @@ from flask import Blueprint, Response, jsonify, request
 from identifier import generate_id
 from models import AnnotationModel, AnnotationType, ExpressionModelInput, InstanceRequestModel, ManifestationType
 from neo4j_database import Neo4JDatabase
-from openpecha.pecha import Pecha
-from openpecha.pecha.annotations import SegmentationAnnotation
 from storage import MockStorage
+from neo4j_database_validator import Neo4JDatabaseValidator
 
 texts_bp = Blueprint("texts", __name__)
 
@@ -78,8 +77,10 @@ def create_instance(expression_id: str) -> tuple[Response, int]:
 
     instance_request = InstanceRequestModel.model_validate(data)
 
+    
     if instance_request.metadata.type == ManifestationType.CRITICAL:
-        if Neo4JDatabase().has_manifestation_of_type_for_expression_id(expression_id=expression_id, type=ManifestationType.CRITICAL):
+        session = Neo4JDatabase().get_session()
+        if Neo4JDatabaseValidator().has_manifestation_of_type_for_expression_id(session=session, expression_id=expression_id, type=ManifestationType.CRITICAL):
             raise InvalidRequest("Critical manifestation already present for this expression")
 
     manifestation_id = generate_id()
