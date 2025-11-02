@@ -35,7 +35,8 @@ class Neo4JDatabaseValidator:
             raise DataValidationError("Language is required")
             
         query = """
-        MATCH (l:Language {bcp47_tag: $language})
+        MATCH (l:Language)
+        WHERE  l.code = $language
         RETURN count(l) as language_count
         """
 
@@ -43,9 +44,20 @@ class Neo4JDatabaseValidator:
         record = result.single()
 
         if not record or record["language_count"] == 0:
+            # Get all available language codes to show in error message
+            available_query = """
+            MATCH (l:Language)
+            RETURN l.code as code
+            ORDER BY code
+            """
+            available_result = session.run(available_query)
+            available_languages = [rec['code'] for rec in available_result if rec['code']]
+            
+            languages_list = ", ".join(available_languages) if available_languages else "No languages found in database"
+            
             raise DataValidationError(
-                f"Language '{language}' does not exist in the database. "
-                "Please use a valid BCP47 language code."
+                f"Language code '{language}' is not valid. Please use a valid BCP47 language code. "
+                f"Available language codes: {languages_list}"
             )
 
     def validate_person_references(self, session, person_ids: List[str]) -> None:
