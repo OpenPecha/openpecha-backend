@@ -29,6 +29,25 @@ class Neo4JDatabaseValidator:
                 "Only one original expression per work is allowed."
             )
 
+    def validate_language_exists(self, session, language: str) -> None:
+        """Validate that the language exists in Neo4j"""
+        if not language:
+            raise DataValidationError("Language is required")
+            
+        query = """
+        MATCH (l:Language {bcp47_tag: $language})
+        RETURN count(l) as language_count
+        """
+
+        result = session.run(query, language=language)
+        record = result.single()
+
+        if not record or record["language_count"] == 0:
+            raise DataValidationError(
+                f"Language '{language}' does not exist in the database. "
+                "Please use a valid BCP47 language code."
+            )
+
     def validate_person_references(self, session, person_ids: List[str]) -> None:
         if not person_ids:
             return
@@ -70,6 +89,9 @@ class Neo4JDatabaseValidator:
             raise DataValidationError(f"Referenced person BDRC IDs do not exist: {', '.join(missing_persons)}")
 
     def validate_expression_creation(self, session, expression: ExpressionModelInput, work_id: str) -> None:
+        # Validate language exists first
+        self.validate_language_exists(session, expression.language)
+        
         if expression.type == TextType.ROOT:
             self.validate_original_expression_uniqueness(session, work_id)
 

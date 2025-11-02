@@ -3,6 +3,8 @@ info:
   title: OpenPecha API v2
   version: '2.1.0'
 servers:
+  - url: http://127.0.0.1:5001/pecha-backend-dev/us-central1/api
+    description: Local Development
   - url: https://api-l25bgmwqoa-uc.a.run.app
     description: Development
   - url: https://api-aq25662yyq-uc.a.run.app
