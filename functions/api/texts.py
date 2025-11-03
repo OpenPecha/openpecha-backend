@@ -103,7 +103,7 @@ def create_instance(expression_id: str) -> tuple[Response, int]:
         Neo4JDatabase().create_manifestation(
             manifestation=instance_request.metadata,
             annotation=annotation,
-            annotation_segments=instance_request.annotation,
+            annotation_segments=[seg.model_dump() for seg in instance_request.annotation],
             expression_id=expression_id,
             manifestation_id=manifestation_id,
         )

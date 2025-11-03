@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, RootModel, StrictStr, StringConstraints, model_validator, field_validator, ValidationError as PydanticValidationError
+from pydantic import BaseModel, ConfigDict, Field, RootModel, StrictStr, StringConstraints, field_serializer, model_validator, field_validator, ValidationError as PydanticValidationError
 
 NonEmptyStr = Annotated[StrictStr, StringConstraints(min_length=1, strip_whitespace=True)]
 
