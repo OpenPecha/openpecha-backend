@@ -164,6 +164,12 @@ class ManifestationModelBase(OpenPechaModel):
             raise ValueError("alt_incipit_titles can only be set when incipit_title is also provided")
         return self
 
+    @model_validator(mode="after")
+    def validate_bdrc_as_per_manifestation_type(self):
+        if self.type == ManifestationType.CRITICAL and self.bdrc:
+            raise ValueError("When type is critical, bdrc should be provided")
+        return self
+
 
 class ManifestationModelInput(ManifestationModelBase):
     pass
@@ -231,7 +237,11 @@ class AlignedTextRequestModel(OpenPechaModel):
         return self
 
 
+class SegmentationAnnotationModel(OpenPechaModel):
+    span: SpanModel
+    index: int
+
 class InstanceRequestModel(OpenPechaModel):
     metadata: ManifestationModelInput
-    annotation: list[dict]
+    annotation: SegmentationAnnotationModel | None = None
     content: NonEmptyStr

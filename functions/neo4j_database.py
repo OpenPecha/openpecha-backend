@@ -267,8 +267,9 @@ class Neo4JDatabase:
                 self._execute_create_expression(tx, expression, expression_id)
 
             self._execute_create_manifestation(tx, manifestation, expression_id, manifestation_id)
-            self._execute_add_annotation(tx, manifestation_id, annotation)
-            self._create_segments(tx, annotation.id, annotation_segments)
+            if annotation:
+                self._execute_add_annotation(tx, manifestation_id, annotation)
+                self._create_segments(tx, annotation.id, annotation_segments)
             # return manifestation_id
 
         with self.__driver.session() as session:

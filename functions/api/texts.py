@@ -3,7 +3,14 @@ import logging
 from exceptions import InvalidRequest
 from flask import Blueprint, Response, jsonify, request
 from identifier import generate_id
-from models import AnnotationModel, AnnotationType, ExpressionModelInput, InstanceRequestModel, ManifestationType
+from models import (
+    AnnotationModel, 
+    AnnotationType, 
+    ExpressionModelInput, 
+    InstanceRequestModel, 
+    ManifestationType,
+    SegmentationAnnotationModel
+)
 from neo4j_database import Neo4JDatabase
 from storage import MockStorage
 from neo4j_database_validator import Neo4JDatabaseValidator
