@@ -199,6 +199,18 @@ class Neo4JDatabase:
                 },
             }
 
+    def get_segment(self, segment_id: str) -> tuple[SegmentModel, str, str]:
+        with self.__driver.session() as session:
+            result = session.execute_read(lambda tx: tx.run(Queries.segments["get_by_id"], segment_id=segment_id))
+            record = result.single()
+
+            if not record:
+                raise DataNotFound(f"Segment with ID {segment_id} not found")
+
+            data = record.data()
+            segment = SegmentModel(id=data["segment_id"], span=(data["span_start"], data["span_end"]))
+            return segment, data["manifestation_id"], data["expression_id"]
+
     def get_all_persons(self, offset: int = 0, limit: int = 20) -> list[PersonModelOutput]:
         params = {
             "offset": offset,
@@ -257,10 +269,10 @@ class Neo4JDatabase:
         self,
         manifestation: ManifestationModelInput,
         expression_id: str,
+        manifestation_id: str,
         annotation: AnnotationModel = None,
         annotation_segments: list[dict] = None,
-        expression: ExpressionModelInput = None,
-        manifestation_id: str = None,
+        expression: ExpressionModelInput = None
     ) -> str:
         def transaction_function(tx):
             if expression:
@@ -270,7 +282,6 @@ class Neo4JDatabase:
             if annotation:
                 self._execute_add_annotation(tx, manifestation_id, annotation)
                 self._create_segments(tx, annotation.id, annotation_segments)
-            # return manifestation_id
 
         with self.__driver.session() as session:
             return session.execute_write(transaction_function)
