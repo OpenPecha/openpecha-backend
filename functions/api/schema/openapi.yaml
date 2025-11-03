@@ -441,7 +441,7 @@ paths:
                       type: string
                     type:
                       type: string
-                      enum: [diplomatic, critical, collated]
+                      enum: [diplomatic, critical]
                     copyright:
                       type: string
                       enum: [public, copyrighted]
@@ -553,7 +553,7 @@ paths:
                   properties:
                     type:
                       type: string
-                      enum: [diplomatic, critical, collated]
+                      enum: [diplomatic, critical]
                       description: Type of manifestation
                     copyright:
                       type: string
