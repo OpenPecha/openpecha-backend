@@ -61,9 +61,9 @@ def create_app(testing=False):
         app.logger.error("Full traceback:\n%s", traceback.format_exc())
 
         if isinstance(e, ValidationError):
-            # for some reason if ctx is in the error dict, it will break the response, we need to remove it
-            errors = [{k: v for k, v in err.items() if k != "ctx"} for err in e.errors()]
-            return jsonify({"error": "Validation error", "details": errors}), 422
+            # Return concise messages from Pydantic validation errors
+            messages = [err.get("msg", "Invalid input") for err in e.errors()]
+            return jsonify({"error": messages[0] if len(messages) == 1 else messages}), 422
         if isinstance(e, NotImplementedError):
             return jsonify({"error": str(e)}), 501
         if isinstance(e, OpenPechaException):
