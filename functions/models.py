@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, RootModel, StrictStr, StringConstraints, model_validator
+from pydantic import BaseModel, ConfigDict, Field, RootModel, StrictStr, StringConstraints, model_validator, field_validator, ValidationError as PydanticValidationError
 
 NonEmptyStr = Annotated[StrictStr, StringConstraints(min_length=1, strip_whitespace=True)]
 
@@ -251,6 +251,8 @@ class InstanceRequestModel(OpenPechaModel):
     @model_validator(mode="after")
     def validate_annotation(self):
         if self.annotation is not None:
+            if not isinstance(self.annotation, (SegmentationAnnotationModel, PaginationAnnotationModel)):
+                raise PydanticValidationError("Annotation must be a segmentation or pagination annotation")
             if self.metadata.type is ManifestationType.CRITICAL and not isinstance(self.annotation, SegmentationAnnotationModel):
                 raise ValueError("Given manifestation type is critical, but provided annotation provided is not a segmentation annotation")
             elif self.metadata.type is ManifestationType.DIPLOMATIC and not isinstance(self.annotation, PaginationAnnotationModel):
