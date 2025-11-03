@@ -63,11 +63,11 @@ class Neo4JDatabase:
 
             expression = record.data()["expression"]
             expression_type = TextType(expression.get("type"))
-            parent = expression.get("parent")
+            target = expression.get("target")
 
             # Convert None to "N/A" for standalone translations/commentaries
-            if expression_type in [TextType.TRANSLATION, TextType.COMMENTARY] and parent is None:
-                parent = "N/A"
+            if expression_type in [TextType.TRANSLATION, TextType.COMMENTARY] and target is None:
+                target = "N/A"
 
             return ExpressionModelOutput(
                 id=expression.get("id"),
@@ -79,7 +79,7 @@ class Neo4JDatabase:
                 title=self.__convert_to_localized_text(expression.get("title")),
                 alt_titles=[self.__convert_to_localized_text(alt) for alt in expression.get("alt_titles")],
                 language=expression.get("language"),
-                parent=parent,
+                target=target,
             )
 
     def _process_manifestation_data(self, manifestation_data: dict) -> ManifestationModelOutput:
@@ -315,8 +315,8 @@ class Neo4JDatabase:
         expression_id: str,
         manifestation: ManifestationModelInput,
         target_manifestation_id: str,
-        annotation: AnnotationModel,
-        annotation_segments: list[dict],
+        segmentation: AnnotationModel,
+        segmentation_segments: list[dict],
         alignment_annotation: AnnotationModel,
         alignment_segments: list[dict],
         target_annotation: AnnotationModel,
@@ -327,8 +327,8 @@ class Neo4JDatabase:
             _ = self._execute_create_expression(tx, expression, expression_id)
             manifestation_id = self._execute_create_manifestation(tx, manifestation, expression_id)
 
-            _ = self._execute_add_annotation(tx, manifestation_id, annotation)
-            self._create_segments(tx, annotation.id, annotation_segments)
+            _ = self._execute_add_annotation(tx, manifestation_id, segmentation)
+            self._create_segments(tx, segmentation.id, segmentation_segments)
 
             _ = self._execute_add_annotation(tx, manifestation_id, alignment_annotation)
             self._create_segments(tx, alignment_annotation.id, alignment_segments)
@@ -404,7 +404,7 @@ class Neo4JDatabase:
 
             for record in result:
                 expression_data = record.data()["expression"]
-                parent = expression_data["parent"]
+                target = expression_data["target"]
 
                 expression_type = expression_data["type"]
                 if expression_type is None:
@@ -413,8 +413,8 @@ class Neo4JDatabase:
                 text_type = TextType(expression_type)
 
                 # Convert None to "N/A" for standalone translations/commentaries
-                if text_type in [TextType.TRANSLATION, TextType.COMMENTARY] and parent is None:
-                    parent = "N/A"
+                if text_type in [TextType.TRANSLATION, TextType.COMMENTARY] and target is None:
+                    target = "N/A"
 
                 expression = ExpressionModelOutput(
                     id=expression_data["id"],
@@ -426,7 +426,7 @@ class Neo4JDatabase:
                     title=self.__convert_to_localized_text(expression_data["title"]),
                     alt_titles=[self.__convert_to_localized_text(alt) for alt in expression_data["alt_titles"]],
                     language=expression_data["language"],
-                    parent=parent,
+                    target=target,
                 )
                 expressions.append(expression)
 
@@ -476,12 +476,12 @@ class Neo4JDatabase:
     def _execute_create_expression(self, tx, expression: ExpressionModelInput, expression_id: str | None = None) -> str:
         # TODO: move the validation based on language to the database validator
         expression_id = expression_id or generate_id()
-        parent_id = expression.parent if expression.parent != "N/A" else None
-        if parent_id and expression.type == TextType.TRANSLATION:
-            result = tx.run(Queries.expressions["fetch_by_id"], id=parent_id).single()
-            parent_language = result.data()["expression"]["language"] if result else None
-            if parent_language == expression.language:
-                raise ValueError("Translation must have a different language than the parent expression")
+        target_id = expression.target if expression.target != "N/A" else None
+        if target_id and expression.type == TextType.TRANSLATION:
+            result = tx.run(Queries.expressions["fetch_by_id"], id=target_id).single()
+            target_language = result.data()["expression"]["language"] if result else None
+            if target_language == expression.language:
+                raise ValueError("Translation must have a different language than the target expression")
 
         work_id = generate_id()
         self.__validator.validate_expression_creation(tx, expression, work_id)
@@ -499,20 +499,20 @@ class Neo4JDatabase:
             "language_code": base_lang_code,
             "bcp47_tag": expression.language,
             "title_nomen_element_id": expression_title_element_id,
-            "parent_id": parent_id,
+            "target_id": target_id,
         }
 
         match expression.type:
             case TextType.ROOT:
                 tx.run(Queries.expressions["create_standalone"], work_id=work_id, original=True, **common_params)
             case TextType.TRANSLATION:
-                if expression.parent == "N/A":
+                if expression.target == "N/A":
                     tx.run(Queries.expressions["create_standalone"], work_id=work_id, original=False, **common_params)
                 else:
                     tx.run(Queries.expressions["create_translation"], **common_params)
             case TextType.COMMENTARY:
-                if expression.parent == "N/A":
-                    raise NotImplementedError("Standalone COMMENTARY texts (parent='N/A') are not yet supported")
+                if expression.target == "N/A":
+                    raise NotImplementedError("Standalone COMMENTARY texts (target='N/A') are not yet supported")
                 tx.run(Queries.expressions["create_commentary"], work_id=work_id, **common_params)
 
         for contribution in expression.contributions:

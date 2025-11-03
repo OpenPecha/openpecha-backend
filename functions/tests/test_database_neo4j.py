@@ -324,7 +324,7 @@ class TestDatabaseNeo4j:
             alt_titles=[LocalizedString({"bo": "པདྨ་དཀར་པོའི་མདོ།", "en": "White Lotus Sutra"})],
             language="bo",  # Simple language code
             contributions=[ContributionModel(person_id=person_id, role=ContributorRole.AUTHOR)],
-            parent=None,  # Ignored for ROOT
+            target=None,  # Ignored for ROOT
         )
 
         # Create the expression
@@ -557,7 +557,7 @@ class TestDatabaseNeo4j:
             type=TextType.TRANSLATION,
             title=LocalizedString({"bo": "བསྒྱུར་བ།"}),
             language="bo",
-            parent=root_expression_id,  # Link to parent
+            target=root_expression_id,  # Link to parent
             contributions=[ContributionModel(person_id=translator_id, role=ContributorRole.TRANSLATOR)],
         )
 
@@ -572,8 +572,8 @@ class TestDatabaseNeo4j:
         assert len(retrieved.contributions) == 1
         assert retrieved.contributions[0].role == ContributorRole.TRANSLATOR
 
-    def test_create_commentary_expression_missing_parent(self, test_database):
-        """Test that creating commentary expression without parent fails validation"""
+    def test_create_commentary_expression_missing_target(self, test_database):
+        """Test that creating commentary expression without target fails validation"""
         # Create a person for the contribution
         person = PersonModelInput(
             name=LocalizedString({"en": "Translator"}),
@@ -581,47 +581,47 @@ class TestDatabaseNeo4j:
         person_id = test_database.create_person(person)
 
         # Try to create translation without parent - should fail validation
-        with pytest.raises(ValueError, match="When type is 'commentary', parent must be provided"):
+        with pytest.raises(ValueError, match="When type is 'commentary', target must be provided"):
             ExpressionModelInput(
                 type=TextType.COMMENTARY,
                 title=LocalizedString({"bo": "བསྒྱུར་བ།"}),
                 language="bo",
-                parent=None,  # Missing parent
+                target=None,  # Missing target
                 contributions=[ContributionModel(person_id=person_id, role=ContributorRole.TRANSLATOR)],
             )
 
-    def test_create_root_expression_with_parent_fails(self, test_database):
-        """Test that creating root expression with parent fails validation"""
+    def test_create_root_expression_with_target_fails(self, test_database):
+        """Test that creating root expression with target fails validation"""
         # Create a person for the contribution
         person = PersonModelInput(
             name=LocalizedString({"en": "Author"}),
         )
         person_id = test_database.create_person(person)
 
-        # Try to create root with parent - should fail validation
-        with pytest.raises(ValueError, match="When type is 'root', parent must be None"):
+        # Try to create root with target - should fail validation
+        with pytest.raises(ValueError, match="When type is 'root', target must be None"):
             ExpressionModelInput(
                 type=TextType.ROOT,
                 title=LocalizedString({"en": "Root Text"}),
                 language="en",
-                parent="some-parent-id",  # Should be None for root
+                target="some-target-id",  # Should be None for root
                 contributions=[ContributionModel(person_id=person_id, role=ContributorRole.AUTHOR)],
             )
 
-    def test_create_translation_expression_nonexistent_parent(self, test_database):
-        """Test that creating translation with non-existent parent fails"""
+    def test_create_translation_expression_nonexistent_target(self, test_database):
+        """Test that creating translation with non-existent target fails"""
         # Create a person for the contribution
         person = PersonModelInput(
             name=LocalizedString({"en": "Translator"}),
         )
         person_id = test_database.create_person(person)
 
-        # Create translation with non-existent parent
+        # Create translation with non-existent target
         translation_expression = ExpressionModelInput(
             type=TextType.TRANSLATION,
             title=LocalizedString({"bo": "བསྒྱུར་བ།"}),
             language="bo",
-            parent="nonexistent-parent-id",
+            target="nonexistent-target-id",
             contributions=[ContributionModel(person_id=person_id, role=ContributorRole.TRANSLATOR)],
         )
 
@@ -656,7 +656,7 @@ class TestDatabaseNeo4j:
             type=TextType.COMMENTARY,
             title=LocalizedString({"bo": "འགྲེལ་པ།"}),
             language="bo",
-            parent=root_expression_id,  # Link to parent
+            target=root_expression_id,  # Link to parent
             contributions=[ContributionModel(person_id=commentator_id, role=ContributorRole.AUTHOR)],
         )
 
@@ -666,7 +666,7 @@ class TestDatabaseNeo4j:
         # Verify the commentary was created correctly
         assert retrieved.id == commentary_id
         assert retrieved.type == TextType.COMMENTARY
-        assert retrieved.parent == root_expression_id
+        assert retrieved.target == root_expression_id
         assert retrieved.bdrc is None
         assert retrieved.wiki is None
         assert retrieved.date is None
@@ -676,30 +676,30 @@ class TestDatabaseNeo4j:
         assert retrieved.contributions[0].person_id == commentator_id
         assert retrieved.contributions[0].role == ContributorRole.AUTHOR
 
-    def test_create_commentary_expression_nonexistent_parent(self, test_database):
-        """Test that creating commentary with non-existent parent fails"""
+    def test_create_commentary_expression_nonexistent_target(self, test_database):
+        """Test that creating commentary with non-existent target fails"""
         # Create a person for the contribution
         person = PersonModelInput(
             name=LocalizedString({"en": "Commentator"}),
         )
         person_id = test_database.create_person(person)
 
-        # Create commentary expression with non-existent parent
+        # Create commentary expression with non-existent target
         commentary_expression = ExpressionModelInput(
             type=TextType.COMMENTARY,
             title=LocalizedString({"bo": "འགྲེལ་པ།"}),
             language="bo",
-            parent="nonexistent-parent-id",
+            target="nonexistent-target-id",
             contributions=[ContributionModel(person_id=person_id, role=ContributorRole.AUTHOR)],
         )
 
         # Should fail when trying to create in database
-        with pytest.raises(Exception):  # Neo4j will throw an exception for missing parent
+        with pytest.raises(Exception):  # Neo4j will throw an exception for missing target
             test_database.create_expression(commentary_expression)
 
     def test_create_commentary_expression_with_multiple_contributions(self, test_database):
         """Test creating commentary expression with multiple contributors"""
-        # Create parent expression
+        # Create target expression
         author = PersonModelInput(
             name=LocalizedString({"en": "Original Author"}),
         )
@@ -729,7 +729,7 @@ class TestDatabaseNeo4j:
             type=TextType.COMMENTARY,
             title=LocalizedString({"bo": "འགྲེལ་པ།"}),
             language="bo",
-            parent=root_expression_id,
+            target=root_expression_id,
             contributions=[
                 ContributionModel(person_id=commentator_id, role=ContributorRole.AUTHOR),
                 ContributionModel(person_id=reviser_id, role=ContributorRole.REVISER),
@@ -790,7 +790,7 @@ class TestDatabaseNeo4j:
             type=TextType.TRANSLATION,
             title=LocalizedString({"bo": "འགྱུར་བ།"}),
             language="bo",
-            parent=root_id,
+            target=root_id,
             contributions=[ContributionModel(person_id=person_id, role=ContributorRole.TRANSLATOR)],
         )
         translation_id = test_database.create_expression(translation_expression)
@@ -802,7 +802,7 @@ class TestDatabaseNeo4j:
             type=TextType.COMMENTARY,
             title=LocalizedString({"bo": "འགྲེལ་པ།"}),
             language="bo",
-            parent=root_id,
+            target=root_id,
             contributions=[ContributionModel(person_id=person_id, role=ContributorRole.AUTHOR)],
         )
         commentary_id = test_database.create_expression(commentary_expression)

@@ -603,7 +603,7 @@ class TestInstancesV2Endpoints:
             language="en",  # Different language for translation
             type=TextType.TRANSLATION,
             contributions=[{"person_id": person_id, "role": "translator"}],
-            parent=source_expression_id,
+            target=source_expression_id,
         )
         target_expression_id = test_database.create_expression(target_expression_data)
 

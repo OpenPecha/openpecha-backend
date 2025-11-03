@@ -192,7 +192,7 @@ class TestGetAllTextsV2:
             "type": "translation",
             "title": {"en": "Translation Expression", "bo": "སྒྱུར་བའི་ཚིག་སྒྲུབ།"},
             "language": "bo",
-            "parent": root_id,
+            "target": root_id,
             "contributions": [{"person_id": person_id, "role": "translator"}],
         }
         translation_expression = ExpressionModelInput.model_validate(translation_data)
@@ -283,7 +283,7 @@ class TestGetAllTextsV2:
             "type": "translation",
             "title": {"bo": "སྒྱུར་བའི་ཚིག་སྒྲུབ།"},
             "language": "bo",
-            "parent": root_id,
+            "target": root_id,
             "contributions": [{"person_id": person_id, "role": "translator"}],
         }
         translation_expression = ExpressionModelInput.model_validate(translation_data)
@@ -400,31 +400,31 @@ class TestGetSingleTextV2:
         assert data["wiki"] == "Q789012"
         assert len(data["contributions"]) == 1
         assert data["contributions"][0]["role"] == "author"
-        assert data["parent"] is None
+        assert data["target"] is None
 
     def test_get_single_metadata_translation_expression(self, client, test_database, test_person_data):
-        """Test retrieving TRANSLATION expression with parent relationship"""
+        """Test retrieving TRANSLATION expression with target relationship"""
 
         # Create test person
         person = PersonModelInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
-        # Create parent ROOT expression
+        # Create target ROOT expression
         root_data = {
             "type": "root",
-            "title": {"en": "Parent Root Expression"},
+            "title": {"en": "Target Root Expression"},
             "language": "en",
             "contributions": [{"person_id": person_id, "role": "author"}],
         }
         root_expression = ExpressionModelInput.model_validate(root_data)
-        parent_id = test_database.create_expression(root_expression)
+        target_id = test_database.create_expression(root_expression)
 
         # Create TRANSLATION expression
         translation_data = {
             "type": "translation",
             "title": {"bo": "སྒྱུར་བའི་ཚིག་སྒྲུབ།", "en": "Translation Expression"},
             "language": "bo",
-            "parent": parent_id,
+            "target": target_id,
             "contributions": [{"person_id": person_id, "role": "translator"}],
         }
         translation_expression = ExpressionModelInput.model_validate(translation_data)
@@ -435,7 +435,7 @@ class TestGetSingleTextV2:
         assert response.status_code == 200
         data = json.loads(response.data)
         assert data["type"] == "translation"
-        assert data["parent"] == parent_id
+        assert data["target"] == target_id
         assert data["language"] == "bo"
         assert data["contributions"][0]["role"] == "translator"
 
@@ -481,7 +481,7 @@ class TestPostTextV2:
         verify_data = json.loads(verify_response.data)
         assert verify_data["type"] == "root"
         assert verify_data["title"]["en"] == "New Root Expression"
-        assert verify_data["parent"] is None
+        assert verify_data["target"] is None
 
     def test_create_expression_missing_json(self, client):
         """Test POST with no JSON data"""
@@ -523,13 +523,13 @@ class TestPostTextV2:
         data = json.loads(response.data)
         assert "error" in data
 
-    def test_create_root_expression_with_parent_fails(self, client):
-        """Test that ROOT expression with parent fails validation"""
+    def test_create_root_expression_with_target_fails(self, client):
+        """Test that ROOT expression with target fails validation"""
         expression_data = {
             "type": "root",
             "title": {"en": "Test"},
             "language": "en",
-            "parent": "some_parent_id",
+            "target": "some_target_id",
             "contributions": [],
         }
 
@@ -538,10 +538,10 @@ class TestPostTextV2:
         assert response.status_code == 422  # Proper validation error status
         data = json.loads(response.data)
         assert "error" in data
-        assert "parent must be None" in data["details"][0]["msg"]
+        assert "target must be None" in data["details"][0]["msg"]
 
-    def test_create_commentary_without_parent_fails(self, client):
-        """Test that COMMENTARY expression without parent fails validation"""
+    def test_create_commentary_without_target_fails(self, client):
+        """Test that COMMENTARY expression without target fails validation"""
         expression_data = {
             "type": "commentary",
             "title": {"en": "Test Commentary"},
@@ -554,10 +554,10 @@ class TestPostTextV2:
         assert response.status_code == 422  # Proper validation error status
         data = json.loads(response.data)
         assert "error" in data
-        assert "parent must be provided" in data["details"][0]["msg"]
+        assert "target must be provided" in data["details"][0]["msg"]
 
-    def test_create_translation_without_parent_fails(self, client):
-        """Test that TRANSLATION expression without parent fails validation"""
+    def test_create_translation_without_target_fails(self, client):
+        """Test that TRANSLATION expression without target fails validation"""
         expression_data = {
             "type": "translation",
             "title": {"en": "Test Translation"},
@@ -570,10 +570,10 @@ class TestPostTextV2:
         assert response.status_code == 422  # Proper validation error status
         data = json.loads(response.data)
         assert "error" in data
-        assert "parent must be provided" in data["details"][0]["msg"]
+        assert "target must be provided" in data["details"][0]["msg"]
 
-    def test_create_standalone_commentary_with_na_parent_not_implemented(self, client, test_database, test_person_data):
-        """Test that standalone COMMENTARY with parent='N/A' returns Not Implemented error"""
+    def test_create_standalone_commentary_with_na_target_not_implemented(self, client, test_database, test_person_data):
+        """Test that standalone COMMENTARY with target='N/A' returns Not Implemented error"""
         # Create test person first
         person = PersonModelInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
@@ -583,7 +583,7 @@ class TestPostTextV2:
             "type": "commentary",
             "title": {"en": "Standalone Commentary", "bo": "མཆན་འགྲེལ་རང་དབང་།"},
             "language": "en",
-            "parent": "N/A",
+            "target": "N/A",
             "contributions": [{"person_id": person_id, "role": "author"}],
         }
 
@@ -594,8 +594,8 @@ class TestPostTextV2:
         assert "error" in data
         assert "not yet supported" in data["error"].lower()
 
-    def test_create_standalone_translation_with_na_parent_success(self, client, test_person_data, test_database):
-        """Test successfully creating a standalone TRANSLATION with parent='N/A'"""
+    def test_create_standalone_translation_with_na_target_success(self, client, test_person_data, test_database):
+        """Test successfully creating a standalone TRANSLATION with target='N/A'"""
         # Create test person first
         person = PersonModelInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
@@ -605,7 +605,7 @@ class TestPostTextV2:
             "type": "translation",
             "title": {"en": "Standalone Translation", "bo": "སྒྱུར་བ་རང་དབང་།"},
             "language": "bo",
-            "parent": "N/A",
+            "target": "N/A",
             "contributions": [{"person_id": person_id, "role": "translator"}],
         }
 
@@ -624,6 +624,5 @@ class TestPostTextV2:
         verify_data = json.loads(verify_response.data)
         assert verify_data["type"] == "translation"
         assert verify_data["title"]["en"] == "Standalone Translation"
-        # Standalone commentaries/translations return parent as "N/A"
-        assert verify_data["parent"] == "N/A"
-
+        # Standalone commentaries/translations return target as "N/A"
+        assert verify_data["target"] == "N/A"
