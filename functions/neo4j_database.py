@@ -5,6 +5,7 @@ from exceptions import DataNotFound
 from identifier import generate_id
 from models import (
     AIContributionModel,
+    AnnotationDetailModel,
     AnnotationModel,
     AnnotationType,
     ContributionModel,
@@ -144,6 +145,35 @@ class Neo4JDatabase:
             d = record.data()
             return self._process_manifestation_data(d["manifestation"]), d["expression_id"]
 
+    def get_annotation(self, annotation_id: str) -> AnnotationDetailModel:
+        with self.__driver.session() as session:
+            result = session.run(Queries.annotations["fetch_by_id"], annotation_id=annotation_id)
+            
+            if (record := result.single()) is None:
+                raise DataNotFound(f"Annotation with ID '{annotation_id}' not found")
+            
+            data = record.data()
+            
+            # Build segment models from query data
+            segments = [
+                SegmentModel(
+                    id=seg_data["id"],
+                    span=SpanModel(
+                        start=seg_data["span_start"],
+                        end=seg_data["span_end"]
+                    ),
+                    reference=seg_data["reference"]
+                )
+                for seg_data in data.get("segments", [])
+            ]
+            
+            return AnnotationDetailModel(
+                id=data["id"],
+                type=AnnotationType(data["type"]),
+                aligned_to=data.get("aligned_to"),
+                segments=segments,
+            )
+
     def find_segments_by_span(self, manifestation_id: str, span: SpanModel) -> list[SegmentModel]:
         with self.__driver.session() as session:
             result = session.execute_read(
@@ -160,7 +190,7 @@ class Neo4JDatabase:
             return [
                 SegmentModel(
                     id=data["segment_id"],
-                    span=(data["span_start"], data["span_end"]),
+                    span=SpanModel(start=data["span_start"], end=data["span_end"]),
                 )
                 for record in result
                 for data in [record.data()]
@@ -185,14 +215,20 @@ class Neo4JDatabase:
             return {
                 "targets": {
                     record["manifestation_id"]: [
-                        SegmentModel(id=seg["segment_id"], span=(seg["span_start"], seg["span_end"]))
+                        SegmentModel(
+                            id=seg["segment_id"],
+                            span=SpanModel(start=seg["span_start"], end=seg["span_end"])
+                        )
                         for seg in record["segments"]
                     ]
                     for record in targets_result
                 },
                 "sources": {
                     record["manifestation_id"]: [
-                        SegmentModel(id=seg["segment_id"], span=(seg["span_start"], seg["span_end"]))
+                        SegmentModel(
+                            id=seg["segment_id"],
+                            span=SpanModel(start=seg["span_start"], end=seg["span_end"])
+                        )
                         for seg in record["segments"]
                     ]
                     for record in sources_result
@@ -208,7 +244,10 @@ class Neo4JDatabase:
                 raise DataNotFound(f"Segment with ID {segment_id} not found")
 
             data = record.data()
-            segment = SegmentModel(id=data["segment_id"], span=(data["span_start"], data["span_end"]))
+            segment = SegmentModel(
+                id=data["segment_id"],
+                span=SpanModel(start=data["span_start"], end=data["span_end"]),
+            )
             return segment, data["manifestation_id"], data["expression_id"]
 
     def get_all_persons(self, offset: int = 0, limit: int = 20) -> list[PersonModelOutput]:
@@ -568,3 +607,4 @@ class Neo4JDatabase:
                 annotation_id=annotation_id,
                 segments=segments,
             )
+

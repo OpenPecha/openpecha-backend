@@ -287,6 +287,23 @@ RETURN m.id AS manifestation_id
 }
 
 Queries.annotations = {
+    "fetch_by_id": """
+MATCH (a:Annotation {id: $annotation_id})
+MATCH (a)-[:HAS_TYPE]->(at:AnnotationType)
+MATCH (a)-[:ANNOTATION_OF]->(m:Manifestation)
+OPTIONAL MATCH (a)-[:ALIGNED_TO]->(target:Annotation)
+OPTIONAL MATCH (seg:Segment)-[:SEGMENTATION_OF]->(a)
+RETURN a.id AS id,
+       at.name AS type,
+       target.id AS aligned_to,
+       m.id AS manifestation_id,
+       collect(DISTINCT {
+           id: seg.id,
+           span_start: seg.span_start,
+           span_end: seg.span_end,
+           reference: seg.reference
+       }) AS segments
+""",
     "create": """
 MATCH (m:Manifestation {id: $manifestation_id})
 MERGE (at:AnnotationType {name: $type})

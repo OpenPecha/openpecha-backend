@@ -126,6 +126,9 @@ nodes:
       span_end:
         type: integer
         required: true
+      reference:
+        type: string
+        required: false
     relationships:
       SEGMENTATION_OF:
         target: Annotation

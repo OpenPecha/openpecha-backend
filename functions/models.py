@@ -106,8 +106,23 @@ class SpanModel(OpenPechaModel):
 
 
 class SegmentModel(OpenPechaModel):
+    id: str | None = None
+    span: SpanModel  # Required
+    reference: str | None = None  # Optional
+
+
+class AnnotationDetailModel(OpenPechaModel):
+    """Annotation model with detailed segment information"""
     id: str
-    span: SpanModel
+    type: AnnotationType
+    aligned_to: str | None = None
+    segments: list[SegmentModel] = []
+
+    @model_validator(mode="after")
+    def validate_aligned_to(self):
+        if self.aligned_to is not None and self.type != AnnotationType.ALIGNMENT:
+            raise ValueError("aligned_to can only be set when annotation type is ALIGNMENT")
+        return self
 
 
 class ExpressionModelBase(OpenPechaModel):

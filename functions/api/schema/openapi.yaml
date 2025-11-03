@@ -1431,6 +1431,97 @@ paths:
         "500":
           $ref: '#/components/responses/ServerError'
 
+  /v2/annotations/{annotation_id}:
+    get:
+      summary: Retrieve annotation by ID
+      description: Fetch a specific annotation by its ID including all segments with their spans and references
+      tags:
+        - Annotations
+      parameters:
+        - name: annotation_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the annotation to retrieve
+      responses:
+        "200":
+          description: Annotation retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    description: The annotation ID
+                  type:
+                    type: string
+                    enum: [segmentation, alignment, version]
+                    description: Type of the annotation
+                  aligned_to:
+                    type: string
+                    nullable: true
+                    description: ID of the annotation this annotation is aligned to (only for alignment type)
+                  segments:
+                    type: array
+                    description: List of segments belonging to this annotation
+                    items:
+                      type: object
+                      required:
+                        - span
+                      properties:
+                        id:
+                          type: string
+                          nullable: true
+                          description: Segment ID
+                        span:
+                          type: object
+                          description: Character span of the segment
+                          required:
+                            - start
+                            - end
+                          properties:
+                            start:
+                              type: integer
+                              description: Start character position 
+                            end:
+                              type: integer
+                              description: End character position
+              examples:
+                segmentation:
+                  summary: Segmentation annotation with segments
+                  value:
+                    id: "A12345678"
+                    type: "segmentation"
+                    aligned_to: null
+                    segments:
+                      - id: "SEG001"
+                        span:
+                          start: 0
+                          end: 20
+                      - id: "SEG002"
+                        span:
+                          start: 20
+                          end: 45
+                alignment:
+                  summary: Alignment annotation with segments
+                  value:
+                    id: "A87654321"
+                    type: "alignment"
+                    aligned_to: "A12345678"
+                    segments:
+                      - id: "SEG003"
+                        span:
+                          start: 0
+                          end: 25
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
   /v2/segments/{segment_id}/related:
     get:
       summary: Find related texts for a segment
@@ -1494,12 +1585,19 @@ paths:
                           description: List of aligned segments with their IDs and spans
                           items:
                             type: object
+                            required:
+                              - span
                             properties:
                               id:
                                 type: string
+                                nullable: true
                                 description: Segment ID
                               span:
                                 type: object
+                                description: Character span
+                                required:
+                                  - start
+                                  - end
                                 properties:
                                   start:
                                     type: integer
@@ -1549,12 +1647,19 @@ paths:
                           description: List of aligned segments with their IDs and spans
                           items:
                             type: object
+                            required:
+                              - span
                             properties:
                               id:
                                 type: string
+                                nullable: true
                                 description: Segment ID
                               span:
                                 type: object
+                                description: Character span
+                                required:
+                                  - start
+                                  - end
                                 properties:
                                   start:
                                     type: integer
