@@ -135,6 +135,7 @@ class Neo4JDatabase:
 
     def process_manifestation_metadata(self, manifestation_data: dict) -> ManifestationModelBase:
         return ManifestationModelBase(
+            id=manifestation_data.get("id"),
             bdrc=manifestation_data.get("bdrc"),
             wiki=manifestation_data.get("wiki"),
             type=ManifestationType(manifestation_data["type"]),
