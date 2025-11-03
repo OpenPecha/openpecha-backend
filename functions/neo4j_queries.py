@@ -328,7 +328,8 @@ UNWIND $segments AS seg
 CREATE (s:Segment {
     id: seg.id,
     span_start: seg.span.start,
-    span_end: seg.span.end
+    span_end: seg.span.end,
+    reference: seg.reference
 })
 CREATE (s)-[:SEGMENTATION_OF]->(a)
 """,
