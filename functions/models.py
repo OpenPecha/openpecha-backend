@@ -166,8 +166,10 @@ class ManifestationModelBase(OpenPechaModel):
 
     @model_validator(mode="after")
     def validate_bdrc_as_per_manifestation_type(self):
-        if self.type == ManifestationType.CRITICAL and self.bdrc:
+        if self.type is ManifestationType.CRITICAL and self.bdrc:
             raise ValueError("When type is critical, bdrc should be provided")
+        elif self.type is ManifestationType.DIPLOMATIC and not self.bdrc:
+            raise ValueError("When type is diplomatic, bdrc must be provided")
         return self
 
 
@@ -237,11 +239,26 @@ class AlignedTextRequestModel(OpenPechaModel):
         return self
 
 
-class SegmentationAnnotationModel(OpenPechaModel):
+
+class AnnotationModel(OpenPechaModel):
     span: SpanModel
-    index: int
+
+class SegmentationAnnotationModel(AnnotationModel):
+    pass
+
+class PaginationAnnotationModel(AnnotationModel):
+    reference: NonEmptyStr
 
 class InstanceRequestModel(OpenPechaModel):
     metadata: ManifestationModelInput
-    annotation: SegmentationAnnotationModel | None = None
+    annotation: SegmentationAnnotationModel | PaginationAnnotationModel | None = None
     content: NonEmptyStr
+
+    @model_validator(mode="after")
+    def validate_annotation(self):
+        if self.annotation is not None:
+            if self.metadata.type is ManifestationType.CRITICAL and not isinstance(self.annotation, SegmentationAnnotationModel):
+                raise ValueError("Given manifestation type is critical, but provided annotation provided is not a segmentation annotation")
+            elif self.metadata.type is ManifestationType.DIPLOMATIC and not isinstance(self.annotation, PaginationAnnotationModel):
+                raise ValueError("Given manifestation type is diplomatic, but provided annotation provided is not a pagination annotation")
+        return self
