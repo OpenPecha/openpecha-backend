@@ -1,7 +1,9 @@
 import logging
 from typing import List
 
-from models import ExpressionModelInput, TextType
+from models import ExpressionModelInput, TextType, ManifestationType
+from exceptions import InvalidRequest
+from neo4j_queries import Queries
 
 logger = logging.getLogger(__name__)
 
@@ -101,4 +103,54 @@ class Neo4JDatabaseValidator:
             raise DataValidationError(
                 f"Expression {expression_id} does not exist. "
                 "Cannot create manifestation for non-existent expression."
+            )
+
+    def has_manifestation_of_type_for_expression_id(self, session, expression_id: str, type: ManifestationType) -> bool:
+
+        query = """
+        MATCH (e:Expression {id: $expression_id})
+        MATCH (m:Manifestation)-[:MANIFESTATION_OF]->(e)
+        MATCH (m)-[:HAS_TYPE]->(mt:ManifestationType {name: $type})
+        RETURN count(m) AS count
+        """
+
+        result = session.run(query, expression_id=expression_id, type=type.value)
+        record = result.single()
+
+        return bool(record and record.get("count", 0) > 0)
+
+    def validate_language_code_exists(self, session, language_code: str) -> None:
+        """Validate that a given base language code exists.
+
+        Uses a single query to both check existence and obtain the available codes.
+        Raises InvalidRequest with the available codes listed if not found.
+        """
+        query = """
+        MATCH (l:Language)
+        WITH collect(l.code) AS codes
+        RETURN $code IN codes AS exists, codes
+        """
+
+        record = session.run(
+            query,
+            code=language_code,
+        ).single()
+
+        if not record or not record["exists"]:
+            raise InvalidRequest(f"Language '{language_code}' is not present in Neo4j. Available languages: {', '.join(record['codes'])}")
+
+    def validate_language_codes_exist(self, session, language_codes: List[str]) -> None:
+        """Validate that all given base language codes exist. Raises InvalidRequest listing missing and available."""
+        query = """
+        MATCH (l:Language)
+        WITH collect(l.code) AS codes
+        UNWIND $codes_to_check AS code
+        WITH codes, code, code IN codes AS exists
+        RETURN collect(CASE WHEN exists THEN NULL ELSE code END) AS missing, codes
+        """
+        record = session.run(query, codes_to_check=[c.lower() for c in language_codes]).single()
+        missing = [c for c in (record["missing"] or []) if c]
+        if missing:
+            raise InvalidRequest(
+                f"Languages {', '.join(missing)} are not present in Neo4j. Available languages: {', '.join(record['codes'])}"
             )

@@ -177,3 +177,5 @@ firebase-debug.*.log*
 # Firebase cache
 .firebase/
 
+storage.rules
+.secret.local

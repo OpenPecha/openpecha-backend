@@ -162,7 +162,7 @@ CREATE (w:Work {{id: $work_id}})
 {Queries.create_expression_base('e')}
 WITH w, e
 MATCH (n:Nomen) WHERE elementId(n) = $title_nomen_element_id
-MERGE (l:Language {{code: $language_code}})
+MATCH (l:Language {{code: $language_code}})
 CREATE (e)-[:EXPRESSION_OF {{original: $original}}]->(w),
        (e)-[:HAS_LANGUAGE {{bcp47: $bcp47_tag}}]->(l),
        (e)-[:HAS_TITLE]->(n)
@@ -190,7 +190,7 @@ MATCH (target:Expression {{id: $target_id}})-[:EXPRESSION_OF]->(w:Work)
 {Queries.create_expression_base('e')}
 WITH target, w, e
 MATCH (n:Nomen) WHERE elementId(n) = $title_nomen_element_id
-MERGE (l:Language {{code: $language_code}})
+MATCH (l:Language {{code: $language_code}})
 CREATE (e)-[:EXPRESSION_OF {{original: false}}]->(w),
        (e)-[:TRANSLATION_OF]->(target),
        (e)-[:HAS_LANGUAGE {{bcp47: $bcp47_tag}}]->(l),
@@ -203,8 +203,8 @@ CREATE (commentary_work:Work {{id: $work_id}})
 {Queries.create_expression_base('e')}
 WITH target, commentary_work, e
 MATCH (n:Nomen) WHERE elementId(n) = $title_nomen_element_id
-MERGE (l:Language {{code: $language_code}})
-CREATE (e)-[:COMMENTARY_OF]->(target),
+MATCH (l:Language {{code: $language_code}})
+CREATE (e)-[:COMMENTARY_OF]->(parent),
        (e)-[:EXPRESSION_OF {{original: true}}]->(commentary_work),
        (e)-[:HAS_LANGUAGE {{bcp47: $bcp47_tag}}]->(l),
        (e)-[:HAS_TITLE]->(n)
