@@ -488,18 +488,58 @@ paths:
                 success:
                   summary: List of instances
                   value:
-                    - id: "I12345678"
-                      type: "diplomatic"
-                      copyright: "public"
-                      annotations:
-                        - id: "A12345678"
-                          type: "segmentation"
-                        - id: "A87654321"
-                          type: "alignment"
-                          aligned_to: "A11111111"
+                    - alt_incipit_titles: []
                       bdrc: "W123456"
-                      alignment_sources: []
-                      alignment_targets: ["T87654321", "T11111111"]
+                      colophon: "Sample colophon text"
+                      copyright: "public"
+                      incipit_title:
+                        bo: "དབུ་ཚིག"
+                        en: "Opening words"
+                      type: "diplomatic"
+                      wiki: null
+                    - alt_incipit_titles: []
+                      bdrc: "W123456"
+                      colophon: "Sample colophon text"
+                      copyright: "public"
+                      incipit_title:
+                        bo: "དབུ་ཚིག"
+                        en: "Opening words"
+                      type: "diplomatic"
+                      wiki: null
+                    - alt_incipit_titles: []
+                      bdrc: "W123456"
+                      colophon: "Sample colophon text"
+                      copyright: "public"
+                      incipit_title:
+                        bo: "དབུ་ཚིག"
+                        en: "Opening words"
+                      type: "diplomatic"
+                      wiki: null
+                    - alt_incipit_titles: []
+                      bdrc: "W123456"
+                      colophon: "Sample colophon text"
+                      copyright: "public"
+                      incipit_title:
+                        bo: "དབུ་ཚིག"
+                        en: "Opening words"
+                      type: "diplomatic"
+                      wiki: null
+                    - alt_incipit_titles: []
+                      bdrc: "W123456"
+                      colophon: "Sample colophon text"
+                      copyright: "public"
+                      incipit_title:
+                        bo: "དབུ་ཚིག"
+                        en: "Opening words"
+                      type: "critical"
+                      wiki: null
+                    - alt_incipit_titles: []
+                      bdrc: "W123456"
+                      colophon: "Sample colophon text"
+                      copyright: "public"
+                      incipit_title: null
+                      type: "diplomatic"
+                      wiki: null
         "400":
           $ref: '#/components/responses/InvalidRequest'
         "404":
@@ -509,7 +549,7 @@ paths:
 
     post:
       summary: Create a new instance
-      description: Create a new instance with metadata and annotation for a specific text
+      description: Create a new instance with metadata for a specific text
       tags:
         - Instances
       parameters:
@@ -527,7 +567,6 @@ paths:
               type: object
               required:
                 - metadata
-                - annotation
                 - content
               properties:
                 metadata:
@@ -574,8 +613,8 @@ paths:
                   type: string
                   description: The text content
             examples:
-              valid_instance:
-                summary: Valid instance creation request
+              valid_diplomatic_instance_with_annotation:
+                summary: Valid diplomatic instance creation with annotation
                 value:
                   metadata:
                     type: "diplomatic"
@@ -589,9 +628,45 @@ paths:
                     - span:
                         start: 0
                         end: 20
-                      index: 0
-                      alignment_index: [0]
-                  content: "This is the text content to be stored"
+                  content: "This is the text content to be stored"     
+              valid_critical_instance_with_annotation:
+                summary: Valid critical instance creation with annotation
+                value:
+                  metadata:
+                    type: "critical"
+                    copyright: "public"
+                    colophon: "Sample colophon text"
+                    incipit_title:
+                      en: "Opening words"
+                      bo: "དབུ་ཚིག"
+                  annotation:
+                    - span:
+                        start: 0
+                        end: 20
+                  content: "This is the text content to be stored"           
+              valid_critical_instance_without_annotation:
+                summary: Valid critical instance creation without annotation
+                value:
+                  metadata:
+                    type: "critical"
+                    copyright: "public"
+                    colophon: "Sample colophon text"
+                    incipit_title:
+                      en: "Opening words"
+                      bo: "དབུ་ཚིག"
+                  content: "This is the text content to be stored"          
+              valid_diplomatic_instance_without_annotation:
+                summary: Valid diplomatic instance creation without annotation
+                value:
+                  metadata:
+                    type: "diplomatic"
+                    copyright: "public"
+                    bdrc: "W123456"
+                    colophon: "Sample colophon text"
+                    incipit_title:
+                      en: "Opening words"
+                      bo: "དབུ་ཚིག"
+                  content: "This is the text content to be stored"                           
       responses:
         "201":
           description: Instance created successfully
