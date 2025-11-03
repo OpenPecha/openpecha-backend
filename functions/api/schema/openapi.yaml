@@ -181,7 +181,7 @@ paths:
                               type: string
                             wiki:
                               type: string
-                            parent:
+                            target:
                               type: string
                         spans:
                           type: array
@@ -257,7 +257,7 @@ paths:
                               type: string
                             wiki:
                               type: string
-                            parent:
+                            target:
                               type: string
                         spans:
                           type: array
@@ -285,7 +285,7 @@ paths:
                           title:
                             en: "English Translation"
                           language: "en"
-                          parent: "T12345678"
+                          target: "T12345678"
                         spans:
                           - start: 0
                             end: 150
@@ -441,22 +441,10 @@ paths:
                       type: string
                     type:
                       type: string
-                      enum: [diplomatic, critical, collated]
+                      enum: [diplomatic, critical]
                     copyright:
                       type: string
                       enum: [public, copyrighted]
-                    annotations:
-                      type: array
-                      items:
-                        type: object
-                        properties:
-                          id:
-                            type: string
-                          type:
-                            type: string
-                            enum: [segmentation, alignment, version]
-                          aligned_to:
-                            type: string
                     bdrc:
                       type: string
                     wiki:
@@ -473,17 +461,6 @@ paths:
                         type: object
                         additionalProperties:
                           type: string
-                    alignment_sources:
-                      type: array
-                      items:
-                        type: string
-                      description: List of manifestation IDs that have annotations aligned to this manifestation
-                    alignment_targets:
-                      type: array
-                      items:
-                        type: string
-                      description: List of manifestation IDs that this manifestation's annotations are aligned to
-
               examples:
                 success:
                   summary: List of instances
@@ -576,7 +553,7 @@ paths:
                   properties:
                     type:
                       type: string
-                      enum: [diplomatic, critical, collated]
+                      enum: [diplomatic, critical]
                       description: Type of manifestation
                     copyright:
                       type: string
@@ -627,8 +604,12 @@ paths:
                   annotation:
                     - span:
                         start: 0
+                        end: 10
+                      reference: "https://example.com/image1.png"
+                    - span:
+                        start: 11
                         end: 20
-                    - reference: "https://example.com/image1.png"
+                      reference: "https://example.com/image2.png"
                   content: "This is the text content to be stored"     
               valid_critical_instance_with_annotation:
                 summary: Valid critical instance creation with annotation
@@ -643,6 +624,9 @@ paths:
                   annotation:
                     - span:
                         start: 0
+                        end: 10
+                    - span:
+                        start: 10
                         end: 20
                   content: "This is the text content to be stored"           
               valid_critical_instance_without_annotation:
@@ -740,7 +724,7 @@ paths:
                     ai_id:
                       type: string
                   description: Creator of the translation (optional)
-                annotation:
+                segmentation:
                   type: array
                   items:
                     type: object
@@ -768,7 +752,7 @@ paths:
                   title: "Translated Title"
                   author:
                     person_id: "P12345678"
-                  annotation:
+                  segmentation:
                     - span:
                         start: 0
                         end: 35
@@ -853,7 +837,7 @@ paths:
                       type: string
                     person_bdrc_id:
                       type: string
-                annotation:
+                segmentation:
                   type: array
                   items:
                     type: object
@@ -881,7 +865,7 @@ paths:
                   title: "Commentary on Original Text"
                   author:
                     person_id: "P12345678"
-                  annotation:
+                  segmentation:
                     - span:
                         start: 0
                         end: 50
@@ -1011,7 +995,7 @@ paths:
                       type: string
                     wiki:
                       type: string
-                    parent:
+                    target:
                       type: string
               examples:
                 success:
@@ -1036,7 +1020,7 @@ paths:
                       contributions:
                         - ai_id: "gpt-4"
                           role: "translator"
-                      parent: "ABC12345678"
+                      target: "ABC12345678"
         "400":
           $ref: '#/components/responses/InvalidRequest'
         "500":
@@ -1097,9 +1081,9 @@ paths:
                   type: string
                 wiki:
                   type: string
-                parent:
+                target:
                   type: string
-                  description: Parent metadata ID (required for commentary)
+                  description: Target metadata ID (required for commentary)
             examples:
               root_text:
                 summary: Root text creation
@@ -1134,7 +1118,7 @@ paths:
                   contributions:
                     - ai_id: "gpt-4"
                       role: "translator"
-                  parent: "T12345678"
+                  target: "T12345678"
       responses:
         "201":
           description: Text created successfully
@@ -1217,7 +1201,7 @@ paths:
                     type: string
                   wiki:
                     type: string
-                  parent:
+                  target:
                     type: string
               examples:
                 success:

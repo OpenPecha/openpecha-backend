@@ -103,9 +103,9 @@ END
     bdrc: {label}.bdrc,
     wiki: {label}.wiki,
     type: {Queries.infer_expression_type(label)},
-    parent: COALESCE(
-        [({label})-[:TRANSLATION_OF]->(ef_parent:Expression) | ef_parent.id][0],
-        [({label})-[:COMMENTARY_OF]->(ef_parent:Expression) | ef_parent.id][0]
+    target: COALESCE(
+        [({label})-[:TRANSLATION_OF]->(ef_target:Expression) | ef_target.id][0],
+        [({label})-[:COMMENTARY_OF]->(ef_target:Expression) | ef_target.id][0]
     ),
     contributors: (
         [({label})-[:HAS_CONTRIBUTION]->(ef_contrib:Contribution)-[:BY]->(ef_person:Person) | {{
@@ -162,7 +162,7 @@ CREATE (w:Work {{id: $work_id}})
 {Queries.create_expression_base('e')}
 WITH w, e
 MATCH (n:Nomen) WHERE elementId(n) = $title_nomen_element_id
-MERGE (l:Language {{code: $language_code}})
+MATCH (l:Language {{code: $language_code}})
 CREATE (e)-[:EXPRESSION_OF {{original: $original}}]->(w),
        (e)-[:HAS_LANGUAGE {{bcp47: $bcp47_tag}}]->(l),
        (e)-[:HAS_TITLE]->(n)
@@ -186,24 +186,24 @@ CREATE (e)-[:HAS_CONTRIBUTION]->(c:Contribution)-[:BY]->(ai),
 RETURN elementId(c) as contribution_element_id
 """,
     "create_translation": f"""
-MATCH (parent:Expression {{id: $parent_id}})-[:EXPRESSION_OF]->(w:Work)
+MATCH (target:Expression {{id: $target_id}})-[:EXPRESSION_OF]->(w:Work)
 {Queries.create_expression_base('e')}
-WITH parent, w, e
+WITH target, w, e
 MATCH (n:Nomen) WHERE elementId(n) = $title_nomen_element_id
-MERGE (l:Language {{code: $language_code}})
+MATCH (l:Language {{code: $language_code}})
 CREATE (e)-[:EXPRESSION_OF {{original: false}}]->(w),
-       (e)-[:TRANSLATION_OF]->(parent),
+       (e)-[:TRANSLATION_OF]->(target),
        (e)-[:HAS_LANGUAGE {{bcp47: $bcp47_tag}}]->(l),
        (e)-[:HAS_TITLE]->(n)
 RETURN e.id as expression_id
 """,
     "create_commentary": f"""
-MATCH (parent:Expression {{id: $parent_id}})
+MATCH (target:Expression {{id: $target_id}})
 CREATE (commentary_work:Work {{id: $work_id}})
 {Queries.create_expression_base('e')}
-WITH parent, commentary_work, e
+WITH target, commentary_work, e
 MATCH (n:Nomen) WHERE elementId(n) = $title_nomen_element_id
-MERGE (l:Language {{code: $language_code}})
+MATCH (l:Language {{code: $language_code}})
 CREATE (e)-[:COMMENTARY_OF]->(parent),
        (e)-[:EXPRESSION_OF {{original: true}}]->(commentary_work),
        (e)-[:HAS_LANGUAGE {{bcp47: $bcp47_tag}}]->(l),

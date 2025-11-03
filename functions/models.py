@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, RootModel, StrictStr, StringConstraints, model_validator
+from pydantic import BaseModel, ConfigDict, Field, RootModel, StrictStr, StringConstraints, field_serializer, model_validator, field_validator, ValidationError as PydanticValidationError
 
 NonEmptyStr = Annotated[StrictStr, StringConstraints(min_length=1, strip_whitespace=True)]
 
@@ -134,15 +134,15 @@ class ExpressionModelBase(OpenPechaModel):
     title: LocalizedString
     alt_titles: list[LocalizedString] | None = None
     language: NonEmptyStr
-    parent: str | None = None
+    target: str | None = None
 
     @model_validator(mode="after")
-    def validate_parent_field(self):
-        if self.type == TextType.ROOT and self.parent is not None:
-            raise ValueError("When type is 'root', parent must be None")
-        if self.type in [TextType.COMMENTARY, TextType.TRANSLATION] and self.parent is None:
+    def validate_target_field(self):
+        if self.type == TextType.ROOT and self.target is not None:
+            raise ValueError("When type is 'root', target must be None")
+        if self.type in [TextType.COMMENTARY, TextType.TRANSLATION] and self.target is None:
             msg = (
-                f"When type is '{self.type.value}', parent must be provided "
+                f"When type is '{self.type.value}', target must be provided "
                 "(use 'N/A' for standalone translations/commentaries)"
             )
             raise ValueError(msg)
@@ -158,6 +158,7 @@ class ExpressionModelOutput(ExpressionModelBase):
 
 
 class ManifestationModelBase(OpenPechaModel):
+    id: str | None = None
     bdrc: str | None = None
     wiki: str | None = None
     type: ManifestationType
@@ -168,9 +169,11 @@ class ManifestationModelBase(OpenPechaModel):
     alt_incipit_titles: list[LocalizedString] | None = None
 
     @model_validator(mode="after")
-    def validate_bdrc_for_diplomatic(self):
+    def validate_bdrc_for_diplomatic_and_critical(self):
         if self.type == ManifestationType.DIPLOMATIC and not self.bdrc:
             raise ValueError("When type is 'diplomatic', bdrc must be provided")
+        elif self.type is ManifestationType.CRITICAL and self.bdrc:
+            raise ValueError("When type is 'critical', bdrc should not be provided")
         return self
 
     @model_validator(mode="after")
@@ -236,7 +239,7 @@ class AlignedTextRequestModel(OpenPechaModel):
     author: CreatorRequestModel | None = None
     target_annotation: list[dict] | None = None
     alignment_annotation: list[dict] | None = None
-    annotation: list[dict]
+    segmentation: list[dict]
     copyright: CopyrightStatus = CopyrightStatus.PUBLIC_DOMAIN
 
     @model_validator(mode="after")
@@ -246,7 +249,26 @@ class AlignedTextRequestModel(OpenPechaModel):
         return self
 
 
+class SegmentationAnnotationModel(OpenPechaModel):
+    span: SpanModel
+    pass
+
+class PaginationAnnotationModel(OpenPechaModel):
+    span: SpanModel
+    reference: NonEmptyStr
+
 class InstanceRequestModel(OpenPechaModel):
     metadata: ManifestationModelInput
-    annotation: list[dict] | None = None
+    annotation: list[SegmentationAnnotationModel | PaginationAnnotationModel] | None = None
     content: NonEmptyStr
+
+    @model_validator(mode="after")
+    def validate_annotation(self):
+        if self.annotation is not None:
+            if self.metadata.type is ManifestationType.CRITICAL and not all(isinstance(ann, SegmentationAnnotationModel) for ann in self.annotation):
+                raise ValueError("For 'critical' manifestations, all annotations must be SegmentationAnnotationModel")
+            elif self.metadata.type is ManifestationType.DIPLOMATIC and not all(isinstance(ann, PaginationAnnotationModel) for ann in self.annotation):
+                raise ValueError("For 'diplomatic' manifestations, all annotations must be PaginationAnnotationModel")
+            elif not all(isinstance(ann, (SegmentationAnnotationModel, PaginationAnnotationModel)) for ann in self.annotation):
+                raise ValueError("Annotations must be either SegmentationAnnotationModel or PaginationAnnotationModel")
+        return self

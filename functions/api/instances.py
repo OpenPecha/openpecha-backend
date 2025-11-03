@@ -108,7 +108,7 @@ def _create_aligned_text(
         pecha_id=expression_id,
         base_text=request_model.content,
         annotation_id=annotation_id,
-        annotation=[SegmentationAnnotation.model_validate(a) for a in request_model.annotation],
+        annotation=[SegmentationAnnotation.model_validate(a) for a in request_model.segmentation],
     )
 
     aligned = request_model.alignment_annotation is not None
@@ -157,17 +157,17 @@ def _create_aligned_text(
         ),
         language=request_model.language,
         contributions=contributions,
-        parent=target_expression_id,
+        target=target_expression_id,
     )
 
     manifestation = ManifestationModelInput(type=ManifestationType.CRITICAL, copyright=request_model.copyright)
-    annotation = AnnotationModel(id=annotation_id, type=AnnotationType.SEGMENTATION)
+    segmentation = AnnotationModel(id=annotation_id, type=AnnotationType.SEGMENTATION)
 
     def add_ids(segments):
         with_ids = [{**seg, "id": generate_id()} for seg in segments]
         return with_ids, {seg["index"]: seg["id"] for seg in with_ids}
 
-    annotation_segments_with_ids, _ = add_ids(request_model.annotation)
+    segmentation_segments_with_ids, _ = add_ids(request_model.segmentation)
 
     try:
         if aligned:
@@ -194,8 +194,8 @@ def _create_aligned_text(
                 expression_id=expression_id,
                 manifestation=manifestation,
                 target_manifestation_id=target_manifestation_id,
-                annotation=annotation,
-                annotation_segments=annotation_segments_with_ids,
+                segmentation=segmentation,
+                segmentation_segments=segmentation_segments_with_ids,
                 alignment_annotation=alignment_annotation,
                 alignment_segments=alignment_segments_with_ids,
                 target_annotation=target_annotation,
@@ -207,8 +207,8 @@ def _create_aligned_text(
                 expression=expression,
                 expression_id=expression_id,
                 manifestation=manifestation,
-                annotation=annotation,
-                annotation_segments=annotation_segments_with_ids,
+                segmentation=segmentation,
+                segmentation_segments=segmentation_segments_with_ids,
             )
     except Exception as e:
         storage.rollback_pecha(expression_id)

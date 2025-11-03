@@ -3,7 +3,14 @@ import logging
 from exceptions import InvalidRequest
 from flask import Blueprint, Response, jsonify, request
 from identifier import generate_id
-from models import AnnotationModel, AnnotationType, ExpressionModelInput, InstanceRequestModel, ManifestationType
+from models import (
+    AnnotationModel, 
+    AnnotationType, 
+    ExpressionModelInput, 
+    InstanceRequestModel, 
+    ManifestationType,
+    SegmentationAnnotationModel
+)
 from neo4j_database import Neo4JDatabase
 from storage import MockStorage
 from neo4j_database_validator import Neo4JDatabaseValidator
@@ -64,7 +71,7 @@ def post_texts() -> tuple[Response, int]:
 @texts_bp.route("/<string:expression_id>/instances", methods=["GET"], strict_slashes=False)
 def get_instances(expression_id: str) -> tuple[Response, int]:
     db = Neo4JDatabase()
-    manifestations = db.get_manifestations_by_expression(expression_id)
+    manifestations = db.get_manifestations_of_an_expression(expression_id)
     response_data = [manifestation.model_dump() for manifestation in manifestations]
     return jsonify(response_data), 200
 
@@ -96,7 +103,7 @@ def create_instance(expression_id: str) -> tuple[Response, int]:
         Neo4JDatabase().create_manifestation(
             manifestation=instance_request.metadata,
             annotation=annotation,
-            annotation_segments=instance_request.annotation,
+            annotation_segments=[seg.model_dump() for seg in instance_request.annotation],
             expression_id=expression_id,
             manifestation_id=manifestation_id,
         )
