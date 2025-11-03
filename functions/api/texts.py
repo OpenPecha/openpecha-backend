@@ -71,7 +71,7 @@ def post_texts() -> tuple[Response, int]:
 @texts_bp.route("/<string:expression_id>/instances", methods=["GET"], strict_slashes=False)
 def get_instances(expression_id: str) -> tuple[Response, int]:
     db = Neo4JDatabase()
-    manifestations = db.get_manifestations_by_expression(expression_id)
+    manifestations = db.get_manifestations_of_an_expression(expression_id)
     response_data = [manifestation.model_dump() for manifestation in manifestations]
     return jsonify(response_data), 200
 

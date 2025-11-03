@@ -143,6 +143,7 @@ class ExpressionModelOutput(ExpressionModelBase):
 
 
 class ManifestationModelBase(OpenPechaModel):
+    id: str | None = None
     bdrc: str | None = None
     wiki: str | None = None
     type: ManifestationType

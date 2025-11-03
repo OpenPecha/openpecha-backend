@@ -12,6 +12,7 @@ from models import (
     ExpressionModelInput,
     ExpressionModelOutput,
     LocalizedString,
+    ManifestationModelBase,
     ManifestationModelInput,
     ManifestationModelOutput,
     ManifestationType,
@@ -121,6 +122,28 @@ class Neo4JDatabase:
                 ]
             )
             return [self._process_manifestation_data(row["manifestation"]) for row in rows]
+    
+    def get_manifestations_of_an_expression(self, expression_id: str) -> list[ManifestationModelBase]:
+        with self.__driver.session() as session:
+            rows = session.execute_read(
+                lambda tx: [
+                    r.data()
+                    for r in tx.run(Queries.manifestations["fetch"], expression_id=expression_id, manifestation_id=None)
+                ]
+            )
+            return [self.process_manifestation_metadata(row["manifestation"]) for row in rows]
+
+    def process_manifestation_metadata(self, manifestation_data: dict) -> ManifestationModelBase:
+        return ManifestationModelBase(
+            id=manifestation_data.get("id"),
+            bdrc=manifestation_data.get("bdrc"),
+            wiki=manifestation_data.get("wiki"),
+            type=ManifestationType(manifestation_data["type"]),
+            copyright=CopyrightStatus(manifestation_data["copyright"]),
+            colophon=manifestation_data.get("colophon"),
+            incipit_title=self.__convert_to_localized_text(manifestation_data.get("incipit_title")),
+            alt_incipit_titles=[self.__convert_to_localized_text(alt) for alt in manifestation_data.get("alt_incipit_titles", [])],
+        )
 
     def get_manifestation(self, manifestation_id: str) -> tuple[ManifestationModelOutput, str]:
         with self.__driver.session() as session:
