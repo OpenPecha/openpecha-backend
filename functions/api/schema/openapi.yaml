@@ -445,18 +445,6 @@ paths:
                     copyright:
                       type: string
                       enum: [public, copyrighted]
-                    annotations:
-                      type: array
-                      items:
-                        type: object
-                        properties:
-                          id:
-                            type: string
-                          type:
-                            type: string
-                            enum: [segmentation, alignment, version]
-                          aligned_to:
-                            type: string
                     bdrc:
                       type: string
                     wiki:
@@ -473,17 +461,6 @@ paths:
                         type: object
                         additionalProperties:
                           type: string
-                    alignment_sources:
-                      type: array
-                      items:
-                        type: string
-                      description: List of manifestation IDs that have annotations aligned to this manifestation
-                    alignment_targets:
-                      type: array
-                      items:
-                        type: string
-                      description: List of manifestation IDs that this manifestation's annotations are aligned to
-
               examples:
                 success:
                   summary: List of instances
@@ -627,8 +604,12 @@ paths:
                   annotation:
                     - span:
                         start: 0
+                        end: 10
+                      reference: "https://example.com/image1.png"
+                    - span:
+                        start: 11
                         end: 20
-                    - reference: "https://example.com/image1.png"
+                      reference: "https://example.com/image2.png"
                   content: "This is the text content to be stored"     
               valid_critical_instance_with_annotation:
                 summary: Valid critical instance creation with annotation
@@ -643,6 +624,9 @@ paths:
                   annotation:
                     - span:
                         start: 0
+                        end: 10
+                    - span:
+                        start: 10
                         end: 20
                   content: "This is the text content to be stored"           
               valid_critical_instance_without_annotation:
