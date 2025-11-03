@@ -123,7 +123,7 @@ class Neo4JDatabase:
             )
             return [self._process_manifestation_data(row["manifestation"]) for row in rows]
     
-    def get_manifestations_of_an_expression(self, expression_id: str) -> list[ManifestationModelOutput]:
+    def get_manifestations_of_an_expression(self, expression_id: str) -> list[ManifestationModelBase]:
         with self.__driver.session() as session:
             rows = session.execute_read(
                 lambda tx: [
