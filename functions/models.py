@@ -3,6 +3,8 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, RootModel, StrictStr, StringConstraints, model_validator, field_validator, ValidationError as PydanticValidationError
 
+from typing import List
+
 NonEmptyStr = Annotated[StrictStr, StringConstraints(min_length=1, strip_whitespace=True)]
 
 
@@ -245,16 +247,25 @@ class PaginationAnnotationModel(AnnotationModel):
 
 class InstanceRequestModel(OpenPechaModel):
     metadata: ManifestationModelInput
-    annotation: SegmentationAnnotationModel | PaginationAnnotationModel | None = None
+    annotation: List[SegmentationAnnotationModel | PaginationAnnotationModel] | None = None
     content: NonEmptyStr
+
+    @field_validator("annotation", mode="wrap")
+    @classmethod
+    def _wrap_annotation_errors(cls, value, handler):
+        if value is None:
+            return None
+        try:
+            return handler(value)
+        except PydanticValidationError:
+            raise ValueError("annotation must be a list of segmentation annotations or pagination annotations")
+
 
     @model_validator(mode="after")
     def validate_annotation(self):
         if self.annotation is not None:
-            if not isinstance(self.annotation, (SegmentationAnnotationModel, PaginationAnnotationModel)):
-                raise PydanticValidationError("Annotation must be a segmentation or pagination annotation")
-            if self.metadata.type is ManifestationType.CRITICAL and not isinstance(self.annotation, SegmentationAnnotationModel):
-                raise ValueError("Given manifestation type is critical, but provided annotation provided is not a segmentation annotation")
-            elif self.metadata.type is ManifestationType.DIPLOMATIC and not isinstance(self.annotation, PaginationAnnotationModel):
-                raise ValueError("Given manifestation type is diplomatic, but provided annotation provided is not a pagination annotation")
+            if self.metadata.type is ManifestationType.CRITICAL and not all(isinstance(ann, SegmentationAnnotationModel) for ann in self.annotation):
+                raise ValueError("For 'critical' manifestations, all annotations must be SegmentationAnnotationModel")
+            elif self.metadata.type is ManifestationType.DIPLOMATIC and not all(isinstance(ann, PaginationAnnotationModel) for ann in self.annotation):
+                raise ValueError("For 'diplomatic' manifestations, all annotations must be PaginationAnnotationModel")
         return self
