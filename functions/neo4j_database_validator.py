@@ -133,8 +133,24 @@ class Neo4JDatabaseValidator:
 
         record = session.run(
             query,
-            code=language_code.lower(),
+            code=language_code,
         ).single()
 
         if not record or not record["exists"]:
             raise InvalidRequest(f"Language '{language_code}' is not present in Neo4j. Available languages: {', '.join(record['codes'])}")
+
+    def validate_language_codes_exist(self, session, language_codes: List[str]) -> None:
+        """Validate that all given base language codes exist. Raises InvalidRequest listing missing and available."""
+        query = """
+        MATCH (l:Language)
+        WITH collect(l.code) AS codes
+        UNWIND $codes_to_check AS code
+        WITH codes, code, code IN codes AS exists
+        RETURN collect(CASE WHEN exists THEN NULL ELSE code END) AS missing, codes
+        """
+        record = session.run(query, codes_to_check=[c.lower() for c in language_codes]).single()
+        missing = [c for c in (record["missing"] or []) if c]
+        if missing:
+            raise InvalidRequest(
+                f"Languages {', '.join(missing)} are not present in Neo4j. Available languages: {', '.join(record['codes'])}"
+            )
