@@ -321,6 +321,12 @@ class Neo4JDatabase:
             return session.execute_write(transaction_function)
 
     def _create_nomens(self, tx, primary_text: dict[str, str], alternative_texts: list[dict[str, str]] = None) -> str:
+        # Validate all base language codes from primary and alternative titles in one go (lowercased)
+        base_codes = {tag.split("-")[0].lower() for tag in primary_text.keys()}
+        for alt_text in alternative_texts or []:
+            base_codes.update(tag.split("-")[0].lower() for tag in alt_text.keys())
+        self.__validator.validate_language_codes_exist(tx, list(base_codes))
+        # Build localized payloads
         primary_localized_texts = [
             {"base_lang_code": bcp47_tag.split("-")[0].lower(), "bcp47_tag": bcp47_tag, "text": text}
             for bcp47_tag, text in primary_text.items()
