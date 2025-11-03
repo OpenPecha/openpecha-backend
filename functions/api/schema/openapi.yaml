@@ -628,7 +628,7 @@ paths:
                     - span:
                         start: 0
                         end: 20
-                    - reference: 1
+                    - reference: "https://example.com/image1.png"
                   content: "This is the text content to be stored"     
               valid_critical_instance_with_annotation:
                 summary: Valid critical instance creation with annotation
