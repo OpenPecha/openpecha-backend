@@ -3,8 +3,6 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, RootModel, StrictStr, StringConstraints, model_validator, field_validator, ValidationError as PydanticValidationError
 
-from typing import List
-
 NonEmptyStr = Annotated[StrictStr, StringConstraints(min_length=1, strip_whitespace=True)]
 
 
@@ -235,31 +233,18 @@ class AlignedTextRequestModel(OpenPechaModel):
         return self
 
 
-
-class AnnotationModel(OpenPechaModel):
+class SegmentationAnnotationModel(OpenPechaModel):
     span: SpanModel
-
-class SegmentationAnnotationModel(AnnotationModel):
     pass
 
-class PaginationAnnotationModel(AnnotationModel):
+class PaginationAnnotationModel(OpenPechaModel):
+    span: SpanModel
     reference: NonEmptyStr
 
 class InstanceRequestModel(OpenPechaModel):
     metadata: ManifestationModelInput
-    annotation: List[SegmentationAnnotationModel | PaginationAnnotationModel] | None = None
+    annotation: list[SegmentationAnnotationModel | PaginationAnnotationModel] | None = None
     content: NonEmptyStr
-
-    @field_validator("annotation", mode="wrap")
-    @classmethod
-    def _wrap_annotation_errors(cls, value, handler):
-        if value is None:
-            return None
-        try:
-            return handler(value)
-        except PydanticValidationError:
-            raise ValueError("annotation must be a list of segmentation annotations or pagination annotations")
-
 
     @model_validator(mode="after")
     def validate_annotation(self):
@@ -268,4 +253,6 @@ class InstanceRequestModel(OpenPechaModel):
                 raise ValueError("For 'critical' manifestations, all annotations must be SegmentationAnnotationModel")
             elif self.metadata.type is ManifestationType.DIPLOMATIC and not all(isinstance(ann, PaginationAnnotationModel) for ann in self.annotation):
                 raise ValueError("For 'diplomatic' manifestations, all annotations must be PaginationAnnotationModel")
+            elif not all(isinstance(ann, (SegmentationAnnotationModel, PaginationAnnotationModel)) for ann in self.annotation):
+                raise ValueError("Annotations must be either SegmentationAnnotationModel or PaginationAnnotationModel")
         return self
