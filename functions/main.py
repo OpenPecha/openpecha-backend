@@ -7,6 +7,7 @@ from api.api import api_bp
 from api.instances import instances_bp
 from api.persons import persons_bp
 from api.schema import schema_bp
+from api.segments import segments_bp
 from api.texts import texts_bp
 from exceptions import OpenPechaException
 from firebase_admin import credentials
@@ -40,6 +41,7 @@ def create_app(testing=False):
     app.register_blueprint(api_bp, url_prefix="/api")
     app.register_blueprint(instances_bp, url_prefix="/v2/instances")
     app.register_blueprint(persons_bp, url_prefix="/v2/persons")
+    app.register_blueprint(segments_bp, url_prefix="/v2/segments")
     app.register_blueprint(schema_bp, url_prefix="/v2/schema")
 
     @app.after_request
