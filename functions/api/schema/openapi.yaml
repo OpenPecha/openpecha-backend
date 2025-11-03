@@ -1472,6 +1472,10 @@ paths:
                             end:
                               type: integer
                               description: End character position
+                        reference:
+                          type: string
+                          nullable: true
+                          description: image id this is annotation is refering to )
               examples:
                 segmentation:
                   summary: Segmentation annotation with segments
@@ -1488,6 +1492,7 @@ paths:
                         span:
                           start: 20
                           end: 45
+                        reference: "IMG001.png"
                 alignment:
                   summary: Alignment annotation with segments
                   value:
@@ -1499,6 +1504,7 @@ paths:
                         span:
                           start: 0
                           end: 25
+                        reference: "IMG002.png"
         "400":
           $ref: '#/components/responses/InvalidRequest'
         "404":
@@ -1569,19 +1575,12 @@ paths:
                           description: List of aligned segments with their IDs and spans
                           items:
                             type: object
-                            required:
-                              - span
                             properties:
                               id:
                                 type: string
-                                nullable: true
                                 description: Segment ID
                               span:
                                 type: object
-                                description: Character span
-                                required:
-                                  - start
-                                  - end
                                 properties:
                                   start:
                                     type: integer
@@ -1631,19 +1630,12 @@ paths:
                           description: List of aligned segments with their IDs and spans
                           items:
                             type: object
-                            required:
-                              - span
                             properties:
                               id:
                                 type: string
-                                nullable: true
                                 description: Segment ID
                               span:
                                 type: object
-                                description: Character span
-                                required:
-                                  - start
-                                  - end
                                 properties:
                                   start:
                                     type: integer
