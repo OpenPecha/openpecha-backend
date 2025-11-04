@@ -301,6 +301,16 @@ CALL (*) {
 }
 
 RETURN a.id AS annotation_id
+""",
+    "get_segments": """
+MATCH (a:Annotation {id: $annotation_id})
+<-[:SEGMENTATION_OF]-(s:Segment)
+OPTIONAL MATCH (s)-[:HAS_REFERENCE]->(r:Reference)
+RETURN s.id as id,
+       s.span_start as start,
+       s.span_end as end,
+       r.name as reference
+ORDER BY s.span_start
 """
 }
 
@@ -365,6 +375,30 @@ RETURN seg.id as segment_id,
        m.id as manifestation_id,
        e.id as expression_id
 """,
+}
+
+Queries.references = {
+    "create": """
+CREATE (r:Reference {
+    id: $reference_id,
+    name: $name,
+    description: $description
+})
+RETURN r.id as reference_id
+""",
+    "create_batch": """
+UNWIND $references AS ref
+MERGE (r:Reference {id: ref.id})
+SET r.name = ref.name,
+    r.description = ref.description
+RETURN r.id as reference_id
+""",
+    "link_to_segments": """
+UNWIND $segment_references AS sr
+MATCH (s:Segment {id: sr.segment_id})
+MATCH (r:Reference {id: sr.reference_id})
+CREATE (s)-[:HAS_REFERENCE]->(r)
+"""
 }
 
 Queries.ai = {
