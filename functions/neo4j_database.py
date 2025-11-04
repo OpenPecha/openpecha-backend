@@ -597,3 +597,18 @@ class Neo4JDatabase:
                 annotation_id=annotation_id,
                 segments=segments,
             )
+
+    def _create_segments(self, tx, annotation_id: str, segments: list[dict] = None) -> None:
+        if segments:
+            # Generate IDs for segments that don't have them
+            segments_with_ids = []
+            for seg in segments:
+                if "id" not in seg or seg["id"] is None:
+                    seg["id"] = generate_id()
+                segments_with_ids.append(seg)
+            
+            tx.run(
+                Queries.segments["create_batch"],
+                annotation_id=annotation_id,
+                segments=segments_with_ids,
+            )
