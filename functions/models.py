@@ -22,6 +22,7 @@ class ContributorRole(str, Enum):
 class AnnotationType(str, Enum):
     SEGMENTATION = "segmentation"
     ALIGNMENT = "alignment"
+    PAGINATION = "pagination"
     VERSION = "version"
 
 
@@ -174,7 +175,7 @@ class ManifestationModelInput(ManifestationModelBase):
 
 class ManifestationModelOutput(ManifestationModelBase):
     id: str
-    annotations: list[AnnotationModel] = Field(..., min_length=1)
+    annotations: list[AnnotationModel] = Field(default_factory=list)
     alignment_sources: list[str] | None = None
     alignment_targets: list[str] | None = None
 
@@ -246,10 +247,13 @@ class InstanceRequestModel(OpenPechaModel):
     annotation: list[SegmentationAnnotationModel | PaginationAnnotationModel] | None = None
     content: NonEmptyStr
 
+
     @model_validator(mode="after")
     def validate_annotation(self):
         if self.annotation is not None:
-            if self.metadata.type is ManifestationType.CRITICAL and not all(isinstance(ann, SegmentationAnnotationModel) for ann in self.annotation):
+            if len(self.annotation) == 0:
+                raise ValueError("Cannot provide an empty annotation")
+            elif self.metadata.type is ManifestationType.CRITICAL and not all(isinstance(ann, SegmentationAnnotationModel) for ann in self.annotation):
                 raise ValueError("For 'critical' manifestations, all annotations must be SegmentationAnnotationModel")
             elif self.metadata.type is ManifestationType.DIPLOMATIC and not all(isinstance(ann, PaginationAnnotationModel) for ann in self.annotation):
                 raise ValueError("For 'diplomatic' manifestations, all annotations must be PaginationAnnotationModel")

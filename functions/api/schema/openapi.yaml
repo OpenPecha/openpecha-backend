@@ -1494,6 +1494,115 @@ paths:
         "500":
           $ref: '#/components/responses/ServerError'
 
+  /v2/annotations/{manifestation_id}/annotation:
+    post:
+      summary: Add annotation to a manifestation
+      description: >-
+        Adds an annotation to the specified manifestation. For CRITICAL manifestations,
+        send an array of segmentation annotations (span only). For DIPLOMATIC manifestations,
+        send an array of pagination annotations (span + reference).
+      tags:
+        - Annotations
+      parameters:
+        - name: manifestation_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the manifestation to annotate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              minItems: 1
+              items:
+                type: object
+                required: [span]
+                properties:
+                  span:
+                    type: object
+                    required: [start, end]
+                    properties:
+                      start:
+                        type: integer
+                        minimum: 0
+                      end:
+                        type: integer
+                        minimum: 1
+                  reference:
+                    type: string
+                    description: Page/folio reference for the span (required for DIPLOMATIC manifestations)
+            examples:
+              diplomatic:
+                summary: Pagination annotations (DIPLOMATIC)
+                value:
+                  - span:
+                      start: 0
+                      end: 42
+                    reference: "folio 1a"
+                  - span:
+                      start: 42
+                      end: 100
+                    reference: "folio 1b"
+              critical:
+                summary: Segmentation annotations (CRITICAL)
+                value:
+                  - span:
+                      start: 0
+                      end: 42
+                  - span:
+                      start: 42
+                      end: 100
+      responses:
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              examples:
+                body_required:
+                  summary: Missing request body
+                  value:
+                    error: "Request body is required"
+                body_not_array:
+                  summary: Request body is not an array
+                  value:
+                    error: "Request body must be an array of annotations"
+                spans_beyond_base:
+                  summary: Spans exceed base text length
+                  value:
+                    error: "Annotation spans beyond the base text"
+                unsupported_type:
+                  summary: Unsupported manifestation type for annotations
+                  value:
+                    error: "Unsupported manifestation type 'collated' for annotations"
+        "201":
+          description: Annotation added successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                  annotation_id:
+                    type: string
+              example:
+                message: "Annotation added successfully"
+                annotation_id: "A12345678"
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "422":
+          $ref: '#/components/responses/ValidationError'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
   /v2/segments/{segment_id}/related:
     get:
       summary: Find related texts for a segment

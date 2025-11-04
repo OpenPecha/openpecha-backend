@@ -22,7 +22,6 @@ from openpecha.pecha.annotations import AlignmentAnnotation, SegmentationAnnotat
 from openpecha.pecha.serializers import SerializerLogicHandler
 from pecha_handling import retrieve_pecha
 from storage import Storage
-from models import SegmentationAnnotationModel, PaginationAnnotationModel
 
 instances_bp = Blueprint("instances", __name__)
 
@@ -344,17 +343,3 @@ def get_related_texts(manifestation_id: str) -> tuple[Response, int]:
         ),
         200,
     )
-
-
-@instances_bp.route("/<string:manifestation_id>/annotation", methods=["POST"], strict_slashes=False)
-def add_annotation(manifestation_id: str, annotation: list[SegmentationAnnotationModel | PaginationAnnotationModel]):
-
-    logger.info("Getting manifestation and expression id from Neo4J Database")
-    manifestation, expression_id = Neo4JDatabase().get_manifestation(manifestation_id = manifestation_id)
-
-    if manifestation.type == ManifestationType.CRITICAL and not isinstance(annotation[0], SegmentationAnnotationModel):
-        raise ValueError("For 'critical' manifestations, annotations must be SegmentationAnnotationModel")
-    elif manifestation.type == ManifestationType.DIPLOMATIC and not isinstance(annotation[0], PaginationAnnotationModel):
-        raise ValueError("For 'diplomatic' manifestations, annotations must be PaginationAnnotationModel")
-    
-    expression = Neo4JDatabase().get_expression(expression_id = expression_id)

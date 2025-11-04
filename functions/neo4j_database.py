@@ -284,10 +284,6 @@ class Neo4JDatabase:
         with self.__driver.session() as session:
             return session.execute_write(lambda tx: self._execute_create_expression(tx, expression))
 
-    def add_annotation(self, manifestation_id: str, annotation: AnnotationModel) -> str:
-        with self.__driver.session() as session:
-            return session.execute_write(lambda tx: self._execute_add_annotation(tx, manifestation_id, annotation))
-
     def create_manifestation(
         self,
         manifestation: ManifestationModelInput,
@@ -305,8 +301,19 @@ class Neo4JDatabase:
             if annotation:
                 self._execute_add_annotation(tx, manifestation_id, annotation)
                 self._create_segments(tx, annotation.id, annotation_segments)
-                self._create_and_link_references(tx, annotation_segments)
+                if annotation_segments[0].get("reference", None) is not None:
+                    self._create_and_link_references(tx, annotation_segments)
 
+        with self.__driver.session() as session:
+            return session.execute_write(transaction_function)
+    
+    def add_annotation_to_manifestation(self, manifestation_id: str, annotation: AnnotationModel, annotation_segments: list[dict]):
+        def transaction_function(tx):
+            annotation_id = self._execute_add_annotation(tx, manifestation_id, annotation)
+            self._create_segments(tx, annotation_id, annotation_segments)
+            if annotation_segments[0].get("reference", None) is not None:
+                self._create_and_link_references(tx, annotation_segments)
+            return annotation_id
         with self.__driver.session() as session:
             return session.execute_write(transaction_function)
 
