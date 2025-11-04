@@ -135,6 +135,28 @@ nodes:
         target: Segment
         cardinality: one
         required: false
+      HAS_REFERENCE:
+        target: Reference
+        cardinality: one
+        required: false
+
+  Reference:
+    properties:
+      id:
+        type: string
+        required: true
+        unique: true
+      name:
+        type: string
+        required: true
+      description:
+        type: string
+        required: false
+    relationships:
+      REFERENCE_OF:
+        target: Segment
+        cardinality: one
+        required: false
 
   Contribution:
     relationships:
