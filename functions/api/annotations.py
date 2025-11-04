@@ -20,4 +20,4 @@ def get_annotation(annotation_id: str) -> tuple[Response, int]:
         JSON response with annotation data and HTTP status code
     """
     annotation = Neo4JDatabase().get_annotation(annotation_id)
-    return jsonify(annotation.model_dump()), 200
+    return jsonify(annotation), 200

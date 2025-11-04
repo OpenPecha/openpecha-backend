@@ -1,6 +1,6 @@
-import logging
+from collections import OrderedDict
 import os
-
+import logging
 from exceptions import DataNotFound
 from identifier import generate_id
 from models import (
@@ -650,13 +650,13 @@ class Neo4JDatabase:
             )
             segments = []
             for record in result:
-                segment = {
-                    "id": record["id"],
-                    "span": {
-                        "start": record["start"],
-                        "end": record["end"]
-                    }
-                }
+                segment = OrderedDict([
+                    ("id", record["id"]),
+                    ("span", OrderedDict([
+                        ("start", record["start"]),
+                        ("end", record["end"])
+                    ]))
+                ])
                 if record["reference"]:
                     segment["reference"] = record["reference"]
                 segments.append(segment)
