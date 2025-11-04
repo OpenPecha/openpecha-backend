@@ -236,7 +236,6 @@ class AlignedTextRequestModel(OpenPechaModel):
 
 class SegmentationAnnotationModel(OpenPechaModel):
     span: SpanModel
-    pass
 
 class PaginationAnnotationModel(OpenPechaModel):
     span: SpanModel
