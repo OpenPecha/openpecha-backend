@@ -29,10 +29,17 @@ logger = logging.getLogger(__name__)
 
 @instances_bp.route("/<string:manifestation_id>", methods=["GET"], strict_slashes=False)
 def get_instance(manifestation_id: str):
+
     logger.info("Fetching with manifestation ID: %s", manifestation_id)
 
+    annotation_param = request.args.get("annotation", "false").lower() == "true"
+    logger.info("Annotation parameter %s", annotation_param)
+
+
+    logger.info("Getting manifestation detail and expression id from Neo4J Database")
     manifestation, expression_id = Neo4JDatabase().get_manifestation(manifestation_id = manifestation_id)
 
+    logger.info("Retrieving base text from storage")
     base_text = retrieve_base_text(expression_id = expression_id, manifestation_id = manifestation_id)
 
     metadata = {
@@ -42,22 +49,30 @@ def get_instance(manifestation_id: str):
         "bdrc": manifestation.bdrc,
         "wiki": manifestation.wiki,
         "colophon": manifestation.colophon,
-        "incipit_title": manifestation.incipit_title.model_dump(),
-        "alt_incipit_titles": [alt.model_dump() for alt in manifestation.alt_incipit_titles],
+        "incipit_title": manifestation.incipit_title.model_dump() if manifestation.incipit_title else None,
+        "alt_incipit_titles": (
+            [alt.model_dump() for alt in manifestation.alt_incipit_titles]
+            if manifestation.alt_incipit_titles
+            else None
+        ),
     }
 
-    annotations = []
-    for annotation in manifestation.annotation:
-        if annotation.type != AnnotationType.ALIGNMENT:
-            annotations.append({
-                "annotation_id": annotation.id,
-                "type": annotation.type.value,
-            })
+    annotations = None
+    if annotation_param and manifestation.annotations :
+        annotations = []
+        for annotation in manifestation.annotations:
+            if annotation.type != AnnotationType.ALIGNMENT:
+                annotations.append(
+                    {
+                        "annotation_id": annotation.id,
+                        "type": annotation.type.value,
+                    }
+                )
     
     json = {
         "content": base_text,
         "metadata": metadata,
-        "annotations": annotations
+        "annotations": annotations,
     }
 
     return jsonify(json), 200

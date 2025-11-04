@@ -14,7 +14,7 @@ paths:
   /v2/instances/{instance_id}:
     get:
       summary: Retrieve instance by instance ID
-      description: Fetch instance content for a given instance ID with optional alignment
+      description: Fetch instance content for a given instance ID. Optionally include non-alignment annotations using the 'annotation' query parameter.
       tags:
         - Instances
       parameters:
@@ -24,13 +24,13 @@ paths:
           schema:
             type: string
           description: The ID of the instance to retrieve
-        - name: aligned
+        - name: annotation
           in: query
           required: false
           schema:
             type: boolean
             default: false
-          description: Whether to include aligned source text
+          description: Whether to include annotations (alignment annotations are excluded)
       responses:
         "200":
           description: Instance retrieved successfully
@@ -39,42 +39,66 @@ paths:
               schema:
                 type: object
                 properties:
-                  target:
+                  content:
+                    type: string
+                  metadata:
                     type: object
                     properties:
-                      pecha:
+                      id:
+                        type: string
+                      type:
+                        type: string
+                        enum: [diplomatic, critical]
+                      copyright:
+                        type: string
+                        enum: [public, copyrighted]
+                      bdrc:
+                        type: string
+                      wiki:
+                        type: string
+                      colophon:
+                        type: string
+                      incipit_title:
                         type: object
-                      annotations:
+                        additionalProperties:
+                          type: string
+                      alt_incipit_titles:
                         type: array
                         items:
                           type: object
-                  source:
-                    type: object
-                    properties:
-                      pecha:
-                        type: object
-                      annotations:
-                        type: array
-                        items:
-                          type: object
+                          additionalProperties:
+                            type: string
+                  annotations:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        annotation_id:
+                          type: string
+                        type:
+                          type: string
+                          enum: [segmentation, version]
               examples:
                 success:
-                  summary: Text with alignment
+                  summary: Instance with metadata and optional annotations
                   value:
-                    target:
-                      pecha:
-                        id: "I12345678"
-                        base_text: "This is the target text content"
-                      annotations:
-                        - id: "A12345678"
-                          type: "segmentation"
-                    source:
-                      pecha:
-                        id: "I87654321"
-                        base_text: "This is the source text content"
-                      annotations:
-                        - id: "A87654321"
-                          type: "alignment"
+                    content: "This is the base text content"
+                    metadata:
+                      id: "I12345678"
+                      type: "critical"
+                      copyright: "public"
+                      bdrc: "W123456"
+                      wiki: "Q123456"
+                      colophon: "colophon text"
+                      incipit_title:
+                        en: "English incipit title"
+                        bo: "Tibetan incipit title"
+                      alt_incipit_titles:
+                        - en: "Alt title 1"
+                        - bo: "Alt title 2"
+                    annotations:
+                      - annotation_id: "A12345678"
+                        type: "segmentation"
         "400":
           $ref: '#/components/responses/InvalidRequest'
         "404":
