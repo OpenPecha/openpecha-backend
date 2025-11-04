@@ -15,13 +15,14 @@ from models import (
     ManifestationType,
     SpanModel,
     TextType,
+    SegmentModel,
 )
 from neo4j_database import Neo4JDatabase
 from openpecha.pecha import Pecha
 from openpecha.pecha.annotations import AlignmentAnnotation, SegmentationAnnotation
 from openpecha.pecha.serializers import SerializerLogicHandler
 from pecha_handling import retrieve_pecha
-from storage import Storage
+from storage import Storage, MockStorage
 
 instances_bp = Blueprint("instances", __name__)
 
@@ -99,37 +100,21 @@ def _create_aligned_text(
 ) -> tuple[Response, int]:
     db = Neo4JDatabase()
 
-    _, target_expression_id = db.get_manifestation(target_manifestation_id)
-
     expression_id = generate_id()
     annotation_id = generate_id()
-
-    pecha = Pecha.create_pecha(
-        pecha_id=expression_id,
-        base_text=request_model.content,
-        annotation_id=annotation_id,
-        annotation=[SegmentationAnnotation.model_validate(a) for a in request_model.segmentation],
-    )
+    manifestation_id = generate_id()
+    _, target_expression_id = db.get_manifestation(target_manifestation_id)
+    segmentation = AnnotationModel(id=annotation_id, type=AnnotationType.SEGMENTATION)
+    logger.info("Segmentation Tatse %s", request_model.segmentation)
+    segmentation_segments = [SegmentModel(id=generate_id(), span=span["span"]).model_dump() for span in request_model.segmentation]
 
     aligned = request_model.alignment_annotation is not None
 
     if aligned:
         alignment_annotation_id = generate_id()
-        pecha.add(
-            annotation_id=alignment_annotation_id,
-            annotation=[AlignmentAnnotation.model_validate(a) for a in request_model.alignment_annotation],
-        )
-
         target_annotation_id = generate_id()
-        target_pecha = retrieve_pecha(target_expression_id)
-        target_pecha.add(
-            annotation_id=target_annotation_id,
-            annotation=[AlignmentAnnotation.model_validate(a) for a in request_model.target_annotation],
-        )
-
-        storage = Storage()
-        storage.store_pecha(pecha)
-        storage.store_pecha(target_pecha)
+        storage = MockStorage()
+        storage.store_base_text(expression_id, manifestation_id, request_model.content)
 
     # Build contributions based on text type
     creator = request_model.author
@@ -167,8 +152,6 @@ def _create_aligned_text(
         with_ids = [{**seg, "id": generate_id()} for seg in segments]
         return with_ids, {seg["index"]: seg["id"] for seg in with_ids}
 
-    segmentation_segments_with_ids, _ = add_ids(request_model.segmentation)
-
     try:
         if aligned:
             alignment_annotation = AnnotationModel(
@@ -182,6 +165,8 @@ def _create_aligned_text(
             alignment_segments_with_ids, alignment_id_map = add_ids(request_model.alignment_annotation)
             target_segments_with_ids, target_id_map = add_ids(request_model.target_annotation)
 
+            logger.info("TaTse %s", target_segments_with_ids)
+
             # Build alignments with actual IDs
             alignments = [
                 {"source_id": alignment_id_map[seg["index"]], "target_id": target_id_map[target_idx]}
@@ -189,13 +174,14 @@ def _create_aligned_text(
                 for target_idx in seg.get("alignment_index", [])
             ]
 
-            manifestation_id = db.create_aligned_manifestation(
+            db.create_aligned_manifestation(
                 expression=expression,
                 expression_id=expression_id,
+                manifestation_id=manifestation_id,
                 manifestation=manifestation,
                 target_manifestation_id=target_manifestation_id,
                 segmentation=segmentation,
-                segmentation_segments=segmentation_segments_with_ids,
+                segmentation_segments=segmentation_segments,
                 alignment_annotation=alignment_annotation,
                 alignment_segments=alignment_segments_with_ids,
                 target_annotation=target_annotation,
@@ -203,15 +189,17 @@ def _create_aligned_text(
                 alignments=alignments,
             )
         else:
-            manifestation_id = db.create_manifestation(
+            db.create_manifestation(
                 expression=expression,
                 expression_id=expression_id,
                 manifestation=manifestation,
-                segmentation=segmentation,
-                segmentation_segments=segmentation_segments_with_ids,
+                manifestation_id=manifestation_id,
+                annotation=segmentation,
+                annotation_segments=segmentation_segments,
             )
     except Exception as e:
-        storage.rollback_pecha(expression_id)
+        logger.error("Error creating aligned text: %s", e)
+        MockStorage().rollback_base_text(expression_id=expression_id, manifestation_id=manifestation_id)
         raise e
 
     return (
