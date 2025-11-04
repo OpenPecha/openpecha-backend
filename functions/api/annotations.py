@@ -1,7 +1,6 @@
 import logging
 
-from flask import Blueprint, Response
-from flask import json
+from flask import Blueprint, Response, jsonify
 from neo4j_database import Neo4JDatabase
 
 annotations_bp = Blueprint("annotations", __name__)
@@ -21,8 +20,4 @@ def get_annotation(annotation_id: str) -> tuple[Response, int]:
         JSON response with annotation data and HTTP status code
     """
     annotation = Neo4JDatabase().get_annotation(annotation_id)
-    return Response(
-        response=json.dumps(annotation),
-        status=200,
-        mimetype='application/json'
-    )
+    return jsonify(annotation), 200

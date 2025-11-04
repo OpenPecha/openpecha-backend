@@ -650,13 +650,13 @@ class Neo4JDatabase:
             )
             segments = []
             for record in result:
-                segment = OrderedDict([
-                    ("id", record["id"]),
-                    ("span", OrderedDict([
-                        ("start", record["start"]),
-                        ("end", record["end"])
-                    ]))
-                ])
+                segment = {
+                    "id": record["id"],
+                    "span": {
+                        "start": record["start"],
+                        "end": record["end"]
+                    }
+                }
                 if record["reference"]:
                     segment["reference"] = record["reference"]
                 segments.append(segment)
