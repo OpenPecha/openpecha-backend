@@ -37,6 +37,7 @@ def create_app(testing=False):
     app.config["TESTING"] = testing
     app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
     app.json.ensure_ascii = False
+    app.json.sort_keys = False  # Preserve dictionary insertion order
 
     app.register_blueprint(texts_bp, url_prefix="/v2/texts")
     app.register_blueprint(api_bp, url_prefix="/api")
