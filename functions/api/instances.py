@@ -105,7 +105,6 @@ def _create_aligned_text(
     manifestation_id = generate_id()
     _, target_expression_id = db.get_manifestation(target_manifestation_id)
     segmentation = AnnotationModel(id=annotation_id, type=AnnotationType.SEGMENTATION)
-    logger.info("Segmentation Tatse %s", request_model.segmentation)
     segmentation_segments = [SegmentModel(id=generate_id(), span=span["span"]).model_dump() for span in request_model.segmentation]
 
     aligned = request_model.alignment_annotation is not None
