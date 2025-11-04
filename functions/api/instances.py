@@ -107,14 +107,15 @@ def _create_aligned_text(
     segmentation = AnnotationModel(id=annotation_id, type=AnnotationType.SEGMENTATION)
     segmentation_segments = [SegmentModel(id=generate_id(), span=span["span"]).model_dump() for span in request_model.segmentation]
 
+    storage = MockStorage()
+    storage.store_base_text(expression_id=expression_id, manifestation_id=manifestation_id, base_text=request_model.content)
+
     aligned = request_model.alignment_annotation is not None
+
 
     if aligned:
         alignment_annotation_id = generate_id()
         target_annotation_id = generate_id()
-        storage = MockStorage()
-        storage.store_base_text(expression_id, manifestation_id, request_model.content)
-
     # Build contributions based on text type
     creator = request_model.author
     role = ContributorRole.TRANSLATOR if text_type == TextType.TRANSLATION else ContributorRole.AUTHOR
@@ -164,7 +165,6 @@ def _create_aligned_text(
             alignment_segments_with_ids, alignment_id_map = add_ids(request_model.alignment_annotation)
             target_segments_with_ids, target_id_map = add_ids(request_model.target_annotation)
 
-            logger.info("TaTse %s", target_segments_with_ids)
 
             # Build alignments with actual IDs
             alignments = [
