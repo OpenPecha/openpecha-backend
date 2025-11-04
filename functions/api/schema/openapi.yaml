@@ -722,7 +722,7 @@ paths:
                 - language
                 - content
                 - title
-                - annotation
+                - segmentation
               properties:
                 language:
                   type: string
@@ -768,8 +768,8 @@ paths:
                   enum: [public, copyrighted]
                   default: public
             examples:
-              valid_translation:
-                summary: Valid translation creation request
+              valid_translation_with_alignment_annotation:
+                summary: Valid translation creation request with alignment annotation
                 value:
                   language: "en"
                   content: "This is the translated text content"
@@ -779,15 +779,47 @@ paths:
                   segmentation:
                     - span:
                         start: 0
-                        end: 35
+                        end: 20
+                    - span:
+                        start: 21
+                        end: 40
+                  target_annotation:
+                    - span:
+                        start: 0
+                        end: 20
                       index: 0
+                    - span:
+                        start: 21
+                        end: 40
+                      index: 1
                   alignment_annotation:
                     - span:
                         start: 0
                         end: 20
                       index: 0
                       alignment_index: [0]
+                    - span:
+                        start: 21
+                        end: 50
+                      index: 1
+                      alignment_index: [1]
                   copyright: "public"
+              valid_translation_without_alignment_annotation:
+                summary: Valid translation creation request without alignment annotation
+                value:
+                  language: "en"
+                  content: "This is the translated text content"
+                  title: "Translated Title"
+                  author:
+                    person_id: "P12345678"
+                  segmentation:
+                    - span:
+                        start: 0
+                        end: 20
+                    - span:
+                        start: 21
+                        end: 40
+                  copyright: "public"    
       responses:
         "201":
           description: Translation created successfully
@@ -892,14 +924,28 @@ paths:
                   segmentation:
                     - span:
                         start: 0
-                        end: 50
-                      index: 0
-                  alignment_annotation:
+                        end: 20
+                    - span:
+                        start: 21
+                        end: 40
+                  target_annotation:
                     - span:
                         start: 0
                         end: 20
                       index: 0
+                    - span:
+                        start: 21
+                        end: 40
+                      index: 1
+                  alignment_annotation:
+                    - span:
+                        start: 0
+                        end: 20
                       alignment_index: [0]
+                    - span:
+                        start: 21
+                        end: 50
+                      alignment_index: [1]
                   copyright: "public"
       responses:
         "201":
