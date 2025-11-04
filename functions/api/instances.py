@@ -23,6 +23,7 @@ from openpecha.pecha.annotations import AlignmentAnnotation, SegmentationAnnotat
 from openpecha.pecha.serializers import SerializerLogicHandler
 from pecha_handling import retrieve_pecha
 from storage import Storage, MockStorage
+from pecha_handling import retrieve_pecha, retrieve_base_text
 
 instances_bp = Blueprint("instances", __name__)
 
@@ -30,70 +31,54 @@ logger = logging.getLogger(__name__)
 
 
 @instances_bp.route("/<string:manifestation_id>", methods=["GET"], strict_slashes=False)
-def get_instance(manifestation_id: str) -> tuple[Response, int]:
+def get_instance(manifestation_id: str):
+
     logger.info("Fetching with manifestation ID: %s", manifestation_id)
 
-    aligned = request.args.get("aligned", "false").lower() == "true"
-    logger.info("Aligned parameter: %s", aligned)
+    annotation_param = request.args.get("annotation", "false").lower() == "true"
+    logger.info("Annotation parameter %s", annotation_param)
 
-    db = Neo4JDatabase()
 
-    manifestation, expression_id = db.get_manifestation(manifestation_id)
-    logger.info("Manifestation: %s", manifestation)
+    logger.info("Getting manifestation detail and expression id from Neo4J Database")
+    manifestation, expression_id = Neo4JDatabase().get_manifestation(manifestation_id = manifestation_id)
 
-    pecha = retrieve_pecha(expression_id)
-    json = None
+    logger.info("Retrieving base text from storage")
+    base_text = retrieve_base_text(expression_id = expression_id, manifestation_id = manifestation_id)
 
-    if aligned:
-        aligned_to_id = manifestation.aligned_to
+    metadata = {
+        "id": manifestation.id,
+        "type": manifestation.type.value,
+        "copyright": manifestation.copyright.value,
+        "bdrc": manifestation.bdrc,
+        "wiki": manifestation.wiki,
+        "colophon": manifestation.colophon,
+        "incipit_title": manifestation.incipit_title.model_dump() if manifestation.incipit_title else None,
+        "alt_incipit_titles": (
+            [alt.model_dump() for alt in manifestation.alt_incipit_titles]
+            if manifestation.alt_incipit_titles
+            else None
+        ),
+    }
 
-        if aligned_to_id:
-            result = db.get_manifestation_by_annotation(aligned_to_id)
-            if result:
-                target_manifestation, target_expression_id = result
-                target_pecha = retrieve_pecha(target_expression_id)
-                target = {
-                    "pecha": target_pecha,
-                    "annotations": [a.model_dump() for a in target_manifestation.annotations],
-                }
-
-                source = {
-                    "pecha": pecha,
-                    "annotations": [a.model_dump() for a in manifestation.annotations],
-                }
-
-                logger.info(
-                    "Serializing with target (%s, expression: %s): %s",
-                    target_manifestation.id,
-                    target_expression_id,
-                    target,
+    annotations = None
+    if annotation_param and manifestation.annotations :
+        annotations = []
+        for annotation in manifestation.annotations:
+            if annotation.type != AnnotationType.ALIGNMENT:
+                annotations.append(
+                    {
+                        "annotation_id": annotation.id,
+                        "type": annotation.type.value,
+                    }
                 )
-                logger.info(
-                    "Serializing with source (%s, expression: %s): %s",
-                    manifestation_id,
-                    expression_id,
-                    source,
-                )
+    
+    json = {
+        "content": base_text,
+        "metadata": metadata,
+        "annotations": annotations,
+    }
 
-                json = SerializerLogicHandler().serialize(target, source=source).model_dump()
-            else:
-                return (
-                    jsonify({"error": f"Could not find instance for aligned_to annotation: {aligned_to_id}"}),
-                    400,
-                )
-        else:
-            return jsonify({"error": f"No aligned_to annotation found in instance: {manifestation_id}"}), 422
-    else:
-        target = {
-            "pecha": pecha,
-            "annotations": [a.model_dump() for a in manifestation.annotations],
-        }
-
-        logger.info("Serializing with target (%s, expression: %s): %s", manifestation_id, expression_id, target)
-        json = SerializerLogicHandler().serialize(target).model_dump()
-
-    return (json, 200)
-
+    return jsonify(json), 200
 
 def _create_aligned_text(
     request_model: AlignedTextRequestModel, text_type: TextType, target_manifestation_id: str

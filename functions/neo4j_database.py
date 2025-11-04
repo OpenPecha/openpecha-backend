@@ -1,6 +1,6 @@
-import logging
+from collections import OrderedDict
 import os
-
+import logging
 from exceptions import DataNotFound
 from identifier import generate_id
 from models import (
@@ -305,6 +305,7 @@ class Neo4JDatabase:
             if annotation:
                 self._execute_add_annotation(tx, manifestation_id, annotation)
                 self._create_segments(tx, annotation.id, annotation_segments)
+                self._create_and_link_references(tx, annotation_segments)
 
         with self.__driver.session() as session:
             return session.execute_write(transaction_function)
@@ -330,12 +331,15 @@ class Neo4JDatabase:
 
             _ = self._execute_add_annotation(tx, manifestation_id, segmentation)
             self._create_segments(tx, segmentation.id, segmentation_segments)
+            self._create_and_link_references(tx, segmentation_segments)
 
             _ = self._execute_add_annotation(tx, manifestation_id, alignment_annotation)
             self._create_segments(tx, alignment_annotation.id, alignment_segments)
+            self._create_and_link_references(tx, alignment_segments)
 
             _ = self._execute_add_annotation(tx, target_manifestation_id, target_annotation)
             self._create_segments(tx, target_annotation.id, target_segments)
+            self._create_and_link_references(tx, target_segments)
 
             tx.run(Queries.segments["create_alignments_batch"], alignments=alignments)
 
@@ -589,8 +593,68 @@ class Neo4JDatabase:
 
     def _create_segments(self, tx, annotation_id: str, segments: list[dict] = None) -> None:
         if segments:
+            # Generate IDs for segments that don't have them
+            # Uniqueness is enforced by Neo4j constraint on Segment.id (62^21 possibilities)
+            segments_with_ids = []
+            for seg in segments:
+                if "id" not in seg or seg["id"] is None:
+                    seg["id"] = generate_id()
+                segments_with_ids.append(seg)
+   
             tx.run(
                 Queries.segments["create_batch"],
                 annotation_id=annotation_id,
-                segments=segments,
+                segments=segments_with_ids,
             )
+            
+
+    def _create_and_link_references(self, tx, segments: list[dict]) -> None:
+        """Create reference nodes and link them to segments."""
+        segment_references = []
+        
+        for seg in segments:
+            if "reference" in seg and seg["reference"]:
+                reference_id = self._create_reference(tx, seg["reference"])
+                segment_references.append({
+                    "segment_id": seg["id"],
+                    "reference_id": reference_id
+                })
+        
+        # Link references to segments if any
+        if segment_references:
+            tx.run(
+                Queries.references["link_to_segments"],
+                segment_references=segment_references,
+            )
+
+    def _create_reference(self, tx, reference_name: str, description: str = None) -> str:
+        """Create a single reference node and return its ID."""
+        reference_id = generate_id()
+        tx.run(
+            Queries.references["create"],
+            reference_id=reference_id,
+            name=reference_name,
+            description=description,
+        )
+        return reference_id
+
+    def get_annotation(self, annotation_id: str) -> list[dict]:
+        """Get all segments for an annotation."""
+        with self.get_session() as session:
+            result = session.run(
+                Queries.annotations["get_segments"],
+                annotation_id=annotation_id
+            )
+            segments = []
+            for record in result:
+                segment = {
+                    "id": record["id"],
+                    "span": {
+                        "start": record["start"],
+                        "end": record["end"]
+                    }
+                }
+                if record["reference"]:
+                    segment["reference"] = record["reference"]
+                segments.append(segment)
+            return segments
