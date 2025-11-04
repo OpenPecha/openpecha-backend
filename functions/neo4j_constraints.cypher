@@ -17,6 +17,9 @@ CREATE CONSTRAINT manifestation_id_unique IF NOT EXISTS FOR (m:Manifestation) RE
 // Annotation nodes - each annotation must have a unique ID
 CREATE CONSTRAINT annotation_id_unique IF NOT EXISTS FOR (a:Annotation) REQUIRE a.id IS UNIQUE;
 
+// Segment nodes - each segment must have a unique ID
+CREATE CONSTRAINT segment_id_unique IF NOT EXISTS FOR (s:Segment) REQUIRE s.id IS UNIQUE;
+
 // =============================================================================
 // UNIQUE CONSTRAINTS FOR ENUM/LOOKUP NODES
 // =============================================================================
