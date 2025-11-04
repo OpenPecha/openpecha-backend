@@ -1415,6 +1415,85 @@ paths:
         "500":
           $ref: '#/components/responses/ServerError'
 
+  /v2/annotations/{annotation_id}:
+    get:
+      summary: Retrieve annotation by ID
+      description: Fetch a specific annotation by its ID including all segments
+      tags:
+        - Annotations
+      parameters:
+        - name: annotation_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the annotation to retrieve
+      responses:
+        "200":
+          description: Annotation retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                description: List of segments belonging to this annotation
+                items:
+                  type: object
+                  required:
+                    - id
+                    - span
+                  properties:
+                    id:
+                      type: string
+                      description: Unique identifier for the segment
+                    span:
+                      type: object
+                      description: Character span of the segment
+                      required:
+                        - start
+                        - end
+                      properties:
+                        start:
+                          type: integer
+                          description: Start character position 
+                        end:
+                          type: integer
+                          description: End character position
+                    reference:
+                      type: string
+                      nullable: true
+                      description: Image ID this annotation is referring to 
+              examples:
+                segmentation annotation:
+                  summary: Segmentation annotation with segments
+                  value:
+                    - id: "sdlsakdf"
+                      span:
+                        start: 0
+                        end: 20
+                    - id: "akjdlks"
+                      span:
+                        start: 20
+                        end: 45
+                pagination annotation:
+                  summary: Pagination annotation with segments and reference
+                  value:
+                    - id: "laksdfklsjd"
+                      span:
+                        start: 0
+                        end: 25
+                      reference: "IMG001.png"
+                    - id: "aksdfnjksdf"
+                      span:
+                        start: 25
+                        end: 50
+                      reference: "IMG002.png"
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
   /v2/segments/{segment_id}/related:
     get:
       summary: Find related texts for a segment
