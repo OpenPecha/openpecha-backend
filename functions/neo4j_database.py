@@ -317,6 +317,29 @@ class Neo4JDatabase:
         with self.__driver.session() as session:
             return session.execute_write(transaction_function)
 
+    def add_alignment_annotation_to_manifestation(
+        self,
+        target_annotation: AnnotationModel,
+        source_annotation: AnnotationModel,
+        target_manifestation_id: str,
+        source_manifestation_id: str,
+        target_segments: list[dict],
+        alignment_segments: list[dict],
+        alignments: list[dict]
+    ) -> str:
+        def transaction_function(tx):
+            _ = self._execute_add_annotation(tx, target_manifestation_id, target_annotation)
+            self._create_segments(tx, target_annotation.id, target_segments)
+
+            _ = self._execute_add_annotation(tx, source_manifestation_id, source_annotation)
+            self._create_segments(tx, source_annotation.id, alignment_segments)
+
+            tx.run(Queries.segments["create_alignments_batch"], alignments=alignments)
+        
+        with self.__driver.session() as session:
+            return session.execute_write(transaction_function)
+
+
     def create_aligned_manifestation(
         self,
         expression: ExpressionModelInput,

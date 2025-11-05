@@ -1568,9 +1568,10 @@ paths:
     post:
       summary: Add annotation to a manifestation
       description: >-
-        Adds an annotation to the specified manifestation. For CRITICAL manifestations,
-        send an array of segmentation annotations (span only). For DIPLOMATIC manifestations,
-        send an array of pagination annotations (span + reference).
+        Adds an annotation to the specified manifestation. Supports two annotation types:
+        - SEGMENTATION: For CRITICAL manifestations, send segmentation annotations (span only).
+          For DIPLOMATIC manifestations, send pagination annotations (span + reference).
+        - ALIGNMENT: Creates alignment relationships between segments of the source and target manifestations.
       tags:
         - Annotations
       parameters:
@@ -1579,52 +1580,170 @@ paths:
           required: true
           schema:
             type: string
-          description: The ID of the manifestation to annotate
+          description: The ID of the manifestation to annotate (source manifestation for ALIGNMENT type)
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              type: array
-              minItems: 1
-              items:
-                type: object
-                required: [span]
-                properties:
-                  span:
+              type: object
+              required:
+                - annotation_type
+              properties:
+                annotation_type:
+                  type: string
+                  enum: [segmentation, alignment]
+                  description: Type of annotation to add
+                annotation:
+                  type: array
+                  minItems: 1
+                  description: Array of segmentation or pagination annotations (required for SEGMENTATION type)
+                  items:
+                    oneOf:
+                      - type: object
+                        required: [span]
+                        properties:
+                          span:
+                            type: object
+                            required: [start, end]
+                            properties:
+                              start:
+                                type: integer
+                                minimum: 0
+                                description: Start character position (inclusive)
+                              end:
+                                type: integer
+                                minimum: 1
+                                description: End character position (exclusive)
+                        description: Segmentation annotation (for CRITICAL manifestations)
+                      - type: object
+                        required: [span, reference]
+                        properties:
+                          span:
+                            type: object
+                            required: [start, end]
+                            properties:
+                              start:
+                                type: integer
+                                minimum: 0
+                                description: Start character position (inclusive)
+                              end:
+                                type: integer
+                                minimum: 1
+                                description: End character position (exclusive)
+                          reference:
+                            type: string
+                            description: Page/folio reference for the span
+                        description: Pagination annotation (for DIPLOMATIC manifestations)
+                target_manifestation_id:
+                  type: string
+                  description: Target manifestation ID (required for ALIGNMENT type)
+                target_annotation:
+                  type: array
+                  minItems: 1
+                  description: Array of alignment annotations for target manifestation (required for ALIGNMENT type)
+                  items:
                     type: object
-                    required: [start, end]
+                    required: [span, index, alignment_index]
                     properties:
-                      start:
+                      span:
+                        type: object
+                        required: [start, end]
+                        properties:
+                          start:
+                            type: integer
+                            minimum: 0
+                            description: Start character position (inclusive)
+                          end:
+                            type: integer
+                            minimum: 1
+                            description: End character position (exclusive)
+                      index:
                         type: integer
-                        minimum: 0
-                      end:
+                        description: Index of the segment in the target annotation
+                alignment_annotation:
+                  type: array
+                  minItems: 1
+                  description: Array of alignment annotations for source manifestation (required for ALIGNMENT type)
+                  items:
+                    type: object
+                    required: [span, index, alignment_index]
+                    properties:
+                      span:
+                        type: object
+                        required: [start, end]
+                        properties:
+                          start:
+                            type: integer
+                            minimum: 0
+                            description: Start character position (inclusive)
+                          end:
+                            type: integer
+                            minimum: 1
+                            description: End character position (exclusive)
+                      index:
                         type: integer
-                        minimum: 1
-                  reference:
-                    type: string
-                    description: Page/folio reference for the span (required for DIPLOMATIC manifestations)
+                        description: Index of the segment in the alignment annotation
+                      alignment_index:
+                        type: array
+                        items:
+                          type: integer
+                        description: List of indices in target_annotation that this segment aligns to
             examples:
-              diplomatic:
-                summary: Pagination annotations (DIPLOMATIC)
+              segmentation_critical:
+                summary: Segmentation annotations (CRITICAL manifestation)
                 value:
-                  - span:
-                      start: 0
-                      end: 42
-                    reference: "folio 1a"
-                  - span:
-                      start: 42
-                      end: 100
-                    reference: "folio 1b"
-              critical:
-                summary: Segmentation annotations (CRITICAL)
+                  annotation_type: segmentation
+                  annotation:
+                    - span:
+                        start: 0
+                        end: 42
+                    - span:
+                        start: 42
+                        end: 100
+              segmentation_diplomatic:
+                summary: Pagination annotations (DIPLOMATIC manifestation)
                 value:
-                  - span:
-                      start: 0
-                      end: 42
-                  - span:
-                      start: 42
-                      end: 100
+                  annotation_type: segmentation
+                  annotation:
+                    - span:
+                        start: 0
+                        end: 42
+                      reference: "folio 1a"
+                    - span:
+                        start: 42
+                        end: 100
+                      reference: "folio 1b"
+              alignment:
+                summary: Alignment annotations
+                value:
+                  annotation_type: alignment
+                  target_manifestation_id: "MNF12345678"
+                  target_annotation:
+                    - span:
+                        start: 0
+                        end: 50
+                      index: 0
+                    - span:
+                        start: 50
+                        end: 100
+                      index: 1
+                  alignment_annotation:
+                    - span:
+                        start: 0
+                        end: 30
+                      index: 0
+                      alignment_index: [0]
+                    - span:
+                        start: 30
+                        end: 60
+                      index: 1
+                      alignment_index: [0, 1]
+                    - span:
+                        start: 60
+                        end: 100
+                      index: 2
+                      alignment_index: [1]
       responses:
         "400":
           description: Invalid request
@@ -1640,32 +1759,58 @@ paths:
                   summary: Missing request body
                   value:
                     error: "Request body is required"
-                body_not_array:
-                  summary: Request body is not an array
+                invalid_annotation_type:
+                  summary: Invalid annotation type
                   value:
-                    error: "Request body must be an array of annotations"
-                spans_beyond_base:
-                  summary: Spans exceed base text length
+                    error: "Invalid annotation type. Allowed types are [SEGMENTATION, ALIGNMENT]"
+                missing_annotation:
+                  summary: Missing annotation data
                   value:
-                    error: "Annotation spans beyond the base text"
-                unsupported_type:
-                  summary: Unsupported manifestation type for annotations
+                    error: "Segmentation annotation cannot be empty"
+                missing_target_manifestation:
+                  summary: Missing target manifestation ID
                   value:
-                    error: "Unsupported manifestation type 'collated' for annotations"
+                    error: "Target manifestation id must be provided"
+                missing_alignment_annotations:
+                  summary: Missing alignment annotations
+                  value:
+                    error: "Both target annotation and alignment annotation must be provided"
         "201":
           description: Annotation added successfully
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                  annotation_id:
-                    type: string
-              example:
-                message: "Annotation added successfully"
-                annotation_id: "A12345678"
+                oneOf:
+                  - type: object
+                    required: [message, annotation_id]
+                    properties:
+                      message:
+                        type: string
+                      annotation_id:
+                        type: string
+                    description: Response for SEGMENTATION type
+                  - type: object
+                    required: [message, alignment_annotation_id, target_annotation_id]
+                    properties:
+                      message:
+                        type: string
+                      alignment_annotation_id:
+                        type: string
+                      target_annotation_id:
+                        type: string
+                    description: Response for ALIGNMENT type
+              examples:
+                segmentation:
+                  summary: Segmentation annotation response
+                  value:
+                    message: "Annotation added successfully"
+                    annotation_id: "A12345678"
+                alignment:
+                  summary: Alignment annotation response
+                  value:
+                    message: "Alignment annotation added successfully"
+                    alignment_annotation_id: "A12345678"
+                    target_annotation_id: "A87654321"
         "404":
           $ref: '#/components/responses/NotFound'
         "422":

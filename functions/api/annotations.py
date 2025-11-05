@@ -49,32 +49,84 @@ def add_annotation(manifestation_id: str) -> tuple[Response, int]:
     logger.info("Getting manifestation and expression id from Neo4J Database")
     manifestation, expression_id = Neo4JDatabase().get_manifestation(manifestation_id = manifestation_id)
  
-    annotation_id = None
+    
+    response = None
     if request_model.annotation_type == AnnotationType.SEGMENTATION:
-        annotation_type = None
-        if manifestation.type == ManifestationType.CRITICAL:
-            annotation_type = AnnotationModel(
-                id=generate_id(),
-                type=AnnotationType.SEGMENTATION,
-            )
-        elif manifestation.type == ManifestationType.DIPLOMATIC:
-            annotation_type = AnnotationModel(
-                id=generate_id(),
-                type=AnnotationType.PAGINATION,
-            )
-        logger.info("Adding annotation to manifestation")
-        annotation_id = Neo4JDatabase().add_annotation_to_manifestation(manifestation_id = manifestation_id, annotation = annotation_type, annotation_segments = data)
-        logger.info("Annotation added successfully")
+        response = _add_segmentation_annotation(
+            manifestation = manifestation,
+            manifestation_id = manifestation_id,
+            data = data
+        )
+
     elif request_model.annotation_type == AnnotationType.ALIGNMENT:
-        pass
+        response = _add_alignment_annotation(
+            target_manifestation_id = request_model.target_manifestation_id,
+            manifestation_id = manifestation_id,
+            data = data
+        )
+
+    return jsonify(response), 201
+
+def _add_alignment_annotation(target_manifestation_id: str, manifestation_id: str, data: dict) -> dict:
+    alignment_annotation_id = generate_id()
+    target_annotation_id = generate_id()
+    alignment_annotation = AnnotationModel(
+        id = alignment_annotation_id,
+        type = AnnotationType.ALIGNMENT,
+        aligned_to = target_annotation_id
+    )
+
+    target_annotation = AnnotationModel(
+        id = target_annotation_id,
+        type = AnnotationType.ALIGNMENT
+    )
+
+    alignment_segments_with_ids, target_segments_with_ids, alignments = _alignment_annotation_mapping(
+        target_annotation = data["target_annotation"], 
+        alignment_annotation = data["alignment_annotation"]
+    )
+
+    Neo4JDatabase().add_alignment_annotation_to_manifestation(
+        target_annotation = target_annotation,
+        source_annotation = alignment_annotation,
+        target_manifestation_id = target_manifestation_id,
+        source_manifestation_id = manifestation_id,
+        target_segments = target_segments_with_ids,
+        alignment_segments = alignment_segments_with_ids,
+        alignments = alignments
+    )
+
+    response = {
+        "message": "Alignment annotation added successfully",
+        "alignment_annotation_id": alignment_annotation_id,
+        "target_annotation_id": target_annotation_id,
+    }    
+
+    return response
+
+def _add_segmentation_annotation(manifestation, manifestation_id: str, data: dict) -> dict:
+    annotation_id = None
+    annotation_type = None
+    if manifestation.type == ManifestationType.CRITICAL:
+        annotation_type = AnnotationModel(
+            id=generate_id(),
+            type=AnnotationType.SEGMENTATION,
+        )
+    elif manifestation.type == ManifestationType.DIPLOMATIC:
+        annotation_type = AnnotationModel(
+            id=generate_id(),
+            type=AnnotationType.PAGINATION,
+        )
+    logger.info("Adding annotation to manifestation")
+    annotation_id = Neo4JDatabase().add_annotation_to_manifestation(manifestation_id = manifestation_id, annotation = annotation_type, annotation_segments = data)
+    logger.info("Annotation added successfully")
 
     response = {
         "message": "Annotation added successfully",
         "annotation_id": annotation_id,
     }
 
-    return jsonify(response), 201
-
+    return response
 
 def _alignment_annotation_mapping(target_annotation: list[dict], alignment_annotation: list[dict]) -> list[dict]:
     def add_ids(segments):
