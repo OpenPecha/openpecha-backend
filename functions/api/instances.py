@@ -18,12 +18,9 @@ from models import (
     SegmentModel,
 )
 from neo4j_database import Neo4JDatabase
-from openpecha.pecha import Pecha
-from openpecha.pecha.annotations import AlignmentAnnotation, SegmentationAnnotation
-from openpecha.pecha.serializers import SerializerLogicHandler
-from pecha_handling import retrieve_pecha
-from storage import Storage, MockStorage
-from pecha_handling import retrieve_pecha, retrieve_base_text
+from storage import MockStorage
+from pecha_handling import retrieve_base_text
+from api.annotations import _alignment_annotation_mapping
 
 instances_bp = Blueprint("instances", __name__)
 
@@ -95,12 +92,6 @@ def _create_aligned_text(
     storage = MockStorage()
     storage.store_base_text(expression_id=expression_id, manifestation_id=manifestation_id, base_text=request_model.content)
 
-    aligned = request_model.alignment_annotation is not None
-
-
-    if aligned:
-        alignment_annotation_id = generate_id()
-        target_annotation_id = generate_id()
     # Build contributions based on text type
     creator = request_model.author
     role = ContributorRole.TRANSLATOR if text_type == TextType.TRANSLATION else ContributorRole.AUTHOR
@@ -133,30 +124,20 @@ def _create_aligned_text(
     manifestation = ManifestationModelInput(type=ManifestationType.CRITICAL, copyright=request_model.copyright)
     segmentation = AnnotationModel(id=annotation_id, type=AnnotationType.SEGMENTATION)
 
-    def add_ids(segments):
-        with_ids = [{**seg, "id": generate_id()} for seg in segments]
-        return with_ids, {seg["index"]: seg["id"] for seg in with_ids}
-
+    aligned = request_model.alignment_annotation is not None
+    
     try:
         if aligned:
+            alignment_annotation_id = generate_id()
+            target_annotation_id = generate_id()
             alignment_annotation = AnnotationModel(
                 id=alignment_annotation_id,
                 type=AnnotationType.ALIGNMENT,
-                aligned_to=target_annotation_id,
+                aligned_to=target_annotation_id
             )
 
             target_annotation = AnnotationModel(id=target_annotation_id, type=AnnotationType.ALIGNMENT)
-
-            alignment_segments_with_ids, alignment_id_map = add_ids(request_model.alignment_annotation)
-            target_segments_with_ids, target_id_map = add_ids(request_model.target_annotation)
-
-
-            # Build alignments with actual IDs
-            alignments = [
-                {"source_id": alignment_id_map[seg["index"]], "target_id": target_id_map[target_idx]}
-                for seg in request_model.alignment_annotation
-                for target_idx in seg.get("alignment_index", [])
-            ]
+            alignment_segments_with_ids, target_segments_with_ids, alignments = _alignment_annotation_mapping(request_model.target_annotation, request_model.alignment_annotation)
 
             db.create_aligned_manifestation(
                 expression=expression,

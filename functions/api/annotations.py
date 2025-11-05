@@ -2,6 +2,7 @@ import logging
 
 from flask import Blueprint, Response, jsonify, request
 from neo4j_database import Neo4JDatabase
+from identifier import generate_id
 
 annotations_bp = Blueprint("annotations", __name__)
 
@@ -48,7 +49,8 @@ def add_annotation(manifestation_id: str) -> tuple[Response, int]:
     logger.info("Getting manifestation and expression id from Neo4J Database")
     manifestation, expression_id = Neo4JDatabase().get_manifestation(manifestation_id = manifestation_id)
  
-    if request_model.annnotation_type == AnnotationType.SEGMENTATION:
+    annotation_id = None
+    if request_model.annotation_type == AnnotationType.SEGMENTATION:
         annotation_type = None
         if manifestation.type == ManifestationType.CRITICAL:
             annotation_type = AnnotationModel(
@@ -61,7 +63,7 @@ def add_annotation(manifestation_id: str) -> tuple[Response, int]:
                 type=AnnotationType.PAGINATION,
             )
         logger.info("Adding annotation to manifestation")
-        annotation_id =Neo4JDatabase().add_annotation_to_manifestation(manifestation_id = manifestation_id, annotation = annotation_type, annotation_segments = data)
+        annotation_id = Neo4JDatabase().add_annotation_to_manifestation(manifestation_id = manifestation_id, annotation = annotation_type, annotation_segments = data)
         logger.info("Annotation added successfully")
     elif request_model.annotation_type == AnnotationType.ALIGNMENT:
         pass
@@ -73,3 +75,18 @@ def add_annotation(manifestation_id: str) -> tuple[Response, int]:
 
     return jsonify(response), 201
 
+
+def _alignment_annotation_mapping(target_annotation: list[dict], alignment_annotation: list[dict]) -> list[dict]:
+    def add_ids(segments):
+        with_ids = [{**seg, "id": generate_id()} for seg in segments]
+        return with_ids, {seg["index"]: seg["id"] for seg in with_ids}
+
+    alignment_segments_with_ids, alignment_id_map = add_ids(alignment_annotation)
+    target_segments_with_ids, target_id_map = add_ids(target_annotation)
+    
+    alignments = [
+        {"source_id": alignment_id_map[seg["index"]], "target_id": target_id_map[target_idx]}
+        for seg in alignment_annotation
+        for target_idx in seg.get("alignment_index", [])
+    ]
+    return alignment_segments_with_ids, target_segments_with_ids, alignments
