@@ -242,6 +242,11 @@ class PaginationAnnotationModel(OpenPechaModel):
     span: SpanModel
     reference: NonEmptyStr
 
+class AlignmentAnnotationModel(OpenPechaModel):
+    span: SpanModel
+    index: int
+    alignment_index: list[int]
+
 class InstanceRequestModel(OpenPechaModel):
     metadata: ManifestationModelInput
     annotation: list[SegmentationAnnotationModel | PaginationAnnotationModel] | None = None
@@ -259,4 +264,30 @@ class InstanceRequestModel(OpenPechaModel):
                 raise ValueError("For 'diplomatic' manifestations, all annotations must be PaginationAnnotationModel")
             elif not all(isinstance(ann, (SegmentationAnnotationModel, PaginationAnnotationModel)) for ann in self.annotation):
                 raise ValueError("Annotations must be either SegmentationAnnotationModel or PaginationAnnotationModel")
+        return self
+
+class AddAnnotationRequestModel(OpenPechaModel):
+    annotation_type: AnnotationType
+    annotation: list[SegmentationAnnotationModel | PaginationAnnotationModel] | None = Field(default_factory=None, min_length=1)
+    target_annotation: list[AlignmentAnnotationModel] | None = Field(default_factory=None, min_length=1)
+    alignment_annotation: list[AlignmentAnnotationModel] | None= Field(default_factory=None, min_length=1)
+
+    @model_validator(mode="after")
+    def validate_request_model(self):
+        if self.annotation_type == AnnotationType.SEGMENTATION:
+            if self.annotation is None:
+                raise ValueError("Segmentation annotation cannot be empty")
+            elif self.target_annotation is not None or self.alignment_annotation is not None:
+                raise ValueError("Cannot provide both annotation and alignment annotation or target_annotation")
+            elif not all(isinstance(ann, SegmentationAnnotationModel) for ann in self.annotation):
+                raise ValueError("Invalid annotation")
+        elif self.annotation_type == AnnotationType.ALIGNMENT:
+            if self.target_annotation is None or self.alignment_annotation is None:
+                raise ValueError("Both target annotation and alignment annotation must be provided")
+            elif self.annotation is not None:
+                raise ValueError("Cannot provide both annotation and alignment annotation or target_annotation")
+            elif not all(isinstance(ann, AlignmentAnnotationModel) for ann in self.target_annotation + self.alignment_annotation):
+                raise ValueError("Invalid target annotation or alignment annotation")
+        else:
+            raise ValueError("Invalid annotation type. Allowed types are [SEGMENTATION, ALIGNMENT]")
         return self

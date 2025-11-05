@@ -13,6 +13,7 @@ from models import (
     ManifestationType,
     AnnotationModel,
     AnnotationType,
+    AddAnnotationRequestModel,
 )
 from identifier import generate_id
 from exceptions import InvalidRequest
@@ -36,52 +37,34 @@ def get_annotation(annotation_id: str) -> tuple[Response, int]:
 @annotations_bp.route("/<string:manifestation_id>/annotation", methods=["POST"], strict_slashes=False)
 def add_annotation(manifestation_id: str) -> tuple[Response, int]:
 
-    logger.info("Getting manifestation and expression id from Neo4J Database")
-    manifestation, expression_id = Neo4JDatabase().get_manifestation(manifestation_id = manifestation_id)
-
     # Parse and validate request body
     logger.info("Parsing and validating request body")
     data = request.get_json(force=True, silent=True)
     if not data:
         raise InvalidRequest("Request body is required")
-    if not isinstance(data, list):
-        raise InvalidRequest("Request body must be an array of annotations")
+   
+    request_model = AddAnnotationRequestModel.model_validate(data)
 
-    # Validate each item according to manifestation type
-    logger.info(f"Validating each item according to manifestation type: {manifestation.type}")
-    if len(data) == 0:
-        raise InvalidRequest("Cannot provide an empty annotation")
-    elif manifestation.type == ManifestationType.CRITICAL:
-        annotations = [SegmentationAnnotationModel.model_validate(item) for item in data]
-    elif manifestation.type == ManifestationType.DIPLOMATIC:
-        annotations = [PaginationAnnotationModel.model_validate(item) for item in data]
-    else:
-        raise InvalidRequest(f"Unsupported manifestation type '{manifestation.type}' for annotations")
-
-    # Ensure spans do not exceed base text length
-    logger.info("Ensuring spans do not exceed base text length")
-    storage = MockStorage()
-    base_text = storage._get_file(
-        storage._base_text_path(expression_id=expression_id, manifestation_id=manifestation_id)
-    )
-    max_end = max(ann.span.end for ann in annotations)
-    if max_end > len(base_text):
-        return jsonify({"error": "Annotation spans beyond the base text"}), 400
-    
-    annotation_type = None
-    if manifestation.type == ManifestationType.CRITICAL:
-        annotation_type = AnnotationModel(
-            id=generate_id(),
-            type=AnnotationType.SEGMENTATION,
-        )
-    elif manifestation.type == ManifestationType.DIPLOMATIC:
-        annotation_type = AnnotationModel(
-            id=generate_id(),
-            type=AnnotationType.PAGINATION,
-        )
-    logger.info("Adding annotation to manifestation")
-    annotation_id =Neo4JDatabase().add_annotation_to_manifestation(manifestation_id = manifestation_id, annotation = annotation_type, annotation_segments = data)
-    logger.info("Annotation added successfully")
+    logger.info("Getting manifestation and expression id from Neo4J Database")
+    manifestation, expression_id = Neo4JDatabase().get_manifestation(manifestation_id = manifestation_id)
+ 
+    if request_model.annnotation_type == AnnotationType.SEGMENTATION:
+        annotation_type = None
+        if manifestation.type == ManifestationType.CRITICAL:
+            annotation_type = AnnotationModel(
+                id=generate_id(),
+                type=AnnotationType.SEGMENTATION,
+            )
+        elif manifestation.type == ManifestationType.DIPLOMATIC:
+            annotation_type = AnnotationModel(
+                id=generate_id(),
+                type=AnnotationType.PAGINATION,
+            )
+        logger.info("Adding annotation to manifestation")
+        annotation_id =Neo4JDatabase().add_annotation_to_manifestation(manifestation_id = manifestation_id, annotation = annotation_type, annotation_segments = data)
+        logger.info("Annotation added successfully")
+    elif request_model.annotation_type == AnnotationType.ALIGNMENT:
+        pass
 
     response = {
         "message": "Annotation added successfully",
