@@ -4,7 +4,7 @@ import zipfile
 from pathlib import Path
 
 from openpecha.pecha import Pecha
-from storage import Storage
+from storage import Storage, MockStorage
 
 logger = logging.getLogger(__name__)
 
@@ -36,3 +36,13 @@ def retrieve_pecha(pecha_id: str) -> Pecha:
 def create_tmp() -> Path:
     with tempfile.NamedTemporaryFile(delete=False) as temp:
         return Path(temp.name)
+
+
+def retrieve_base_text(expression_id: str, manifestation_id: str) -> str:
+    """Fetch base text content from Firebase Storage.
+
+    Expects the file stored at base_texts/{expression_id}/{manifestation_id}.txt
+    (consistent with existing storage utilities).
+    """
+    data = MockStorage()._get_file(MockStorage._base_text_path(expression_id, manifestation_id))
+    return data.decode("utf-8")
