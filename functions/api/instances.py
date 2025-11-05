@@ -83,10 +83,12 @@ def _create_aligned_text(
     db = Neo4JDatabase()
 
     expression_id = generate_id()
-    annotation_id = generate_id()
+    segmentation_annotation_id = generate_id()
+
     manifestation_id = generate_id()
     _, target_expression_id = db.get_manifestation(target_manifestation_id)
-    segmentation = AnnotationModel(id=annotation_id, type=AnnotationType.SEGMENTATION)
+    
+    segmentation = AnnotationModel(id=segmentation_annotation_id, type=AnnotationType.SEGMENTATION)
     segmentation_segments = [SegmentModel(id=generate_id(), span=span["span"]).model_dump() for span in request_model.segmentation]
 
     storage = MockStorage()
@@ -122,7 +124,6 @@ def _create_aligned_text(
     )
 
     manifestation = ManifestationModelInput(type=ManifestationType.CRITICAL, copyright=request_model.copyright)
-    segmentation = AnnotationModel(id=annotation_id, type=AnnotationType.SEGMENTATION)
 
     aligned = request_model.alignment_annotation is not None
     
@@ -130,13 +131,14 @@ def _create_aligned_text(
         if aligned:
             alignment_annotation_id = generate_id()
             target_annotation_id = generate_id()
+
+            target_annotation = AnnotationModel(id=target_annotation_id, type=AnnotationType.ALIGNMENT)
             alignment_annotation = AnnotationModel(
-                id=alignment_annotation_id,
+                id=alignment_annotation_id, 
                 type=AnnotationType.ALIGNMENT,
                 aligned_to=target_annotation_id
             )
 
-            target_annotation = AnnotationModel(id=target_annotation_id, type=AnnotationType.ALIGNMENT)
             alignment_segments_with_ids, target_segments_with_ids, alignments = _alignment_annotation_mapping(request_model.target_annotation, request_model.alignment_annotation)
 
             db.create_aligned_manifestation(
