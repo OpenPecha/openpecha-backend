@@ -1504,44 +1504,49 @@ paths:
           content:
             application/json:
               schema:
-                oneOf:
-                  - type: array
-                    description: List of segmentation/pagination segments belonging to this annotation
-                    items:
-                      type: object
-                      required:
-                        - id
-                        - span
-                      properties:
-                        id:
-                          type: string
-                          description: Unique identifier for the segment
-                        span:
+                type: object
+                description: Annotation data with uniform structure containing all possible keys
+                required:
+                  - annotation
+                  - alignment_annotation
+                  - target_annotation
+                properties:
+                  annotation:
+                    oneOf:
+                      - type: array
+                        description: Segmentation or pagination annotation segments
+                        items:
                           type: object
-                          description: Character span of the segment
                           required:
-                            - start
-                            - end
+                            - id
+                            - span
                           properties:
-                            start:
-                              type: integer
-                              description: Start character position 
-                            end:
-                              type: integer
-                              description: End character position
-                        reference:
-                          type: string
-                          nullable: true
-                          description: Image ID this annotation is referring to 
-                  - type: object
-                    description: Alignment annotation with source and target segments
-                    required:
-                      - alignment_annotation
-                      - target_annotation
-                    properties:
-                      alignment_annotation:
-                        type: array
-                        description: Source annotation segments with alignment mappings
+                            id:
+                              type: string
+                              description: Unique identifier for the segment
+                            span:
+                              type: object
+                              description: Character span of the segment
+                              required:
+                                - start
+                                - end
+                              properties:
+                                start:
+                                  type: integer
+                                  description: Start character position 
+                                end:
+                                  type: integer
+                                  description: End character position
+                            reference:
+                              type: string
+                              nullable: true
+                              description: Image ID this annotation is referring to 
+                      - type: 'null'
+                        description: No segmentation/pagination annotation data (not applicable for alignment)
+                  alignment_annotation:
+                    oneOf:
+                      - type: array
+                        description: Alignment annotation source segments with alignment mappings
                         items:
                           type: object
                           required:
@@ -1574,9 +1579,12 @@ paths:
                               items:
                                 type: integer
                               description: Array of target segment indices this segment aligns to
-                      target_annotation:
-                        type: array
-                        description: Target annotation segments
+                      - type: 'null'
+                        description: No alignment annotation data (not applicable for segmentation/pagination)
+                  target_annotation:
+                    oneOf:
+                      - type: array
+                        description: Target annotation segments for alignment annotations
                         items:
                           type: object
                           required:
@@ -1603,34 +1611,43 @@ paths:
                             index:
                               type: integer
                               description: Index of the segment 
+                      - type: 'null'
+                        description: No target annotation (not applicable for segmentation/pagination) 
               examples:
                 segmentation annotation:
                   summary: Segmentation annotation with segments
                   value:
-                    - id: "sdlsakdf"
-                      span:
-                        start: 0
-                        end: 20
-                    - id: "akjdlks"
-                      span:
-                        start: 20
-                        end: 45
+                    annotation:
+                      - id: "sdlsakdf"
+                        span:
+                          start: 0
+                          end: 20
+                      - id: "akjdlks"
+                        span:
+                          start: 20
+                          end: 45
+                    alignment_annotation: null
+                    target_annotation: null
                 pagination annotation:
                   summary: Pagination annotation with segments and reference
                   value:
-                    - id: "laksdfklsjd"
-                      span:
-                        start: 0
-                        end: 25
-                      reference: "IMG001.png"
-                    - id: "aksdfnjksdf"
-                      span:
-                        start: 25
-                        end: 50
-                      reference: "IMG002.png"
+                    annotation:
+                      - id: "laksdfklsjd"
+                        span:
+                          start: 0
+                          end: 25
+                        reference: "IMG001.png"
+                      - id: "aksdfnjksdf"
+                        span:
+                          start: 25
+                          end: 50
+                        reference: "IMG002.png"
+                    alignment_annotation: null
+                    target_annotation: null
                 alignment annotation:
                   summary: Alignment annotation with segments and alignment mappings
                   value:
+                    annotation: null
                     alignment_annotation:
                       - id: "idx6tTeELJEwEQiIEyqhQ"
                         span:

@@ -638,7 +638,7 @@ class Neo4JDatabase:
         )
         return reference_id
 
-    def get_annotation(self, annotation_id: str) -> list[dict] | dict:
+    def get_annotation(self, annotation_id: str) ->  dict:
         """Get all segments for an annotation. For alignment annotations, returns both source and target segments."""
         with self.get_session() as session:
             # First check if this is an alignment annotation
@@ -681,6 +681,7 @@ class Neo4JDatabase:
                     target_segments_with_index.append(segment_with_index)
                 
                 return {
+                    "annotation": None,
                     "alignment_annotation": source_segments_with_index,
                     "target_annotation": target_segments_with_index
                 }
@@ -688,7 +689,7 @@ class Neo4JDatabase:
                 # For non-alignment annotations, return the basic segment list
                 return self._get_annotation_segments(annotation_id)
     
-    def _get_annotation_segments(self, annotation_id: str) -> list[dict]:
+    def _get_annotation_segments(self, annotation_id: str) -> dict:
         """Helper method to get segments for a specific annotation."""
         with self.get_session() as session:
             result = session.run(
@@ -707,7 +708,12 @@ class Neo4JDatabase:
                 if record["reference"]:
                     segment["reference"] = record["reference"]
                 segments.append(segment)
-            return segments
+
+        return {
+                "annotation": segments,
+                "alignment_annotation": None,
+                "target_annotation": None,
+            }
     
     def _get_alignment_indices(self, source_segment_id: str, target_annotation_id: str) -> list[int]:
         """Get the indices of target segments that a source segment aligns to."""
