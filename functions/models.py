@@ -22,6 +22,7 @@ class ContributorRole(str, Enum):
 class AnnotationType(str, Enum):
     SEGMENTATION = "segmentation"
     ALIGNMENT = "alignment"
+    PAGINATION = "pagination"
     VERSION = "version"
 
 
@@ -174,7 +175,7 @@ class ManifestationModelInput(ManifestationModelBase):
 
 class ManifestationModelOutput(ManifestationModelBase):
     id: str
-    annotations: list[AnnotationModel] = Field(..., default_factory=list)
+    annotations: list[AnnotationModel] = Field(default_factory=list)
     alignment_sources: list[str] | None = None
     alignment_targets: list[str] | None = None
 
@@ -236,24 +237,62 @@ class AlignedTextRequestModel(OpenPechaModel):
 
 class SegmentationAnnotationModel(OpenPechaModel):
     span: SpanModel
-    pass
 
 class PaginationAnnotationModel(OpenPechaModel):
     span: SpanModel
     reference: NonEmptyStr
+
+class AlignmentAnnotationModel(OpenPechaModel):
+    span: SpanModel
+    index: int
+    alignment_index: list[int] | None = None
 
 class InstanceRequestModel(OpenPechaModel):
     metadata: ManifestationModelInput
     annotation: list[SegmentationAnnotationModel | PaginationAnnotationModel] | None = None
     content: NonEmptyStr
 
+
     @model_validator(mode="after")
     def validate_annotation(self):
         if self.annotation is not None:
-            if self.metadata.type is ManifestationType.CRITICAL and not all(isinstance(ann, SegmentationAnnotationModel) for ann in self.annotation):
+            if len(self.annotation) == 0:
+                raise ValueError("Cannot provide an empty annotation")
+            elif self.metadata.type is ManifestationType.CRITICAL and not all(isinstance(ann, SegmentationAnnotationModel) for ann in self.annotation):
                 raise ValueError("For 'critical' manifestations, all annotations must be SegmentationAnnotationModel")
             elif self.metadata.type is ManifestationType.DIPLOMATIC and not all(isinstance(ann, PaginationAnnotationModel) for ann in self.annotation):
                 raise ValueError("For 'diplomatic' manifestations, all annotations must be PaginationAnnotationModel")
             elif not all(isinstance(ann, (SegmentationAnnotationModel, PaginationAnnotationModel)) for ann in self.annotation):
                 raise ValueError("Annotations must be either SegmentationAnnotationModel or PaginationAnnotationModel")
+        return self
+
+class AddAnnotationRequestModel(OpenPechaModel):
+    annotation_type: AnnotationType
+    annotation: list[SegmentationAnnotationModel | PaginationAnnotationModel] | None = None
+    target_manifestation_id: str | None = None
+    target_annotation: list[AlignmentAnnotationModel] | None = None
+    alignment_annotation: list[AlignmentAnnotationModel] | None = None
+
+    @model_validator(mode="after")
+    def validate_request_model(self):
+        if self.annotation_type == AnnotationType.SEGMENTATION:
+            if self.annotation is None or len(self.annotation) == 0:
+                raise ValueError("Segmentation annotation cannot be empty")
+            elif self.target_annotation is not None or self.alignment_annotation is not None:
+                raise ValueError("Cannot provide both annotation and alignment annotation or target_annotation")
+            elif not all(isinstance(ann, SegmentationAnnotationModel) for ann in self.annotation):
+                raise ValueError("Invalid annotation")
+        elif self.annotation_type == AnnotationType.ALIGNMENT:
+            if self.target_manifestation_id is None:
+                raise ValueError("Target manifestation id must be provided")
+            elif self.target_annotation is None or len(self.target_annotation) == 0:
+                raise ValueError("Target annotation must be provided and cannot be empty")
+            elif self.alignment_annotation is None or len(self.alignment_annotation) == 0:
+                raise ValueError("Alignment annotation must be provided and cannot be empty")
+            elif self.annotation is not None:
+                raise ValueError("Cannot provide both annotation and alignment annotation or target_annotation")
+            elif not all(isinstance(ann, AlignmentAnnotationModel) for ann in self.target_annotation + self.alignment_annotation):
+                raise ValueError("Invalid target annotation or alignment annotation")
+        else:
+            raise ValueError("Invalid annotation type. Allowed types are [SEGMENTATION, ALIGNMENT]")
         return self
