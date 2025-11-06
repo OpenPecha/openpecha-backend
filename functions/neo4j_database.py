@@ -641,7 +641,7 @@ class Neo4JDatabase:
     def get_annotation(self, annotation_id: str) ->  dict:
         """Get all segments for an annotation. For alignment annotations, returns both source and target segments."""
         with self.get_session() as session:
-            # First check if this is an alignment annotation
+            # Get annotation type
             annotation_result = session.run(
                 Queries.annotations["get_annotation_type"],
                 annotation_id=annotation_id
@@ -652,7 +652,17 @@ class Neo4JDatabase:
                 raise DataNotFound(f"Annotation with ID '{annotation_id}' not found")
             
             annotation_type = annotation_record["annotation_type"]
-            aligned_to_id = annotation_record["aligned_to_id"]
+            
+            # Get aligned annotation ID if it exists
+            aligned_to_id = None
+            if annotation_type == "alignment":
+                aligned_result = session.run(
+                    Queries.annotations["get_aligned_annotation"],
+                    annotation_id=annotation_id,
+                )
+                aligned_record = aligned_result.single()
+                if aligned_record:
+                    aligned_to_id = aligned_record["aligned_to_id"]
             
             if annotation_type == "alignment" and aligned_to_id:
                 # For alignment annotations, return both source and target segments
