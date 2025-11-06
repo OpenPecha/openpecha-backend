@@ -333,13 +333,13 @@ class Neo4JDatabase:
             self._create_segments(tx, segmentation.id, segmentation_segments)
             self._create_and_link_references(tx, segmentation_segments)
 
-            _ = self._execute_add_annotation(tx, manifestation_id, alignment_annotation)
-            self._create_segments(tx, alignment_annotation.id, alignment_segments)
-            self._create_and_link_references(tx, alignment_segments)
-
             _ = self._execute_add_annotation(tx, target_manifestation_id, target_annotation)
             self._create_segments(tx, target_annotation.id, target_segments)
             self._create_and_link_references(tx, target_segments)
+
+            _ = self._execute_add_annotation(tx, manifestation_id, alignment_annotation)
+            self._create_segments(tx, alignment_annotation.id, alignment_segments)
+            self._create_and_link_references(tx, alignment_segments)
 
             tx.run(Queries.segments["create_alignments_batch"], alignments=alignments)
 
