@@ -671,7 +671,7 @@ class Neo4JDatabase:
     def get_annotation(self, annotation_id: str) ->  dict:
         """Get all segments for an annotation. For alignment annotations, returns both source and target segments."""
         with self.get_session() as session:
-            # First check if this is an alignment annotation
+            # Get annotation type
             annotation_result = session.run(
                 Queries.annotations["get_annotation_type"],
                 annotation_id=annotation_id
@@ -682,12 +682,26 @@ class Neo4JDatabase:
                 raise DataNotFound(f"Annotation with ID '{annotation_id}' not found")
             
             annotation_type = annotation_record["annotation_type"]
-            aligned_to_id = annotation_record["aligned_to_id"]
+            
+            # Get aligned annotation ID if it exists
+            aligned_to_id = None
+            if annotation_type == "alignment":
+                aligned_result = session.run(
+                    Queries.annotations["get_aligned_annotation"],
+                    annotation_id=annotation_id,
+                )
+                aligned_record = aligned_result.single()
+                if aligned_record:
+                    aligned_to_id = aligned_record["aligned_to_id"]
             
             if annotation_type == "alignment" and aligned_to_id:
                 # For alignment annotations, return both source and target segments
-                source_segments = self._get_annotation_segments(annotation_id)
-                target_segments = self._get_annotation_segments(aligned_to_id)
+                source_segments_result = self._get_annotation_segments(annotation_id)
+                target_segments_result = self._get_annotation_segments(aligned_to_id)
+                
+                # Extract the actual segment lists from the dict results
+                source_segments = source_segments_result["annotation"]
+                target_segments = target_segments_result["annotation"]
                 
                 # Add index and alignment_index to source segments
                 source_segments_with_index = []
