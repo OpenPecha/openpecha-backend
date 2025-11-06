@@ -204,7 +204,7 @@ CREATE (commentary_work:Work {{id: $work_id}})
 WITH target, commentary_work, e
 MATCH (n:Nomen) WHERE elementId(n) = $title_nomen_element_id
 MATCH (l:Language {{code: $language_code}})
-CREATE (e)-[:COMMENTARY_OF]->(parent),
+CREATE (e)-[:COMMENTARY_OF]->(target),
        (e)-[:EXPRESSION_OF {{original: true}}]->(commentary_work),
        (e)-[:HAS_LANGUAGE {{bcp47: $bcp47_tag}}]->(l),
        (e)-[:HAS_TITLE]->(n)

@@ -870,7 +870,7 @@ paths:
                 - language
                 - content
                 - title
-                - annotation
+                - segmentation
               properties:
                 language:
                   type: string
@@ -913,12 +913,12 @@ paths:
                   enum: [public, copyrighted]
                   default: public
             examples:
-              valid_commentary:
-                summary: Valid commentary creation request
+              valid_commentary_with_alignment_annotation:
+                summary: Valid commentary creation request with alignment annotation
                 value:
-                  language: "bo"
-                  content: "This is the commentary text content explaining the original"
-                  title: "Commentary on Original Text"
+                  language: "en"
+                  content: "This is the commentary text content"
+                  title: "Commentary Title"
                   author:
                     person_id: "P12345678"
                   segmentation:
@@ -937,16 +937,38 @@ paths:
                         start: 21
                         end: 40
                       index: 1
+                    - span:
+                        start: 40
+                        end: 50
+                      index: 2
                   alignment_annotation:
                     - span:
                         start: 0
                         end: 20
-                      alignment_index: [0]
+                      index: 0
+                      alignment_index: [0,1]
                     - span:
                         start: 21
                         end: 50
-                      alignment_index: [1]
+                      index: 1
+                      alignment_index: [1,2]
                   copyright: "public"
+              valid_commentary_without_alignment_annotation:
+                summary: Valid commentary creation request without alignment annotation
+                value:
+                  language: "en"
+                  content: "This is the commentary text content"
+                  title: "Commentary Title"
+                  author:
+                    person_id: "P12345678"
+                  segmentation:
+                    - span:
+                        start: 0
+                        end: 20
+                    - span:
+                        start: 21
+                        end: 40
+                  copyright: "public"   
       responses:
         "201":
           description: Commentary created successfully
