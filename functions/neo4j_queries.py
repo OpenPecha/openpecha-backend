@@ -304,8 +304,7 @@ RETURN a.id AS annotation_id
 """,
     "get_annotation_type": """
 MATCH (a:Annotation {id: $annotation_id})-[:HAS_TYPE]->(at:AnnotationType)
-OPTIONAL MATCH (a)<-[:SEGMENTATION_OF]-(:Segment)-[:ALIGNED_TO]->(:Segment)
-    -[:SEGMENTATION_OF]->(target_ann:Annotation)
+OPTIONAL MATCH (a)-[:ALIGNED_TO]->(target_ann:Annotation)
 WITH a, at, target_ann
 LIMIT 1
 RETURN at.name as annotation_type, target_ann.id as aligned_to_id
