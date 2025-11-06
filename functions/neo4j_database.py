@@ -656,8 +656,12 @@ class Neo4JDatabase:
             
             if annotation_type == "alignment" and aligned_to_id:
                 # For alignment annotations, return both source and target segments
-                source_segments = self._get_annotation_segments(annotation_id)
-                target_segments = self._get_annotation_segments(aligned_to_id)
+                source_segments_result = self._get_annotation_segments(annotation_id)
+                target_segments_result = self._get_annotation_segments(aligned_to_id)
+                
+                # Extract the actual segment lists from the dict results
+                source_segments = source_segments_result["annotation"]
+                target_segments = target_segments_result["annotation"]
                 
                 # Add index and alignment_index to source segments
                 source_segments_with_index = []
