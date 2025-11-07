@@ -2229,6 +2229,7 @@ paths:
                   - annotation
                   - alignment_annotation
                   - target_annotation
+                  - table_of_contents_annotation
                 properties:
                   annotation:
                     oneOf:
@@ -2261,7 +2262,7 @@ paths:
                               nullable: true
                               description: Image ID this annotation is referring to 
                       - type: 'null'
-                        description: No segmentation/pagination annotation data (not applicable for alignment)
+                        description: No segmentation/pagination annotation data (not applicable for alignment/table_of_contents)
                   alignment_annotation:
                     oneOf:
                       - type: array
@@ -2299,7 +2300,7 @@ paths:
                                 type: integer
                               description: Array of target segment indices this segment aligns to
                       - type: 'null'
-                        description: No alignment annotation data (not applicable for segmentation/pagination)
+                        description: No alignment annotation data (not applicable for segmentation/pagination/table_of_contents)
                   target_annotation:
                     oneOf:
                       - type: array
@@ -2331,7 +2332,31 @@ paths:
                               type: integer
                               description: Index of the segment 
                       - type: 'null'
-                        description: No target annotation (not applicable for segmentation/pagination) 
+                        description: No target annotation (not applicable for segmentation/pagination/table_of_contents)
+                  table_of_contents_annotation:
+                    oneOf:
+                      - type: array
+                        description: Table of contents annotation sections
+                        items:
+                          type: object
+                          required:
+                            - id
+                            - title
+                            - segments
+                          properties:
+                            id:
+                              type: string
+                              description: Unique identifier for the section
+                            title:
+                              type: string
+                              description: Title of the table of contents section
+                            segments:
+                              type: array
+                              description: List of segment IDs that belong to this section
+                              items:
+                                type: string
+                      - type: 'null'
+                        description: No table of contents annotation data (not applicable for segmentation/pagination/alignment) 
               examples:
                 segmentation annotation:
                   summary: Segmentation annotation with segments
@@ -2418,6 +2443,22 @@ paths:
                           start: 4
                           end: 5
                         index: 4
+                table of contents annotation:
+                  summary: Table of contents annotation with sections
+                  value:
+                    annotation: null
+                    alignment_annotation: null
+                    target_annotation: null
+                    table_of_contents_annotation:
+                      - id: "0S0d3z7633mE3TK7IaZWE"
+                        title: "Chapter 1: Introduction"
+                        segments: ["1ZPTJfkyOR28oqFUzb3cF", "Yzkd4ct5icrWYGyI2H3Dn"]
+                      - id: "jqcP8yUpCsv65NSNAlTm9"
+                        title: "Chapter 2: Main Content"
+                        segments: ["CuTHRuW5a6vd5YYWcmTbC"]
+                      - id: "ISmJpRblcnZJmp8BjIlzL"
+                        title: "Chapter 3: Conclusion"
+                        segments: ["pxhHUGHK7cS24Ccr8jCvV", "A1QdkN2gDu6u7ZU3DPZCu"]
         "400":
           $ref: '#/components/responses/InvalidRequest'
         "404":
