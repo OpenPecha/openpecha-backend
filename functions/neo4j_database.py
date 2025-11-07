@@ -704,7 +704,7 @@ class Neo4JDatabase:
         return reference_id
 
     def get_annotation(self, annotation_id: str) ->  dict:
-        """Get all segments for an annotation. For alignment annotations, returns both source and target segments."""
+        """Get all segments for an annotation. Returns uniform structure with all possible keys."""
         with self.get_session() as session:
             # Get annotation type
             annotation_result = session.run(
@@ -717,6 +717,14 @@ class Neo4JDatabase:
                 raise DataNotFound(f"Annotation with ID '{annotation_id}' not found")
             
             annotation_type = annotation_record["annotation_type"]
+            
+            # Initialize uniform response structure
+            response = {
+                "annotation": None,
+                "alignment_annotation": None,
+                "target_annotation": None,
+                "table_of_contents_annotation": None
+            }
             
             # Get aligned annotation ID if it exists
             aligned_to_id = None
@@ -735,8 +743,8 @@ class Neo4JDatabase:
                 target_segments_result = self._get_annotation_segments(aligned_to_id)
                 
                 # Extract the actual segment lists from the dict results
-                source_segments = source_segments_result["annotation"]
-                target_segments = target_segments_result["annotation"]
+                source_segments = source_segments_result
+                target_segments = target_segments_result
                 
                 # Add index and alignment_index to source segments
                 source_segments_with_index = []
@@ -759,16 +767,39 @@ class Neo4JDatabase:
                     }
                     target_segments_with_index.append(segment_with_index)
                 
-                return {
-                    "annotation": None,
-                    "alignment_annotation": source_segments_with_index,
-                    "target_annotation": target_segments_with_index
-                }
+                response["alignment_annotation"] = source_segments_with_index
+                response["target_annotation"] = target_segments_with_index
+                
+            elif annotation_type == "table_of_contents":
+                # For table of contents annotations, return sections
+                sections = self._get_annotation_sections(annotation_id)
+                response["table_of_contents_annotation"] = sections
+                
             else:
-                # For non-alignment annotations, return the basic segment list
-                return self._get_annotation_segments(annotation_id)
+                # For segmentation and pagination annotations, return segments
+                segments_result = self._get_annotation_segments(annotation_id)
+                response["annotation"] = segments_result
+            
+            return response
     
-    def _get_annotation_segments(self, annotation_id: str) -> dict:
+    def _get_annotation_sections(self, annotation_id: str) -> list[dict]:
+        """Helper method to get sections for a specific annotation."""
+        with self.get_session() as session:
+            result = session.run(
+                Queries.annotations["get_sections"],
+                annotation_id=annotation_id
+            )
+            sections = []
+            for record in result:
+                section = {
+                    "id": record["id"],
+                    "title": record["title"],
+                    "segments": record["segments"]
+                }
+                sections.append(section)
+        return sections
+    
+    def _get_annotation_segments(self, annotation_id: str) -> list[dict]:
         """Helper method to get segments for a specific annotation."""
         with self.get_session() as session:
             result = session.run(
@@ -788,11 +819,7 @@ class Neo4JDatabase:
                     segment["reference"] = record["reference"]
                 segments.append(segment)
 
-        return {
-                "annotation": segments,
-                "alignment_annotation": None,
-                "target_annotation": None,
-            }
+        return segments
     
     def _get_alignment_indices(self, source_segment_id: str, target_annotation_id: str) -> list[int]:
         """Get the indices of target segments that a source segment aligns to."""

@@ -320,6 +320,14 @@ RETURN s.id as id,
        r.name as reference
 ORDER BY s.span_start
 """,
+    "get_sections": """
+MATCH (a:Annotation {id: $annotation_id})
+<-[:SECTION_OF]-(s:Section)
+OPTIONAL MATCH (seg:Segment)-[:PART_OF]->(s)
+WITH s, collect(seg.id) as segment_ids
+RETURN s.id as id, s.title as title, segment_ids as segments
+ORDER BY s.title
+""",
     "get_alignment_indices": """
 // First, get all target segments ordered by span to establish indices
 MATCH (target_ann:Annotation {id: $target_annotation_id})<-[:SEGMENTATION_OF]-(all_targets:Segment)
