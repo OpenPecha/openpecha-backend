@@ -1,5 +1,7 @@
 import logging
 
+from pydantic.type_adapter import R
+
 from flask import Blueprint, Response, jsonify, request
 from identifier import generate_id
 from models import (
@@ -298,3 +300,48 @@ def get_related_texts(manifestation_id: str) -> tuple[Response, int]:
         ),
         200,
     )
+
+@instances_bp.route("/<string:manifestation_id>/segment_related", methods=["GET"], strict_slashes=False)
+def get_segment_related(manifestation_id: str) -> tuple[Response, int]:
+    # Parse transfer parameter
+    transfer = request.args.get("transfer", "false").lower() == "true"
+    segment_id = request.args.get("segment_id")
+    
+    db = Neo4JDatabase()
+    
+    # Scenario 1: segment_id provided
+    if segment_id is not None:
+        logger.info("Getting segment related by segment ID: %s", segment_id)
+        segment, seg_manifestation_id, _ = db.get_segment(segment_id)
+        
+        # Verify segment belongs to the provided manifestation
+        if seg_manifestation_id != manifestation_id:
+            return jsonify({
+                "error": f"Segment {segment_id} does not belong to manifestation {manifestation_id}"
+            }), 400
+        
+        span = segment.span
+    
+    # Scenario 2: span_start + span_end provided
+    else:
+        span_start = request.args.get("span_start")
+        span_end = request.args.get("span_end")
+        
+        if not span_start or not span_end:
+            return jsonify({"error": "No segment ID or span provided"}), 400
+        
+        try:
+            span = SpanModel(start=int(span_start), end=int(span_end))
+        except (ValueError, Exception) as e:
+            return jsonify({"error": str(e)}), 422
+    
+    logger.info("Getting segment related by span [%d, %d), transfer=%s", 
+                span.start, span.end, transfer)
+    
+    # Execute query based on transfer parameter
+    if transfer:
+        result = db.get_segment_related_with_transfer(manifestation_id, span.start, span.end)
+    else:
+        result = db.get_segment_related_alignment_only(manifestation_id, span.start, span.end)
+    
+    return jsonify(result), 200

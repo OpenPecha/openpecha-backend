@@ -183,7 +183,7 @@ class Neo4JDatabase:
             return [
                 SegmentModel(
                     id=data["segment_id"],
-                    span=(data["span_start"], data["span_end"]),
+                    span=SpanModel(start=data["span_start"], end=data["span_end"]),
                 )
                 for record in result
                 for data in [record.data()]
@@ -208,14 +208,14 @@ class Neo4JDatabase:
             return {
                 "targets": {
                     record["manifestation_id"]: [
-                        SegmentModel(id=seg["segment_id"], span=(seg["span_start"], seg["span_end"]))
+                        SegmentModel(id=seg["segment_id"], span=SpanModel(start=seg["span_start"], end=seg["span_end"]))
                         for seg in record["segments"]
                     ]
                     for record in targets_result
                 },
                 "sources": {
                     record["manifestation_id"]: [
-                        SegmentModel(id=seg["segment_id"], span=(seg["span_start"], seg["span_end"]))
+                        SegmentModel(id=seg["segment_id"], span=SpanModel(start=seg["span_start"], end=seg["span_end"]))
                         for seg in record["segments"]
                     ]
                     for record in sources_result
@@ -224,15 +224,134 @@ class Neo4JDatabase:
 
     def get_segment(self, segment_id: str) -> tuple[SegmentModel, str, str]:
         with self.__driver.session() as session:
-            result = session.execute_read(lambda tx: tx.run(Queries.segments["get_by_id"], segment_id=segment_id))
-            record = result.single()
+            record = session.execute_read(
+                lambda tx: tx.run(Queries.segments["get_by_id"], segment_id=segment_id).single()
+            )
 
             if not record:
                 raise DataNotFound(f"Segment with ID {segment_id} not found")
 
             data = record.data()
-            segment = SegmentModel(id=data["segment_id"], span=(data["span_start"], data["span_end"]))
+            segment = SegmentModel(id=data["segment_id"], span=SpanModel(start=data["span_start"], end=data["span_end"]))
             return segment, data["manifestation_id"], data["expression_id"]
+
+    def get_segment_related_alignment_only(
+        self, manifestation_id: str, span_start: int, span_end: int
+    ) -> list[dict]:
+        """Get related manifestations via alignment layer (no transfer)."""
+        logger.info(
+            "Finding related manifestations via alignment layer for manifestation '%s', span=[%d, %d)",
+            manifestation_id, span_start, span_end
+        )
+        
+        with self.__driver.session() as session:
+            result = session.execute_read(
+                lambda tx: list(
+                    tx.run(
+                        Queries.segments["find_related_alignment_only"],
+                        manifestation_id=manifestation_id,
+                        span_start=span_start,
+                        span_end=span_end,
+                    )
+                )
+            )
+            
+            logger.info("Query returned %d related manifestation(s)", len(result))
+            
+            related = []
+            for record in result:
+                data = record.data()
+                # Get full manifestation and expression details
+                manifestation_model, _ = self.get_manifestation(data["manifestation_id"])
+                expression_model = self.get_expression(data["expression_id"])
+                
+                logger.info(
+                    "Processing manifestation '%s' with %d alignment segment(s)",
+                    data["manifestation_id"], len(data["segments"])
+                )
+                
+                # Convert to dict and remove unwanted fields
+                instance_dict = manifestation_model.model_dump()
+                instance_dict.pop("annotations", None)
+                instance_dict.pop("alignment_sources", None)
+                instance_dict.pop("alignment_targets", None)
+                
+                related.append({
+                    "text": expression_model.model_dump(),
+                    "instance": instance_dict,
+                    "segments": [
+                        {
+                            "id": seg["id"],
+                            "span": {
+                                "start": seg["span_start"],
+                                "end": seg["span_end"]
+                            }
+                        }
+                        for seg in data["segments"]
+                    ]
+                })
+            
+            logger.info("Successfully built %d related manifestation response(s)", len(related))
+            return related
+
+    def get_segment_related_with_transfer(
+        self, manifestation_id: str, span_start: int, span_end: int
+    ) -> list[dict]:
+        """Get related manifestations with alignment transfer to segmentation layer."""
+        logger.info(
+            "Finding related manifestations with transfer to segmentation layer for manifestation '%s', span=[%d, %d)",
+            manifestation_id, span_start, span_end
+        )
+        
+        with self.__driver.session() as session:
+            result = session.execute_read(
+                lambda tx: list(
+                    tx.run(
+                        Queries.segments["find_related_with_transfer"],
+                        manifestation_id=manifestation_id,
+                        span_start=span_start,
+                        span_end=span_end,
+                    )
+                )
+            )
+            
+            logger.info("Query returned %d related manifestation(s)", len(result))
+            
+            related = []
+            for record in result:
+                data = record.data()
+                # Get full manifestation and expression details
+                manifestation_model, _ = self.get_manifestation(data["manifestation_id"])
+                expression_model = self.get_expression(data["expression_id"])
+                
+                logger.info(
+                    "Processing manifestation '%s' with %d segmentation segment(s)",
+                    data["manifestation_id"], len(data["segments"])
+                )
+                
+                # Convert to dict and remove unwanted fields
+                instance_dict = manifestation_model.model_dump()
+                instance_dict.pop("annotations", None)
+                instance_dict.pop("alignment_sources", None)
+                instance_dict.pop("alignment_targets", None)
+                
+                related.append({
+                    "text": expression_model.model_dump(),
+                    "instance": instance_dict,
+                    "segments": [
+                        {
+                            "id": seg["id"],
+                            "span": {
+                                "start": seg["span_start"],
+                                "end": seg["span_end"]
+                            }
+                        }
+                        for seg in data["segments"]
+                    ]
+                })
+            
+            logger.info("Successfully built %d related manifestation response(s)", len(related))
+            return related
 
     def get_all_persons(self, offset: int = 0, limit: int = 20) -> list[PersonModelOutput]:
         params = {

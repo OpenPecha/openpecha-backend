@@ -106,6 +106,180 @@ paths:
         "500":
           $ref: '#/components/responses/ServerError'
 
+  /v2/instances/{instance_id}/segment_related:
+    get:
+      summary: Find related segments or spans for an instance
+      description: >-
+        Exactly one of `segment_id` or (`span_start` and `span_end`) must be provided.
+        - If `segment_id` is provided, returns related segments across manifestations.
+        - If `span_start` and `span_end` are provided, returns manifestations with merged spans overlapping the given range.
+        - If both are provided, `segment_id` takes precedence.
+      tags:
+        - Instances
+      parameters:
+        - name: instance_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the instance to search within (used when querying by span)
+        - name: segment_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Segment ID to find related segments across other manifestations
+        - name: span_start
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+          description: Inclusive start offset when searching by span
+        - name: span_end
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+          description: Exclusive end offset (must be greater than span_start)
+        - name: transfer
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: Whether to transfer alignments to segmentation layer. If false (default), returns alignment annotation segments. If true, returns segmentation annotation segments.
+      responses:
+        "200":
+          description: Related items retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                description: List of related manifestations with their segments. Same format for both transfer modes - only segment source differs (alignment vs segmentation annotation).
+                items:
+                  type: object
+                  required: [text, instance, segments]
+                  properties:
+                    text:
+                      type: object
+                      description: Expression (text) metadata
+                      additionalProperties: true
+                    instance:
+                      type: object
+                      description: Manifestation (instance) metadata
+                      additionalProperties: true
+                    segments:
+                      type: array
+                      description: Segments from alignment annotation (transfer=false) or segmentation annotation (transfer=true)
+                      items:
+                        type: object
+                        required: [id, span]
+                        properties:
+                          id:
+                            type: string
+                            description: Segment ID
+                          span:
+                            type: object
+                            required: [start, end]
+                            properties:
+                              start:
+                                type: integer
+                                minimum: 0
+                                description: Inclusive start offset
+                              end:
+                                type: integer
+                                minimum: 1
+                                description: Exclusive end offset
+              examples:
+                withoutTransfer:
+                  summary: Related segments without transfer (alignment annotation)
+                  value:
+                    - text:
+                        id: "E123"
+                        type: "translation"
+                        language: "en"
+                        title: { en: "English Translation" }
+                      instance:
+                        id: "I456"
+                        type: "critical"
+                        copyright: "public"
+                      segments:
+                        - id: "SEG789"
+                          span: { start: 50, end: 90 }
+                        - id: "SEG790"
+                          span: { start: 90, end: 120 }
+                withTransfer:
+                  summary: Related segments with transfer (segmentation annotation)
+                  value:
+                    - text:
+                        id: "E123"
+                        type: "translation"
+                        language: "en"
+                        title: { en: "English Translation" }
+                      instance:
+                        id: "I456"
+                        type: "critical"
+                        copyright: "public"
+                      segments:
+                        - id: "SEG_S101"
+                          span: { start: 50, end: 75 }
+                        - id: "SEG_S102"
+                          span: { start: 75, end: 100 }
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              examples:
+                missing_params:
+                  summary: Neither segment_id nor span provided
+                  value:
+                    error: "No segment ID or span provided"
+                segment_mismatch:
+                  summary: Segment does not belong to manifestation
+                  value:
+                    error: "Segment SEG123 does not belong to manifestation M456"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              examples:
+                no_segments:
+                  summary: No segments found for span
+                  value:
+                    error: "No segments found containing span [0, 100) in instance 'I12345678'"
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              examples:
+                span_minimum:
+                  summary: Invalid span values
+                  value:
+                    error: "Input should be greater than or equal to 0"
+                invalid_span_type:
+                  summary: Invalid span type in SegmentModel
+                  value:
+                    error: "Input should be a valid dictionary or instance of SpanModel"
+        "500":
+          $ref: '#/components/responses/ServerError'
+
   /v2/instances/{instance_id}/related:
     get:
       summary: Find related texts

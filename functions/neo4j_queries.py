@@ -375,6 +375,66 @@ RETURN seg.id as segment_id,
        m.id as manifestation_id,
        e.id as expression_id
 """,
+    "find_related_alignment_only": """
+MATCH (source_manif:Manifestation {id: $manifestation_id})<-[:ANNOTATION_OF]-(align_annot:Annotation)-[:HAS_TYPE]->(at:AnnotationType {name: 'alignment'})
+MATCH (align_annot)<-[:SEGMENTATION_OF]-(source_seg:Segment)
+WHERE source_seg.span_start < $span_end AND source_seg.span_end > $span_start
+
+// Follow bidirectional ALIGNED_TO relationships
+MATCH (source_seg)-[:ALIGNED_TO]-(target_seg:Segment)
+MATCH (target_seg)-[:SEGMENTATION_OF]->(target_align_annot:Annotation)-[:HAS_TYPE]->(tat:AnnotationType {name: 'alignment'})
+MATCH (target_align_annot)-[:ANNOTATION_OF]->(target_manif:Manifestation)
+MATCH (target_manif)-[:MANIFESTATION_OF]->(target_expr:Expression)
+
+WITH target_manif, target_expr, COLLECT(DISTINCT target_seg) as target_segments
+
+RETURN 
+    target_manif.id as manifestation_id,
+    target_expr.id as expression_id,
+    [seg IN target_segments | {
+        id: seg.id,
+        span_start: seg.span_start,
+        span_end: seg.span_end
+    }] as segments
+""",
+    "find_related_with_transfer": """
+// Step 1: Find overlapping segments in source segmentation annotation
+MATCH (source_manif:Manifestation {id: $manifestation_id})<-[:ANNOTATION_OF]-(source_seg_annot:Annotation)-[:HAS_TYPE]->(sat:AnnotationType {name: 'segmentation'})
+MATCH (source_seg_annot)<-[:SEGMENTATION_OF]-(source_seg_seg:Segment)
+WHERE source_seg_seg.span_start < $span_end AND source_seg_seg.span_end > $span_start
+
+WITH source_manif, 
+     MIN(source_seg_seg.span_start) as expanded_start,
+     MAX(source_seg_seg.span_end) as expanded_end
+
+// Step 2: Find ALL alignment annotations in source manifestation
+MATCH (source_manif)<-[:ANNOTATION_OF]-(source_align_annot:Annotation)-[:HAS_TYPE]->(aat:AnnotationType {name: 'alignment'})
+MATCH (source_align_annot)<-[:SEGMENTATION_OF]-(source_align_seg:Segment)
+WHERE source_align_seg.span_start < expanded_end AND source_align_seg.span_end > expanded_start
+
+// Step 3: Follow ALIGNED_TO to target alignment segments
+MATCH (source_align_seg)-[:ALIGNED_TO]-(target_align_seg:Segment)
+MATCH (target_align_seg)-[:SEGMENTATION_OF]->(target_align_annot:Annotation)-[:HAS_TYPE]->(taat:AnnotationType {name: 'alignment'})
+MATCH (target_align_annot)-[:ANNOTATION_OF]->(target_manif:Manifestation)
+MATCH (target_manif)-[:MANIFESTATION_OF]->(target_expr:Expression)
+
+// Step 4: Find overlapping segments in target segmentation annotation
+MATCH (target_manif)<-[:ANNOTATION_OF]-(target_seg_annot:Annotation)-[:HAS_TYPE]->(tsat:AnnotationType {name: 'segmentation'})
+MATCH (target_seg_annot)<-[:SEGMENTATION_OF]-(target_seg_seg:Segment)
+WHERE target_seg_seg.span_start < target_align_seg.span_end AND target_seg_seg.span_end > target_align_seg.span_start
+
+// Step 5: Collect and group by target manifestation
+WITH target_manif, target_expr, COLLECT(DISTINCT target_seg_seg) as target_segments
+
+RETURN 
+    target_manif.id as manifestation_id,
+    target_expr.id as expression_id,
+    [seg IN target_segments | {
+        id: seg.id,
+        span_start: seg.span_start,
+        span_end: seg.span_end
+    }] as segments
+""",
 }
 
 Queries.references = {
