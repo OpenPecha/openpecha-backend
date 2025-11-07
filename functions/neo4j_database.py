@@ -221,6 +221,17 @@ class Neo4JDatabase:
                     for record in sources_result
                 },
             }
+    def _get_segment(self, segment_id: str) -> tuple[SegmentModel, str, str]:
+        with self.__driver.session() as session:
+            record = session.execute_read(
+                lambda tx: tx.run(Queries.segments["get_by_id"], segment_id=segment_id).single()
+            )
+            if record is None:
+                raise DataNotFound(f"Segment with ID {segment_id} not found")
+            data = record.data()
+            segment = SegmentModel(id=data["segment_id"], span=SpanModel(start=data["span_start"], end=data["span_end"]))
+            return segment, data["manifestation_id"], data["expression_id"]
+
 
     def get_segment(self, segment_id: str) -> tuple[SegmentModel, str, str]:
         with self.__driver.session() as session:
