@@ -220,8 +220,8 @@ def get_excerpt(manifestation_id: str) -> tuple[Response, int]:
 
     _, expression_id = db.get_manifestation(manifestation_id)
 
-    pecha = retrieve_pecha(expression_id)
-    base_text = next(iter(pecha.bases.values()))
+    base_text = retrieve_base_text(expression_id, manifestation_id)
+
 
     if span.end > len(base_text):
         return jsonify({"error": f"span end ({span.end}) exceeds base text length ({len(base_text)})"}), 400
