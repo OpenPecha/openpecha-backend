@@ -282,6 +282,13 @@ class AddAnnotationRequestModel(OpenPechaModel):
                 raise ValueError("Cannot provide both annotation and alignment annotation or target_annotation")
             elif not all(isinstance(ann, SegmentationAnnotationModel) for ann in self.annotation):
                 raise ValueError("Invalid annotation")
+        elif self.annotation_type == AnnotationType.PAGINATION:
+            if self.annotation is None or len(self.annotation) == 0:
+                raise ValueError("Pagination annotation cannot be empty")
+            elif self.target_annotation is not None or self.alignment_annotation is not None:
+                raise ValueError("Cannot provide both annotation and alignment annotation or target_annotation")
+            elif not all(isinstance(ann, PaginationAnnotationModel) for ann in self.annotation):
+                raise ValueError("Invalid annotation")
         elif self.annotation_type == AnnotationType.ALIGNMENT:
             if self.target_manifestation_id is None:
                 raise ValueError("Target manifestation id must be provided")

@@ -51,7 +51,7 @@ def add_annotation(manifestation_id: str) -> tuple[Response, int]:
  
     
     response = None
-    if request_model.annotation_type == AnnotationType.SEGMENTATION:
+    if request_model.annotation_type == AnnotationType.SEGMENTATION or request_model.annotation_type == AnnotationType.PAGINATION:
         response = _add_segmentation_annotation(
             manifestation = manifestation,
             manifestation_id = manifestation_id,
