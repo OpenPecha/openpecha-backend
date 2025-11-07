@@ -340,6 +340,23 @@ ORDER BY segment_index
 """
 }
 
+Queries.sections = {
+    "create_batch": """
+MATCH (a:Annotation {id: $annotation_id})
+UNWIND $sections AS sec
+CREATE (s:Section {
+    id: sec.id,
+    title: sec.title
+})
+CREATE (s)-[:SECTION_OF]->(a)
+
+WITH s, sec.segments AS segment_ids
+UNWIND segment_ids AS segment_id
+MATCH (seg:Segment {id: segment_id})
+CREATE (seg)-[:PART_OF]->(s)
+"""
+}
+
 Queries.segments = {
     "create_batch": """
 MATCH (a:Annotation {id: $annotation_id})

@@ -21,6 +21,7 @@ from models import (
     SegmentModel,
     SpanModel,
     TextType,
+    TableOfContentsAnnotationModel,
 )
 from neo4j import GraphDatabase
 from neo4j_database_validator import Neo4JDatabaseValidator
@@ -316,6 +317,15 @@ class Neo4JDatabase:
             return annotation_id
         with self.__driver.session() as session:
             return session.execute_write(transaction_function)
+    
+    def add_table_of_contents_annotation_to_manifestation(self, manifestation_id: str, annotation: AnnotationModel, annotation_segments: list[TableOfContentsAnnotationModel]):
+        def transaction_function(tx):
+            annotation_id = self._execute_add_annotation(tx, manifestation_id, annotation)
+            self._create_sections(tx, annotation_id, annotation_segments)
+            return annotation_id
+        with self.__driver.session() as session:
+            return session.execute_write(transaction_function)
+
 
     def add_alignment_annotation_to_manifestation(
         self,
@@ -637,6 +647,31 @@ class Neo4JDatabase:
                 segments=segments_with_ids,
             )
             
+    def _create_sections(self, tx, annotation_id: str, sections: list[dict] = None) -> None:
+        if sections:
+            # Generate IDs for sections that don't have them
+            # Uniqueness is enforced by Neo4j constraint on Section.id (62^21 possibilities)
+            sections_with_ids = []
+            for sec in sections:
+                # Validate section structure
+                if "title" not in sec or "segments" not in sec:
+                    raise ValueError(f"Section must have title and segments: {sec}")
+                if not isinstance(sec["segments"], list):
+                    raise ValueError(f"Section segments must be a list: {sec['segments']}")
+                
+                if "id" not in sec or sec["id"] is None:
+                    sec["id"] = generate_id()
+                sections_with_ids.append(sec)
+            
+            logger.info(f"Creating {len(sections_with_ids)} sections for annotation {annotation_id}")
+            for sec in sections_with_ids:
+                logger.info(f"Section: {sec['id']}, title: {sec['title']}, segments: {len(sec['segments'])}")
+   
+            tx.run(
+                Queries.sections["create_batch"],
+                annotation_id=annotation_id,
+                sections=sections_with_ids,
+            )
 
     def _create_and_link_references(self, tx, segments: list[dict]) -> None:
         """Create reference nodes and link them to segments."""

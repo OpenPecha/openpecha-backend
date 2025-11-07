@@ -24,6 +24,7 @@ class AnnotationType(str, Enum):
     ALIGNMENT = "alignment"
     PAGINATION = "pagination"
     VERSION = "version"
+    TABLE_OF_CONTENTS = "table_of_contents"
 
 
 class ManifestationType(str, Enum):
@@ -234,6 +235,9 @@ class AlignedTextRequestModel(OpenPechaModel):
             raise ValueError("Both target_annotation and alignment_annotation must be provided together, or neither")
         return self
 
+class TableOfContentsAnnotationModel(OpenPechaModel):
+    title: NonEmptyStr
+    segments: list[NonEmptyStr]
 
 class SegmentationAnnotationModel(OpenPechaModel):
     span: SpanModel
@@ -268,7 +272,7 @@ class InstanceRequestModel(OpenPechaModel):
 
 class AddAnnotationRequestModel(OpenPechaModel):
     annotation_type: AnnotationType
-    annotation: list[SegmentationAnnotationModel | PaginationAnnotationModel] | None = None
+    annotation: list[SegmentationAnnotationModel | PaginationAnnotationModel | TableOfContentsAnnotationModel] | None = None
     target_manifestation_id: str | None = None
     target_annotation: list[AlignmentAnnotationModel] | None = None
     alignment_annotation: list[AlignmentAnnotationModel] | None = None
@@ -293,6 +297,13 @@ class AddAnnotationRequestModel(OpenPechaModel):
                 raise ValueError("Cannot provide both annotation and alignment annotation or target_annotation")
             elif not all(isinstance(ann, AlignmentAnnotationModel) for ann in self.target_annotation + self.alignment_annotation):
                 raise ValueError("Invalid target annotation or alignment annotation")
+        elif self.annotation_type == AnnotationType.TABLE_OF_CONTENTS:
+            if self.annotation is None or len(self.annotation) == 0:
+                raise ValueError("Table of contents annotation cannot be empty")
+            elif self.target_annotation is not None or self.alignment_annotation is not None:
+                raise ValueError("Cannot provide both annotation and alignment annotation or target_annotation")
+            elif not all(isinstance(ann, TableOfContentsAnnotationModel) for ann in self.annotation):
+                raise ValueError("Invalid annotation")
         else:
-            raise ValueError("Invalid annotation type. Allowed types are [SEGMENTATION, ALIGNMENT]")
+            raise ValueError("Invalid annotation type. Allowed types are [SEGMENTATION, ALIGNMENT], TABLE_OF_CONTENTS")
         return self
