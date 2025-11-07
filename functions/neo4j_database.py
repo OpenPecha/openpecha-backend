@@ -80,6 +80,7 @@ class Neo4JDatabase:
                 alt_titles=[self.__convert_to_localized_text(alt) for alt in expression.get("alt_titles")],
                 language=expression.get("language"),
                 target=target,
+                category_id=expression.get("category_id"),
             )
 
     def _process_manifestation_data(self, manifestation_data: dict) -> ManifestationModelOutput:
@@ -580,6 +581,7 @@ class Neo4JDatabase:
                     alt_titles=[self.__convert_to_localized_text(alt) for alt in expression_data["alt_titles"]],
                     language=expression_data["language"],
                     target=target,
+                    category_id=expression_data.get("category_id"),
                 )
                 expressions.append(expression)
 
@@ -641,6 +643,9 @@ class Neo4JDatabase:
         base_lang_code = expression.language.split("-")[0].lower()
         # Validate base language exists (single-query validator)
         self.__validator.validate_language_code_exists(tx, base_lang_code)
+        # Validate category exists if category_id is provided
+        if expression.category_id:
+            self.__validator.validate_category_exists(tx, expression.category_id)
         alt_titles_data = [alt_title.root for alt_title in expression.alt_titles] if expression.alt_titles else None
         expression_title_element_id = self._create_nomens(tx, expression.title.root, alt_titles_data)
 
@@ -667,6 +672,10 @@ class Neo4JDatabase:
                 if expression.target == "N/A":
                     raise NotImplementedError("Standalone COMMENTARY texts (target='N/A') are not yet supported")
                 tx.run(Queries.expressions["create_commentary"], work_id=work_id, **common_params)
+
+        # Link work to category if category_id is provided
+        if expression.category_id:
+            tx.run(Queries.works["link_to_category"], work_id=work_id, category_id=expression.category_id)
 
         for contribution in expression.contributions:
             if isinstance(contribution, ContributionModel):
@@ -807,3 +816,45 @@ class Neo4JDatabase:
                     segment["reference"] = record["reference"]
                 segments.append(segment)
             return segments
+
+    def create_category(self, application: str, title: dict[str, str], parent_id: str | None = None) -> str:
+        """Create a category with localized title and optional parent relationship."""
+        category_id = generate_id()
+        
+        # Convert title dict to list of localized_texts for the query
+        localized_texts = [
+            {"language": lang, "text": text}
+            for lang, text in title.items()
+        ]
+        
+        with self.get_session() as session:
+            result = session.run(
+                Queries.categories["create"],
+                category_id=category_id,
+                application=application,
+                localized_texts=localized_texts,
+                parent_id=parent_id
+            )
+            record = result.single()
+            return record["category_id"]
+    
+    def get_categories(self, application: str, parent_id: str | None = None, language: str = "bo") -> list[dict]:
+        """Get categories filtered by application and optional parent, with localized names."""
+        with self.get_session() as session:
+            result = session.run(
+                Queries.categories["get_categories"],
+                application=application,
+                parent_id=parent_id,
+                language=language
+            )
+            categories = []
+            for record in result:
+                data = record.data()
+                # Only include categories that have a title in the requested language
+                if data.get("title") is not None:
+                    categories.append({
+                        "id": data["id"],
+                        "parent": data.get("parent"),
+                        "title": data["title"]
+                    })
+            return categories

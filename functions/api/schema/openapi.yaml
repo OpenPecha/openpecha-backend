@@ -1350,6 +1350,10 @@ paths:
                 target:
                   type: string
                   description: Target metadata ID (required for commentary)
+                category_id:
+                  type: string
+                  nullable: true
+                  description: ID of the category this text belongs to (optional)
             examples:
               root_text:
                 summary: Root text creation
@@ -1364,6 +1368,7 @@ paths:
                       role: "author"
                   date: "2024-01-01"
                   bdrc: "W123456"
+                  category_id: "CAT12345678"
               translation_text:
                 summary: Translation text creation
                 value:
@@ -1374,6 +1379,7 @@ paths:
                   contributions:
                     - person_bdrc_id: "P87654321"
                       role: "translator"
+                  category_id: "CAT12345678"
               ai_translation_text:
                 summary: AI translation text creation
                 value:
@@ -1385,6 +1391,7 @@ paths:
                     - ai_id: "gpt-4"
                       role: "translator"
                   target: "T12345678"
+                  category_id: "CAT12345678"
       responses:
         "201":
           description: Text created successfully
@@ -2206,6 +2213,170 @@ paths:
                     content: "This is the text content of the segment."
         "404":
           $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+  /v2/categories:
+    get:
+      summary: Retrieve categories
+      description: Get categories filtered by application and optional parent, with localized names in the requested language
+      tags:
+        - Categories
+      parameters:
+        - name: application
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Application context for categories
+          example: "webuddhist"
+        - name: parent_id
+          in: query
+          required: false
+          schema:
+            type: string
+            nullable: true
+          description: Parent category ID (null or omitted means root categories)
+        - name: language
+          in: query
+          required: false
+          schema:
+            type: string
+            default: "bo"
+          description: Language code for localized category titles (defaults to "bo")
+      responses:
+        "200":
+          description: Categories retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                      description: Category ID
+                    parent:
+                      type: string
+                      nullable: true
+                      description: Parent category ID if exists
+                    title:
+                      type: string
+                      description: Localized category title in requested language
+              examples:
+                root_categories:
+                  summary: Root categories in English
+                  value:
+                    - id: "CAT12345678"
+                      parent: null
+                      title: "Literature"
+                    - id: "CAT23456789"
+                      parent: null
+                      title: "History"
+                child_categories:
+                  summary: Child categories in Tibetan
+                  value:
+                    - id: "CAT87654321"
+                      parent: "CAT12345678"
+                      title: "སྙན་ངག"
+                    - id: "CAT98765432"
+                      parent: "CAT12345678"
+                      title: "གཏམ་རྒྱུད"
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "500":
+          $ref: '#/components/responses/ServerError'
+    post:
+      summary: Create a new category
+      description: Create a category with localized title and optional parent relationship
+      tags:
+        - Categories
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - application
+                - title
+              properties:
+                application:
+                  type: string
+                  description: Application context for the category
+                title:
+                  type: object
+                  additionalProperties:
+                    type: string
+                  description: Localized category titles
+                parent:
+                  type: string
+                  nullable: true
+                  description: Parent category ID (optional)
+            examples:
+              root_category:
+                summary: Root category without parent
+                value:
+                  application: "webuddhist"
+                  title:
+                    en: "Literature"
+                    bo: "རྩོམ་རིག"
+                  parent: null
+              child_category:
+                summary: Child category with parent
+                value:
+                  application: "webuddhist"
+                  title:
+                    en: "Poetry"
+                    bo: "སྙན་ངག"
+                  parent: "CAT12345678"
+      responses:
+        "201":
+          description: Category created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                    description: Generated category ID
+                  application:
+                    type: string
+                    description: Application context
+                  title:
+                    type: object
+                    additionalProperties:
+                      type: string
+                    description: Localized titles
+                  parent:
+                    type: string
+                    nullable: true
+                    description: Parent category ID if provided
+              examples:
+                root_category:
+                  summary: Created root category
+                  value:
+                    id: "CAT12345678"
+                    application: "webuddhist"
+                    title:
+                      en: "Literature"
+                      bo: "རྩོམ་རིག"
+                    parent: null
+                child_category:
+                  summary: Created child category
+                  value:
+                    id: "CAT87654321"
+                    application: "webuddhist"
+                    title:
+                      en: "Poetry"
+                      bo: "སྙན་ངག"
+                    parent: "CAT12345678"
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "422":
+          $ref: '#/components/responses/ValidationError'
         "500":
           $ref: '#/components/responses/ServerError'
 

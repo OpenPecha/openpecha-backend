@@ -5,6 +5,7 @@ import traceback
 import firebase_admin
 from api.annotations import annotations_bp
 from api.api import api_bp
+from api.categories import categories_bp
 from api.instances import instances_bp
 from api.persons import persons_bp
 from api.schema import schema_bp
@@ -46,6 +47,7 @@ def create_app(testing=False):
     app.register_blueprint(segments_bp, url_prefix="/v2/segments")
     app.register_blueprint(schema_bp, url_prefix="/v2/schema")
     app.register_blueprint(annotations_bp, url_prefix="/v2/annotations")
+    app.register_blueprint(categories_bp, url_prefix="/v2/categories")
 
     @app.after_request
     def add_no_cache_headers(response):

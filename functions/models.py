@@ -121,6 +121,7 @@ class ExpressionModelBase(OpenPechaModel):
     alt_titles: list[LocalizedString] | None = None
     language: NonEmptyStr
     target: str | None = None
+    category_id: str | None = None
 
     @model_validator(mode="after")
     def validate_target_field(self):
@@ -303,3 +304,19 @@ class AddAnnotationRequestModel(OpenPechaModel):
         else:
             raise ValueError("Invalid annotation type. Allowed types are [SEGMENTATION, ALIGNMENT]")
         return self
+
+class CategoryRequestModel(OpenPechaModel):
+    application: NonEmptyStr
+    title: LocalizedString
+    parent: str | None = None
+
+class CategoryResponseModel(OpenPechaModel):
+    id: str
+    application: str
+    title: LocalizedString
+    parent: str | None = None
+
+class CategoryListItemModel(OpenPechaModel):
+    id: str
+    parent: str | None = None
+    title: NonEmptyStr

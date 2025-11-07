@@ -60,6 +60,9 @@ def post_texts() -> tuple[Response, int]:
 
     expression = ExpressionModelInput.model_validate(data)
 
+    if expression.category_id is None:
+        raise InvalidRequest("Category ID is required")
+
     logger.info("Successfully parsed expression: %s", expression.model_dump_json())
 
     expression_id = Neo4JDatabase().create_expression(expression)

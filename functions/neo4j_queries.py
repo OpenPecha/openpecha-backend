@@ -122,7 +122,8 @@ END
     date: {label}.date,
     title: [{Queries.primary_nomen(label, 'HAS_TITLE')}],
     alt_titles: [{Queries.alternative_nomen(label, 'HAS_TITLE')}],
-    language: [({label})-[:HAS_LANGUAGE]->(ef_lang:Language) | ef_lang.code][0]
+    language: [({label})-[:HAS_LANGUAGE]->(ef_lang:Language) | ef_lang.code][0],
+    category_id: [({label})-[:EXPRESSION_OF]->(ef_work:Work)-[:BELONGS_TO]->(ef_cat:Category) | ef_cat.id][0]
 }}
 """
 
@@ -466,4 +467,45 @@ Queries.ai = {
     MERGE (ai:AI {id: $ai_id})
     RETURN elementId(ai) AS ai_element_id
 """
+}
+
+Queries.categories = {
+    "create": """
+CREATE (c:Category {id: $category_id, application: $application})
+CREATE (n:Nomen)
+CREATE (c)-[:HAS_TITLE]->(n)
+WITH c, n
+FOREACH (lt IN $localized_texts |
+    MERGE (l:Language {code: lt.language})
+    CREATE (n)-[:HAS_LOCALIZATION]->(locText:LocalizedText {text: lt.text})-[:HAS_LANGUAGE]->(l)
+)
+WITH c
+CALL (*) {
+    WITH c
+    OPTIONAL MATCH (parent:Category {id: $parent_id})
+    FOREACH (_ IN CASE WHEN parent IS NOT NULL THEN [1] ELSE [] END |
+        CREATE (c)-[:HAS_PARENT]->(parent)
+    )
+}
+RETURN c.id AS category_id
+""",
+    "get_categories": """
+MATCH (c:Category {application: $application})
+WHERE 
+    CASE 
+        WHEN $parent_id IS NULL THEN NOT (c)-[:HAS_PARENT]->(:Category)
+        ELSE EXISTS((c)-[:HAS_PARENT]->(:Category {id: $parent_id}))
+    END
+OPTIONAL MATCH (c)-[:HAS_PARENT]->(parent:Category)
+OPTIONAL MATCH (c)-[:HAS_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)-[:HAS_LANGUAGE]->(l:Language {code: $language})
+RETURN c.id AS id, parent.id AS parent, lt.text AS title
+""",
+}
+
+Queries.works = {
+    "link_to_category": """
+MATCH (w:Work {id: $work_id})
+MATCH (c:Category {id: $category_id})
+CREATE (w)-[:BELONGS_TO]->(c)
+""",
 }
