@@ -23,6 +23,7 @@ from neo4j_database import Neo4JDatabase
 from storage import MockStorage
 from pecha_handling import retrieve_base_text
 from api.annotations import _alignment_annotation_mapping
+from exceptions import InvalidRequest
 
 instances_bp = Blueprint("instances", __name__)
 
@@ -123,6 +124,7 @@ def _create_aligned_text(
         language=request_model.language,
         contributions=contributions,
         target=target_expression_id,
+        category_id=request_model.category_id,
     )
 
     manifestation = ManifestationModelInput(type=ManifestationType.CRITICAL, copyright=request_model.copyright)
@@ -192,6 +194,9 @@ def create_commentary(original_manifestation_id: str) -> tuple[Response, int]:
         return jsonify({"error": "Request body is required"}), 400
 
     request_model = AlignedTextRequestModel.model_validate(data)
+
+    if request_model.category_id is None:
+        raise InvalidRequest("Category ID is required")
 
     return _create_aligned_text(request_model, TextType.COMMENTARY, original_manifestation_id)
 

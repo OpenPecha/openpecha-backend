@@ -228,6 +228,7 @@ class AlignedTextRequestModel(OpenPechaModel):
     alignment_annotation: list[dict] | None = None
     segmentation: list[dict]
     copyright: CopyrightStatus = CopyrightStatus.PUBLIC_DOMAIN
+    category_id: str | None = None
 
     @model_validator(mode="after")
     def validate_alignment_annotations(self):

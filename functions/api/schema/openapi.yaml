@@ -1086,6 +1086,10 @@ paths:
                   type: string
                   enum: [public, copyrighted]
                   default: public
+                category_id:
+                  type: string
+                  nullable: true
+                  description: ID of the category this commentary belongs to (optional)
             examples:
               valid_commentary_with_alignment_annotation:
                 summary: Valid commentary creation request with alignment annotation
@@ -1127,6 +1131,7 @@ paths:
                       index: 1
                       alignment_index: [1,2]
                   copyright: "public"
+                  category_id: "CAT12345678"
               valid_commentary_without_alignment_annotation:
                 summary: Valid commentary creation request without alignment annotation
                 value:
@@ -1142,7 +1147,8 @@ paths:
                     - span:
                         start: 21
                         end: 40
-                  copyright: "public"   
+                  copyright: "public"
+                  category_id: "CAT12345678"
       responses:
         "201":
           description: Commentary created successfully
