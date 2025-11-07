@@ -284,10 +284,6 @@ class Neo4JDatabase:
         with self.__driver.session() as session:
             return session.execute_write(lambda tx: self._execute_create_expression(tx, expression))
 
-    def add_annotation(self, manifestation_id: str, annotation: AnnotationModel) -> str:
-        with self.__driver.session() as session:
-            return session.execute_write(lambda tx: self._execute_add_annotation(tx, manifestation_id, annotation))
-
     def create_manifestation(
         self,
         manifestation: ManifestationModelInput,
@@ -305,10 +301,44 @@ class Neo4JDatabase:
             if annotation:
                 self._execute_add_annotation(tx, manifestation_id, annotation)
                 self._create_segments(tx, annotation.id, annotation_segments)
-                self._create_and_link_references(tx, annotation_segments)
+                if annotation_segments[0].get("reference", None) is not None:
+                    self._create_and_link_references(tx, annotation_segments)
 
         with self.__driver.session() as session:
             return session.execute_write(transaction_function)
+    
+    def add_annotation_to_manifestation(self, manifestation_id: str, annotation: AnnotationModel, annotation_segments: list[dict]):
+        def transaction_function(tx):
+            annotation_id = self._execute_add_annotation(tx, manifestation_id, annotation)
+            self._create_segments(tx, annotation_id, annotation_segments)
+            if annotation_segments[0].get("reference", None) is not None:
+                self._create_and_link_references(tx, annotation_segments)
+            return annotation_id
+        with self.__driver.session() as session:
+            return session.execute_write(transaction_function)
+
+    def add_alignment_annotation_to_manifestation(
+        self,
+        target_annotation: AnnotationModel,
+        source_annotation: AnnotationModel,
+        target_manifestation_id: str,
+        source_manifestation_id: str,
+        target_segments: list[dict],
+        alignment_segments: list[dict],
+        alignments: list[dict]
+    ) -> str:
+        def transaction_function(tx):
+            _ = self._execute_add_annotation(tx, target_manifestation_id, target_annotation)
+            self._create_segments(tx, target_annotation.id, target_segments)
+
+            _ = self._execute_add_annotation(tx, source_manifestation_id, source_annotation)
+            self._create_segments(tx, source_annotation.id, alignment_segments)
+
+            tx.run(Queries.segments["create_alignments_batch"], alignments=alignments)
+        
+        with self.__driver.session() as session:
+            return session.execute_write(transaction_function)
+
 
     def create_aligned_manifestation(
         self,
@@ -333,13 +363,13 @@ class Neo4JDatabase:
             self._create_segments(tx, segmentation.id, segmentation_segments)
             self._create_and_link_references(tx, segmentation_segments)
 
-            _ = self._execute_add_annotation(tx, manifestation_id, alignment_annotation)
-            self._create_segments(tx, alignment_annotation.id, alignment_segments)
-            self._create_and_link_references(tx, alignment_segments)
-
             _ = self._execute_add_annotation(tx, target_manifestation_id, target_annotation)
             self._create_segments(tx, target_annotation.id, target_segments)
             self._create_and_link_references(tx, target_segments)
+
+            _ = self._execute_add_annotation(tx, manifestation_id, alignment_annotation)
+            self._create_segments(tx, alignment_annotation.id, alignment_segments)
+            self._create_and_link_references(tx, alignment_segments)
 
             tx.run(Queries.segments["create_alignments_batch"], alignments=alignments)
 
@@ -638,8 +668,73 @@ class Neo4JDatabase:
         )
         return reference_id
 
-    def get_annotation(self, annotation_id: str) -> list[dict]:
-        """Get all segments for an annotation."""
+    def get_annotation(self, annotation_id: str) ->  dict:
+        """Get all segments for an annotation. For alignment annotations, returns both source and target segments."""
+        with self.get_session() as session:
+            # Get annotation type
+            annotation_result = session.run(
+                Queries.annotations["get_annotation_type"],
+                annotation_id=annotation_id
+            )
+            annotation_record = annotation_result.single()
+            
+            if not annotation_record:
+                raise DataNotFound(f"Annotation with ID '{annotation_id}' not found")
+            
+            annotation_type = annotation_record["annotation_type"]
+            
+            # Get aligned annotation ID if it exists
+            aligned_to_id = None
+            if annotation_type == "alignment":
+                aligned_result = session.run(
+                    Queries.annotations["get_aligned_annotation"],
+                    annotation_id=annotation_id,
+                )
+                aligned_record = aligned_result.single()
+                if aligned_record:
+                    aligned_to_id = aligned_record["aligned_to_id"]
+            
+            if annotation_type == "alignment" and aligned_to_id:
+                # For alignment annotations, return both source and target segments
+                source_segments_result = self._get_annotation_segments(annotation_id)
+                target_segments_result = self._get_annotation_segments(aligned_to_id)
+                
+                # Extract the actual segment lists from the dict results
+                source_segments = source_segments_result["annotation"]
+                target_segments = target_segments_result["annotation"]
+                
+                # Add index and alignment_index to source segments
+                source_segments_with_index = []
+                for i, segment in enumerate(source_segments):
+                    # Find target indices this segment aligns to
+                    alignment_indices = self._get_alignment_indices(segment["id"], aligned_to_id)
+                    segment_with_index = {
+                        **segment,
+                        "index": i,
+                        "alignment_index": alignment_indices
+                    }
+                    source_segments_with_index.append(segment_with_index)
+                
+                # Add index to target segments
+                target_segments_with_index = []
+                for i, segment in enumerate(target_segments):
+                    segment_with_index = {
+                        **segment,
+                        "index": i
+                    }
+                    target_segments_with_index.append(segment_with_index)
+                
+                return {
+                    "annotation": None,
+                    "alignment_annotation": source_segments_with_index,
+                    "target_annotation": target_segments_with_index
+                }
+            else:
+                # For non-alignment annotations, return the basic segment list
+                return self._get_annotation_segments(annotation_id)
+    
+    def _get_annotation_segments(self, annotation_id: str) -> dict:
+        """Helper method to get segments for a specific annotation."""
         with self.get_session() as session:
             result = session.run(
                 Queries.annotations["get_segments"],
@@ -657,4 +752,19 @@ class Neo4JDatabase:
                 if record["reference"]:
                     segment["reference"] = record["reference"]
                 segments.append(segment)
-            return segments
+
+        return {
+                "annotation": segments,
+                "alignment_annotation": None,
+                "target_annotation": None,
+            }
+    
+    def _get_alignment_indices(self, source_segment_id: str, target_annotation_id: str) -> list[int]:
+        """Get the indices of target segments that a source segment aligns to."""
+        with self.get_session() as session:
+            result = session.run(
+                Queries.annotations["get_alignment_indices"],
+                source_segment_id=source_segment_id,
+                target_annotation_id=target_annotation_id
+            )
+            return [record["index"] for record in result]
