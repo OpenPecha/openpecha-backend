@@ -367,6 +367,127 @@ paths:
                     error: "No segments found containing span [0, 100) in instance 'I12345678'"
         "500":
           $ref: '#/components/responses/ServerError'
+  /v2/instances/{instance_id}/segment-content:
+    get:
+      summary: Get text content (unified endpoint)
+      description: |
+        Unified endpoint to retrieve text content from either:
+        1. A specific segment using segment_id parameter (within the given instance)
+        2. An instance excerpt using span_start and span_end parameters
+        
+        **Validation constraints:**
+        - If segment_id is provided: cannot use span_start or span_end parameters
+        - If using span approach: must provide span_start and span_end, cannot use segment_id
+        - Must provide either segment_id OR span_start and span_end (mutually exclusive)
+      tags:
+        - Instances
+      parameters:
+        - name: instance_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the instance to retrieve content from
+        - name: segment_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: The ID of the segment to retrieve content for (alternative to span approach)
+        - name: span_start
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+          description: Start character position of the excerpt (required when using span approach)
+        - name: span_end
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+          description: End character position of the excerpt (required when using span approach)
+      responses:
+        "200":
+          description: Text content retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  content:
+                    type: string
+                    description: The extracted text content
+              examples:
+                segment_content:
+                  summary: Content retrieved by segment ID
+                  value:
+                    content: "This is the text content of the segment."
+                manifestation_excerpt:
+                  summary: Content retrieved by manifestation span
+                  value:
+                    content: "This is the text content from the specified span."
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message
+              examples:
+                missing_parameters:
+                  summary: Neither segment_id nor span parameters provided
+                  value:
+                    error: "Either segment_id OR span_start and span_end is required"
+                conflicting_parameters:
+                  summary: Both segment_id and span parameters provided
+                  value:
+                    error: "Cannot provide both segment_id and span parameters. Use one approach only."
+                segment_with_span:
+                  summary: Segment approach with span parameters
+                  value:
+                    error: "When using segment_id, do not provide span_start or span_end parameters."
+                missing_span:
+                  summary: Missing span parameters for span approach
+                  value:
+                    error: "span_start and span_end parameters are required when using span approach"
+                invalid_span:
+                  summary: Invalid span parameters (handled by SpanModel)
+                  value:
+                    error: "Invalid span parameters: 'start' must be less than 'end'"
+                segment_span_exceeds:
+                  summary: Segment span exceeds text length
+                  value:
+                    error: "segment span end (1000) exceeds base text length (500)"
+                instance_span_exceeds:
+                  summary: Instance span exceeds text length
+                  value:
+                    error: "span end (1000) exceeds base text length (500)"
+        "404":
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message
+              examples:
+                segment_not_found:
+                  summary: Segment not found
+                  value:
+                    error: "Failed to retrieve segment content: Segment with ID 'SEG123' not found"
+                instance_not_found:
+                  summary: Instance not found
+                  value:
+                    error: "Failed to retrieve instance content: Instance with ID 'INST123' not found"
+        "500":
+          $ref: '#/components/responses/ServerError'
 
   /v2/instances/{instance_id}/excerpt:
     get:
@@ -2174,128 +2295,6 @@ paths:
                     content: "This is the text content of the segment."
         "404":
           $ref: '#/components/responses/NotFound'
-        "500":
-          $ref: '#/components/responses/ServerError'
-
-  /v2/segments/content:
-    get:
-      summary: Get text content (unified endpoint)
-      description: |
-        Unified endpoint to retrieve text content from either:
-        1. A specific segment using segment_id parameter
-        2. A manifestation excerpt using manifestation_id, span_start, and span_end parameters
-        
-        **Validation constraints:**
-        - If segment_id is provided: cannot use manifestation_id, span_start, or span_end
-        - If manifestation_id is provided: must provide span_start and span_end, cannot use segment_id
-        - Must provide either segment_id OR manifestation_id (mutually exclusive)
-      tags:
-        - Segments
-      parameters:
-        - name: segment_id
-          in: query
-          required: false
-          schema:
-            type: string
-          description: The ID of the segment to retrieve content for (alternative to manifestation_id approach)
-        - name: manifestation_id
-          in: query
-          required: false
-          schema:
-            type: string
-          description: The ID of the manifestation to retrieve excerpt from (alternative to segment_id approach)
-        - name: span_start
-          in: query
-          required: false
-          schema:
-            type: integer
-            minimum: 0
-          description: Start character position of the excerpt (required when using manifestation_id)
-        - name: span_end
-          in: query
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-          description: End character position of the excerpt (required when using manifestation_id)
-      responses:
-        "200":
-          description: Text content retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  content:
-                    type: string
-                    description: The extracted text content
-              examples:
-                segment_content:
-                  summary: Content retrieved by segment ID
-                  value:
-                    content: "This is the text content of the segment."
-                manifestation_excerpt:
-                  summary: Content retrieved by manifestation span
-                  value:
-                    content: "This is the text content from the specified span."
-        "400":
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    description: Error message
-              examples:
-                missing_parameters:
-                  summary: Neither segment_id nor manifestation_id provided
-                  value:
-                    error: "Either segment_id OR manifestation_id with span_start and span_end is required"
-                conflicting_parameters:
-                  summary: Both segment_id and manifestation_id provided
-                  value:
-                    error: "Cannot provide both segment_id and manifestation_id. Use one approach only."
-                segment_with_span:
-                  summary: Segment approach with span parameters
-                  value:
-                    error: "When using segment_id, do not provide span_start or span_end parameters."
-                missing_span:
-                  summary: Missing span parameters for manifestation
-                  value:
-                    error: "span_start and span_end parameters are required when using manifestation_id"
-                invalid_span:
-                  summary: Invalid span parameters (handled by SpanModel)
-                  value:
-                    error: "Invalid span parameters: 'start' must be less than 'end'"
-                segment_span_exceeds:
-                  summary: Segment span exceeds text length
-                  value:
-                    error: "segment span end (1000) exceeds base text length (500)"
-                manifestation_span_exceeds:
-                  summary: Manifestation span exceeds text length
-                  value:
-                    error: "span end (1000) exceeds base text length (500)"
-        "404":
-          description: Resource not found
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    description: Error message
-              examples:
-                segment_not_found:
-                  summary: Segment not found
-                  value:
-                    error: "Failed to retrieve segment content: Segment with ID 'SEG123' not found"
-                manifestation_not_found:
-                  summary: Manifestation not found
-                  value:
-                    error: "Failed to retrieve manifestation content: Manifestation with ID 'MAN123' not found"
         "500":
           $ref: '#/components/responses/ServerError'
 

@@ -27,6 +27,66 @@ instances_bp = Blueprint("instances", __name__)
 logger = logging.getLogger(__name__)
 
 
+def _validate_request_parameters(segment_id: str, span_start: str, span_end: str) -> tuple[bool, str]:
+    """Validate parameter combinations and return (is_valid, error_message)."""
+    if segment_id and (span_start or span_end):
+        return False, "Cannot provide both segment_id and span parameters. Use one approach only."
+    
+    if span_start and not span_end:
+        return False, "span_end parameter is required when using span_start"
+    
+    if span_end and not span_start:
+        return False, "span_start parameter is required when using span_end"
+    
+    if not segment_id and not span_start and not span_end:
+        return False, "Either segment_id OR span_start and span_end is required"
+    
+    return True, ""
+
+
+def _validate_span_parameters(span_start: str, span_end: str) -> tuple[bool, str, SpanModel]:
+    """Validate and parse span parameters. Return (is_valid, error_message, span_model)."""
+    try:
+        span = SpanModel(start=int(span_start), end=int(span_end))
+        return True, "", span
+    except ValueError as e:
+        # SpanModel validation will handle: start >= end, start < 0, invalid integers
+        return False, f"Invalid span parameters: {str(e)}", None
+
+
+def _get_segment_content(segment_id: str) -> tuple[bool, str, str]:
+    """Get content for a specific segment. Return (success, error_message, content)."""
+    try:
+        db = Neo4JDatabase()
+        segment, manifestation_id, expression_id = db._get_segment(segment_id)
+        base_text = retrieve_base_text(expression_id=expression_id, manifestation_id=manifestation_id)
+        
+        # Validate segment span bounds
+        if segment.span.end > len(base_text):
+            return False, f"segment span end ({segment.span.end}) exceeds base text length ({len(base_text)})", ""
+        
+        content = base_text[segment.span.start : segment.span.end]
+        return True, "", content
+    except Exception as e:
+        return False, f"Failed to retrieve segment content: {str(e)}", ""
+
+
+def _get_instance_content(instance_id: str, span: SpanModel) -> tuple[bool, str, str]:
+    """Get content for an instance span. Return (success, error_message, content)."""
+    try:
+        db = Neo4JDatabase()
+        _, expression_id = db.get_manifestation(instance_id)
+        base_text = retrieve_base_text(expression_id=expression_id, manifestation_id=instance_id)
+        
+        if span.end > len(base_text):
+            return False, f"span end ({span.end}) exceeds base text length ({len(base_text)})", ""
+        
+        content = base_text[span.start : span.end]
+        return True, "", content
+    except Exception as e:
+        return False, f"Failed to retrieve instance content: {str(e)}", ""
+
+
 @instances_bp.route("/<string:manifestation_id>", methods=["GET"], strict_slashes=False)
 def get_instance(manifestation_id: str):
 
@@ -298,3 +358,48 @@ def get_related_texts(manifestation_id: str) -> tuple[Response, int]:
         ),
         200,
     )
+
+
+@instances_bp.route("/<string:instance_id>/segment-content", methods=["GET"], strict_slashes=False)
+def get_instance_segment_content(instance_id: str) -> tuple[Response, int]:
+    """
+    Unified endpoint to get text content from either:
+    1. A segment (using segment_id parameter) within the given instance
+    2. An instance excerpt (using span_start and span_end parameters)
+    
+    Validation constraints:
+    - If segment_id is provided: cannot use span_start or span_end parameters
+    - If using span approach: must provide span_start and span_end, cannot use segment_id
+    - Must provide either segment_id OR span_start and span_end (mutually exclusive)
+    """
+    
+    # Get all parameters
+    segment_id = request.args.get("segment_id")
+    span_start = request.args.get("span_start")
+    span_end = request.args.get("span_end")
+    
+    # Validate parameter combinations
+    is_valid, error_msg = _validate_request_parameters(segment_id, span_start, span_end)
+    if not is_valid:
+        return jsonify({"error": error_msg}), 400
+    
+    # Handle segment approach
+    if segment_id:
+        success, error_msg, content = _get_segment_content(segment_id)
+        if success:
+            return jsonify({"content": content}), 200
+        return jsonify({"error": error_msg}), 404
+    
+    # Handle span approach
+    if span_start and span_end:
+        is_valid, error_msg, span = _validate_span_parameters(span_start, span_end)
+        if not is_valid:
+            return jsonify({"error": error_msg}), 400
+        
+        success, error_msg, content = _get_instance_content(instance_id, span)
+        if success:
+            return jsonify({"content": content}), 200
+        return jsonify({"error": error_msg}), 404
+    
+    # This should never be reached due to validation
+    return jsonify({"error": "Invalid request"}), 400
