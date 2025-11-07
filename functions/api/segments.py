@@ -1,10 +1,8 @@
 import logging
-from pecha_handling import retrieve_base_text
 
-from flask import Blueprint, Response, jsonify, request
+from flask import Blueprint, Response, jsonify
 from neo4j_database import Neo4JDatabase
 from pecha_handling import retrieve_pecha
-from models import SpanModel
 
 segments_bp = Blueprint("segments", __name__)
 
