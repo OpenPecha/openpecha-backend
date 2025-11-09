@@ -534,10 +534,10 @@ CREATE (bt:BibliographyType {
 RETURN bt.id as bibliography_type_id
 """,
     "link_to_segments": """
-UNWIND $segment_bibliography_types AS sbt
+UNWIND $segment_and_type_names AS sbt
 MATCH (s:Segment {id: sbt.segment_id})
-MATCH (bt:BibliographyType {id: sbt.bibliography_type_id})
-CREATE (s)-[:HAS_BIBLIOGRAPHY_TYPE]->(bt)
+MATCH (bt:BibliographyType {name: sbt.type_name})
+CREATE (s)-[:HAS_TYPE]->(bt)
 """
 }
 

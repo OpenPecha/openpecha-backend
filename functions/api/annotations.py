@@ -8,13 +8,12 @@ annotations_bp = Blueprint("annotations", __name__)
 
 logger = logging.getLogger(__name__)
 
-from models import (
-    SegmentationAnnotationModel, 
-    PaginationAnnotationModel, 
+from models import ( 
     ManifestationType,
     AnnotationModel,
     AnnotationType,
     AddAnnotationRequestModel,
+    BibliographyAnnotationModel
 )
 from identifier import generate_id
 from exceptions import InvalidRequest

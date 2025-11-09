@@ -105,6 +105,147 @@ paths:
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/ServerError'
+  /v2/instances/{instance_id}/relatedto:
+    get:
+      summary: Find related instances
+      description: >-
+        Find all manifestations with alignment relationships to the given instance.
+        Works bidirectionally: returns translations/commentaries for root texts, or root texts for translations/commentaries.
+        Optionally filter by relationship type (translation/commentary).
+      tags:
+        - Instances
+      parameters:
+        - name: instance_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the instance to find related instances for
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [translation, commentary, root]
+          description: Optional filter to only return instances of a specific relationship type
+      responses:
+        "200":
+          description: Related instances retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    instance_id:
+                      type: string
+                      description: The ID of the related manifestation
+                    metadata:
+                      type: object
+                      description: Essential manifestation and expression metadata
+                      properties:
+                        instance_type:
+                          type: string
+                          enum: [diplomatic, critical]
+                          description: Instance type
+                        copyright:
+                          type: string
+                          enum: [public, copyrighted]
+                          description: Copyright status
+                        text_id:
+                          type: string
+                          description: Text ID
+                        title:
+                          type: object
+                          description: Expression title in localized format
+                        alt_titles:
+                          type: array
+                          items:
+                            type: object
+                          description: Alternative titles
+                        language:
+                          type: string
+                          description: Language code
+                        contributions:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              person_id:
+                                type: string
+                                description: Person identifier (for person contributions)
+                              ai_id:
+                                type: string
+                                description: AI identifier (for AI contributions)
+                              role:
+                                type: string
+                                enum: [translator, reviser, author, scholar]
+                                description: Contributor role
+                          description: Contributors list
+                    annotation:
+                      type: string
+                      description: The alignment annotation ID (from the source manifestation with aligned_to set)
+                    relationship:
+                      type: string
+                      enum: [translation, commentary, root]
+                      description: The type of relationship between the instances
+              examples:
+                translation_example:
+                  summary: Translation of a root text
+                  value:
+                    - instance_id: "I87654321"
+                      metadata:
+                        instance_type: "critical"
+                        copyright: "public"
+                        text_id: "E12345678"
+                        title:
+                          en: "Heart Sutra - English Translation"
+                          bo: "ཤེས་རབ་སྙིང་པོ་དབྱིན་སྐད།"
+                        alt_titles:
+                          - en: "Prajnaparamita Heart Sutra"
+                        language: "en"
+                        contributions:
+                          - person_id: "P12345678"
+                            role: "translator"
+                          - person_id: "P87654321"
+                            role: "reviser"
+                      annotation: "A98765432"
+                      relationship: "translation"
+                    - instance_id: "I87654322"
+                      metadata:
+                        instance_type: "critical"
+                        copyright: "copyrighted"
+                        text_id: "E12345679"
+                        title:
+                          zh: "心经 - 中文翻译"
+                        alt_titles: []
+                        language: "zh"
+                        contributions:
+                          - person_id: "P23456789"
+                            role: "translator"
+                      annotation: "A98765433"
+                      relationship: "translation"
+                ai_contribution_example:
+                  summary: AI-generated translation
+                  value:
+                    - instance_id: "I87654323"
+                      metadata:
+                        instance_type: "critical"
+                        copyright: "public"
+                        text_id: "E12345680"
+                        title:
+                          en: "AI Generated Translation"
+                        alt_titles: []
+                        language: "en"
+                        contributions:
+                          - ai_id: "gpt-4"
+                            role: "translator"
+                      annotation: "A98765434"
+                      relationship: "translation"
+                  error: "No segments found containing span [0, 100) in instance 'I12345678'"
+        "500":
+          $ref: '#/components/responses/ServerError'
 
   /v2/instances/{instance_id}/segment_related:
     get:
@@ -280,148 +421,8 @@ paths:
         "500":
           $ref: '#/components/responses/ServerError'
 
-  /v2/instances/{instance_id}/related:
-  /v2/instances/{instance_id}/relatedto:
-    get:
-      summary: Find related instances
-      description: >-
-        Find all manifestations with alignment relationships to the given instance.
-        Works bidirectionally: returns translations/commentaries for root texts, or root texts for translations/commentaries.
-        Optionally filter by relationship type (translation/commentary).
-      tags:
-        - Instances
-      parameters:
-        - name: instance_id
-          in: path
-          required: true
-          schema:
-            type: string
-          description: The ID of the instance to find related instances for
-        - name: type
-          in: query
-          required: false
-          schema:
-            type: string
-            enum: [translation, commentary, root]
-          description: Optional filter to only return instances of a specific relationship type
-      responses:
-        "200":
-          description: Related instances retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    instance_id:
-                      type: string
-                      description: The ID of the related manifestation
-                    metadata:
-                      type: object
-                      description: Essential manifestation and expression metadata
-                      properties:
-                        instance_type:
-                          type: string
-                          enum: [diplomatic, critical]
-                          description: Instance type
-                        copyright:
-                          type: string
-                          enum: [public, copyrighted]
-                          description: Copyright status
-                        text_id:
-                          type: string
-                          description: Text ID
-                        title:
-                          type: object
-                          description: Expression title in localized format
-                        alt_titles:
-                          type: array
-                          items:
-                            type: object
-                          description: Alternative titles
-                        language:
-                          type: string
-                          description: Language code
-                        contributions:
-                          type: array
-                          items:
-                            type: object
-                            properties:
-                              person_id:
-                                type: string
-                                description: Person identifier (for person contributions)
-                              ai_id:
-                                type: string
-                                description: AI identifier (for AI contributions)
-                              role:
-                                type: string
-                                enum: [translator, reviser, author, scholar]
-                                description: Contributor role
-                          description: Contributors list
-                    annotation:
-                      type: string
-                      description: The alignment annotation ID (from the source manifestation with aligned_to set)
-                    relationship:
-                      type: string
-                      enum: [translation, commentary, root]
-                      description: The type of relationship between the instances
-              examples:
-                translation_example:
-                  summary: Translation of a root text
-                  value:
-                    - instance_id: "I87654321"
-                      metadata:
-                        instance_type: "critical"
-                        copyright: "public"
-                        text_id: "E12345678"
-                        title:
-                          en: "Heart Sutra - English Translation"
-                          bo: "ཤེས་རབ་སྙིང་པོ་དབྱིན་སྐད།"
-                        alt_titles:
-                          - en: "Prajnaparamita Heart Sutra"
-                        language: "en"
-                        contributions:
-                          - person_id: "P12345678"
-                            role: "translator"
-                          - person_id: "P87654321"
-                            role: "reviser"
-                      annotation: "A98765432"
-                      relationship: "translation"
-                    - instance_id: "I87654322"
-                      metadata:
-                        instance_type: "critical"
-                        copyright: "copyrighted"
-                        text_id: "E12345679"
-                        title:
-                          zh: "心经 - 中文翻译"
-                        alt_titles: []
-                        language: "zh"
-                        contributions:
-                          - person_id: "P23456789"
-                            role: "translator"
-                      annotation: "A98765433"
-                      relationship: "translation"
-                ai_contribution_example:
-                  summary: AI-generated translation
-                  value:
-                    - instance_id: "I87654323"
-                      metadata:
-                        instance_type: "critical"
-                        copyright: "public"
-                        text_id: "E12345680"
-                        title:
-                          en: "AI Generated Translation"
-                        alt_titles: []
-                        language: "en"
-                        contributions:
-                          - ai_id: "gpt-4"
-                            role: "translator"
-                      annotation: "A98765434"
-                      relationship: "translation"
-                  error: "No segments found containing span [0, 100) in instance 'I12345678'"
-        "500":
-          $ref: '#/components/responses/ServerError'
+  # /v2/instances/{instance_id}/related:
+  
   /v2/instances/{instance_id}/segment-content:
     get:
       summary: Get text content (unified endpoint)
@@ -544,61 +545,61 @@ paths:
         "500":
           $ref: '#/components/responses/ServerError'
 
-  /v2/instances/{instance_id}/excerpt:
-    get:
-      summary: Get text excerpt
-      description: Retrieve a specific excerpt (substring) of the base text content for a given instance based on character span
-      tags:
-        - Instances
-      parameters:
-        - name: instance_id
-          in: path
-          required: true
-          schema:
-            type: string
-          description: The ID of the instance to retrieve excerpt from
-        - name: span_start
-          in: query
-          required: true
-          schema:
-            type: integer
-            minimum: 0
-          description: Start character position of the excerpt (inclusive)
-        - name: span_end
-          in: query
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-          description: End character position of the excerpt (exclusive, must be greater than span_start)
-      responses:
-        "200":
-          description: Excerpt retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  excerpt:
-                    type: string
-                    description: The extracted text content from the specified character span
-              examples:
-                success:
-                  summary: Excerpt from position 2 to 4
-                  value:
-                    excerpt: "hj"
-        "400":
-          description: Invalid type filter
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    example: "Invalid type filter. Must be 'translation', 'commentary', or 'root'"
-        "500":
-          $ref: '#/components/responses/ServerError'
+  # /v2/instances/{instance_id}/excerpt:
+  #   get:
+  #     summary: Get text excerpt
+  #     description: Retrieve a specific excerpt (substring) of the base text content for a given instance based on character span
+  #     tags:
+  #       - Instances
+  #     parameters:
+  #       - name: instance_id
+  #         in: path
+  #         required: true
+  #         schema:
+  #           type: string
+  #         description: The ID of the instance to retrieve excerpt from
+  #       - name: span_start
+  #         in: query
+  #         required: true
+  #         schema:
+  #           type: integer
+  #           minimum: 0
+  #         description: Start character position of the excerpt (inclusive)
+  #       - name: span_end
+  #         in: query
+  #         required: true
+  #         schema:
+  #           type: integer
+  #           minimum: 1
+  #         description: End character position of the excerpt (exclusive, must be greater than span_start)
+  #     responses:
+  #       "200":
+  #         description: Excerpt retrieved successfully
+  #         content:
+  #           application/json:
+  #             schema:
+  #               type: object
+  #               properties:
+  #                 excerpt:
+  #                   type: string
+  #                   description: The extracted text content from the specified character span
+  #             examples:
+  #               success:
+  #                 summary: Excerpt from position 2 to 4
+  #                 value:
+  #                   excerpt: "hj"
+  #       "400":
+  #         description: Invalid type filter
+  #         content:
+  #           application/json:
+  #             schema:
+  #               type: object
+  #               properties:
+  #                 error:
+  #                   type: string
+  #                   example: "Invalid type filter. Must be 'translation', 'commentary', or 'root'"
+  #       "500":
+  #         $ref: '#/components/responses/ServerError'
 
   # /v2/instances/{instance_id}/related:
   #   get:
@@ -1165,8 +1166,9 @@ paths:
                             type: integer
                             minimum: 1
                             description: End character position (exclusive)
-                      biblography_type:
+                      type:
                         type: string
+                        enum: [colophon, title, incipit_title, author]
                         description: Type of bibliography annotation
                   description: Bibliography annotation segments with bibliography type
                 content:
@@ -1256,11 +1258,11 @@ paths:
                     - span:
                         start: 5
                         end: 15
-                      biblography_type: "citation"
+                      type: "colophon"
                     - span:
                         start: 20
                         end: 30
-                      biblography_type: "reference"
+                      type: "title"
                   content: "This is the text content to be stored"                           
       responses:
         "201":
@@ -2327,25 +2329,29 @@ paths:
         "500":
           $ref: '#/components/responses/ServerError'
 
-  /v2/annotations/{manifestation_id}/annotation:
+  /v2/annotations/{instance_id}/annotation:
     post:
-      summary: Add annotation to a manifestation
+      summary: Add annotation to a instance
       description: >-
-        Adds an annotation to the specified manifestation. Supports multiple annotation types:
-        - SEGMENTATION: For CRITICAL manifestations, send segmentation annotations (span only).
-          For DIPLOMATIC manifestations, send pagination annotations (span + reference).
+        Adds an annotation to the specified instance. Supports multiple annotation types:
+        
+        - SEGMENTATION: For CRITICAL instances, send segmentation annotations (span only).
+          For DIPLOMATIC instances, send pagination annotations (span + reference).
+        
         - PAGINATION: Send pagination annotations with span and reference (for DIPLOMATIC manifestations).
+        
         - BIBLIOGRAPHY: Send bibliography annotations with span and bibliography type.
+        
         - ALIGNMENT: Creates alignment relationships between segments of the source and target manifestations.
       tags:
         - Annotations
       parameters:
-        - name: manifestation_id
+        - name: instance_id
           in: path
           required: true
           schema:
             type: string
-          description: The ID of the manifestation to annotate (source manifestation for ALIGNMENT type)
+          description: The ID of the instance to annotate (source instance for ALIGNMENT type)
       requestBody:
         required: true
         content:
@@ -2362,7 +2368,7 @@ paths:
                 annotation:
                   type: array
                   minItems: 1
-                  description: Array of segmentation, pagination, or bibliography annotations (required for SEGMENTATION, PAGINATION, or BIBLIOGRAPHY type)
+                  description: Array of segmentation, pagination, or bibliography annotations (required for SEGMENTATION, PAGINATION, or BIBLIOGRAPHY type respectively)
                   items:
                     oneOf:
                       - type: object
@@ -2380,7 +2386,7 @@ paths:
                                 type: integer
                                 minimum: 1
                                 description: End character position (exclusive)
-                        description: Segmentation annotation (for CRITICAL manifestations)
+                        description: Segmentation annotation
                       - type: object
                         required: [span, reference]
                         properties:
@@ -2399,9 +2405,9 @@ paths:
                           reference:
                             type: string
                             description: Page/folio reference for the span
-                        description: Pagination annotation (for DIPLOMATIC manifestations)
+                        description: Pagination Annotation
                       - type: object
-                        required: [span, biblography_type]
+                        required: [span, type]
                         properties:
                           span:
                             type: object
@@ -2415,20 +2421,20 @@ paths:
                                 type: integer
                                 minimum: 1
                                 description: End character position (exclusive)
-                          biblography_type:
+                          type:
                             type: string
                             description: Type of bibliography annotation
                         description: Bibliography annotation
-                target_manifestation_id:
+                target_instance_id:
                   type: string
-                  description: Target manifestation ID (required for ALIGNMENT type)
+                  description: Target instance ID (required for ALIGNMENT type)
                 target_annotation:
                   type: array
                   minItems: 1
-                  description: Array of alignment annotations for target manifestation (required for ALIGNMENT type)
+                  description: Array of alignment annotations for target instance (required for ALIGNMENT type)
                   items:
                     type: object
-                    required: [span, index, alignment_index]
+                    required: [span, index]
                     properties:
                       span:
                         type: object
@@ -2448,7 +2454,7 @@ paths:
                 alignment_annotation:
                   type: array
                   minItems: 1
-                  description: Array of alignment annotations for source manifestation (required for ALIGNMENT type)
+                  description: Array of alignment annotations for source instance (required for ALIGNMENT type)
                   items:
                     type: object
                     required: [span, index, alignment_index]
@@ -2474,8 +2480,8 @@ paths:
                           type: integer
                         description: List of indices in target_annotation that this segment aligns to
             examples:
-              segmentation_critical:
-                summary: Segmentation annotations (CRITICAL manifestation)
+              segmentation:
+                summary: Segmentation (Critical Instance)
                 value:
                   annotation_type: segmentation
                   annotation:
@@ -2485,8 +2491,8 @@ paths:
                     - span:
                         start: 42
                         end: 100
-              segmentation_diplomatic:
-                summary: Pagination annotations (DIPLOMATIC manifestation)
+              pagination:
+                summary: Pagination (Diplomatic Instance)
                 value:
                   annotation_type: segmentation
                   annotation:
@@ -2499,23 +2505,23 @@ paths:
                         end: 100
                       reference: "folio 1b"
               bibliography:
-                summary: Bibliography annotations
+                summary: Bibliography
                 value:
                   annotation_type: bibliography
                   annotation:
                     - span:
                         start: 0
                         end: 50
-                      biblography_type: "citation"
+                      type: "colophon"
                     - span:
                         start: 50
                         end: 100
-                      biblography_type: "reference"
+                      type: "title"
               alignment:
-                summary: Alignment annotations
+                summary: Alignment
                 value:
                   annotation_type: alignment
-                  target_manifestation_id: "MNF12345678"
+                  target_instance_id: "MNF12345678"
                   target_annotation:
                     - span:
                         start: 0
