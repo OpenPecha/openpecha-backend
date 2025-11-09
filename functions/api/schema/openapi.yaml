@@ -911,8 +911,65 @@ paths:
                 annotation:
                   type: array
                   items:
+                    oneOf:
+                      - type: object
+                        required: [span]
+                        properties:
+                          span:
+                            type: object
+                            required: [start, end]
+                            properties:
+                              start:
+                                type: integer
+                                minimum: 0
+                                description: Start character position (inclusive)
+                              end:
+                                type: integer
+                                minimum: 1
+                                description: End character position (exclusive)
+                        description: Segmentation annotation (for CRITICAL manifestations)
+                      - type: object
+                        required: [span, reference]
+                        properties:
+                          span:
+                            type: object
+                            required: [start, end]
+                            properties:
+                              start:
+                                type: integer
+                                minimum: 0
+                                description: Start character position (inclusive)
+                              end:
+                                type: integer
+                                minimum: 1
+                                description: End character position (exclusive)
+                          reference:
+                            type: string
+                            description: Page/folio reference for the span
+                        description: Pagination annotation (for DIPLOMATIC manifestations)
+                  description: Segmentation or pagination annotation segments
+                biblography_annotation:
+                  type: array
+                  items:
                     type: object
-                  description: Annotation data
+                    required: [span, biblography_type]
+                    properties:
+                      span:
+                        type: object
+                        required: [start, end]
+                        properties:
+                          start:
+                            type: integer
+                            minimum: 0
+                            description: Start character position (inclusive)
+                          end:
+                            type: integer
+                            minimum: 1
+                            description: End character position (exclusive)
+                      biblography_type:
+                        type: string
+                        description: Type of bibliography annotation
+                  description: Bibliography annotation segments with bibliography type
                 content:
                   type: string
                   description: The text content
@@ -978,6 +1035,33 @@ paths:
                     incipit_title:
                       en: "Opening words"
                       bo: "དབུ་ཚིག"
+                  content: "This is the text content to be stored"
+              valid_instance_with_bibliography_annotation:
+                summary: Valid instance creation with bibliography annotation
+                value:
+                  metadata:
+                    type: "critical"
+                    copyright: "public"
+                    colophon: "Sample colophon text"
+                    incipit_title:
+                      en: "Opening words"
+                      bo: "དབུ་ཚིག"
+                  annotation:
+                    - span:
+                        start: 0
+                        end: 10
+                    - span:
+                        start: 10
+                        end: 20
+                  biblography_annotation:
+                    - span:
+                        start: 5
+                        end: 15
+                      biblography_type: "citation"
+                    - span:
+                        start: 20
+                        end: 30
+                      biblography_type: "reference"
                   content: "This is the text content to be stored"                           
       responses:
         "201":
@@ -2072,12 +2156,12 @@ paths:
               properties:
                 annotation_type:
                   type: string
-                  enum: [segmentation, alignment]
+                  enum: [segmentation, alignment, pagination, bibliography]
                   description: Type of annotation to add
                 annotation:
                   type: array
                   minItems: 1
-                  description: Array of segmentation or pagination annotations (required for SEGMENTATION type)
+                  description: Array of segmentation, pagination, or bibliography annotations (required for SEGMENTATION, PAGINATION, or BIBLIOGRAPHY type)
                   items:
                     oneOf:
                       - type: object
@@ -2115,6 +2199,25 @@ paths:
                             type: string
                             description: Page/folio reference for the span
                         description: Pagination annotation (for DIPLOMATIC manifestations)
+                      - type: object
+                        required: [span, biblography_type]
+                        properties:
+                          span:
+                            type: object
+                            required: [start, end]
+                            properties:
+                              start:
+                                type: integer
+                                minimum: 0
+                                description: Start character position (inclusive)
+                              end:
+                                type: integer
+                                minimum: 1
+                                description: End character position (exclusive)
+                          biblography_type:
+                            type: string
+                            description: Type of bibliography annotation
+                        description: Bibliography annotation
                 target_manifestation_id:
                   type: string
                   description: Target manifestation ID (required for ALIGNMENT type)
@@ -2194,6 +2297,19 @@ paths:
                         start: 42
                         end: 100
                       reference: "folio 1b"
+              bibliography:
+                summary: Bibliography annotations
+                value:
+                  annotation_type: bibliography
+                  annotation:
+                    - span:
+                        start: 0
+                        end: 50
+                      biblography_type: "citation"
+                    - span:
+                        start: 50
+                        end: 100
+                      biblography_type: "reference"
               alignment:
                 summary: Alignment annotations
                 value:

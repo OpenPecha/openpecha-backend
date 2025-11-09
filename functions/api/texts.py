@@ -1,3 +1,4 @@
+from ast import excepthandler
 import logging
 
 from exceptions import InvalidRequest
@@ -97,23 +98,29 @@ def create_instance(expression_id: str) -> tuple[Response, int]:
 
     instance_request = InstanceRequestModel.model_validate(data)
 
-    
+    # Validate critical manifestation constraint
     if instance_request.metadata.type == ManifestationType.CRITICAL:
-        session = Neo4JDatabase().get_session()
-        if Neo4JDatabaseValidator().has_manifestation_of_type_for_expression_id(session=session, expression_id=expression_id, type=ManifestationType.CRITICAL):
-            raise InvalidRequest("Critical manifestation already present for this expression")
+        db = Neo4JDatabase()
+        with db.get_session() as session:
+            if Neo4JDatabaseValidator().has_manifestation_of_type_for_expression_id(session=session, expression_id=expression_id, type=ManifestationType.CRITICAL):
+                raise InvalidRequest("Critical manifestation already present for this expression")
 
     manifestation_id = generate_id()
-    MockStorage().store_base_text(
-        expression_id = expression_id, 
-        manifestation_id = manifestation_id, 
-        base_text = instance_request.content
+    storage = MockStorage()
+    
+    storage.store_base_text(
+        expression_id=expression_id, 
+        manifestation_id=manifestation_id, 
+        base_text=instance_request.content
     )
 
+    db = Neo4JDatabase()
+
+    # Create manifestation with optional segmentation/pagination annotation
     if instance_request.annotation:
         annotation_id = generate_id()
         annotation = AnnotationModel(id=annotation_id, type=AnnotationType.SEGMENTATION)
-        Neo4JDatabase().create_manifestation(
+        db.create_manifestation(
             manifestation=instance_request.metadata,
             annotation=annotation,
             annotation_segments=[seg.model_dump() for seg in instance_request.annotation],
@@ -121,12 +128,23 @@ def create_instance(expression_id: str) -> tuple[Response, int]:
             manifestation_id=manifestation_id,
         )
     else:
-        Neo4JDatabase().create_manifestation(
+        db.create_manifestation(
             manifestation=instance_request.metadata,
             expression_id=expression_id,
             annotation=None,
             annotation_segments=None,
             manifestation_id=manifestation_id,
+        )
+
+    # Handle bibliography annotations in separate transaction
+    if instance_request.biblography_annotation:
+        bibliography_annotation_id = generate_id()
+        bibliography_annotation = AnnotationModel(id=bibliography_annotation_id, type=AnnotationType.BIBLIOGRAPHY)
+        bibliography_segments = [seg.model_dump() for seg in instance_request.biblography_annotation]
+        db.add_annotation_to_manifestation(
+            manifestation_id=manifestation_id,
+            annotation=bibliography_annotation,
+            annotation_segments=bibliography_segments,
         )
 
     return jsonify({"message": "Instance created successfully", "id": manifestation_id}), 201

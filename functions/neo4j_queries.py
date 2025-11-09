@@ -316,10 +316,12 @@ RETURN target_ann.id as aligned_to_id
 MATCH (a:Annotation {id: $annotation_id})
 <-[:SEGMENTATION_OF]-(s:Segment)
 OPTIONAL MATCH (s)-[:HAS_REFERENCE]->(r:Reference)
+OPTIONAL MATCH (s)-[:HAS_BIBLIOGRAPHY_TYPE]->(bt:BibliographyType)
 RETURN s.id as id,
        s.span_start as start,
        s.span_end as end,
-       r.name as reference
+       r.name as reference,
+       bt.type as bibliography_type
 ORDER BY s.span_start
 """,
     "get_alignment_indices": """
@@ -486,6 +488,22 @@ UNWIND $segment_references AS sr
 MATCH (s:Segment {id: sr.segment_id})
 MATCH (r:Reference {id: sr.reference_id})
 CREATE (s)-[:HAS_REFERENCE]->(r)
+"""
+}
+
+Queries.bibliography_types = {
+    "create": """
+CREATE (bt:BibliographyType {
+    id: $bibliography_type_id,
+    type: $type
+})
+RETURN bt.id as bibliography_type_id
+""",
+    "link_to_segments": """
+UNWIND $segment_bibliography_types AS sbt
+MATCH (s:Segment {id: sbt.segment_id})
+MATCH (bt:BibliographyType {id: sbt.bibliography_type_id})
+CREATE (s)-[:HAS_BIBLIOGRAPHY_TYPE]->(bt)
 """
 }
 

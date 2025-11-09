@@ -24,6 +24,7 @@ class AnnotationType(str, Enum):
     ALIGNMENT = "alignment"
     PAGINATION = "pagination"
     VERSION = "version"
+    BIBLIOGRAPHY = "bibliography"
 
 
 class ManifestationType(str, Enum):
@@ -249,9 +250,14 @@ class AlignmentAnnotationModel(OpenPechaModel):
     index: int
     alignment_index: list[int] | None = None
 
+class BibliographyAnnotationModel(OpenPechaModel):
+    span: SpanModel
+    biblography_type: NonEmptyStr
+
 class InstanceRequestModel(OpenPechaModel):
     metadata: ManifestationModelInput
     annotation: list[SegmentationAnnotationModel | PaginationAnnotationModel] | None = None
+    biblography_annotation: list[BibliographyAnnotationModel] | None = None
     content: NonEmptyStr
 
 
@@ -266,6 +272,11 @@ class InstanceRequestModel(OpenPechaModel):
                 raise ValueError("For 'diplomatic' manifestations, all annotations must be PaginationAnnotationModel")
             elif not all(isinstance(ann, (SegmentationAnnotationModel, PaginationAnnotationModel)) for ann in self.annotation):
                 raise ValueError("Annotations must be either SegmentationAnnotationModel or PaginationAnnotationModel")
+        if self.biblography_annotation is not None:
+            if len(self.biblography_annotation) == 0:
+                raise ValueError("Biblography annotation cannot be empty list")
+            elif not all(isinstance(ann, BibliographyAnnotationModel) for ann in self.biblography_annotation):
+                raise ValueError("All biblography annotations must be of type BibliographyAnnotationModel")
         return self
 
 class AddAnnotationRequestModel(OpenPechaModel):

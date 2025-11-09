@@ -445,8 +445,11 @@ class Neo4JDatabase:
             if annotation:
                 self._execute_add_annotation(tx, manifestation_id, annotation)
                 self._create_segments(tx, annotation.id, annotation_segments)
-                if annotation_segments[0].get("reference", None) is not None:
-                    self._create_and_link_references(tx, annotation_segments)
+                if annotation_segments and len(annotation_segments) > 0:
+                    if annotation_segments[0].get("reference", None) is not None:
+                        self._create_and_link_references(tx, annotation_segments)
+                    if annotation_segments[0].get("biblography_type", None) is not None:
+                        self._create_and_link_bibliography_types(tx, annotation_segments)
 
         with self.__driver.session() as session:
             return session.execute_write(transaction_function)
@@ -455,8 +458,11 @@ class Neo4JDatabase:
         def transaction_function(tx):
             annotation_id = self._execute_add_annotation(tx, manifestation_id, annotation)
             self._create_segments(tx, annotation_id, annotation_segments)
-            if annotation_segments[0].get("reference", None) is not None:
-                self._create_and_link_references(tx, annotation_segments)
+            if annotation_segments and len(annotation_segments) > 0:
+                if annotation_segments[0].get("reference", None) is not None:
+                    self._create_and_link_references(tx, annotation_segments)
+                if annotation_segments[0].get("biblography_type", None) is not None:
+                    self._create_and_link_bibliography_types(tx, annotation_segments)
             return annotation_id
         with self.__driver.session() as session:
             return session.execute_write(transaction_function)
@@ -820,6 +826,35 @@ class Neo4JDatabase:
         )
         return reference_id
 
+    def _create_bibliography_type(self, tx, bibliography_type: str) -> str:
+        """Create a single BibliographyType node and return its ID."""
+        bibliography_type_id = generate_id()
+        tx.run(
+            Queries.bibliography_types["create"],
+            bibliography_type_id=bibliography_type_id,
+            type=bibliography_type,
+        )
+        return bibliography_type_id
+
+    def _create_and_link_bibliography_types(self, tx, segments: list[dict]) -> None:
+        """Create bibliography type nodes and link them to segments."""
+        segment_bibliography_types = []
+        
+        for seg in segments:
+            if "biblography_type" in seg and seg["biblography_type"]:
+                bibliography_type_id = self._create_bibliography_type(tx, seg["biblography_type"])
+                segment_bibliography_types.append({
+                    "segment_id": seg["id"],
+                    "bibliography_type_id": bibliography_type_id
+                })
+        
+        # Link bibliography types to segments if any
+        if segment_bibliography_types:
+            tx.run(
+                Queries.bibliography_types["link_to_segments"],
+                segment_bibliography_types=segment_bibliography_types,
+            )
+
     def get_annotation(self, annotation_id: str) ->  dict:
         """Get all segments for an annotation. For alignment annotations, returns both source and target segments."""
         with self.get_session() as session:
@@ -903,6 +938,8 @@ class Neo4JDatabase:
                 }
                 if record["reference"]:
                     segment["reference"] = record["reference"]
+                if record["bibliography_type"]:
+                    segment["bibliography_type"] = record["bibliography_type"]
                 segments.append(segment)
 
         return {
