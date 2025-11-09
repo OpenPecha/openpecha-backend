@@ -122,7 +122,8 @@ END
     date: {label}.date,
     title: [{Queries.primary_nomen(label, 'HAS_TITLE')}],
     alt_titles: [{Queries.alternative_nomen(label, 'HAS_TITLE')}],
-    language: [({label})-[:HAS_LANGUAGE]->(ef_lang:Language) | ef_lang.code][0]
+    language: [({label})-[:HAS_LANGUAGE]->(ef_lang:Language) | ef_lang.code][0],
+    category_id: [({label})-[:EXPRESSION_OF]->(ef_work:Work)-[:BELONGS_TO]->(ef_cat:Category) | ef_cat.id][0]
 }}
 """
 
@@ -253,6 +254,7 @@ Queries.manifestations = {
     WHERE ($manifestation_id IS NOT NULL AND m.id = $manifestation_id) OR
           ($expression_id IS NOT NULL AND (m)-[:MANIFESTATION_OF]->(:Expression {{id: $expression_id}}))
     MATCH (m)-[:MANIFESTATION_OF]->(e:Expression)
+    WHERE $manifestation_type IS NULL OR [(m)-[:HAS_TYPE]->(mt:ManifestationType) | mt.name][0] = $manifestation_type
 
     RETURN {Queries.manifestation_fragment('m')} AS manifestation, e.id AS expression_id
 """,
@@ -284,6 +286,40 @@ CALL (*) {
 }
 RETURN m.id AS manifestation_id
 """,
+    "find_related_instances": f"""
+    // Find all alignment annotations on the given manifestation
+    MATCH (m:Manifestation {{id: $manifestation_id}})
+          <-[:ANNOTATION_OF]-(ann:Annotation)
+          -[:HAS_TYPE]->(at:AnnotationType {{name: 'alignment'}})
+    
+    // Case 1: This annotation has aligned_to (manifestation is translation/commentary)
+    // Follow the aligned_to relationship to find the target manifestation
+    OPTIONAL MATCH (ann)-[:ALIGNED_TO]->(target_ann:Annotation)
+                  -[:ANNOTATION_OF]->(related_m1:Manifestation)
+                  -[:MANIFESTATION_OF]->(related_e1:Expression)
+    
+    // Case 2: Other annotations point to this one (manifestation is root)
+    // Find source annotations that have aligned_to pointing to this annotation
+    OPTIONAL MATCH (source_ann:Annotation)-[:ALIGNED_TO]->(ann)
+    OPTIONAL MATCH (source_ann)-[:ANNOTATION_OF]->(related_m2:Manifestation)
+                              -[:MANIFESTATION_OF]->(related_e2:Expression)
+    
+    // Combine both cases
+    WITH COALESCE(related_m1, related_m2) as related_m,
+         COALESCE(related_e1, related_e2) as related_e,
+         related_m1, related_m2,
+         ann, source_ann
+    WHERE related_m IS NOT NULL
+    
+    RETURN DISTINCT {{
+        manifestation: {Queries.manifestation_fragment('related_m')},
+        expression: {Queries.expression_fragment('related_e')},
+        alignment_annotation_id: CASE 
+            WHEN related_m1 IS NOT NULL THEN ann.id 
+            ELSE source_ann.id 
+        END
+    }} as related_instance
+""",
 }
 
 Queries.annotations = {
@@ -314,10 +350,12 @@ RETURN target_ann.id as aligned_to_id
 MATCH (a:Annotation {id: $annotation_id})
 <-[:SEGMENTATION_OF]-(s:Segment)
 OPTIONAL MATCH (s)-[:HAS_REFERENCE]->(r:Reference)
+OPTIONAL MATCH (s)-[:HAS_BIBLIOGRAPHY_TYPE]->(bt:BibliographyType)
 RETURN s.id as id,
        s.span_start as start,
        s.span_end as end,
-       r.name as reference
+       r.name as reference,
+       bt.type as bibliography_type
 ORDER BY s.span_start
 """,
     "get_alignment_indices": """
@@ -401,6 +439,66 @@ RETURN seg.id as segment_id,
        m.id as manifestation_id,
        e.id as expression_id
 """,
+    "find_related_alignment_only": """
+MATCH (source_manif:Manifestation {id: $manifestation_id})<-[:ANNOTATION_OF]-(align_annot:Annotation)-[:HAS_TYPE]->(at:AnnotationType {name: 'alignment'})
+MATCH (align_annot)<-[:SEGMENTATION_OF]-(source_seg:Segment)
+WHERE source_seg.span_start < $span_end AND source_seg.span_end > $span_start
+
+// Follow bidirectional ALIGNED_TO relationships
+MATCH (source_seg)-[:ALIGNED_TO]-(target_seg:Segment)
+MATCH (target_seg)-[:SEGMENTATION_OF]->(target_align_annot:Annotation)-[:HAS_TYPE]->(tat:AnnotationType {name: 'alignment'})
+MATCH (target_align_annot)-[:ANNOTATION_OF]->(target_manif:Manifestation)
+MATCH (target_manif)-[:MANIFESTATION_OF]->(target_expr:Expression)
+
+WITH target_manif, target_expr, COLLECT(DISTINCT target_seg) as target_segments
+
+RETURN 
+    target_manif.id as manifestation_id,
+    target_expr.id as expression_id,
+    [seg IN target_segments | {
+        id: seg.id,
+        span_start: seg.span_start,
+        span_end: seg.span_end
+    }] as segments
+""",
+    "find_related_with_transfer": """
+// Step 1: Find overlapping segments in source segmentation annotation
+MATCH (source_manif:Manifestation {id: $manifestation_id})<-[:ANNOTATION_OF]-(source_seg_annot:Annotation)-[:HAS_TYPE]->(sat:AnnotationType {name: 'segmentation'})
+MATCH (source_seg_annot)<-[:SEGMENTATION_OF]-(source_seg_seg:Segment)
+WHERE source_seg_seg.span_start < $span_end AND source_seg_seg.span_end > $span_start
+
+WITH source_manif, 
+     MIN(source_seg_seg.span_start) as expanded_start,
+     MAX(source_seg_seg.span_end) as expanded_end
+
+// Step 2: Find ALL alignment annotations in source manifestation
+MATCH (source_manif)<-[:ANNOTATION_OF]-(source_align_annot:Annotation)-[:HAS_TYPE]->(aat:AnnotationType {name: 'alignment'})
+MATCH (source_align_annot)<-[:SEGMENTATION_OF]-(source_align_seg:Segment)
+WHERE source_align_seg.span_start < expanded_end AND source_align_seg.span_end > expanded_start
+
+// Step 3: Follow ALIGNED_TO to target alignment segments
+MATCH (source_align_seg)-[:ALIGNED_TO]-(target_align_seg:Segment)
+MATCH (target_align_seg)-[:SEGMENTATION_OF]->(target_align_annot:Annotation)-[:HAS_TYPE]->(taat:AnnotationType {name: 'alignment'})
+MATCH (target_align_annot)-[:ANNOTATION_OF]->(target_manif:Manifestation)
+MATCH (target_manif)-[:MANIFESTATION_OF]->(target_expr:Expression)
+
+// Step 4: Find overlapping segments in target segmentation annotation
+MATCH (target_manif)<-[:ANNOTATION_OF]-(target_seg_annot:Annotation)-[:HAS_TYPE]->(tsat:AnnotationType {name: 'segmentation'})
+MATCH (target_seg_annot)<-[:SEGMENTATION_OF]-(target_seg_seg:Segment)
+WHERE target_seg_seg.span_start < target_align_seg.span_end AND target_seg_seg.span_end > target_align_seg.span_start
+
+// Step 5: Collect and group by target manifestation
+WITH target_manif, target_expr, COLLECT(DISTINCT target_seg_seg) as target_segments
+
+RETURN 
+    target_manif.id as manifestation_id,
+    target_expr.id as expression_id,
+    [seg IN target_segments | {
+        id: seg.id,
+        span_start: seg.span_start,
+        span_end: seg.span_end
+    }] as segments
+""",
 }
 
 Queries.references = {
@@ -427,9 +525,68 @@ CREATE (s)-[:HAS_REFERENCE]->(r)
 """
 }
 
+Queries.bibliography_types = {
+    "create": """
+CREATE (bt:BibliographyType {
+    id: $bibliography_type_id,
+    type: $type
+})
+RETURN bt.id as bibliography_type_id
+""",
+    "link_to_segments": """
+UNWIND $segment_bibliography_types AS sbt
+MATCH (s:Segment {id: sbt.segment_id})
+MATCH (bt:BibliographyType {id: sbt.bibliography_type_id})
+CREATE (s)-[:HAS_BIBLIOGRAPHY_TYPE]->(bt)
+"""
+}
+
 Queries.ai = {
     "find_or_create": """
     MERGE (ai:AI {id: $ai_id})
     RETURN elementId(ai) AS ai_element_id
 """
+}
+
+Queries.categories = {
+    "create": """
+CREATE (c:Category {id: $category_id, application: $application})
+CREATE (n:Nomen)
+CREATE (c)-[:HAS_TITLE]->(n)
+WITH c, n
+FOREACH (lt IN $localized_texts |
+    MERGE (l:Language {code: lt.language})
+    CREATE (n)-[:HAS_LOCALIZATION]->(locText:LocalizedText {text: lt.text})-[:HAS_LANGUAGE]->(l)
+)
+WITH c
+CALL (*) {
+    WITH c
+    OPTIONAL MATCH (parent:Category {id: $parent_id})
+    FOREACH (_ IN CASE WHEN parent IS NOT NULL THEN [1] ELSE [] END |
+        CREATE (c)-[:HAS_PARENT]->(parent)
+    )
+}
+RETURN c.id AS category_id
+""",
+    "get_categories": """
+MATCH (c:Category {application: $application})
+WHERE 
+    CASE 
+        WHEN $parent_id IS NULL THEN NOT (c)-[:HAS_PARENT]->(:Category)
+        ELSE EXISTS((c)-[:HAS_PARENT]->(:Category {id: $parent_id}))
+    END
+OPTIONAL MATCH (c)-[:HAS_PARENT]->(parent:Category)
+OPTIONAL MATCH (c)-[:HAS_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)-[:HAS_LANGUAGE]->(l:Language {code: $language})
+OPTIONAL MATCH (child:Category)-[:HAS_PARENT]->(c)
+WITH c, parent, lt, COUNT(DISTINCT child) AS child_count
+RETURN c.id AS id, parent.id AS parent, lt.text AS title, child_count > 0 AS has_child
+""",
+}
+
+Queries.works = {
+    "link_to_category": """
+MATCH (w:Work {id: $work_id})
+MATCH (c:Category {id: $category_id})
+CREATE (w)-[:BELONGS_TO]->(c)
+""",
 }

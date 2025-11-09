@@ -154,3 +154,22 @@ class Neo4JDatabaseValidator:
             raise InvalidRequest(
                 f"Languages {', '.join(missing)} are not present in Neo4j. Available languages: {', '.join(record['codes'])}"
             )
+
+    def validate_category_exists(self, session, category_id: str) -> None:
+        """Validate that a category with the given ID exists.
+        
+        Raises DataValidationError if the category does not exist.
+        """
+        query = """
+        MATCH (c:Category {id: $category_id})
+        RETURN count(c) as count
+        """
+        
+        result = session.run(query, category_id=category_id)
+        record = result.single()
+        
+        if not record or record["count"] == 0:
+            raise DataValidationError(
+                f"Category with ID '{category_id}' does not exist. "
+                "Please provide a valid category_id."
+            )

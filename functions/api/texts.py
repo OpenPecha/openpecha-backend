@@ -1,3 +1,4 @@
+from ast import excepthandler
 import logging
 
 from exceptions import InvalidRequest
@@ -60,6 +61,9 @@ def post_texts() -> tuple[Response, int]:
 
     expression = ExpressionModelInput.model_validate(data)
 
+    if expression.category_id is None:
+        raise InvalidRequest("Category ID is required")
+
     logger.info("Successfully parsed expression: %s", expression.model_dump_json())
 
     expression_id = Neo4JDatabase().create_expression(expression)
@@ -70,8 +74,18 @@ def post_texts() -> tuple[Response, int]:
 
 @texts_bp.route("/<string:expression_id>/instances", methods=["GET"], strict_slashes=False)
 def get_instances(expression_id: str) -> tuple[Response, int]:
+    instance_type = request.args.get("instance_type", "all", type=str)
+    
+    # Validate instance_type parameter
+    allowed_types = ["diplomatic", "critical", "all"]
+    if instance_type not in allowed_types:
+        raise InvalidRequest(f"instance_type must be one of: {', '.join(allowed_types)}")
+    
     db = Neo4JDatabase()
-    manifestations = db.get_manifestations_of_an_expression(expression_id)
+    manifestations = db.get_manifestations_of_an_expression(
+        expression_id=expression_id,
+        manifestation_type=instance_type
+    )
     response_data = [manifestation.model_dump() for manifestation in manifestations]
     return jsonify(response_data), 200
 
@@ -84,23 +98,29 @@ def create_instance(expression_id: str) -> tuple[Response, int]:
 
     instance_request = InstanceRequestModel.model_validate(data)
 
-    
+    # Validate critical manifestation constraint
     if instance_request.metadata.type == ManifestationType.CRITICAL:
-        session = Neo4JDatabase().get_session()
-        if Neo4JDatabaseValidator().has_manifestation_of_type_for_expression_id(session=session, expression_id=expression_id, type=ManifestationType.CRITICAL):
-            raise InvalidRequest("Critical manifestation already present for this expression")
+        db = Neo4JDatabase()
+        with db.get_session() as session:
+            if Neo4JDatabaseValidator().has_manifestation_of_type_for_expression_id(session=session, expression_id=expression_id, type=ManifestationType.CRITICAL):
+                raise InvalidRequest("Critical manifestation already present for this expression")
 
     manifestation_id = generate_id()
-    MockStorage().store_base_text(
-        expression_id = expression_id, 
-        manifestation_id = manifestation_id, 
-        base_text = instance_request.content
+    storage = MockStorage()
+    
+    storage.store_base_text(
+        expression_id=expression_id, 
+        manifestation_id=manifestation_id, 
+        base_text=instance_request.content
     )
 
+    db = Neo4JDatabase()
+
+    # Create manifestation with optional segmentation/pagination annotation
     if instance_request.annotation:
         annotation_id = generate_id()
         annotation = AnnotationModel(id=annotation_id, type=AnnotationType.SEGMENTATION)
-        Neo4JDatabase().create_manifestation(
+        db.create_manifestation(
             manifestation=instance_request.metadata,
             annotation=annotation,
             annotation_segments=[seg.model_dump() for seg in instance_request.annotation],
@@ -108,12 +128,23 @@ def create_instance(expression_id: str) -> tuple[Response, int]:
             manifestation_id=manifestation_id,
         )
     else:
-        Neo4JDatabase().create_manifestation(
+        db.create_manifestation(
             manifestation=instance_request.metadata,
             expression_id=expression_id,
             annotation=None,
             annotation_segments=None,
             manifestation_id=manifestation_id,
+        )
+
+    # Handle bibliography annotations in separate transaction
+    if instance_request.biblography_annotation:
+        bibliography_annotation_id = generate_id()
+        bibliography_annotation = AnnotationModel(id=bibliography_annotation_id, type=AnnotationType.BIBLIOGRAPHY)
+        bibliography_segments = [seg.model_dump() for seg in instance_request.biblography_annotation]
+        db.add_annotation_to_manifestation(
+            manifestation_id=manifestation_id,
+            annotation=bibliography_annotation,
+            annotation_segments=bibliography_segments,
         )
 
     return jsonify({"message": "Instance created successfully", "id": manifestation_id}), 201
