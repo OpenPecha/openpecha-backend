@@ -61,26 +61,7 @@ class Neo4JDatabase:
             if (record := result.single()) is None:
                 raise DataNotFound(f"Expression with ID '{expression_id}' not found")
 
-            expression = record.data()["expression"]
-            expression_type = TextType(expression.get("type"))
-            target = expression.get("target")
-
-            # Convert None to "N/A" for standalone translations/commentaries
-            if expression_type in [TextType.TRANSLATION, TextType.COMMENTARY] and target is None:
-                target = "N/A"
-
-            return ExpressionModelOutput(
-                id=expression.get("id"),
-                bdrc=expression.get("bdrc"),
-                wiki=expression.get("wiki"),
-                type=expression_type,
-                contributions=self._build_contributions(expression.get("contributors")),
-                date=expression.get("date"),
-                title=self.__convert_to_localized_text(expression.get("title")),
-                alt_titles=[self.__convert_to_localized_text(alt) for alt in expression.get("alt_titles")],
-                language=expression.get("language"),
-                target=target,
-            )
+            return self._process_expression_data(record.data()["expression"])
 
     def _process_manifestation_data(self, manifestation_data: dict) -> ManifestationModelOutput:
         annotations = [
@@ -111,6 +92,28 @@ class Neo4JDatabase:
             alt_incipit_titles=alt_incipit_titles,
             alignment_sources=manifestation_data.get("alignment_sources"),
             alignment_targets=manifestation_data.get("alignment_targets"),
+        )
+
+    def _process_expression_data(self, expression_data: dict) -> ExpressionModelOutput:
+        """Helper method to process expression data from query results"""
+        expression_type = TextType(expression_data.get("type"))
+        target = expression_data.get("target")
+        
+        # Convert None to "N/A" for standalone translations/commentaries
+        if expression_type in [TextType.TRANSLATION, TextType.COMMENTARY] and target is None:
+            target = "N/A"
+        
+        return ExpressionModelOutput(
+            id=expression_data.get("id"),
+            bdrc=expression_data.get("bdrc"),
+            wiki=expression_data.get("wiki"),
+            type=expression_type,
+            contributions=self._build_contributions(expression_data.get("contributors")),
+            date=expression_data.get("date"),
+            title=self.__convert_to_localized_text(expression_data.get("title")),
+            alt_titles=[self.__convert_to_localized_text(alt) for alt in expression_data.get("alt_titles", [])],
+            language=expression_data.get("language"),
+            target=target,
         )
 
     def get_manifestations_by_expression(self, expression_id: str) -> list[ManifestationModelOutput]:
@@ -166,6 +169,72 @@ class Neo4JDatabase:
                 return None
             d = record.data()
             return self._process_manifestation_data(d["manifestation"]), d["expression_id"]
+
+    def find_related_instances(self, manifestation_id: str, type_filter: str | None = None) -> list[dict]:
+        """
+        Find all manifestations that have alignment relationships with the given manifestation.
+        
+        Args:
+            manifestation_id: The ID of the manifestation to find related instances for
+            type_filter: Optional filter to only return instances of a specific type (translation/commentary)
+            
+        Returns:
+            List of dictionaries containing instance metadata, expression details, and alignment annotation IDs
+        """
+        with self.__driver.session() as session:
+            result = session.execute_read(
+                lambda tx: list(tx.run(Queries.manifestations["find_related_instances"], manifestation_id=manifestation_id))
+            )
+            
+            related_instances = []
+            for record in result:
+                data = record.data()["related_instance"]
+                
+                # Process manifestation and expression using existing helper methods
+                manifestation = self._process_manifestation_data(data["manifestation"])
+                expression = self._process_expression_data(data["expression"])
+                alignment_annotation_id = data["alignment_annotation_id"]
+                
+                # Determine relationship type from expression type
+                # Related instances must be one of: ROOT, TRANSLATION, or COMMENTARY
+                if expression.type == TextType.TRANSLATION:
+                    relationship_type = "translation"
+                elif expression.type == TextType.COMMENTARY:
+                    relationship_type = "commentary"
+                else:  # TextType.ROOT
+                    relationship_type = "root"
+                
+                # Apply type filter if provided
+                if type_filter and relationship_type != type_filter:
+                    continue
+                
+                # Build the response object with essential metadata only
+                # Format contributions to only include person_id (not person_bdrc_id)
+                formatted_contributions = []
+                for contrib in expression.contributions:
+                    contrib_dict = contrib.model_dump()
+                    # Remove person_bdrc_id if it exists
+                    contrib_dict.pop('person_bdrc_id', None)
+                    formatted_contributions.append(contrib_dict)
+                
+                instance = {
+                    "instance_id": manifestation.id,
+                    "metadata": {
+                        "instance_type": manifestation.type.value,
+                        "copyright": manifestation.copyright.value,
+                        "text_id": expression.id,
+                        "title": expression.title.root if expression.title else None,
+                        "alt_titles": [alt.root for alt in expression.alt_titles] if expression.alt_titles else [],
+                        "language": expression.language,
+                        "contributions": formatted_contributions,
+                    },
+                    "annotation": alignment_annotation_id,
+                    "relationship": relationship_type,
+                }
+                
+                related_instances.append(instance)
+            
+            return related_instances
 
     def find_segments_by_span(self, manifestation_id: str, span: SpanModel) -> list[SegmentModel]:
         with self.__driver.session() as session:
@@ -438,30 +507,13 @@ class Neo4JDatabase:
 
             for record in result:
                 expression_data = record.data()["expression"]
-                target = expression_data["target"]
-
-                expression_type = expression_data["type"]
-                if expression_type is None:
+                
+                # Validate expression type
+                if expression_data["type"] is None:
                     raise ValueError(f"Expression type invalid for expression {expression_data['id']}")
-
-                text_type = TextType(expression_type)
-
-                # Convert None to "N/A" for standalone translations/commentaries
-                if text_type in [TextType.TRANSLATION, TextType.COMMENTARY] and target is None:
-                    target = "N/A"
-
-                expression = ExpressionModelOutput(
-                    id=expression_data["id"],
-                    bdrc=expression_data["bdrc"],
-                    wiki=expression_data["wiki"],
-                    type=text_type,
-                    contributions=self._build_contributions(expression_data.get("contributors")),
-                    date=expression_data["date"],
-                    title=self.__convert_to_localized_text(expression_data["title"]),
-                    alt_titles=[self.__convert_to_localized_text(alt) for alt in expression_data["alt_titles"]],
-                    language=expression_data["language"],
-                    target=target,
-                )
+                
+                # Use helper method to process expression data
+                expression = self._process_expression_data(expression_data)
                 expressions.append(expression)
 
             return expressions
