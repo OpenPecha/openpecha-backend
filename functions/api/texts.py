@@ -140,6 +140,9 @@ def create_instance(expression_id: str) -> tuple[Response, int]:
     if instance_request.biblography_annotation:
         bibliography_annotation_id = generate_id()
         bibliography_annotation = AnnotationModel(id=bibliography_annotation_id, type=AnnotationType.BIBLIOGRAPHY)
+        bibliography_types = [seg.type for seg in instance_request.biblography_annotation]
+        with db.get_session() as session:
+            Neo4JDatabaseValidator().validate_bibliography_type_exists(session=session, bibliography_types=bibliography_types)
         bibliography_segments = [seg.model_dump() for seg in instance_request.biblography_annotation]
         db.add_annotation_to_manifestation(
             manifestation_id=manifestation_id,

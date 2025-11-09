@@ -252,7 +252,7 @@ class AlignmentAnnotationModel(OpenPechaModel):
 
 class BibliographyAnnotationModel(OpenPechaModel):
     span: SpanModel
-    biblography_type: NonEmptyStr
+    type: NonEmptyStr
 
 class InstanceRequestModel(OpenPechaModel):
     metadata: ManifestationModelInput
