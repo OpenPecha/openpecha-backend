@@ -1,4 +1,4 @@
-openapi: '3.1.0'
+openapi: 3.1.0
 info:
   title: OpenPecha API v2
   version: '2.1.0'
@@ -244,7 +244,7 @@ paths:
                             role: "translator"
                       annotation: "A98765434"
                       relationship: "translation"
-                    error: "No segments found containing span [0, 100) in instance 'I12345678'"
+                  error: "No segments found containing span [0, 100) in instance 'I12345678'"
         "500":
           $ref: '#/components/responses/ServerError'
   /v2/instances/{instance_id}/segment-content:
