@@ -522,6 +522,8 @@ class Neo4JDatabase:
 
         with self.__driver.session() as session:
             return session.execute_write(transaction_function)
+
+    
     
     def add_annotation_to_manifestation(self, manifestation_id: str, annotation: AnnotationModel, annotation_segments: list[dict]):
         def transaction_function(tx):
@@ -531,7 +533,7 @@ class Neo4JDatabase:
                 if annotation_segments[0].get("reference", None) is not None:
                     self._create_and_link_references(tx, annotation_segments)
                 if annotation_segments[0].get("type", None) is not None:
-                    self._create_and_link_bibliography_types(tx, annotation_segments)
+                    self._link_segment_and_bibliography_type(tx, annotation_segments)
             return annotation_id
         with self.__driver.session() as session:
             return session.execute_write(transaction_function)

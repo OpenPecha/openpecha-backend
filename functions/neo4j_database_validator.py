@@ -1,5 +1,4 @@
 import logging
-from typing import List
 
 from models import ExpressionModelInput, TextType, ManifestationType
 from exceptions import InvalidRequest
@@ -139,7 +138,25 @@ class Neo4JDatabaseValidator:
         if not record or not record["exists"]:
             raise InvalidRequest(f"Language '{language_code}' is not present in Neo4j. Available languages: {', '.join(record['codes'])}")
 
-    def validate_language_codes_exist(self, session, language_codes: List[str]) -> None:
+    def validate_bibliography_type_exists(self, session, bibliography_types: list[str]) -> None:
+        """Validate that all given bibliography type names exist. Raises InvalidRequest listing missing and available."""
+        query = """
+        MATCH (bt:BibliographyType)
+        WITH collect(bt.name) AS names
+        UNWIND $names_to_check AS name
+        WITH names, name, name IN names AS exists
+        RETURN collect(CASE WHEN exists THEN NULL ELSE name END) AS missing, names
+        """
+        record = session.run(query, names_to_check=[n.lower() for n in bibliography_types]).single()
+        missing = [n for n in (record["missing"] or []) if n]
+        if missing:
+            available_list = ", ".join(sorted(record["names"])) if record["names"] else "none"
+            raise InvalidRequest(
+                f"Bibliography type(s) not found: {', '.join(sorted(missing))}. "
+                f"Available bibliography types: {available_list}"
+            )
+
+    def validate_language_codes_exist(self, session, language_codes: list[str]) -> None:
         """Validate that all given base language codes exist. Raises InvalidRequest listing missing and available."""
         query = """
         MATCH (l:Language)

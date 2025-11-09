@@ -1147,7 +1147,27 @@ paths:
                             type: string
                             description: Page/folio reference for the span
                         description: Pagination annotation (for DIPLOMATIC manifestations)
-                  description: Segmentation or pagination annotation segments
+                      - type: object
+                        required: [span, type]
+                        properties:
+                          span:
+                            type: object
+                            required: [start, end]
+                            properties:
+                              start:
+                                type: integer
+                                minimum: 0
+                                description: Start character position (inclusive)
+                              end:
+                                type: integer
+                                minimum: 1
+                                description: End character position (exclusive)
+                          type:
+                            type: string
+                            enum: [colophon, title, incipit_title, author]
+                            description: Type of bibliography annotation
+                        description: Bibliography annotation
+                  description: Segmentation or pagination or bibliography annotation segments
                 biblography_annotation:
                   type: array
                   items:
@@ -1237,8 +1257,38 @@ paths:
                       en: "Opening words"
                       bo: "དབུ་ཚིག"
                   content: "This is the text content to be stored"
-              valid_instance_with_bibliography_annotation:
-                summary: Valid instance creation with bibliography annotation
+              valid_diplomatic_instance_with_bibliography_annotation:
+                summary: Valid diplomatic instance creation with bibliography annotation
+                value:
+                  metadata:
+                    type: "diplomatic"
+                    copyright: "public"
+                    bdrc: "W123456"
+                    colophon: "Sample colophon text"
+                    incipit_title:
+                      en: "Opening words"
+                      bo: "དབུ་ཚིག"
+                  annotation:
+                    - span:
+                        start: 0
+                        end: 10
+                      reference: "ref-001"
+                    - span:
+                        start: 10
+                        end: 20
+                      reference: "ref-002"
+                  biblography_annotation:
+                    - span:
+                        start: 5
+                        end: 15
+                      type: "colophon"
+                    - span:
+                        start: 20
+                        end: 30
+                      type: "title"
+                  content: "This is the text content to be stored"  
+              valid_critical_instance_with_bibliography_annotation:
+                summary: Valid critical instance creation with bibliography annotation
                 value:
                   metadata:
                     type: "critical"
@@ -2137,7 +2187,7 @@ paths:
                   annotation:
                     oneOf:
                       - type: array
-                        description: Segmentation or pagination annotation segments
+                        description: Segmentation or pagination or bibliography annotation segments
                         items:
                           type: object
                           required:

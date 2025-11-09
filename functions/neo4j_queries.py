@@ -350,7 +350,7 @@ RETURN target_ann.id as aligned_to_id
 MATCH (a:Annotation {id: $annotation_id})
 <-[:SEGMENTATION_OF]-(s:Segment)
 OPTIONAL MATCH (s)-[:HAS_REFERENCE]->(r:Reference)
-OPTIONAL MATCH (s)-[:HAS_BIBLIOGRAPHY_TYPE]->(bt:BibliographyType)
+OPTIONAL MATCH (s)-[:HAS_TYPE]->(bt:BibliographyType)
 RETURN s.id as id,
        s.span_start as start,
        s.span_end as end,
@@ -526,14 +526,8 @@ CREATE (s)-[:HAS_REFERENCE]->(r)
 }
 
 Queries.bibliography_types = {
-    "create": """
-CREATE (bt:BibliographyType {
-    id: $bibliography_type_id,
-    type: $type
-})
-RETURN bt.id as bibliography_type_id
-""",
     "link_to_segments": """
+// Link segments to existing bibliography types only (no new types created)
 UNWIND $segment_and_type_names AS sbt
 MATCH (s:Segment {id: sbt.segment_id})
 MATCH (bt:BibliographyType {name: sbt.type_name})
