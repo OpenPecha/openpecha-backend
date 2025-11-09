@@ -286,6 +286,40 @@ CALL (*) {
 }
 RETURN m.id AS manifestation_id
 """,
+    "find_related_instances": f"""
+    // Find all alignment annotations on the given manifestation
+    MATCH (m:Manifestation {{id: $manifestation_id}})
+          <-[:ANNOTATION_OF]-(ann:Annotation)
+          -[:HAS_TYPE]->(at:AnnotationType {{name: 'alignment'}})
+    
+    // Case 1: This annotation has aligned_to (manifestation is translation/commentary)
+    // Follow the aligned_to relationship to find the target manifestation
+    OPTIONAL MATCH (ann)-[:ALIGNED_TO]->(target_ann:Annotation)
+                  -[:ANNOTATION_OF]->(related_m1:Manifestation)
+                  -[:MANIFESTATION_OF]->(related_e1:Expression)
+    
+    // Case 2: Other annotations point to this one (manifestation is root)
+    // Find source annotations that have aligned_to pointing to this annotation
+    OPTIONAL MATCH (source_ann:Annotation)-[:ALIGNED_TO]->(ann)
+    OPTIONAL MATCH (source_ann)-[:ANNOTATION_OF]->(related_m2:Manifestation)
+                              -[:MANIFESTATION_OF]->(related_e2:Expression)
+    
+    // Combine both cases
+    WITH COALESCE(related_m1, related_m2) as related_m,
+         COALESCE(related_e1, related_e2) as related_e,
+         related_m1, related_m2,
+         ann, source_ann
+    WHERE related_m IS NOT NULL
+    
+    RETURN DISTINCT {{
+        manifestation: {Queries.manifestation_fragment('related_m')},
+        expression: {Queries.expression_fragment('related_e')},
+        alignment_annotation_id: CASE 
+            WHEN related_m1 IS NOT NULL THEN ann.id 
+            ELSE source_ann.id 
+        END
+    }} as related_instance
+""",
 }
 
 Queries.annotations = {
