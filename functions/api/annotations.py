@@ -47,16 +47,34 @@ def add_annotation(manifestation_id: str) -> tuple[Response, int]:
     request_model = AddAnnotationRequestModel.model_validate(data)
 
     logger.info("Getting manifestation and expression id from Neo4J Database")
-    manifestation, expression_id = Neo4JDatabase().get_manifestation(manifestation_id = manifestation_id)
+    db = Neo4JDatabase()
+    manifestation, expression_id = db.get_manifestation(manifestation_id=manifestation_id)
  
     
     response = None
     if request_model.annotation_type == AnnotationType.SEGMENTATION or request_model.annotation_type == AnnotationType.PAGINATION:
         response = _add_segmentation_annotation(
-            manifestation = manifestation,
-            manifestation_id = manifestation_id,
-            data = data
+            manifestation=manifestation,
+            manifestation_id=manifestation_id,
+            data=data
         )
+
+    elif request_model.annotation_type == AnnotationType.BIBLIOGRAPHY:
+        bibliography_annotation_id = generate_id()
+        bibliography_annotation = AnnotationModel(
+            id=bibliography_annotation_id,
+            type=AnnotationType.BIBLIOGRAPHY
+        )
+        bibliography_segments = [seg.model_dump() for seg in request_model.annotation] if request_model.annotation else []
+        annotation_id = db.add_annotation_to_manifestation(
+            manifestation_id=manifestation_id,
+            annotation=bibliography_annotation,
+            annotation_segments=bibliography_segments
+        )
+        response = {
+            "message": "Bibliography annotation added successfully",
+            "annotation_id": annotation_id,
+        }
 
     elif request_model.annotation_type == AnnotationType.ALIGNMENT:
         response = _add_alignment_annotation(

@@ -2132,9 +2132,11 @@ paths:
     post:
       summary: Add annotation to a manifestation
       description: >-
-        Adds an annotation to the specified manifestation. Supports two annotation types:
+        Adds an annotation to the specified manifestation. Supports multiple annotation types:
         - SEGMENTATION: For CRITICAL manifestations, send segmentation annotations (span only).
           For DIPLOMATIC manifestations, send pagination annotations (span + reference).
+        - PAGINATION: Send pagination annotations with span and reference (for DIPLOMATIC manifestations).
+        - BIBLIOGRAPHY: Send bibliography annotations with span and bibliography type.
         - ALIGNMENT: Creates alignment relationships between segments of the source and target manifestations.
       tags:
         - Annotations

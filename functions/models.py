@@ -281,7 +281,7 @@ class InstanceRequestModel(OpenPechaModel):
 
 class AddAnnotationRequestModel(OpenPechaModel):
     annotation_type: AnnotationType
-    annotation: list[SegmentationAnnotationModel | PaginationAnnotationModel] | None = None
+    annotation: list[SegmentationAnnotationModel | PaginationAnnotationModel | BibliographyAnnotationModel] | None = None
     target_manifestation_id: str | None = None
     target_annotation: list[AlignmentAnnotationModel] | None = None
     alignment_annotation: list[AlignmentAnnotationModel] | None = None
@@ -313,8 +313,13 @@ class AddAnnotationRequestModel(OpenPechaModel):
                 raise ValueError("Cannot provide both annotation and alignment annotation or target_annotation")
             elif not all(isinstance(ann, AlignmentAnnotationModel) for ann in self.target_annotation + self.alignment_annotation):
                 raise ValueError("Invalid target annotation or alignment annotation")
+        elif self.annotation_type == AnnotationType.BIBLIOGRAPHY:
+            if self.annotation is None or len(self.annotation) == 0:
+                raise ValueError("Biblography annotation cannot be empty")
+            elif not all(isinstance(ann, BibliographyAnnotationModel) for ann in self.annotation):
+                raise ValueError("Invalid annotation")
         else:
-            raise ValueError("Invalid annotation type. Allowed types are [SEGMENTATION, ALIGNMENT]")
+            raise ValueError("Invalid annotation type. Allowed types are [SEGMENTATION, ALIGNMENT, PAGINATION, BIBLIOGRAPHY]")
         return self
 
 class CategoryRequestModel(OpenPechaModel):
