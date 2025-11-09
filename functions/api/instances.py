@@ -359,6 +359,26 @@ def get_related_texts(manifestation_id: str) -> tuple[Response, int]:
         200,
     )
 
+@instances_bp.route("/<string:manifestation_id>/relatedto", methods=["GET"], strict_slashes=False)
+def get_related_instances(manifestation_id: str) -> tuple[Response, int]:
+    logger.info("Finding related instances for manifestation ID: %s", manifestation_id)
+
+    # Get optional type filter from query parameters
+    type_filter = request.args.get("type", None)
+    
+    # Validate type filter if provided
+    if type_filter and type_filter not in ["translation", "commentary", "root"]:
+        return jsonify({"error": "Invalid type filter. Must be 'translation', 'commentary', or 'root'"}), 400
+
+    db = Neo4JDatabase()
+
+    try:
+        related_instances = db.find_related_instances(manifestation_id, type_filter)
+    except Exception as e:
+        logger.error("Error finding related instances: %s", e)
+        return jsonify({"error": str(e)}), 500
+
+    return jsonify(related_instances), 200
 
 @instances_bp.route("/<string:instance_id>/segment-content", methods=["GET"], strict_slashes=False)
 def get_instance_segment_content(instance_id: str) -> tuple[Response, int]:

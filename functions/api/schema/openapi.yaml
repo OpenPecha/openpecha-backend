@@ -1,4 +1,4 @@
-openapi: '3.1.0'
+openapi: 3.1.0
 info:
   title: OpenPecha API v2
   version: '2.1.0'
@@ -106,10 +106,13 @@ paths:
         "500":
           $ref: '#/components/responses/ServerError'
 
-  /v2/instances/{instance_id}/related:
+  /v2/instances/{instance_id}/relatedto:
     get:
-      summary: Find related texts
-      description: Find all related texts, instances and their aligned segments for a given character span in an instance
+      summary: Find related instances
+      description: >-
+        Find all manifestations with alignment relationships to the given instance.
+        Works bidirectionally: returns translations/commentaries for root texts, or root texts for translations/commentaries.
+        Optionally filter by relationship type (translation/commentary).
       tags:
         - Instances
       parameters:
@@ -118,253 +121,130 @@ paths:
           required: true
           schema:
             type: string
-          description: The ID of the instance to find related texts for
-        - name: span_start
+          description: The ID of the instance to find related instances for
+        - name: type
           in: query
-          required: true
+          required: false
           schema:
-            type: integer
-            minimum: 0
-          description: Start character position of the span
-        - name: span_end
-          in: query
-          required: true
-          schema:
-            type: integer
-            minimum: 1
-          description: End character position of the span (exclusive, must be greater than start)
+            type: string
+            enum: [translation, commentary, root]
+          description: Optional filter to only return instances of a specific relationship type
       responses:
         "200":
-          description: Related texts retrieved successfully
+          description: Related instances retrieved successfully
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  targets:
-                    type: array
-                    description: Texts that the selected segments point to
-                    items:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    instance_id:
+                      type: string
+                      description: The ID of the related manifestation
+                    metadata:
                       type: object
+                      description: Essential manifestation and expression metadata
                       properties:
-                        instance:
+                        instance_type:
+                          type: string
+                          enum: [diplomatic, critical]
+                          description: Instance type
+                        copyright:
+                          type: string
+                          enum: [public, copyrighted]
+                          description: Copyright status
+                        text_id:
+                          type: string
+                          description: Text ID
+                        title:
                           type: object
-                          description: Manifestation details
-                          properties:
-                            id:
-                              type: string
-                            type:
-                              type: string
-                              enum: [diplomatic, critical, collated]
-                            copyright:
-                              type: string
-                              enum: [public, copyrighted]
-                            bdrc:
-                              type: string
-                            wiki:
-                              type: string
-                            colophon:
-                              type: string
-                            incipit_title:
-                              type: object
-                              additionalProperties:
-                                type: string
-                            alt_incipit_titles:
-                              type: array
-                              items:
-                                type: object
-                                additionalProperties:
-                                  type: string
-                            annotations:
-                              type: array
-                              items:
-                                type: object
-                        text:
-                          type: object
-                          description: Expression (text) details
-                          properties:
-                            id:
-                              type: string
-                            type:
-                              type: string
-                              enum: [root, commentary, translation]
-                            title:
-                              type: object
-                              additionalProperties:
-                                type: string
-                            language:
-                              type: string
-                              enum: [en, bo, zh, sa]
-                            contributions:
-                              type: array
-                              items:
-                                type: object
-                            date:
-                              type: string
-                            bdrc:
-                              type: string
-                            wiki:
-                              type: string
-                            target:
-                              type: string
-                        spans:
+                          description: Expression title in localized format
+                        alt_titles:
                           type: array
-                          description: Merged character spans from aligned segments
+                          items:
+                            type: object
+                          description: Alternative titles
+                        language:
+                          type: string
+                          description: Language code
+                        contributions:
+                          type: array
                           items:
                             type: object
                             properties:
-                              start:
-                                type: integer
-                              end:
-                                type: integer
-                  sources:
-                    type: array
-                    description: Texts whose segments point to the selected segments
-                    items:
-                      type: object
-                      properties:
-                        instance:
-                          type: object
-                          description: Manifestation details
-                          properties:
-                            id:
-                              type: string
-                            type:
-                              type: string
-                              enum: [diplomatic, critical, collated]
-                            copyright:
-                              type: string
-                              enum: [public, copyrighted]
-                            bdrc:
-                              type: string
-                            wiki:
-                              type: string
-                            colophon:
-                              type: string
-                            incipit_title:
-                              type: object
-                              additionalProperties:
+                              person_id:
                                 type: string
-                            alt_incipit_titles:
-                              type: array
-                              items:
-                                type: object
-                                additionalProperties:
-                                  type: string
-                            annotations:
-                              type: array
-                              items:
-                                type: object
-                        text:
-                          type: object
-                          description: Expression (text) details
-                          properties:
-                            id:
-                              type: string
-                            type:
-                              type: string
-                              enum: [root, commentary, translation]
-                            title:
-                              type: object
-                              additionalProperties:
+                                description: Person identifier (for person contributions)
+                              ai_id:
                                 type: string
-                            language:
-                              type: string
-                              enum: [en, bo, zh, sa]
-                            contributions:
-                              type: array
-                              items:
-                                type: object
-                            date:
-                              type: string
-                            bdrc:
-                              type: string
-                            wiki:
-                              type: string
-                            target:
-                              type: string
-                        spans:
-                          type: array
-                          description: Merged character spans from aligned segments
-                          items:
-                            type: object
-                            properties:
-                              start:
-                                type: integer
-                              end:
-                                type: integer
+                                description: AI identifier (for AI contributions)
+                              role:
+                                type: string
+                                enum: [translator, reviser, author, scholar]
+                                description: Contributor role
+                          description: Contributors list
+                    annotation:
+                      type: string
+                      description: The alignment annotation ID (from the source manifestation with aligned_to set)
+                    relationship:
+                      type: string
+                      enum: [translation, commentary, root]
+                      description: The type of relationship between the instances
               examples:
-                success:
-                  summary: Related texts with merged spans separated by direction
+                translation_example:
+                  summary: Translation of a root text
                   value:
-                    targets:
-                      - instance:
-                          id: "I87654321"
-                          type: "diplomatic"
-                          copyright: "public"
-                          bdrc: "W789012"
-                        text:
-                          id: "T87654321"
-                          type: "translation"
-                          title:
-                            en: "English Translation"
-                          language: "en"
-                          target: "T12345678"
-                        spans:
-                          - start: 0
-                            end: 150
-                          - start: 200
-                            end: 350
-                    sources:
-                      - instance:
-                          id: "I11111111"
-                          type: "critical"
-                          copyright: "public"
-                        text:
-                          id: "T11111111"
-                          type: "root"
-                          title:
-                            bo: "མ་ཕྱི།"
-                          language: "bo"
-                        spans:
-                          - start: 50
-                            end: 100
-        "400":
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-              examples:
-                missing_params:
-                  summary: Missing parameters
+                    - instance_id: "I87654321"
+                      metadata:
+                        instance_type: "critical"
+                        copyright: "public"
+                        text_id: "E12345678"
+                        title:
+                          en: "Heart Sutra - English Translation"
+                          bo: "ཤེས་རབ་སྙིང་པོ་དབྱིན་སྐད།"
+                        alt_titles:
+                          - en: "Prajnaparamita Heart Sutra"
+                        language: "en"
+                        contributions:
+                          - person_id: "P12345678"
+                            role: "translator"
+                          - person_id: "P87654321"
+                            role: "reviser"
+                      annotation: "A98765432"
+                      relationship: "translation"
+                    - instance_id: "I87654322"
+                      metadata:
+                        instance_type: "critical"
+                        copyright: "copyrighted"
+                        text_id: "E12345679"
+                        title:
+                          zh: "心经 - 中文翻译"
+                        alt_titles: []
+                        language: "zh"
+                        contributions:
+                          - person_id: "P23456789"
+                            role: "translator"
+                      annotation: "A98765433"
+                      relationship: "translation"
+                ai_contribution_example:
+                  summary: AI-generated translation
                   value:
-                    error: "Both 'start' and 'end' query parameters are required"
-                invalid_integers:
-                  summary: Invalid parameter types
-                  value:
-                    error: "'start' and 'end' must be valid integers"
-                invalid_span:
-                  summary: Invalid span range
-                  value:
-                    error: "Invalid span: 'start' must be >= 0, 'end' must be > start"
-        "404":
-          description: Not found
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-              examples:
-                no_segments:
-                  summary: No segments found
-                  value:
-                    error: "No segments found containing span [0, 100) in instance 'I12345678'"
+                    - instance_id: "I87654323"
+                      metadata:
+                        instance_type: "critical"
+                        copyright: "public"
+                        text_id: "E12345680"
+                        title:
+                          en: "AI Generated Translation"
+                        alt_titles: []
+                        language: "en"
+                        contributions:
+                          - ai_id: "gpt-4"
+                            role: "translator"
+                      annotation: "A98765434"
+                      relationship: "translation"
+                  error: "No segments found containing span [0, 100) in instance 'I12345678'"
         "500":
           $ref: '#/components/responses/ServerError'
   /v2/instances/{instance_id}/segment-content:
@@ -533,7 +413,7 @@ paths:
                   value:
                     excerpt: "hj"
         "400":
-          description: Invalid request
+          description: Invalid type filter
           content:
             application/json:
               schema:
@@ -541,23 +421,341 @@ paths:
                 properties:
                   error:
                     type: string
-              examples:
-                missing_params:
-                  summary: Missing required parameters
-                  value:
-                    error: "Both 'span_start' and 'span_end' query parameters are required"
-                invalid_span:
-                  summary: Invalid span range
-                  value:
-                    error: "Invalid span: 'span_start' must be >= 0, 'span_end' must be > span_start"
-                span_exceeds:
-                  summary: Span exceeds text length
-                  value:
-                    error: "span_end (1000) exceeds base text length (500)"
-        "404":
-          $ref: '#/components/responses/NotFound'
+                    example: "Invalid type filter. Must be 'translation', 'commentary', or 'root'"
         "500":
           $ref: '#/components/responses/ServerError'
+
+  # /v2/instances/{instance_id}/related:
+  #   get:
+  #     summary: Find related texts
+  #     description: Find all related texts, instances and their aligned segments for a given character span in an instance
+  #     tags:
+  #       - Instances
+  #     parameters:
+  #       - name: instance_id
+  #         in: path
+  #         required: true
+  #         schema:
+  #           type: string
+  #         description: The ID of the instance to find related texts for
+  #       - name: span_start
+  #         in: query
+  #         required: true
+  #         schema:
+  #           type: integer
+  #           minimum: 0
+  #         description: Start character position of the span
+  #       - name: span_end
+  #         in: query
+  #         required: true
+  #         schema:
+  #           type: integer
+  #           minimum: 1
+  #         description: End character position of the span (exclusive, must be greater than start)
+  #     responses:
+  #       "200":
+  #         description: Related texts retrieved successfully
+  #         content:
+  #           application/json:
+  #             schema:
+  #               type: object
+  #               properties:
+  #                 targets:
+  #                   type: array
+  #                   description: Texts that the selected segments point to
+  #                   items:
+  #                     type: object
+  #                     properties:
+  #                       instance:
+  #                         type: object
+  #                         description: Manifestation details
+  #                         properties:
+  #                           id:
+  #                             type: string
+  #                           type:
+  #                             type: string
+  #                             enum: [diplomatic, critical, collated]
+  #                           copyright:
+  #                             type: string
+  #                             enum: [public, copyrighted]
+  #                           bdrc:
+  #                             type: string
+  #                           wiki:
+  #                             type: string
+  #                           colophon:
+  #                             type: string
+  #                           incipit_title:
+  #                             type: object
+  #                             additionalProperties:
+  #                               type: string
+  #                           alt_incipit_titles:
+  #                             type: array
+  #                             items:
+  #                               type: object
+  #                               additionalProperties:
+  #                                 type: string
+  #                           annotations:
+  #                             type: array
+  #                             items:
+  #                               type: object
+  #                       text:
+  #                         type: object
+  #                         description: Expression (text) details
+  #                         properties:
+  #                           id:
+  #                             type: string
+  #                           type:
+  #                             type: string
+  #                             enum: [root, commentary, translation]
+  #                           title:
+  #                             type: object
+  #                             additionalProperties:
+  #                               type: string
+  #                           language:
+  #                             type: string
+  #                             enum: [en, bo, zh, sa]
+  #                           contributions:
+  #                             type: array
+  #                             items:
+  #                               type: object
+  #                           date:
+  #                             type: string
+  #                           bdrc:
+  #                             type: string
+  #                           wiki:
+  #                             type: string
+  #                           target:
+  #                             type: string
+  #                       spans:
+  #                         type: array
+  #                         description: Merged character spans from aligned segments
+  #                         items:
+  #                           type: object
+  #                           properties:
+  #                             start:
+  #                               type: integer
+  #                             end:
+  #                               type: integer
+  #                 sources:
+  #                   type: array
+  #                   description: Texts whose segments point to the selected segments
+  #                   items:
+  #                     type: object
+  #                     properties:
+  #                       instance:
+  #                         type: object
+  #                         description: Manifestation details
+  #                         properties:
+  #                           id:
+  #                             type: string
+  #                           type:
+  #                             type: string
+  #                             enum: [diplomatic, critical, collated]
+  #                           copyright:
+  #                             type: string
+  #                             enum: [public, copyrighted]
+  #                           bdrc:
+  #                             type: string
+  #                           wiki:
+  #                             type: string
+  #                           colophon:
+  #                             type: string
+  #                           incipit_title:
+  #                             type: object
+  #                             additionalProperties:
+  #                               type: string
+  #                           alt_incipit_titles:
+  #                             type: array
+  #                             items:
+  #                               type: object
+  #                               additionalProperties:
+  #                                 type: string
+  #                           annotations:
+  #                             type: array
+  #                             items:
+  #                               type: object
+  #                       text:
+  #                         type: object
+  #                         description: Expression (text) details
+  #                         properties:
+  #                           id:
+  #                             type: string
+  #                           type:
+  #                             type: string
+  #                             enum: [root, commentary, translation]
+  #                           title:
+  #                             type: object
+  #                             additionalProperties:
+  #                               type: string
+  #                           language:
+  #                             type: string
+  #                             enum: [en, bo, zh, sa]
+  #                           contributions:
+  #                             type: array
+  #                             items:
+  #                               type: object
+  #                           date:
+  #                             type: string
+  #                           bdrc:
+  #                             type: string
+  #                           wiki:
+  #                             type: string
+  #                           target:
+  #                             type: string
+  #                       spans:
+  #                         type: array
+  #                         description: Merged character spans from aligned segments
+  #                         items:
+  #                           type: object
+  #                           properties:
+  #                             start:
+  #                               type: integer
+  #                             end:
+  #                               type: integer
+  #             examples:
+  #               success:
+  #                 summary: Related texts with merged spans separated by direction
+  #                 value:
+  #                   targets:
+  #                     - instance:
+  #                         id: "I87654321"
+  #                         type: "diplomatic"
+  #                         copyright: "public"
+  #                         bdrc: "W789012"
+  #                       text:
+  #                         id: "T87654321"
+  #                         type: "translation"
+  #                         title:
+  #                           en: "English Translation"
+  #                         language: "en"
+  #                         target: "T12345678"
+  #                       spans:
+  #                         - start: 0
+  #                           end: 150
+  #                         - start: 200
+  #                           end: 350
+  #                   sources:
+  #                     - instance:
+  #                         id: "I11111111"
+  #                         type: "critical"
+  #                         copyright: "public"
+  #                       text:
+  #                         id: "T11111111"
+  #                         type: "root"
+  #                         title:
+  #                           bo: "མ་ཕྱི།"
+  #                         language: "bo"
+  #                       spans:
+  #                         - start: 50
+  #                           end: 100
+  #       "400":
+  #         description: Invalid request
+  #         content:
+  #           application/json:
+  #             schema:
+  #               type: object
+  #               properties:
+  #                 error:
+  #                   type: string
+  #             examples:
+  #               missing_params:
+  #                 summary: Missing parameters
+  #                 value:
+  #                   error: "Both 'start' and 'end' query parameters are required"
+  #               invalid_integers:
+  #                 summary: Invalid parameter types
+  #                 value:
+  #                   error: "'start' and 'end' must be valid integers"
+  #               invalid_span:
+  #                 summary: Invalid span range
+  #                 value:
+  #                   error: "Invalid span: 'start' must be >= 0, 'end' must be > start"
+  #       "404":
+  #         description: Not found
+  #         content:
+  #           application/json:
+  #             schema:
+  #               type: object
+  #               properties:
+  #                 error:
+  #                   type: string
+  #             examples:
+  #               no_segments:
+  #                 summary: No segments found
+  #                 value:
+  #                   error: "No segments found containing span [0, 100) in instance 'I12345678'"
+  #       "500":
+  #         $ref: '#/components/responses/ServerError'
+
+  # /v2/instances/{instance_id}/excerpt:
+  #   get:
+  #     summary: Get text excerpt
+  #     description: Retrieve a specific excerpt (substring) of the base text content for a given instance based on character span
+  #     tags:
+  #       - Instances
+  #     parameters:
+  #       - name: instance_id
+  #         in: path
+  #         required: true
+  #         schema:
+  #           type: string
+  #         description: The ID of the instance to retrieve excerpt from
+  #       - name: span_start
+  #         in: query
+  #         required: true
+  #         schema:
+  #           type: integer
+  #           minimum: 0
+  #         description: Start character position of the excerpt (inclusive)
+  #       - name: span_end
+  #         in: query
+  #         required: true
+  #         schema:
+  #           type: integer
+  #           minimum: 1
+  #         description: End character position of the excerpt (exclusive, must be greater than span_start)
+  #     responses:
+  #       "200":
+  #         description: Excerpt retrieved successfully
+  #         content:
+  #           application/json:
+  #             schema:
+  #               type: object
+  #               properties:
+  #                 excerpt:
+  #                   type: string
+  #                   description: The extracted text content from the specified character span
+  #             examples:
+  #               success:
+  #                 summary: Excerpt from position 2 to 4
+  #                 value:
+  #                   excerpt: "hj"
+  #       "400":
+  #         description: Invalid request
+  #         content:
+  #           application/json:
+  #             schema:
+  #               type: object
+  #               properties:
+  #                 error:
+  #                   type: string
+  #             examples:
+  #               missing_params:
+  #                 summary: Missing required parameters
+  #                 value:
+  #                   error: "Both 'span_start' and 'span_end' query parameters are required"
+  #               invalid_span:
+  #                 summary: Invalid span range
+  #                 value:
+  #                   error: "Invalid span: 'span_start' must be >= 0, 'span_end' must be > span_start"
+  #               span_exceeds:
+  #                 summary: Span exceeds text length
+  #                 value:
+  #                   error: "span_end (1000) exceeds base text length (500)"
+  #       "404":
+  #         $ref: '#/components/responses/NotFound'
+  #       "500":
+  #         $ref: '#/components/responses/ServerError'
 
   /v2/texts/{text_id}/instances:
     get:
