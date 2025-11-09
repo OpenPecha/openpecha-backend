@@ -30,7 +30,7 @@ class Neo4JDatabaseValidator:
                 "Only one original expression per work is allowed."
             )
 
-    def validate_person_references(self, session, person_ids: List[str]) -> None:
+    def validate_person_references(self, session, person_ids: list[str]) -> None:
         if not person_ids:
             return
 
@@ -50,7 +50,7 @@ class Neo4JDatabaseValidator:
         if missing_persons:
             raise DataValidationError(f"Referenced persons do not exist: {', '.join(missing_persons)}")
 
-    def validate_person_bdrc_references(self, session, person_bdrc_ids: List[str]) -> None:
+    def validate_person_bdrc_references(self, session, person_bdrc_ids: list[str]) -> None:
         if not person_bdrc_ids:
             return
 
