@@ -2224,14 +2224,20 @@ paths:
             application/json:
               schema:
                 type: object
-                description: Annotation data with uniform structure containing all possible keys
+                description: Annotation data with uniform structure
                 required:
-                  - annotation
-                  - alignment_annotation
-                  - target_annotation
-                  - table_of_contents_annotation
+                  - id
+                  - type
+                  - data
                 properties:
-                  annotation:
+                  id:
+                    type: string
+                    description: Annotation ID
+                  type:
+                    type: string
+                    enum: [segmentation, pagination, alignment, table_of_contents]
+                    description: Type of annotation
+                  data:
                     oneOf:
                       - type: array
                         description: Segmentation or pagination or bibliography annotation segments
@@ -2260,81 +2266,7 @@ paths:
                             reference:
                               type: string
                               nullable: true
-                              description: Image ID this annotation is referring to 
-                      - type: 'null'
-                        description: No segmentation/pagination annotation data (not applicable for alignment/table_of_contents)
-                  alignment_annotation:
-                    oneOf:
-                      - type: array
-                        description: Alignment annotation source segments with alignment mappings
-                        items:
-                          type: object
-                          required:
-                            - id
-                            - span
-                            - index
-                            - alignment_index
-                          properties:
-                            id:
-                              type: string
-                              description: Unique identifier for the segment
-                            span:
-                              type: object
-                              description: Character span of the segment
-                              required:
-                                - start
-                                - end
-                              properties:
-                                start:
-                                  type: integer
-                                  description: Start character position 
-                                end:
-                                  type: integer
-                                  description: End character position
-                            index:
-                              type: integer
-                              description: Index of the segment
-                            alignment_index:
-                              type: array
-                              items:
-                                type: integer
-                              description: Array of target segment indices this segment aligns to
-                      - type: 'null'
-                        description: No alignment annotation data (not applicable for segmentation/pagination/table_of_contents)
-                  target_annotation:
-                    oneOf:
-                      - type: array
-                        description: Target annotation segments for alignment annotations
-                        items:
-                          type: object
-                          required:
-                            - id
-                            - span
-                            - index
-                          properties:
-                            id:
-                              type: string
-                              description: Unique identifier for the segment
-                            span:
-                              type: object
-                              description: Character span of the segment
-                              required:
-                                - start
-                                - end
-                              properties:
-                                start:
-                                  type: integer
-                                  description: Start character position 
-                                end:
-                                  type: integer
-                                  description: End character position
-                            index:
-                              type: integer
-                              description: Index of the segment 
-                      - type: 'null'
-                        description: No target annotation (not applicable for segmentation/pagination/table_of_contents)
-                  table_of_contents_annotation:
-                    oneOf:
+                              description: Image ID this annotation is referring to (pagination only)
                       - type: array
                         description: Table of contents annotation sections
                         items:
@@ -2355,13 +2287,83 @@ paths:
                               description: List of segment IDs that belong to this section
                               items:
                                 type: string
-                      - type: 'null'
-                        description: No table of contents annotation data (not applicable for segmentation/pagination/alignment) 
+                      - type: object
+                        description: Alignment annotation with source and target segments
+                        required:
+                          - source_annotation
+                          - target_annotation
+                        properties:
+                          source_annotation:
+                            type: array
+                            description: Source segments with alignment mappings
+                            items:
+                              type: object
+                              required:
+                                - id
+                                - span
+                                - index
+                                - alignment_index
+                              properties:
+                                id:
+                                  type: string
+                                  description: Unique identifier for the segment
+                                span:
+                                  type: object
+                                  description: Character span of the segment
+                                  required:
+                                    - start
+                                    - end
+                                  properties:
+                                    start:
+                                      type: integer
+                                      description: Start character position 
+                                    end:
+                                      type: integer
+                                      description: End character position
+                                index:
+                                  type: integer
+                                  description: Index of the segment
+                                alignment_index:
+                                  type: array
+                                  items:
+                                    type: integer
+                                  description: Array of target segment indices this segment aligns to
+                          target_annotation:
+                            type: array
+                            description: Target segments
+                            items:
+                              type: object
+                              required:
+                                - id
+                                - span
+                                - index
+                              properties:
+                                id:
+                                  type: string
+                                  description: Unique identifier for the segment
+                                span:
+                                  type: object
+                                  description: Character span of the segment
+                                  required:
+                                    - start
+                                    - end
+                                  properties:
+                                    start:
+                                      type: integer
+                                      description: Start character position 
+                                    end:
+                                      type: integer
+                                      description: End character position
+                                index:
+                                  type: integer
+                                  description: Index of the segment 
               examples:
                 segmentation annotation:
                   summary: Segmentation annotation with segments
                   value:
-                    annotation:
+                    id: "ann_seg_123"
+                    type: "segmentation"
+                    data:
                       - id: "sdlsakdf"
                         span:
                           start: 0
@@ -2370,12 +2372,12 @@ paths:
                         span:
                           start: 20
                           end: 45
-                    alignment_annotation: null
-                    target_annotation: null
                 pagination annotation:
                   summary: Pagination annotation with segments and reference
                   value:
-                    annotation:
+                    id: "ann_pag_456"
+                    type: "pagination"
+                    data:
                       - id: "laksdfklsjd"
                         span:
                           start: 0
@@ -2386,70 +2388,69 @@ paths:
                           start: 25
                           end: 50
                         reference: "IMG002.png"
-                    alignment_annotation: null
-                    target_annotation: null
                 alignment annotation:
                   summary: Alignment annotation with segments and alignment mappings
                   value:
-                    annotation: null
-                    alignment_annotation:
-                      - id: "idx6tTeELJEwEQiIEyqhQ"
-                        span:
-                          start: 0
-                          end: 1
-                        index: 0
-                        alignment_index: [0, 1]
-                      - id: "NB9oPpSDymL33ZhYYE9xs"
-                        span:
-                          start: 1
-                          end: 2
-                        index: 1
-                        alignment_index: [1, 2]
-                      - id: "Texrsipn60lEZWQJKFH3y"
-                        span:
-                          start: 2
-                          end: 3
-                        index: 2
-                        alignment_index: [3]
-                      - id: "Ah5AIixdu5svKBynmUOhg"
-                        span:
-                          start: 3
-                          end: 4
-                        index: 3
-                        alignment_index: [3, 4]
-                    target_annotation:
-                      - id: "vYnN5yiwBXvA4MJdUtDqz"
-                        span:
-                          start: 0
-                          end: 1
-                        index: 0
-                      - id: "nDMQBXVRvuKfbRbO96qIM"
-                        span:
-                          start: 1
-                          end: 2
-                        index: 1
-                      - id: "mqOyBwAGdfNwXMQMef4XF"
-                        span:
-                          start: 2
-                          end: 3
-                        index: 2
-                      - id: "pMBGOZp4dxOWIEjAAlnWe"
-                        span:
-                          start: 3
-                          end: 4
-                        index: 3
-                      - id: "AWLRjvyTbTtbMXVysSsr6"
-                        span:
-                          start: 4
-                          end: 5
-                        index: 4
+                    id: "ann_align_789"
+                    type: "alignment"
+                    data:
+                      source_annotation:
+                        - id: "idx6tTeELJEwEQiIEyqhQ"
+                          span:
+                            start: 0
+                            end: 1
+                          index: 0
+                          alignment_index: [0, 1]
+                        - id: "NB9oPpSDymL33ZhYYE9xs"
+                          span:
+                            start: 1
+                            end: 2
+                          index: 1
+                          alignment_index: [1, 2]
+                        - id: "Texrsipn60lEZWQJKFH3y"
+                          span:
+                            start: 2
+                            end: 3
+                          index: 2
+                          alignment_index: [3]
+                        - id: "Ah5AIixdu5svKBynmUOhg"
+                          span:
+                            start: 3
+                            end: 4
+                          index: 3
+                          alignment_index: [3, 4]
+                      target_annotation:
+                        - id: "vYnN5yiwBXvA4MJdUtDqz"
+                          span:
+                            start: 0
+                            end: 1
+                          index: 0
+                        - id: "nDMQBXVRvuKfbRbO96qIM"
+                          span:
+                            start: 1
+                            end: 2
+                          index: 1
+                        - id: "mqOyBwAGdfNwXMQMef4XF"
+                          span:
+                            start: 2
+                            end: 3
+                          index: 2
+                        - id: "pMBGOZp4dxOWIEjAAlnWe"
+                          span:
+                            start: 3
+                            end: 4
+                          index: 3
+                        - id: "AWLRjvyTbTtbMXVysSsr6"
+                          span:
+                            start: 4
+                            end: 5
+                          index: 4
                 table of contents annotation:
                   summary: Table of contents annotation with sections
                   value:
-                    annotation: null
-                    alignment_annotation: null
-                    target_annotation: null
-                    table_of_contents_annotation:
+                    id: "ann_toc_101"
+                    type: "table_of_contents"
+                    data:
                       - id: "0S0d3z7633mE3TK7IaZWE"
                         title: "Chapter 1: Introduction"
                         segments: ["1ZPTJfkyOR28oqFUzb3cF", "Yzkd4ct5icrWYGyI2H3Dn"]

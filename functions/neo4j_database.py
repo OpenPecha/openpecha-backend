@@ -945,10 +945,9 @@ class Neo4JDatabase:
             
             # Initialize uniform response structure
             response = {
-                "annotation": None,
-                "alignment_annotation": None,
-                "target_annotation": None,
-                "table_of_contents_annotation": None
+                "id": annotation_id,
+                "type": annotation_type,
+                "data": None
             }
             
             # Get aligned annotation ID if it exists
@@ -992,18 +991,20 @@ class Neo4JDatabase:
                     }
                     target_segments_with_index.append(segment_with_index)
                 
-                response["alignment_annotation"] = source_segments_with_index
-                response["target_annotation"] = target_segments_with_index
+                response["data"] = {
+                    "source_annotation": source_segments_with_index,
+                    "target_annotation": target_segments_with_index
+                }
                 
             elif annotation_type == "table_of_contents":
                 # For table of contents annotations, return sections
                 sections = self._get_annotation_sections(annotation_id)
-                response["table_of_contents_annotation"] = sections
+                response["data"] = sections
                 
             else:
                 # For segmentation and pagination annotations, return segments
                 segments_result = self._get_annotation_segments(annotation_id)
-                response["annotation"] = segments_result
+                response["data"] = segments_result
             
             return response
     
