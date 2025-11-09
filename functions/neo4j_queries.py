@@ -254,6 +254,7 @@ Queries.manifestations = {
     WHERE ($manifestation_id IS NOT NULL AND m.id = $manifestation_id) OR
           ($expression_id IS NOT NULL AND (m)-[:MANIFESTATION_OF]->(:Expression {{id: $expression_id}}))
     MATCH (m)-[:MANIFESTATION_OF]->(e:Expression)
+    WHERE $manifestation_type IS NULL OR [(m)-[:HAS_TYPE]->(mt:ManifestationType) | mt.name][0] = $manifestation_type
 
     RETURN {Queries.manifestation_fragment('m')} AS manifestation, e.id AS expression_id
 """,
@@ -498,7 +499,9 @@ WHERE
     END
 OPTIONAL MATCH (c)-[:HAS_PARENT]->(parent:Category)
 OPTIONAL MATCH (c)-[:HAS_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)-[:HAS_LANGUAGE]->(l:Language {code: $language})
-RETURN c.id AS id, parent.id AS parent, lt.text AS title
+OPTIONAL MATCH (child:Category)-[:HAS_PARENT]->(c)
+WITH c, parent, lt, COUNT(DISTINCT child) AS child_count
+RETURN c.id AS id, parent.id AS parent, lt.text AS title, child_count > 0 AS has_child
 """,
 }
 

@@ -119,17 +119,27 @@ class Neo4JDatabase:
             rows = session.execute_read(
                 lambda tx: [
                     r.data()
-                    for r in tx.run(Queries.manifestations["fetch"], expression_id=expression_id, manifestation_id=None)
+                    for r in tx.run(
+                        Queries.manifestations["fetch"], 
+                        expression_id=expression_id, 
+                        manifestation_id=None,
+                        manifestation_type=None
+                    )
                 ]
             )
             return [self._process_manifestation_data(row["manifestation"]) for row in rows]
     
-    def get_manifestations_of_an_expression(self, expression_id: str) -> list[ManifestationModelBase]:
+    def get_manifestations_of_an_expression(self, expression_id: str, manifestation_type: str | None = None) -> list[ManifestationModelBase]:
         with self.__driver.session() as session:
             rows = session.execute_read(
                 lambda tx: [
                     r.data()
-                    for r in tx.run(Queries.manifestations["fetch"], expression_id=expression_id, manifestation_id=None)
+                    for r in tx.run(
+                        Queries.manifestations["fetch"], 
+                        expression_id=expression_id, 
+                        manifestation_id=None,
+                        manifestation_type=manifestation_type if manifestation_type != "all" else None
+                    )
                 ]
             )
             return [self.process_manifestation_metadata(row["manifestation"]) for row in rows]
@@ -150,7 +160,10 @@ class Neo4JDatabase:
         with self.__driver.session() as session:
             record = session.execute_read(
                 lambda tx: tx.run(
-                    Queries.manifestations["fetch"], manifestation_id=manifestation_id, expression_id=None
+                    Queries.manifestations["fetch"], 
+                    manifestation_id=manifestation_id, 
+                    expression_id=None,
+                    manifestation_type=None
                 ).single()
             )
             if record is None:
@@ -855,6 +868,7 @@ class Neo4JDatabase:
                     categories.append({
                         "id": data["id"],
                         "parent": data.get("parent"),
-                        "title": data["title"]
+                        "title": data["title"],
+                        "has_child": data.get("has_child", False)
                     })
             return categories

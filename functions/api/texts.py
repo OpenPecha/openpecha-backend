@@ -73,8 +73,18 @@ def post_texts() -> tuple[Response, int]:
 
 @texts_bp.route("/<string:expression_id>/instances", methods=["GET"], strict_slashes=False)
 def get_instances(expression_id: str) -> tuple[Response, int]:
+    instance_type = request.args.get("instance_type", "all", type=str)
+    
+    # Validate instance_type parameter
+    allowed_types = ["diplomatic", "critical", "all"]
+    if instance_type not in allowed_types:
+        raise InvalidRequest(f"instance_type must be one of: {', '.join(allowed_types)}")
+    
     db = Neo4JDatabase()
-    manifestations = db.get_manifestations_of_an_expression(expression_id)
+    manifestations = db.get_manifestations_of_an_expression(
+        expression_id=expression_id,
+        manifestation_type=instance_type
+    )
     response_data = [manifestation.model_dump() for manifestation in manifestations]
     return jsonify(response_data), 200
 

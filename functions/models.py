@@ -321,3 +321,4 @@ class CategoryListItemModel(OpenPechaModel):
     id: str
     parent: str | None = None
     title: NonEmptyStr
+    has_child: bool = False

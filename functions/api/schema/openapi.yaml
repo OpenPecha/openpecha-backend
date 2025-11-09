@@ -615,7 +615,7 @@ paths:
   /v2/texts/{text_id}/instances:
     get:
       summary: Get instances for text
-      description: Retrieve all instances associated with a text
+      description: Retrieve all instances associated with a text. Optionally filter by instance type (manifestation type).
       tags:
         - Instances
       parameters:
@@ -625,6 +625,14 @@ paths:
           schema:
             type: string
           description: The ID of the text
+        - name: instance_type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [diplomatic, critical, all]
+            default: all
+          description: Filter instances by type. Use 'diplomatic' for diplomatic editions, 'critical' for critical editions, or 'all' to retrieve all types (default).
       responses:
         "200":
           description: Instances retrieved successfully
@@ -2270,6 +2278,10 @@ paths:
                     title:
                       type: string
                       description: Localized category title in requested language
+                    has_child:
+                      type: boolean
+                      description: Whether this category has child categories
+                      default: false
               examples:
                 root_categories:
                   summary: Root categories in English
@@ -2277,18 +2289,22 @@ paths:
                     - id: "CAT12345678"
                       parent: null
                       title: "Literature"
+                      has_child: true
                     - id: "CAT23456789"
                       parent: null
                       title: "History"
+                      has_child: false
                 child_categories:
                   summary: Child categories in Tibetan
                   value:
                     - id: "CAT87654321"
                       parent: "CAT12345678"
                       title: "སྙན་ངག"
+                      has_child: false
                     - id: "CAT98765432"
                       parent: "CAT12345678"
                       title: "གཏམ་རྒྱུད"
+                      has_child: true
         "400":
           $ref: '#/components/responses/InvalidRequest'
         "500":
