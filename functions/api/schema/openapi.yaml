@@ -757,115 +757,115 @@ paths:
   #       "500":
   #         $ref: '#/components/responses/ServerError'
 
-  # /v2/texts/{text_id}/instances:
-  #   get:
-  #     summary: Get instances for text
-  #     description: Retrieve all instances associated with a text
-  #     tags:
-  #       - Instances
-  #     parameters:
-  #       - name: text_id
-  #         in: path
-  #         required: true
-  #         schema:
-  #           type: string
-  #         description: The ID of the text
-  #     responses:
-  #       "200":
-  #         description: Instances retrieved successfully
-  #         content:
-  #           application/json:
-  #             schema:
-  #               type: array
-  #               items:
-  #                 type: object
-  #                 properties:
-  #                   id:
-  #                     type: string
-  #                   type:
-  #                     type: string
-  #                     enum: [diplomatic, critical]
-  #                   copyright:
-  #                     type: string
-  #                     enum: [public, copyrighted]
-  #                   bdrc:
-  #                     type: string
-  #                   wiki:
-  #                     type: string
-  #                   colophon:
-  #                     type: string
-  #                   incipit_title:
-  #                     type: object
-  #                     additionalProperties:
-  #                       type: string
-  #                   alt_incipit_titles:
-  #                     type: array
-  #                     items:
-  #                       type: object
-  #                       additionalProperties:
-  #                         type: string
-  #             examples:
-  #               success:
-  #                 summary: List of instances
-  #                 value:
-  #                   - alt_incipit_titles: []
-  #                     bdrc: "W123456"
-  #                     colophon: "Sample colophon text"
-  #                     copyright: "public"
-  #                     incipit_title:
-  #                       bo: "དབུ་ཚིག"
-  #                       en: "Opening words"
-  #                     type: "diplomatic"
-  #                     wiki: null
-  #                   - alt_incipit_titles: []
-  #                     bdrc: "W123456"
-  #                     colophon: "Sample colophon text"
-  #                     copyright: "public"
-  #                     incipit_title:
-  #                       bo: "དབུ་ཚིག"
-  #                       en: "Opening words"
-  #                     type: "diplomatic"
-  #                     wiki: null
-  #                   - alt_incipit_titles: []
-  #                     bdrc: "W123456"
-  #                     colophon: "Sample colophon text"
-  #                     copyright: "public"
-  #                     incipit_title:
-  #                       bo: "དབུ་ཚིག"
-  #                       en: "Opening words"
-  #                     type: "diplomatic"
-  #                     wiki: null
-  #                   - alt_incipit_titles: []
-  #                     bdrc: "W123456"
-  #                     colophon: "Sample colophon text"
-  #                     copyright: "public"
-  #                     incipit_title:
-  #                       bo: "དབུ་ཚིག"
-  #                       en: "Opening words"
-  #                     type: "diplomatic"
-  #                     wiki: null
-  #                   - alt_incipit_titles: []
-  #                     bdrc: "W123456"
-  #                     colophon: "Sample colophon text"
-  #                     copyright: "public"
-  #                     incipit_title:
-  #                       bo: "དབུ་ཚིག"
-  #                       en: "Opening words"
-  #                     type: "critical"
-  #                     wiki: null
-  #                   - alt_incipit_titles: []
-  #                     bdrc: "W123456"
-  #                     colophon: "Sample colophon text"
-  #                     copyright: "public"
-  #                     incipit_title: null
-  #                     type: "diplomatic"
-  #                     wiki: null
-  #       "400":
-  #         $ref: '#/components/responses/InvalidRequest'
-  #       "404":
-  #         $ref: '#/components/responses/NotFound'
-  #       "500":
-  #         $ref: '#/components/responses/ServerError'
+  /v2/texts/{text_id}/instances:
+    get:
+      summary: Get instances for text
+      description: Retrieve all instances associated with a text
+      tags:
+        - Instances
+      parameters:
+        - name: text_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the text
+      responses:
+        "200":
+          description: Instances retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    type:
+                      type: string
+                      enum: [diplomatic, critical]
+                    copyright:
+                      type: string
+                      enum: [public, copyrighted]
+                    bdrc:
+                      type: string
+                    wiki:
+                      type: string
+                    colophon:
+                      type: string
+                    incipit_title:
+                      type: object
+                      additionalProperties:
+                        type: string
+                    alt_incipit_titles:
+                      type: array
+                      items:
+                        type: object
+                        additionalProperties:
+                          type: string
+              examples:
+                success:
+                  summary: List of instances
+                  value:
+                    - alt_incipit_titles: []
+                      bdrc: "W123456"
+                      colophon: "Sample colophon text"
+                      copyright: "public"
+                      incipit_title:
+                        bo: "དབུ་ཚིག"
+                        en: "Opening words"
+                      type: "diplomatic"
+                      wiki: null
+                    - alt_incipit_titles: []
+                      bdrc: "W123456"
+                      colophon: "Sample colophon text"
+                      copyright: "public"
+                      incipit_title:
+                        bo: "དབུ་ཚིག"
+                        en: "Opening words"
+                      type: "diplomatic"
+                      wiki: null
+                    - alt_incipit_titles: []
+                      bdrc: "W123456"
+                      colophon: "Sample colophon text"
+                      copyright: "public"
+                      incipit_title:
+                        bo: "དབུ་ཚིག"
+                        en: "Opening words"
+                      type: "diplomatic"
+                      wiki: null
+                    - alt_incipit_titles: []
+                      bdrc: "W123456"
+                      colophon: "Sample colophon text"
+                      copyright: "public"
+                      incipit_title:
+                        bo: "དབུ་ཚིག"
+                        en: "Opening words"
+                      type: "diplomatic"
+                      wiki: null
+                    - alt_incipit_titles: []
+                      bdrc: "W123456"
+                      colophon: "Sample colophon text"
+                      copyright: "public"
+                      incipit_title:
+                        bo: "དབུ་ཚིག"
+                        en: "Opening words"
+                      type: "critical"
+                      wiki: null
+                    - alt_incipit_titles: []
+                      bdrc: "W123456"
+                      colophon: "Sample colophon text"
+                      copyright: "public"
+                      incipit_title: null
+                      type: "diplomatic"
+                      wiki: null
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/ServerError'
 
     post:
       summary: Create a new instance

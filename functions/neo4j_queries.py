@@ -305,13 +305,17 @@ RETURN m.id AS manifestation_id
     // Combine both cases
     WITH COALESCE(related_m1, related_m2) as related_m,
          COALESCE(related_e1, related_e2) as related_e,
-         COALESCE(ann, source_ann) as source_alignment_ann
+         related_m1, related_m2,
+         ann, source_ann
     WHERE related_m IS NOT NULL
     
     RETURN DISTINCT {{
         manifestation: {Queries.manifestation_fragment('related_m')},
         expression: {Queries.expression_fragment('related_e')},
-        alignment_annotation_id: source_alignment_ann.id
+        alignment_annotation_id: CASE 
+            WHEN related_m1 IS NOT NULL THEN ann.id 
+            ELSE source_ann.id 
+        END
     }} as related_instance
 """,
 }
