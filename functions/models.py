@@ -24,6 +24,7 @@ class AnnotationType(str, Enum):
     ALIGNMENT = "alignment"
     PAGINATION = "pagination"
     VERSION = "version"
+    BIBLIOGRAPHY = "bibliography"
 
 
 class ManifestationType(str, Enum):
@@ -121,6 +122,7 @@ class ExpressionModelBase(OpenPechaModel):
     alt_titles: list[LocalizedString] | None = None
     language: NonEmptyStr
     target: str | None = None
+    category_id: str | None = None
 
     @model_validator(mode="after")
     def validate_target_field(self):
@@ -227,6 +229,7 @@ class AlignedTextRequestModel(OpenPechaModel):
     alignment_annotation: list[dict] | None = None
     segmentation: list[dict]
     copyright: CopyrightStatus = CopyrightStatus.PUBLIC_DOMAIN
+    category_id: str | None = None
 
     @model_validator(mode="after")
     def validate_alignment_annotations(self):
@@ -247,9 +250,14 @@ class AlignmentAnnotationModel(OpenPechaModel):
     index: int
     alignment_index: list[int] | None = None
 
+class BibliographyAnnotationModel(OpenPechaModel):
+    span: SpanModel
+    biblography_type: NonEmptyStr
+
 class InstanceRequestModel(OpenPechaModel):
     metadata: ManifestationModelInput
     annotation: list[SegmentationAnnotationModel | PaginationAnnotationModel] | None = None
+    biblography_annotation: list[BibliographyAnnotationModel] | None = None
     content: NonEmptyStr
 
 
@@ -264,11 +272,16 @@ class InstanceRequestModel(OpenPechaModel):
                 raise ValueError("For 'diplomatic' manifestations, all annotations must be PaginationAnnotationModel")
             elif not all(isinstance(ann, (SegmentationAnnotationModel, PaginationAnnotationModel)) for ann in self.annotation):
                 raise ValueError("Annotations must be either SegmentationAnnotationModel or PaginationAnnotationModel")
+        if self.biblography_annotation is not None:
+            if len(self.biblography_annotation) == 0:
+                raise ValueError("Biblography annotation cannot be empty list")
+            elif not all(isinstance(ann, BibliographyAnnotationModel) for ann in self.biblography_annotation):
+                raise ValueError("All biblography annotations must be of type BibliographyAnnotationModel")
         return self
 
 class AddAnnotationRequestModel(OpenPechaModel):
     annotation_type: AnnotationType
-    annotation: list[SegmentationAnnotationModel | PaginationAnnotationModel] | None = None
+    annotation: list[SegmentationAnnotationModel | PaginationAnnotationModel | BibliographyAnnotationModel] | None = None
     target_manifestation_id: str | None = None
     target_annotation: list[AlignmentAnnotationModel] | None = None
     alignment_annotation: list[AlignmentAnnotationModel] | None = None
@@ -282,6 +295,13 @@ class AddAnnotationRequestModel(OpenPechaModel):
                 raise ValueError("Cannot provide both annotation and alignment annotation or target_annotation")
             elif not all(isinstance(ann, SegmentationAnnotationModel) for ann in self.annotation):
                 raise ValueError("Invalid annotation")
+        elif self.annotation_type == AnnotationType.PAGINATION:
+            if self.annotation is None or len(self.annotation) == 0:
+                raise ValueError("Pagination annotation cannot be empty")
+            elif self.target_annotation is not None or self.alignment_annotation is not None:
+                raise ValueError("Cannot provide both annotation and alignment annotation or target_annotation")
+            elif not all(isinstance(ann, PaginationAnnotationModel) for ann in self.annotation):
+                raise ValueError("Invalid annotation")
         elif self.annotation_type == AnnotationType.ALIGNMENT:
             if self.target_manifestation_id is None:
                 raise ValueError("Target manifestation id must be provided")
@@ -293,6 +313,28 @@ class AddAnnotationRequestModel(OpenPechaModel):
                 raise ValueError("Cannot provide both annotation and alignment annotation or target_annotation")
             elif not all(isinstance(ann, AlignmentAnnotationModel) for ann in self.target_annotation + self.alignment_annotation):
                 raise ValueError("Invalid target annotation or alignment annotation")
+        elif self.annotation_type == AnnotationType.BIBLIOGRAPHY:
+            if self.annotation is None or len(self.annotation) == 0:
+                raise ValueError("Biblography annotation cannot be empty")
+            elif not all(isinstance(ann, BibliographyAnnotationModel) for ann in self.annotation):
+                raise ValueError("Invalid annotation")
         else:
-            raise ValueError("Invalid annotation type. Allowed types are [SEGMENTATION, ALIGNMENT]")
+            raise ValueError("Invalid annotation type. Allowed types are [SEGMENTATION, ALIGNMENT, PAGINATION, BIBLIOGRAPHY]")
         return self
+
+class CategoryRequestModel(OpenPechaModel):
+    application: NonEmptyStr
+    title: LocalizedString
+    parent: str | None = None
+
+class CategoryResponseModel(OpenPechaModel):
+    id: str
+    application: str
+    title: LocalizedString
+    parent: str | None = None
+
+class CategoryListItemModel(OpenPechaModel):
+    id: str
+    parent: str | None = None
+    title: NonEmptyStr
+    has_child: bool = False

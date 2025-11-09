@@ -114,6 +114,7 @@ class Neo4JDatabase:
             alt_titles=[self.__convert_to_localized_text(alt) for alt in expression_data.get("alt_titles", [])],
             language=expression_data.get("language"),
             target=target,
+            category_id=expression_data.get("category_id"),
         )
 
     def get_manifestations_by_expression(self, expression_id: str) -> list[ManifestationModelOutput]:
@@ -121,17 +122,27 @@ class Neo4JDatabase:
             rows = session.execute_read(
                 lambda tx: [
                     r.data()
-                    for r in tx.run(Queries.manifestations["fetch"], expression_id=expression_id, manifestation_id=None)
+                    for r in tx.run(
+                        Queries.manifestations["fetch"], 
+                        expression_id=expression_id, 
+                        manifestation_id=None,
+                        manifestation_type=None
+                    )
                 ]
             )
             return [self._process_manifestation_data(row["manifestation"]) for row in rows]
     
-    def get_manifestations_of_an_expression(self, expression_id: str) -> list[ManifestationModelBase]:
+    def get_manifestations_of_an_expression(self, expression_id: str, manifestation_type: str | None = None) -> list[ManifestationModelBase]:
         with self.__driver.session() as session:
             rows = session.execute_read(
                 lambda tx: [
                     r.data()
-                    for r in tx.run(Queries.manifestations["fetch"], expression_id=expression_id, manifestation_id=None)
+                    for r in tx.run(
+                        Queries.manifestations["fetch"], 
+                        expression_id=expression_id, 
+                        manifestation_id=None,
+                        manifestation_type=manifestation_type if manifestation_type != "all" else None
+                    )
                 ]
             )
             return [self.process_manifestation_metadata(row["manifestation"]) for row in rows]
@@ -152,7 +163,10 @@ class Neo4JDatabase:
         with self.__driver.session() as session:
             record = session.execute_read(
                 lambda tx: tx.run(
-                    Queries.manifestations["fetch"], manifestation_id=manifestation_id, expression_id=None
+                    Queries.manifestations["fetch"], 
+                    manifestation_id=manifestation_id, 
+                    expression_id=None,
+                    manifestation_type=None
                 ).single()
             )
             if record is None:
@@ -252,7 +266,7 @@ class Neo4JDatabase:
             return [
                 SegmentModel(
                     id=data["segment_id"],
-                    span=(data["span_start"], data["span_end"]),
+                    span=SpanModel(start=data["span_start"], end=data["span_end"]),
                 )
                 for record in result
                 for data in [record.data()]
@@ -277,14 +291,14 @@ class Neo4JDatabase:
             return {
                 "targets": {
                     record["manifestation_id"]: [
-                        SegmentModel(id=seg["segment_id"], span=(seg["span_start"], seg["span_end"]))
+                        SegmentModel(id=seg["segment_id"], span=SpanModel(start=seg["span_start"], end=seg["span_end"]))
                         for seg in record["segments"]
                     ]
                     for record in targets_result
                 },
                 "sources": {
                     record["manifestation_id"]: [
-                        SegmentModel(id=seg["segment_id"], span=(seg["span_start"], seg["span_end"]))
+                        SegmentModel(id=seg["segment_id"], span=SpanModel(start=seg["span_start"], end=seg["span_end"]))
                         for seg in record["segments"]
                     ]
                     for record in sources_result
@@ -304,15 +318,134 @@ class Neo4JDatabase:
 
     def get_segment(self, segment_id: str) -> tuple[SegmentModel, str, str]:
         with self.__driver.session() as session:
-            result = session.execute_read(lambda tx: tx.run(Queries.segments["get_by_id"], segment_id=segment_id))
-            record = result.single()
+            record = session.execute_read(
+                lambda tx: tx.run(Queries.segments["get_by_id"], segment_id=segment_id).single()
+            )
 
             if not record:
                 raise DataNotFound(f"Segment with ID {segment_id} not found")
 
             data = record.data()
-            segment = SegmentModel(id=data["segment_id"], span=(data["span_start"], data["span_end"]))
+            segment = SegmentModel(id=data["segment_id"], span=SpanModel(start=data["span_start"], end=data["span_end"]))
             return segment, data["manifestation_id"], data["expression_id"]
+
+    def get_segment_related_alignment_only(
+        self, manifestation_id: str, span_start: int, span_end: int
+    ) -> list[dict]:
+        """Get related manifestations via alignment layer (no transfer)."""
+        logger.info(
+            "Finding related manifestations via alignment layer for manifestation '%s', span=[%d, %d)",
+            manifestation_id, span_start, span_end
+        )
+        
+        with self.__driver.session() as session:
+            result = session.execute_read(
+                lambda tx: list(
+                    tx.run(
+                        Queries.segments["find_related_alignment_only"],
+                        manifestation_id=manifestation_id,
+                        span_start=span_start,
+                        span_end=span_end,
+                    )
+                )
+            )
+            
+            logger.info("Query returned %d related manifestation(s)", len(result))
+            
+            related = []
+            for record in result:
+                data = record.data()
+                # Get full manifestation and expression details
+                manifestation_model, _ = self.get_manifestation(data["manifestation_id"])
+                expression_model = self.get_expression(data["expression_id"])
+                
+                logger.info(
+                    "Processing manifestation '%s' with %d alignment segment(s)",
+                    data["manifestation_id"], len(data["segments"])
+                )
+                
+                # Convert to dict and remove unwanted fields
+                instance_dict = manifestation_model.model_dump()
+                instance_dict.pop("annotations", None)
+                instance_dict.pop("alignment_sources", None)
+                instance_dict.pop("alignment_targets", None)
+                
+                related.append({
+                    "text": expression_model.model_dump(),
+                    "instance": instance_dict,
+                    "segments": [
+                        {
+                            "id": seg["id"],
+                            "span": {
+                                "start": seg["span_start"],
+                                "end": seg["span_end"]
+                            }
+                        }
+                        for seg in data["segments"]
+                    ]
+                })
+            
+            logger.info("Successfully built %d related manifestation response(s)", len(related))
+            return related
+
+    def get_segment_related_with_transfer(
+        self, manifestation_id: str, span_start: int, span_end: int
+    ) -> list[dict]:
+        """Get related manifestations with alignment transfer to segmentation layer."""
+        logger.info(
+            "Finding related manifestations with transfer to segmentation layer for manifestation '%s', span=[%d, %d)",
+            manifestation_id, span_start, span_end
+        )
+        
+        with self.__driver.session() as session:
+            result = session.execute_read(
+                lambda tx: list(
+                    tx.run(
+                        Queries.segments["find_related_with_transfer"],
+                        manifestation_id=manifestation_id,
+                        span_start=span_start,
+                        span_end=span_end,
+                    )
+                )
+            )
+            
+            logger.info("Query returned %d related manifestation(s)", len(result))
+            
+            related = []
+            for record in result:
+                data = record.data()
+                # Get full manifestation and expression details
+                manifestation_model, _ = self.get_manifestation(data["manifestation_id"])
+                expression_model = self.get_expression(data["expression_id"])
+                
+                logger.info(
+                    "Processing manifestation '%s' with %d segmentation segment(s)",
+                    data["manifestation_id"], len(data["segments"])
+                )
+                
+                # Convert to dict and remove unwanted fields
+                instance_dict = manifestation_model.model_dump()
+                instance_dict.pop("annotations", None)
+                instance_dict.pop("alignment_sources", None)
+                instance_dict.pop("alignment_targets", None)
+                
+                related.append({
+                    "text": expression_model.model_dump(),
+                    "instance": instance_dict,
+                    "segments": [
+                        {
+                            "id": seg["id"],
+                            "span": {
+                                "start": seg["span_start"],
+                                "end": seg["span_end"]
+                            }
+                        }
+                        for seg in data["segments"]
+                    ]
+                })
+            
+            logger.info("Successfully built %d related manifestation response(s)", len(related))
+            return related
 
     def get_all_persons(self, offset: int = 0, limit: int = 20) -> list[PersonModelOutput]:
         params = {
@@ -381,8 +514,11 @@ class Neo4JDatabase:
             if annotation:
                 self._execute_add_annotation(tx, manifestation_id, annotation)
                 self._create_segments(tx, annotation.id, annotation_segments)
-                if annotation_segments[0].get("reference", None) is not None:
-                    self._create_and_link_references(tx, annotation_segments)
+                if annotation_segments and len(annotation_segments) > 0:
+                    if annotation_segments[0].get("reference", None) is not None:
+                        self._create_and_link_references(tx, annotation_segments)
+                    if annotation_segments[0].get("biblography_type", None) is not None:
+                        self._create_and_link_bibliography_types(tx, annotation_segments)
 
         with self.__driver.session() as session:
             return session.execute_write(transaction_function)
@@ -391,8 +527,11 @@ class Neo4JDatabase:
         def transaction_function(tx):
             annotation_id = self._execute_add_annotation(tx, manifestation_id, annotation)
             self._create_segments(tx, annotation_id, annotation_segments)
-            if annotation_segments[0].get("reference", None) is not None:
-                self._create_and_link_references(tx, annotation_segments)
+            if annotation_segments and len(annotation_segments) > 0:
+                if annotation_segments[0].get("reference", None) is not None:
+                    self._create_and_link_references(tx, annotation_segments)
+                if annotation_segments[0].get("biblography_type", None) is not None:
+                    self._create_and_link_bibliography_types(tx, annotation_segments)
             return annotation_id
         with self.__driver.session() as session:
             return session.execute_write(transaction_function)
@@ -585,6 +724,9 @@ class Neo4JDatabase:
         base_lang_code = expression.language.split("-")[0].lower()
         # Validate base language exists (single-query validator)
         self.__validator.validate_language_code_exists(tx, base_lang_code)
+        # Validate category exists if category_id is provided
+        if expression.category_id:
+            self.__validator.validate_category_exists(tx, expression.category_id)
         alt_titles_data = [alt_title.root for alt_title in expression.alt_titles] if expression.alt_titles else None
         expression_title_element_id = self._create_nomens(tx, expression.title.root, alt_titles_data)
 
@@ -611,6 +753,10 @@ class Neo4JDatabase:
                 if expression.target == "N/A":
                     raise NotImplementedError("Standalone COMMENTARY texts (target='N/A') are not yet supported")
                 tx.run(Queries.expressions["create_commentary"], work_id=work_id, **common_params)
+
+        # Link work to category if category_id is provided
+        if expression.category_id:
+            tx.run(Queries.works["link_to_category"], work_id=work_id, category_id=expression.category_id)
 
         for contribution in expression.contributions:
             if isinstance(contribution, ContributionModel):
@@ -731,6 +877,35 @@ class Neo4JDatabase:
         )
         return reference_id
 
+    def _create_bibliography_type(self, tx, bibliography_type: str) -> str:
+        """Create a single BibliographyType node and return its ID."""
+        bibliography_type_id = generate_id()
+        tx.run(
+            Queries.bibliography_types["create"],
+            bibliography_type_id=bibliography_type_id,
+            type=bibliography_type,
+        )
+        return bibliography_type_id
+
+    def _create_and_link_bibliography_types(self, tx, segments: list[dict]) -> None:
+        """Create bibliography type nodes and link them to segments."""
+        segment_bibliography_types = []
+        
+        for seg in segments:
+            if "biblography_type" in seg and seg["biblography_type"]:
+                bibliography_type_id = self._create_bibliography_type(tx, seg["biblography_type"])
+                segment_bibliography_types.append({
+                    "segment_id": seg["id"],
+                    "bibliography_type_id": bibliography_type_id
+                })
+        
+        # Link bibliography types to segments if any
+        if segment_bibliography_types:
+            tx.run(
+                Queries.bibliography_types["link_to_segments"],
+                segment_bibliography_types=segment_bibliography_types,
+            )
+
     def get_annotation(self, annotation_id: str) ->  dict:
         """Get all segments for an annotation. For alignment annotations, returns both source and target segments."""
         with self.get_session() as session:
@@ -814,6 +989,8 @@ class Neo4JDatabase:
                 }
                 if record["reference"]:
                     segment["reference"] = record["reference"]
+                if record["bibliography_type"]:
+                    segment["bibliography_type"] = record["bibliography_type"]
                 segments.append(segment)
 
         return {
@@ -831,3 +1008,46 @@ class Neo4JDatabase:
                 target_annotation_id=target_annotation_id
             )
             return [record["index"] for record in result]
+
+    def create_category(self, application: str, title: dict[str, str], parent_id: str | None = None) -> str:
+        """Create a category with localized title and optional parent relationship."""
+        category_id = generate_id()
+        
+        # Convert title dict to list of localized_texts for the query
+        localized_texts = [
+            {"language": lang, "text": text}
+            for lang, text in title.items()
+        ]
+        
+        with self.get_session() as session:
+            result = session.run(
+                Queries.categories["create"],
+                category_id=category_id,
+                application=application,
+                localized_texts=localized_texts,
+                parent_id=parent_id
+            )
+            record = result.single()
+            return record["category_id"]
+    
+    def get_categories(self, application: str, parent_id: str | None = None, language: str = "bo") -> list[dict]:
+        """Get categories filtered by application and optional parent, with localized names."""
+        with self.get_session() as session:
+            result = session.run(
+                Queries.categories["get_categories"],
+                application=application,
+                parent_id=parent_id,
+                language=language
+            )
+            categories = []
+            for record in result:
+                data = record.data()
+                # Only include categories that have a title in the requested language
+                if data.get("title") is not None:
+                    categories.append({
+                        "id": data["id"],
+                        "parent": data.get("parent"),
+                        "title": data["title"],
+                        "has_child": data.get("has_child", False)
+                    })
+            return categories

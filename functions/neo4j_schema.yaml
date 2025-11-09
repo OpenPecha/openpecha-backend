@@ -139,6 +139,10 @@ nodes:
         target: Reference
         cardinality: one
         required: false
+      HAS_BIBLIOGRAPHY_TYPE:
+        target: BibliographyType
+        cardinality: one
+        required: false
 
   Reference:
     properties:
@@ -154,6 +158,21 @@ nodes:
         required: false
     relationships:
       REFERENCE_OF:
+        target: Segment
+        cardinality: one
+        required: false
+
+  BibliographyType:
+    properties:
+      id:
+        type: string
+        required: true
+        unique: true
+      type:
+        type: string
+        required: true
+    relationships:
+      BIBLIOGRAPHY_TYPE_OF:
         target: Segment
         cardinality: one
         required: false
@@ -269,6 +288,8 @@ nodes:
         allowed_values:
           - segmentation
           - alignment
+          - pagination
+          - bibliography
 
   RoleType:
     enum: true
