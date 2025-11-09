@@ -304,6 +304,14 @@ CALL (*) {
 
 RETURN a.id AS annotation_id
 """,
+    "get_annotation_type": """
+MATCH (a:Annotation {id: $annotation_id})-[:HAS_TYPE]->(at:AnnotationType)
+RETURN at.name as annotation_type
+""",
+    "get_aligned_annotation": """
+MATCH (a:Annotation {id: $annotation_id})-[:ALIGNED_TO]->(target_ann:Annotation)
+RETURN target_ann.id as aligned_to_id
+""",
     "get_segments": """
 MATCH (a:Annotation {id: $annotation_id})
 <-[:SEGMENTATION_OF]-(s:Segment)
@@ -313,6 +321,24 @@ RETURN s.id as id,
        s.span_end as end,
        r.name as reference
 ORDER BY s.span_start
+""",
+    "get_alignment_indices": """
+// First, get all target segments ordered by span to establish indices
+MATCH (target_ann:Annotation {id: $target_annotation_id})<-[:SEGMENTATION_OF]-(all_targets:Segment)
+WITH all_targets
+ORDER BY all_targets.span_start
+WITH collect(all_targets) as ordered_all_targets
+
+// Create a map of segment_id -> index
+UNWIND range(0, size(ordered_all_targets)-1) as idx
+WITH ordered_all_targets[idx].id as seg_id, idx as segment_index
+
+// Now find which target segments this source aligns to
+MATCH (source:Segment {id: $source_segment_id})-[:ALIGNED_TO]->(aligned:Segment)
+WHERE aligned.id = seg_id
+
+RETURN segment_index as index
+ORDER BY segment_index
 """
 }
 

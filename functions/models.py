@@ -101,7 +101,7 @@ class SpanModel(OpenPechaModel):
 
     @model_validator(mode="after")
     def validate_span_range(self):
-        if self.start >= self.end:
+        if self.start > self.end:
             raise ValueError("'start' must be less than 'end'")
         return self
 
