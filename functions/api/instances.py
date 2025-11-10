@@ -93,6 +93,7 @@ def get_instance(manifestation_id: str):
 
     logger.info("Fetching with manifestation ID: %s", manifestation_id)
 
+    content_param = request.args.get("content", "false").lower() == "true"
     annotation_param = request.args.get("annotation", "false").lower() == "true"
     logger.info("Annotation parameter %s", annotation_param)
 
@@ -101,7 +102,9 @@ def get_instance(manifestation_id: str):
     manifestation, expression_id = Neo4JDatabase().get_manifestation(manifestation_id = manifestation_id)
 
     logger.info("Retrieving base text from storage")
-    base_text = retrieve_base_text(expression_id = expression_id, manifestation_id = manifestation_id)
+    base_text = None
+    if content_param:
+        base_text = retrieve_base_text(expression_id = expression_id, manifestation_id = manifestation_id)
 
     metadata = {
         "id": manifestation.id,
@@ -135,6 +138,10 @@ def get_instance(manifestation_id: str):
         "metadata": metadata,
         "annotations": annotations,
     }
+    if not content_param:
+        json.pop("content")
+    if not annotation_param:
+        json.pop("annotations")
 
     return jsonify(json), 200
 
