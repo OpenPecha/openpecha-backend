@@ -111,7 +111,7 @@ def _add_alignment_annotation(target_manifestation_id: str, manifestation_id: st
 
     Neo4JDatabase().add_alignment_annotation_to_manifestation(
         target_annotation = target_annotation,
-        source_annotation = alignment_annotation,
+        alignment_annotation = alignment_annotation,
         target_manifestation_id = target_manifestation_id,
         source_manifestation_id = manifestation_id,
         target_segments = target_segments_with_ids,

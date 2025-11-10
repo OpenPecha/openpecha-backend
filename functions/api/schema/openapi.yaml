@@ -2290,10 +2290,10 @@ paths:
                       - type: object
                         description: Alignment annotation with source and target segments
                         required:
-                          - source_annotation
+                          - alignment_annotation
                           - target_annotation
                         properties:
-                          source_annotation:
+                          alignment_annotation:
                             type: array
                             description: Source segments with alignment mappings
                             items:
@@ -2394,7 +2394,7 @@ paths:
                     id: "ann_align_789"
                     type: "alignment"
                     data:
-                      source_annotation:
+                      alignment_annotation:
                         - id: "idx6tTeELJEwEQiIEyqhQ"
                           span:
                             start: 0

@@ -541,7 +541,7 @@ class Neo4JDatabase:
     def add_alignment_annotation_to_manifestation(
         self,
         target_annotation: AnnotationModel,
-        source_annotation: AnnotationModel,
+        alignment_annotation: AnnotationModel,
         target_manifestation_id: str,
         source_manifestation_id: str,
         target_segments: list[dict],
@@ -552,8 +552,8 @@ class Neo4JDatabase:
             _ = self._execute_add_annotation(tx, target_manifestation_id, target_annotation)
             self._create_segments(tx, target_annotation.id, target_segments)
 
-            _ = self._execute_add_annotation(tx, source_manifestation_id, source_annotation)
-            self._create_segments(tx, source_annotation.id, alignment_segments)
+            _ = self._execute_add_annotation(tx, source_manifestation_id, alignment_annotation)
+            self._create_segments(tx, alignment_annotation.id, alignment_segments)
 
             tx.run(Queries.segments["create_alignments_batch"], alignments=alignments)
         
@@ -992,7 +992,7 @@ class Neo4JDatabase:
                     target_segments_with_index.append(segment_with_index)
                 
                 response["data"] = {
-                    "source_annotation": source_segments_with_index,
+                    "alignment_annotation": source_segments_with_index,
                     "target_annotation": target_segments_with_index
                 }
                 
