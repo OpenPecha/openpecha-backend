@@ -184,6 +184,16 @@ class Neo4JDatabase:
             d = record.data()
             return self._process_manifestation_data(d["manifestation"]), d["expression_id"]
 
+    def get_manifestation_id_by_annotation_id(self, annotation_id: str) -> str:
+        with self.__driver.session() as session:
+            record = session.execute_read(
+                lambda tx: tx.run(Queries.manifestations["fetch_by_annotation_id"], annotation_id=annotation_id).single()
+            )
+            if record is None:
+                return None
+            d = record.data()
+            return d["manifestation_id"]
+
     def find_related_instances(self, manifestation_id: str, type_filter: str | None = None) -> list[dict]:
         """
         Find all manifestations that have alignment relationships with the given manifestation.
@@ -823,6 +833,7 @@ class Neo4JDatabase:
 
 
     def _execute_add_annotation(self, tx, manifestation_id: str, annotation: AnnotationModel) -> str:
+        logger.info(f"Aligned_to_id: {annotation.aligned_to}")
         tx.run(
             Queries.annotations["create"],
             manifestation_id=manifestation_id,
@@ -996,6 +1007,63 @@ class Neo4JDatabase:
             )
             return [record["index"] for record in result]
 
+    def get_annotation_type(self, annotation_id: str) -> str | None:
+        """
+        Get the annotation type for a given annotation ID.
+        
+        Returns:
+            The annotation type string or None if not found
+        """
+        with self.__driver.session() as session:
+            result = session.execute_read(
+                lambda tx: tx.run(
+                    Queries.annotations["get_annotation_type"],
+                    annotation_id=annotation_id
+                ).single()
+            )
+            if result:
+                return result["annotation_type"]
+            return None
+
+    def get_alignment_pair(self, annotation_id: str) -> tuple[str, str] | None:
+        """
+        Get source and target annotation IDs for an alignment annotation.
+        Works regardless of which annotation ID is provided.
+        
+        Returns:
+            (source_annotation_id, target_annotation_id) or None if not found
+        """
+        with self.__driver.session() as session:
+            result = session.execute_read(
+                lambda tx: tx.run(
+                    Queries.annotations["get_alignment_pair"],
+                    annotation_id=annotation_id
+                ).single()
+            )
+            if result:
+                return result["source_id"], result["target_id"]
+            return None
+
+    def delete_alignment_annotation(self, source_annotation_id: str, target_annotation_id: str):
+        """
+        Delete alignment annotation including all segments and relationships.
+        """
+        with self.__driver.session() as session:
+            session.execute_write(
+                lambda tx: tx.run(
+                    Queries.segments["delete_alignment_segments"],
+                    source_annotation_id=source_annotation_id,
+                    target_annotation_id=target_annotation_id
+                )
+            )
+            session.execute_write(
+                lambda tx: tx.run(
+                    Queries.annotations["delete_alignment_annotations"],
+                    source_annotation_id=source_annotation_id,
+                    target_annotation_id=target_annotation_id
+                )
+            )
+
     def create_category(self, application: str, title: dict[str, str], parent_id: str | None = None) -> str:
         """Create a category with localized title and optional parent relationship."""
         category_id = generate_id()
@@ -1038,3 +1106,8 @@ class Neo4JDatabase:
                         "has_child": data.get("has_child", False)
                     })
             return categories
+
+    def delete_annotation_and_its_segments(self, annotation_id: str) -> None:
+        with self.get_session() as session:
+            session.run(Queries.segments["delete_all_segments_by_annotation_id"], annotation_id = annotation_id)
+            session.run(Queries.annotations["delete"], annotation_id = annotation_id)

@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, RootModel, StrictStr, StringConstraints, field_serializer, model_validator, field_validator, ValidationError as PydanticValidationError
+from pydantic import BaseModel, ConfigDict, Field, RootModel, StrictStr, StringConstraints, model_validator
 
 NonEmptyStr = Annotated[StrictStr, StringConstraints(min_length=1, strip_whitespace=True)]
 
@@ -25,6 +25,7 @@ class AnnotationType(str, Enum):
     PAGINATION = "pagination"
     VERSION = "version"
     BIBLIOGRAPHY = "bibliography"
+    TABLE_OF_CONTENTS = "table_of_contents"
 
 
 class ManifestationType(str, Enum):
@@ -338,3 +339,24 @@ class CategoryListItemModel(OpenPechaModel):
     parent: str | None = None
     title: NonEmptyStr
     has_child: bool = False
+
+class UpdateAnnotationDataModel(OpenPechaModel):
+    annotations: list[SegmentationAnnotationModel | PaginationAnnotationModel | BibliographyAnnotationModel] | None = None
+    target_annotation: list[AlignmentAnnotationModel] | None = None
+    alignment_annotation: list[AlignmentAnnotationModel] | None = None
+
+    @model_validator(mode="after")
+    def validate_request_model(self):
+        if self.annotations is not None:
+            if len(self.annotations) == 0:
+                raise ValueError("Annotations cannot be empty")
+            elif self.target_annotation is not None or self.alignment_annotation is not None:
+                raise ValueError("Cannot provide both annotations with target and alignment annotation")
+        elif self.target_annotation is None or self.alignment_annotation is None:
+                raise ValueError("Need to provide both target and alignment annotation")
+        return self
+
+
+class UpdateAnnotationRequestModel(OpenPechaModel):
+    type: AnnotationType
+    data: UpdateAnnotationDataModel

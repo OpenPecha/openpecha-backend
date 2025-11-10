@@ -258,6 +258,10 @@ Queries.manifestations = {
 
     RETURN {Queries.manifestation_fragment('m')} AS manifestation, e.id AS expression_id
 """,
+    "fetch_by_annotation_id": f"""
+    MATCH (a:Annotation {{id: $annotation_id}})-[:ANNOTATION_OF]->(m:Manifestation)
+    RETURN m.id AS manifestation_id
+""",
     "fetch_by_annotation": f"""
     MATCH (a:Annotation {{id: $annotation_id}})-[:ANNOTATION_OF]->(m:Manifestation)
     MATCH (m)-[:MANIFESTATION_OF]->(e:Expression)
@@ -323,6 +327,10 @@ RETURN m.id AS manifestation_id
 }
 
 Queries.annotations = {
+    "delete": """
+MATCH (a:Annotation {id: $annotation_id})
+DETACH DELETE a
+""",
     "create": """
 MATCH (m:Manifestation {id: $manifestation_id})
 MERGE (at:AnnotationType {name: $type})
@@ -345,6 +353,22 @@ RETURN at.name as annotation_type
     "get_aligned_annotation": """
 MATCH (a:Annotation {id: $annotation_id})-[:ALIGNED_TO]->(target_ann:Annotation)
 RETURN target_ann.id as aligned_to_id
+""",
+    "get_alignment_pair": """
+MATCH (a:Annotation {id: $annotation_id})
+OPTIONAL MATCH (a)-[:ALIGNED_TO]->(target:Annotation)
+OPTIONAL MATCH (source:Annotation)-[:ALIGNED_TO]->(a)
+WITH a, 
+     CASE WHEN target IS NOT NULL THEN a.id ELSE source.id END as source_id,
+     CASE WHEN target IS NOT NULL THEN target.id ELSE a.id END as target_id
+RETURN source_id, target_id
+""",
+    "delete_alignment_annotations": """
+MATCH (source:Annotation {id: $source_annotation_id})
+MATCH (target:Annotation {id: $target_annotation_id})
+OPTIONAL MATCH (source)-[aligned:ALIGNED_TO]-(target)
+DELETE aligned
+DETACH DELETE source, target
 """,
     "get_segments": """
 MATCH (a:Annotation {id: $annotation_id})
@@ -379,6 +403,19 @@ ORDER BY segment_index
 }
 
 Queries.segments = {
+    "delete_all_segments_by_annotation_id": """
+MATCH (a:Annotation {id: $annotation_id})<-[:SEGMENTATION_OF]-(s:Segment)
+OPTIONAL MATCH (s)-[:HAS_REFERENCE]->(ref:Reference)
+DELETE ref
+DETACH DELETE s
+""",
+    "delete_alignment_segments": """
+MATCH (source_ann:Annotation {id: $source_annotation_id})<-[:SEGMENTATION_OF]-(source_seg:Segment)
+MATCH (target_ann:Annotation {id: $target_annotation_id})<-[:SEGMENTATION_OF]-(target_seg:Segment)
+OPTIONAL MATCH (source_seg)-[aligned:ALIGNED_TO]-(target_seg)
+DELETE aligned
+DETACH DELETE source_seg, target_seg
+""",
     "create_batch": """
 MATCH (a:Annotation {id: $annotation_id})
 UNWIND $segments AS seg
