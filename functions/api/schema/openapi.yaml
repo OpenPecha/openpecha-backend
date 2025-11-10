@@ -1931,14 +1931,14 @@ paths:
         "500":
           $ref: '#/components/responses/ServerError'
 
-  /v2/texts/{text_id}:
+  /v2/texts/{id}:
     get:
       summary: Retrieve text by ID or BDRC ID
       description: Fetch a specific text by its expression ID or BDRC ID
       tags:
         - Texts
       parameters:
-        - name: text_id
+        - name: id
           in: path
           required: true
           schema:

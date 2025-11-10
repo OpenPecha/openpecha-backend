@@ -46,22 +46,22 @@ def get_all_texts() -> tuple[Response, int]:
     return jsonify(response_data), 200
 
 
-@texts_bp.route("/<string:text_id>", methods=["GET"], strict_slashes=False)
-def get_texts(text_id: str) -> tuple[Response, int]:
+@texts_bp.route("/<string:id>", methods=["GET"], strict_slashes=False)
+def get_texts(id: str) -> tuple[Response, int]:
     db = Neo4JDatabase()
     
     # Try to get expression by ID first
     try:
-        expression = db.get_expression(expression_id=text_id)
+        expression = db.get_expression(expression_id=id)
         return jsonify(expression.model_dump()), 200
     except DataNotFound:
         # If not found by ID, try to get by BDRC ID
         try:
-            expression = db.get_expression_by_bdrc(bdrc_id=text_id)
+            expression = db.get_expression_by_bdrc(bdrc_id=id)
             return jsonify(expression.model_dump()), 200
         except DataNotFound:
             # If both fail, return not found
-            raise DataNotFound(f"Text with ID or BDRC ID '{text_id}' not found")
+            raise DataNotFound(f"Text with ID or BDRC ID '{id}' not found")
 
 @texts_bp.route("", methods=["POST"], strict_slashes=False)
 def post_texts() -> tuple[Response, int]:
