@@ -28,9 +28,9 @@ instances_bp = Blueprint("instances", __name__)
 logger = logging.getLogger(__name__)
 
 
-def _validate_request_parameters(segment_id: str, span_start: str, span_end: str) -> tuple[bool, str]:
+def _validate_request_parameters(segment_ids: list[str], span_start: str, span_end: str) -> tuple[bool, str]:
     """Validate parameter combinations and return (is_valid, error_message)."""
-    if segment_id and (span_start or span_end):
+    if segment_ids and (span_start or span_end):
         return False, "Cannot provide both segment_id and span parameters. Use one approach only."
     
     if span_start and not span_end:
@@ -39,7 +39,7 @@ def _validate_request_parameters(segment_id: str, span_start: str, span_end: str
     if span_end and not span_start:
         return False, "span_start parameter is required when using span_end"
     
-    if not segment_id and not span_start and not span_end:
+    if not segment_ids and not span_start and not span_end:
         return False, "Either segment_id OR span_start and span_end is required"
     
     return True, ""
@@ -70,6 +70,9 @@ def _get_segment_content(segment_id: str) -> tuple[bool, str, str]:
         return True, "", content
     except Exception as e:
         return False, f"Failed to retrieve segment content: {str(e)}", ""
+
+
+
 
 
 def _get_instance_content(instance_id: str, span: SpanModel) -> tuple[bool, str, str]:
@@ -301,77 +304,77 @@ def get_excerpt(manifestation_id: str) -> tuple[Response, int]:
     return jsonify({"excerpt": base_text[span.start : span.end]}), 200
 
 
-@instances_bp.route("/<string:manifestation_id>/related", methods=["GET"], strict_slashes=False)
-def get_related_texts(manifestation_id: str) -> tuple[Response, int]:
+# @instances_bp.route("/<string:manifestation_id>/related", methods=["GET"], strict_slashes=False)
+# def get_related_texts(manifestation_id: str) -> tuple[Response, int]:
 
-    logger.info("Finding related texts for manifestation ID: %s", manifestation_id)
+#     logger.info("Finding related texts for manifestation ID: %s", manifestation_id)
 
-    span = SpanModel(
-        start=int(request.args.get("span_start", -1)),
-        end=int(request.args.get("span_end", -1)),
-    )
+#     span = SpanModel(
+#         start=int(request.args.get("span_start", -1)),
+#         end=int(request.args.get("span_end", -1)),
+#     )
 
-    db = Neo4JDatabase()
+#     db = Neo4JDatabase()
 
-    # Find segments from database that overlap with the given character span
-    matching_segments = db.find_segments_by_span(manifestation_id, span)
+#     # Find segments from database that overlap with the given character span
+#     matching_segments = db.find_segments_by_span(manifestation_id, span)
 
-    if not matching_segments:
-        error_msg = f"No segments found containing span [{span.start}, {span.end}) in instance '{manifestation_id}'"
-        return jsonify({"error": error_msg}), 404
+#     if not matching_segments:
+#         error_msg = f"No segments found containing span [{span.start}, {span.end}) in instance '{manifestation_id}'"
+#         return jsonify({"error": error_msg}), 404
 
-    # For each matching segment, find all aligned segments separated by direction
-    targets_map = {}
-    sources_map = {}
+#     # For each matching segment, find all aligned segments separated by direction
+#     targets_map = {}
+#     sources_map = {}
 
-    for source_segment in matching_segments:
-        aligned = db.find_aligned_segments(source_segment.id)
+#     for source_segment in matching_segments:
+#         aligned = db.find_aligned_segments(source_segment.id)
 
-        # Process targets (outgoing relationships)
-        for manifestation_id, segments in aligned["targets"].items():
-            existing = targets_map.setdefault(manifestation_id, [])
-            existing.extend(seg for seg in segments if seg not in existing)
+#         # Process targets (outgoing relationships)
+#         for manifestation_id, segments in aligned["targets"].items():
+#             existing = targets_map.setdefault(manifestation_id, [])
+#             existing.extend(seg for seg in segments if seg not in existing)
 
-        # Process sources (incoming relationships)
-        for manifestation_id, segments in aligned["sources"].items():
-            existing = sources_map.setdefault(manifestation_id, [])
-            existing.extend(seg for seg in segments if seg not in existing)
+#         # Process sources (incoming relationships)
+#         for manifestation_id, segments in aligned["sources"].items():
+#             existing = sources_map.setdefault(manifestation_id, [])
+#             existing.extend(seg for seg in segments if seg not in existing)
 
-    def build_related_texts(manifestations_map):
-        """Helper to build the related texts structure from a manifestations map"""
-        result = []
-        for manifestation_id, segments in manifestations_map.items():
-            manifestation_model, expression_id = db.get_manifestation(manifestation_id)
-            expression_model = db.get_expression(expression_id)
+#     def build_related_texts(manifestations_map):
+#         """Helper to build the related texts structure from a manifestations map"""
+#         result = []
+#         for manifestation_id, segments in manifestations_map.items():
+#             manifestation_model, expression_id = db.get_manifestation(manifestation_id)
+#             expression_model = db.get_expression(expression_id)
 
-            # Merge neighboring/overlapping spans
-            merged_spans = []
-            for span in sorted([seg.span for seg in segments], key=lambda s: s[0]):
-                if merged_spans and span[0] <= merged_spans[-1][1]:
-                    merged_spans[-1] = (merged_spans[-1][0], max(merged_spans[-1][1], span[1]))
-                else:
-                    merged_spans.append(span)
+#             # Merge neighboring/overlapping spans
+#             merged_spans = []
+#             for span in sorted([seg.span for seg in segments], key=lambda s: s[0]):
+#                 if merged_spans and span[0] <= merged_spans[-1][1]:
+#                     merged_spans[-1] = (merged_spans[-1][0], max(merged_spans[-1][1], span[1]))
+#                 else:
+#                     merged_spans.append(span)
 
-            result.append(
-                {
-                    "text": expression_model.model_dump(),
-                    "instance": manifestation_model.model_dump(),
-                    "spans": [{"start": s[0], "end": s[1]} for s in merged_spans],
-                }
-            )
-        return result
+#             result.append(
+#                 {
+#                     "text": expression_model.model_dump(),
+#                     "instance": manifestation_model.model_dump(),
+#                     "spans": [{"start": s[0], "end": s[1]} for s in merged_spans],
+#                 }
+#             )
+#         return result
 
-    return (
-        jsonify(
-            {
-                "targets": build_related_texts(targets_map),
-                "sources": build_related_texts(sources_map),
-            }
-        ),
-        200,
-    )
+#     return (
+#         jsonify(
+#             {
+#                 "targets": build_related_texts(targets_map),
+#                 "sources": build_related_texts(sources_map),
+#             }
+#         ),
+#         200,
+#     )
 
-@instances_bp.route("/<string:manifestation_id>/segment_related", methods=["GET"], strict_slashes=False)
+@instances_bp.route("/<string:manifestation_id>/segment-related", methods=["GET"], strict_slashes=False)
 def get_segment_related(manifestation_id: str) -> tuple[Response, int]:
     # Parse transfer parameter
     transfer = request.args.get("transfer", "false").lower() == "true"
@@ -416,7 +419,7 @@ def get_segment_related(manifestation_id: str) -> tuple[Response, int]:
     
     return jsonify(result), 200
 
-@instances_bp.route("/<string:manifestation_id>/relatedto", methods=["GET"], strict_slashes=False)
+@instances_bp.route("/<string:manifestation_id>/related", methods=["GET"], strict_slashes=False)
 def get_related_instances(manifestation_id: str) -> tuple[Response, int]:
     logger.info("Finding related instances for manifestation ID: %s", manifestation_id)
 
@@ -451,21 +454,53 @@ def get_instance_segment_content(instance_id: str) -> tuple[Response, int]:
     """
     
     # Get all parameters
-    segment_id = request.args.get("segment_id")
+    segment_ids_raw = request.args.getlist("segment_id")
     span_start = request.args.get("span_start")
     span_end = request.args.get("span_end")
     
+    # Handle both comma-separated string and multiple parameters
+    segment_ids = []
+    for segment_id_list in segment_ids_raw:
+        # Split by comma if it's a comma-separated string
+        if ',' in segment_id_list:
+            segment_ids.extend([seg_id.strip() for seg_id in segment_id_list.split(',') if seg_id.strip()])
+        else:
+            segment_ids.append(segment_id_list.strip())
+    
+    # Remove empty strings and duplicates while preserving order
+    seen = set()
+    segment_ids = [seg_id for seg_id in segment_ids if seg_id and seg_id not in seen]
+    seen.update(segment_ids)
+    
     # Validate parameter combinations
-    is_valid, error_msg = _validate_request_parameters(segment_id, span_start, span_end)
+    is_valid, error_msg = _validate_request_parameters(segment_ids, span_start, span_end)
     if not is_valid:
         return jsonify({"error": error_msg}), 400
     
     # Handle segment approach
-    if segment_id:
-        success, error_msg, content = _get_segment_content(segment_id)
-        if success:
-            return jsonify({"content": content}), 200
-        return jsonify({"error": error_msg}), 404
+    if segment_ids:
+        result = []
+        errors = []
+        
+        for segment_id in segment_ids:
+            success, error_msg, content = _get_segment_content(segment_id)
+            if success:
+                result.append({
+                    "segment_id": segment_id,
+                    "content": content
+                })
+            else:
+                errors.append(f"Failed to retrieve segment {segment_id}: {error_msg}")
+        
+        # If there are any errors, return error (even for partial failures)
+        if errors:
+            return jsonify({"error": "; ".join(errors)}), 404
+        # If all segments succeeded, return result
+        elif result:
+            return jsonify(result), 200
+        # This should not happen, but handle empty segment_ids
+        else:
+            return jsonify({"error": "No segment IDs provided"}), 400
     
     # Handle span approach
     if span_start and span_end:
@@ -475,7 +510,12 @@ def get_instance_segment_content(instance_id: str) -> tuple[Response, int]:
         
         success, error_msg, content = _get_instance_content(instance_id, span)
         if success:
-            return jsonify({"content": content}), 200
+            # Return span content as list with null segment_id
+            result = [{
+                "segment_id": None,
+                "content": content
+            }]
+            return jsonify(result), 200
         return jsonify({"error": error_msg}), 404
     
     # This should never be reached due to validation

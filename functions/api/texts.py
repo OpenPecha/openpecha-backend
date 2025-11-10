@@ -1,7 +1,6 @@
-from ast import excepthandler
 import logging
 
-from exceptions import InvalidRequest
+from exceptions import InvalidRequest, DataNotFound
 from flask import Blueprint, Response, jsonify, request
 from identifier import generate_id
 from models import (
@@ -47,12 +46,22 @@ def get_all_texts() -> tuple[Response, int]:
     return jsonify(response_data), 200
 
 
-@texts_bp.route("/<string:expression_id>", methods=["GET"], strict_slashes=False)
-def get_texts(expression_id: str) -> tuple[Response, int]:
+@texts_bp.route("/<string:id>", methods=["GET"], strict_slashes=False)
+def get_texts(id: str) -> tuple[Response, int]:
     db = Neo4JDatabase()
-    expression = db.get_expression(expression_id=expression_id)
-    return jsonify(expression.model_dump()), 200
-
+    
+    # Try to get expression by ID first
+    try:
+        expression = db.get_expression(expression_id=id)
+        return jsonify(expression.model_dump()), 200
+    except DataNotFound:
+        # If not found by ID, try to get by BDRC ID
+        try:
+            expression = db.get_expression_by_bdrc(bdrc_id=id)
+            return jsonify(expression.model_dump()), 200
+        except DataNotFound:
+            # If both fail, return not found
+            raise DataNotFound(f"Text with ID or BDRC ID '{id}' not found")
 
 @texts_bp.route("", methods=["POST"], strict_slashes=False)
 def post_texts() -> tuple[Response, int]:
