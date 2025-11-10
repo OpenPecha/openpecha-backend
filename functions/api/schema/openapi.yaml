@@ -1,4 +1,4 @@
-openapi: 3.1.0
+openapi: 3.0.3
 info:
   title: OpenPecha API v2
   version: '2.1.0'
@@ -31,6 +31,13 @@ paths:
             type: boolean
             default: false
           description: Whether to include annotations (alignment annotations are excluded)
+        - name: content
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: Whether to include content (base text)
       responses:
         "200":
           description: Instance retrieved successfully
@@ -79,8 +86,44 @@ paths:
                           type: string
                           enum: [segmentation, version]
               examples:
-                success:
-                  summary: Instance with metadata and optional annotations
+                with_annotations_no_content:
+                  summary: Instance with metadata, annotation without content
+                  value:
+                    metadata:
+                      id: "I12345678"
+                      type: "critical"
+                      copyright: "public"
+                      bdrc: "W123456"
+                      wiki: "Q123456"
+                      colophon: "colophon text"
+                      incipit_title:
+                        en: "English incipit title"
+                        bo: "Tibetan incipit title"
+                      alt_incipit_titles:
+                        - en: "Alt title 1"
+                        - bo: "Alt title 2"
+                    annotations:
+                      - annotation_id: "A12345678"
+                        type: "segmentation"
+                with_content_no_annotations:
+                  summary: Instance with metadata, content without annotations
+                  value:
+                    content: "This is the base text content"
+                    metadata:
+                      id: "I12345678"
+                      type: "critical"
+                      copyright: "public"
+                      bdrc: "W123456"
+                      wiki: "Q123456"
+                      colophon: "colophon text"
+                      incipit_title:
+                        en: "English incipit title"
+                        bo: "Tibetan incipit title"
+                      alt_incipit_titles:
+                        - en: "Alt title 1"
+                        - bo: "Alt title 2"
+                with_content_and_annotations:
+                  summary: Instance with metadata, annotations and content
                   value:
                     content: "This is the base text content"
                     metadata:
@@ -243,7 +286,10 @@ paths:
                             role: "translator"
                       annotation: "A98765434"
                       relationship: "translation"
-                  error: "No segments found containing span [0, 100) in instance 'I12345678'"
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/ServerError'
 

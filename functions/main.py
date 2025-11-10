@@ -49,6 +49,11 @@ def create_app(testing=False):
     app.register_blueprint(annotations_bp, url_prefix="/v2/annotations")
     app.register_blueprint(categories_bp, url_prefix="/v2/categories")
 
+    @app.route("/__/health")
+    def health_check():
+        """Health check endpoint for Firebase Functions."""
+        return jsonify({"status": "healthy"}), 200
+
     @app.after_request
     def add_no_cache_headers(response):
         """Add no-cache headers to all responses."""
