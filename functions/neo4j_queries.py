@@ -325,6 +325,23 @@ RETURN m.id AS manifestation_id
         END
     }} as related_instance
 """,
+    "find_expression_related_instances": f"""
+    // First, find the expression for the given manifestation
+    MATCH (m:Manifestation {{id: $manifestation_id}})-[:MANIFESTATION_OF]->(e:Expression)
+    
+    // Find any expression-level relationships (both to and from)
+    MATCH (e)-[:TRANSLATION_OF|:COMMENTARY_OF]-(related_e:Expression)
+    MATCH (related_e)<-[:MANIFESTATION_OF]-(related_m:Manifestation)
+    
+    // Exclude the original manifestation
+    WHERE related_m.id <> $manifestation_id
+    
+    RETURN DISTINCT {{
+        manifestation: {Queries.manifestation_fragment('related_m')},
+        expression: {Queries.expression_fragment('related_e')},
+        alignment_annotation_id: null
+    }} as related_instance
+""",
 }
 
 Queries.annotations = {
