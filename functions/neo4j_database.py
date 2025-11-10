@@ -7,6 +7,7 @@ from models import (
     AIContributionModel,
     AnnotationModel,
     AnnotationType,
+    BibliographyAnnotationModel,
     ContributionModel,
     CopyrightStatus,
     ExpressionModelInput,
@@ -16,10 +17,13 @@ from models import (
     ManifestationModelInput,
     ManifestationModelOutput,
     ManifestationType,
+    PaginationAnnotationModel,
     PersonModelInput,
     PersonModelOutput,
     SegmentModel,
+    SegmentationAnnotationModel,
     SpanModel,
+    TableOfContentsAnnotationModel,
     TextType,
 )
 from neo4j import GraphDatabase

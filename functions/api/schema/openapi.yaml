@@ -2235,12 +2235,12 @@ paths:
                     description: Annotation ID
                   type:
                     type: string
-                    enum: [segmentation, pagination, alignment, table_of_contents]
+                    enum: [segmentation, pagination, alignment, table_of_contents, bibliography]
                     description: Type of annotation
                   data:
                     oneOf:
                       - type: array
-                        description: Segmentation or pagination or bibliography annotation segments
+                        description: Segmentation, pagination, or bibliography annotation segments
                         items:
                           type: object
                           required:
@@ -2267,6 +2267,10 @@ paths:
                               type: string
                               nullable: true
                               description: Image ID this annotation is referring to (pagination only)
+                            bibliography_type:
+                              type: string
+                              nullable: true
+                              description: Type of bibliography annotation (bibliography only)
                       - type: array
                         description: Table of contents annotation sections
                         items:
@@ -2388,6 +2392,22 @@ paths:
                           start: 25
                           end: 50
                         reference: "IMG002.png"
+                bibliography annotation:
+                  summary: Bibliography annotation with segments and type
+                  value:
+                    id: "ann_bib_789"
+                    type: "bibliography"
+                    data:
+                      - id: "bib_sec_001"
+                        span:
+                          start: 0
+                          end: 50
+                        bibliography_type: "colophon"
+                      - id: "bib_sec_002"
+                        span:
+                          start: 50
+                          end: 100
+                        bibliography_type: "title"
                 alignment annotation:
                   summary: Alignment annotation with segments and alignment mappings
                   value:
