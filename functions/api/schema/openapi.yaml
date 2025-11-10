@@ -1933,8 +1933,8 @@ paths:
 
   /v2/texts/{text_id}:
     get:
-      summary: Retrieve text by ID
-      description: Fetch a specific text by its ID
+      summary: Retrieve text by ID or BDRC ID
+      description: Fetch a specific text by its expression ID or BDRC ID
       tags:
         - Texts
       parameters:
@@ -1943,7 +1943,7 @@ paths:
           required: true
           schema:
             type: string
-          description: The ID of the text to retrieve
+          description: The ID or BDRC ID of the text to retrieve
       responses:
         "200":
           description: Metadata retrieved successfully

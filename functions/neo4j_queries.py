@@ -138,6 +138,11 @@ Queries.expressions = {
 
     RETURN {Queries.expression_fragment('e')} AS expression
 """,
+    "fetch_by_bdrc": f"""
+    MATCH (e:Expression {{bdrc: $bdrc_id}})
+
+    RETURN {Queries.expression_fragment('e')} AS expression
+""",
     "fetch_all": f"""
     MATCH (e:Expression)
     WITH e
