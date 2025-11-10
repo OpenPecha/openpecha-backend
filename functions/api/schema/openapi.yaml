@@ -148,7 +148,7 @@ paths:
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/ServerError'
-  /v2/instances/{instance_id}/relatedto:
+  /v2/instances/{instance_id}/related:
     get:
       summary: Find related instances
       description: >-
@@ -293,7 +293,7 @@ paths:
         "500":
           $ref: '#/components/responses/ServerError'
 
-  /v2/instances/{instance_id}/segment_related:
+  /v2/instances/{instance_id}/segment-related:
     get:
       summary: Find related segments or spans for an instance
       description: >-
@@ -474,13 +474,15 @@ paths:
       summary: Get text content (unified endpoint)
       description: |
         Unified endpoint to retrieve text content from either:
-        1. A specific segment using segment_id parameter (within the given instance)
+        1. One or more specific segments using segment_id parameter(s) (within the given instance)
         2. An instance excerpt using span_start and span_end parameters
         
         **Validation constraints:**
-        - If segment_id is provided: cannot use span_start or span_end parameters
+        - If segment_id(s) are provided: cannot use span_start or span_end parameters
         - If using span approach: must provide span_start and span_end, cannot use segment_id
-        - Must provide either segment_id OR span_start and span_end (mutually exclusive)
+        - Must provide either segment_id(s) OR span_start and span_end (mutually exclusive)
+        - Multiple segment IDs can be provided as repeated query parameters OR as a single comma-separated string
+        - Examples: ?segment_id=SEG001&segment_id=SEG002 OR ?segment_id=SEG001,SEG002
       tags:
         - Instances
       parameters:
@@ -494,8 +496,12 @@ paths:
           in: query
           required: false
           schema:
-            type: string
-          description: The ID of the segment to retrieve content for (alternative to span approach)
+            type: array
+            items:
+              type: string
+          style: form
+          explode: false
+          description: List of segment IDs to retrieve content for (alternative to span approach). Can provide multiple segment_id parameters OR a single comma-separated string of segment IDs.
         - name: span_start
           in: query
           required: false
@@ -516,20 +522,41 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  content:
-                    type: string
-                    description: The extracted text content
+                type: array
+                description: List of segment content dictionaries
+                items:
+                  type: object
+                  properties:
+                    segment_id:
+                      type: string
+                      nullable: true
+                      description: Segment ID (null for span-based content)
+                    content:
+                      type: string
+                      description: The extracted text content
+                  required:
+                    - segment_id
+                    - content
               examples:
                 segment_content:
-                  summary: Content retrieved by segment ID
+                  summary: Content retrieved by single segment ID
                   value:
-                    content: "This is the text content of the segment."
+                    - segment_id: "SEG001"
+                      content: "This is the text content of the segment."
+                multiple_segments_content:
+                  summary: Content retrieved by multiple segment IDs
+                  value:
+                    - segment_id: "SEG001"
+                      content: "This is the first segment content."
+                    - segment_id: "SEG002"
+                      content: "This is the second segment content."
+                    - segment_id: "SEG003"
+                      content: "This is the third segment content."
                 manifestation_excerpt:
                   summary: Content retrieved by manifestation span
                   value:
-                    content: "This is the text content from the specified span."
+                    - segment_id: null
+                      content: "This is the text content from the specified span."
         "400":
           description: Invalid request
           content:
@@ -590,394 +617,6 @@ paths:
                     error: "Failed to retrieve instance content: Instance with ID 'INST123' not found"
         "500":
           $ref: '#/components/responses/ServerError'
-
-  # /v2/instances/{instance_id}/excerpt:
-  #   get:
-  #     summary: Get text excerpt
-  #     description: Retrieve a specific excerpt (substring) of the base text content for a given instance based on character span
-  #     tags:
-  #       - Instances
-  #     parameters:
-  #       - name: instance_id
-  #         in: path
-  #         required: true
-  #         schema:
-  #           type: string
-  #         description: The ID of the instance to retrieve excerpt from
-  #       - name: span_start
-  #         in: query
-  #         required: true
-  #         schema:
-  #           type: integer
-  #           minimum: 0
-  #         description: Start character position of the excerpt (inclusive)
-  #       - name: span_end
-  #         in: query
-  #         required: true
-  #         schema:
-  #           type: integer
-  #           minimum: 1
-  #         description: End character position of the excerpt (exclusive, must be greater than span_start)
-  #     responses:
-  #       "200":
-  #         description: Excerpt retrieved successfully
-  #         content:
-  #           application/json:
-  #             schema:
-  #               type: object
-  #               properties:
-  #                 excerpt:
-  #                   type: string
-  #                   description: The extracted text content from the specified character span
-  #             examples:
-  #               success:
-  #                 summary: Excerpt from position 2 to 4
-  #                 value:
-  #                   excerpt: "hj"
-  #       "400":
-  #         description: Invalid type filter
-  #         content:
-  #           application/json:
-  #             schema:
-  #               type: object
-  #               properties:
-  #                 error:
-  #                   type: string
-  #                   example: "Invalid type filter. Must be 'translation', 'commentary', or 'root'"
-  #       "500":
-  #         $ref: '#/components/responses/ServerError'
-
-  # /v2/instances/{instance_id}/related:
-  #   get:
-  #     summary: Find related texts
-  #     description: Find all related texts, instances and their aligned segments for a given character span in an instance
-  #     tags:
-  #       - Instances
-  #     parameters:
-  #       - name: instance_id
-  #         in: path
-  #         required: true
-  #         schema:
-  #           type: string
-  #         description: The ID of the instance to find related texts for
-  #       - name: span_start
-  #         in: query
-  #         required: true
-  #         schema:
-  #           type: integer
-  #           minimum: 0
-  #         description: Start character position of the span
-  #       - name: span_end
-  #         in: query
-  #         required: true
-  #         schema:
-  #           type: integer
-  #           minimum: 1
-  #         description: End character position of the span (exclusive, must be greater than start)
-  #     responses:
-  #       "200":
-  #         description: Related texts retrieved successfully
-  #         content:
-  #           application/json:
-  #             schema:
-  #               type: object
-  #               properties:
-  #                 targets:
-  #                   type: array
-  #                   description: Texts that the selected segments point to
-  #                   items:
-  #                     type: object
-  #                     properties:
-  #                       instance:
-  #                         type: object
-  #                         description: Manifestation details
-  #                         properties:
-  #                           id:
-  #                             type: string
-  #                           type:
-  #                             type: string
-  #                             enum: [diplomatic, critical, collated]
-  #                           copyright:
-  #                             type: string
-  #                             enum: [public, copyrighted]
-  #                           bdrc:
-  #                             type: string
-  #                           wiki:
-  #                             type: string
-  #                           colophon:
-  #                             type: string
-  #                           incipit_title:
-  #                             type: object
-  #                             additionalProperties:
-  #                               type: string
-  #                           alt_incipit_titles:
-  #                             type: array
-  #                             items:
-  #                               type: object
-  #                               additionalProperties:
-  #                                 type: string
-  #                           annotations:
-  #                             type: array
-  #                             items:
-  #                               type: object
-  #                       text:
-  #                         type: object
-  #                         description: Expression (text) details
-  #                         properties:
-  #                           id:
-  #                             type: string
-  #                           type:
-  #                             type: string
-  #                             enum: [root, commentary, translation]
-  #                           title:
-  #                             type: object
-  #                             additionalProperties:
-  #                               type: string
-  #                           language:
-  #                             type: string
-  #                             enum: [en, bo, zh, sa]
-  #                           contributions:
-  #                             type: array
-  #                             items:
-  #                               type: object
-  #                           date:
-  #                             type: string
-  #                           bdrc:
-  #                             type: string
-  #                           wiki:
-  #                             type: string
-  #                           target:
-  #                             type: string
-  #                       spans:
-  #                         type: array
-  #                         description: Merged character spans from aligned segments
-  #                         items:
-  #                           type: object
-  #                           properties:
-  #                             start:
-  #                               type: integer
-  #                             end:
-  #                               type: integer
-  #                 sources:
-  #                   type: array
-  #                   description: Texts whose segments point to the selected segments
-  #                   items:
-  #                     type: object
-  #                     properties:
-  #                       instance:
-  #                         type: object
-  #                         description: Manifestation details
-  #                         properties:
-  #                           id:
-  #                             type: string
-  #                           type:
-  #                             type: string
-  #                             enum: [diplomatic, critical, collated]
-  #                           copyright:
-  #                             type: string
-  #                             enum: [public, copyrighted]
-  #                           bdrc:
-  #                             type: string
-  #                           wiki:
-  #                             type: string
-  #                           colophon:
-  #                             type: string
-  #                           incipit_title:
-  #                             type: object
-  #                             additionalProperties:
-  #                               type: string
-  #                           alt_incipit_titles:
-  #                             type: array
-  #                             items:
-  #                               type: object
-  #                               additionalProperties:
-  #                                 type: string
-  #                           annotations:
-  #                             type: array
-  #                             items:
-  #                               type: object
-  #                       text:
-  #                         type: object
-  #                         description: Expression (text) details
-  #                         properties:
-  #                           id:
-  #                             type: string
-  #                           type:
-  #                             type: string
-  #                             enum: [root, commentary, translation]
-  #                           title:
-  #                             type: object
-  #                             additionalProperties:
-  #                               type: string
-  #                           language:
-  #                             type: string
-  #                             enum: [en, bo, zh, sa]
-  #                           contributions:
-  #                             type: array
-  #                             items:
-  #                               type: object
-  #                           date:
-  #                             type: string
-  #                           bdrc:
-  #                             type: string
-  #                           wiki:
-  #                             type: string
-  #                           target:
-  #                             type: string
-  #                       spans:
-  #                         type: array
-  #                         description: Merged character spans from aligned segments
-  #                         items:
-  #                           type: object
-  #                           properties:
-  #                             start:
-  #                               type: integer
-  #                             end:
-  #                               type: integer
-  #             examples:
-  #               success:
-  #                 summary: Related texts with merged spans separated by direction
-  #                 value:
-  #                   targets:
-  #                     - instance:
-  #                         id: "I87654321"
-  #                         type: "diplomatic"
-  #                         copyright: "public"
-  #                         bdrc: "W789012"
-  #                       text:
-  #                         id: "T87654321"
-  #                         type: "translation"
-  #                         title:
-  #                           en: "English Translation"
-  #                         language: "en"
-  #                         target: "T12345678"
-  #                       spans:
-  #                         - start: 0
-  #                           end: 150
-  #                         - start: 200
-  #                           end: 350
-  #                   sources:
-  #                     - instance:
-  #                         id: "I11111111"
-  #                         type: "critical"
-  #                         copyright: "public"
-  #                       text:
-  #                         id: "T11111111"
-  #                         type: "root"
-  #                         title:
-  #                           bo: "མ་ཕྱི།"
-  #                         language: "bo"
-  #                       spans:
-  #                         - start: 50
-  #                           end: 100
-  #       "400":
-  #         description: Invalid request
-  #         content:
-  #           application/json:
-  #             schema:
-  #               type: object
-  #               properties:
-  #                 error:
-  #                   type: string
-  #             examples:
-  #               missing_params:
-  #                 summary: Missing parameters
-  #                 value:
-  #                   error: "Both 'start' and 'end' query parameters are required"
-  #               invalid_integers:
-  #                 summary: Invalid parameter types
-  #                 value:
-  #                   error: "'start' and 'end' must be valid integers"
-  #               invalid_span:
-  #                 summary: Invalid span range
-  #                 value:
-  #                   error: "Invalid span: 'start' must be >= 0, 'end' must be > start"
-  #       "404":
-  #         description: Not found
-  #         content:
-  #           application/json:
-  #             schema:
-  #               type: object
-  #               properties:
-  #                 error:
-  #                   type: string
-  #             examples:
-  #               no_segments:
-  #                 summary: No segments found
-  #                 value:
-  #                   error: "No segments found containing span [0, 100) in instance 'I12345678'"
-  #       "500":
-  #         $ref: '#/components/responses/ServerError'
-
-  # /v2/instances/{instance_id}/excerpt:
-  #   get:
-  #     summary: Get text excerpt
-  #     description: Retrieve a specific excerpt (substring) of the base text content for a given instance based on character span
-  #     tags:
-  #       - Instances
-  #     parameters:
-  #       - name: instance_id
-  #         in: path
-  #         required: true
-  #         schema:
-  #           type: string
-  #         description: The ID of the instance to retrieve excerpt from
-  #       - name: span_start
-  #         in: query
-  #         required: true
-  #         schema:
-  #           type: integer
-  #           minimum: 0
-  #         description: Start character position of the excerpt (inclusive)
-  #       - name: span_end
-  #         in: query
-  #         required: true
-  #         schema:
-  #           type: integer
-  #           minimum: 1
-  #         description: End character position of the excerpt (exclusive, must be greater than span_start)
-  #     responses:
-  #       "200":
-  #         description: Excerpt retrieved successfully
-  #         content:
-  #           application/json:
-  #             schema:
-  #               type: object
-  #               properties:
-  #                 excerpt:
-  #                   type: string
-  #                   description: The extracted text content from the specified character span
-  #             examples:
-  #               success:
-  #                 summary: Excerpt from position 2 to 4
-  #                 value:
-  #                   excerpt: "hj"
-  #       "400":
-  #         description: Invalid request
-  #         content:
-  #           application/json:
-  #             schema:
-  #               type: object
-  #               properties:
-  #                 error:
-  #                   type: string
-  #             examples:
-  #               missing_params:
-  #                 summary: Missing required parameters
-  #                 value:
-  #                   error: "Both 'span_start' and 'span_end' query parameters are required"
-  #               invalid_span:
-  #                 summary: Invalid span range
-  #                 value:
-  #                   error: "Invalid span: 'span_start' must be >= 0, 'span_end' must be > span_start"
-  #               span_exceeds:
-  #                 summary: Span exceeds text length
-  #                 value:
-  #                   error: "span_end (1000) exceeds base text length (500)"
-  #       "404":
-  #         $ref: '#/components/responses/NotFound'
-  #       "500":
-  #         $ref: '#/components/responses/ServerError'
 
   /v2/texts/{text_id}/instances:
     get:
@@ -1931,19 +1570,19 @@ paths:
         "500":
           $ref: '#/components/responses/ServerError'
 
-  /v2/texts/{text_id}:
+  /v2/texts/{id}:
     get:
-      summary: Retrieve text by ID
-      description: Fetch a specific text by its ID
+      summary: Retrieve text by ID or BDRC ID
+      description: Fetch a specific text by its expression ID or BDRC ID
       tags:
         - Texts
       parameters:
-        - name: text_id
+        - name: id
           in: path
           required: true
           schema:
             type: string
-          description: The ID of the text to retrieve
+          description: The ID or BDRC ID of the text to retrieve
       responses:
         "200":
           description: Metadata retrieved successfully
@@ -2807,201 +2446,6 @@ paths:
           $ref: '#/components/responses/NotFound'
         "422":
           $ref: '#/components/responses/ValidationError'
-        "500":
-          $ref: '#/components/responses/ServerError'
-
-  /v2/segments/{segment_id}/related:
-    get:
-      summary: Find related texts for a segment
-      description: Find all related texts and instances that are aligned to a specific segment
-      tags:
-        - Segments
-      parameters:
-        - name: segment_id
-          in: path
-          required: true
-          schema:
-            type: string
-          description: The ID of the segment to find related texts for
-      responses:
-        "200":
-          description: Related texts retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  targets:
-                    type: array
-                    description: Texts that this segment points to (outgoing alignments)
-                    items:
-                      type: object
-                      properties:
-                        instance:
-                          type: object
-                          description: Manifestation details
-                          properties:
-                            id:
-                              type: string
-                            type:
-                              type: string
-                              enum: [diplomatic, critical, collated]
-                            copyright:
-                              type: string
-                              enum: [public, copyrighted]
-                            bdrc:
-                              type: string
-                            wiki:
-                              type: string
-                        text:
-                          type: object
-                          description: Expression (text) details
-                          properties:
-                            id:
-                              type: string
-                            type:
-                              type: string
-                              enum: [root, commentary, translation]
-                            title:
-                              type: object
-                              additionalProperties:
-                                type: string
-                            language:
-                              type: string
-                        segments:
-                          type: array
-                          description: List of aligned segments with their IDs and spans
-                          items:
-                            type: object
-                            properties:
-                              id:
-                                type: string
-                                description: Segment ID
-                              span:
-                                type: object
-                                properties:
-                                  start:
-                                    type: integer
-                                    description: Start character position
-                                  end:
-                                    type: integer
-                                    description: End character position
-                  sources:
-                    type: array
-                    description: Texts whose segments point to this segment (incoming alignments)
-                    items:
-                      type: object
-                      properties:
-                        instance:
-                          type: object
-                          description: Manifestation details
-                          properties:
-                            id:
-                              type: string
-                            type:
-                              type: string
-                              enum: [diplomatic, critical, collated]
-                            copyright:
-                              type: string
-                              enum: [public, copyrighted]
-                            bdrc:
-                              type: string
-                            wiki:
-                              type: string
-                        text:
-                          type: object
-                          description: Expression (text) details
-                          properties:
-                            id:
-                              type: string
-                            type:
-                              type: string
-                              enum: [root, commentary, translation]
-                            title:
-                              type: object
-                              additionalProperties:
-                                type: string
-                            language:
-                              type: string
-                        segments:
-                          type: array
-                          description: List of aligned segments with their IDs and spans
-                          items:
-                            type: object
-                            properties:
-                              id:
-                                type: string
-                                description: Segment ID
-                              span:
-                                type: object
-                                properties:
-                                  start:
-                                    type: integer
-                                    description: Start character position
-                                  end:
-                                    type: integer
-                                    description: End character position
-              examples:
-                success:
-                  summary: Related texts with segments
-                  value:
-                    targets:
-                      - instance:
-                          id: "M12345678"
-                          type: "critical"
-                          copyright: "public"
-                        text:
-                          id: "E12345678"
-                          type: "translation"
-                          title:
-                            en: "Translation of the Text"
-                          language: "en"
-                        segments:
-                          - id: "SEG001"
-                            span:
-                              start: 0
-                              end: 100
-                          - id: "SEG002"
-                            span:
-                              start: 100
-                              end: 200
-                    sources: []
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "500":
-          $ref: '#/components/responses/ServerError'
-
-  /v2/segments/{segment_id}/content:
-    get:
-      summary: Get segment text content
-      description: Retrieve the base text content for a segment based on its character span
-      tags:
-        - Segments
-      parameters:
-        - name: segment_id
-          in: path
-          required: true
-          schema:
-            type: string
-          description: The ID of the segment to retrieve text content for
-      responses:
-        "200":
-          description: Segment content retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  content:
-                    type: string
-                    description: The text content of the segment
-              examples:
-                success:
-                  summary: Segment text content
-                  value:
-                    content: "This is the text content of the segment."
-        "404":
-          $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/ServerError'
 

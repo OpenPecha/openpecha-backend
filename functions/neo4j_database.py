@@ -67,6 +67,15 @@ class Neo4JDatabase:
 
             return self._process_expression_data(record.data()["expression"])
 
+    def get_expression_by_bdrc(self, bdrc_id: str) -> ExpressionModelOutput:
+        with self.__driver.session() as session:
+            result = session.run(Queries.expressions["fetch_by_bdrc"], bdrc_id=bdrc_id)
+
+            if (record := result.single()) is None:
+                raise DataNotFound(f"Expression with BDRC ID '{bdrc_id}' not found")
+
+            return self._process_expression_data(record.data()["expression"])
+
     def _process_manifestation_data(self, manifestation_data: dict) -> ManifestationModelOutput:
         annotations = [
             AnnotationModel(
