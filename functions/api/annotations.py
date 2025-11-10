@@ -82,6 +82,12 @@ def add_annotation(manifestation_id: str) -> tuple[Response, int]:
             data = data
         )
 
+    elif request_model.annotation_type == AnnotationType.TABLE_OF_CONTENTS:
+        response = _add_table_of_contents_annotation(
+            manifestation_id = manifestation_id,
+            data = data
+        )
+
     return jsonify(response), 201
 
 def _add_alignment_annotation(target_manifestation_id: str, manifestation_id: str, data: dict) -> dict:
@@ -105,7 +111,7 @@ def _add_alignment_annotation(target_manifestation_id: str, manifestation_id: st
 
     Neo4JDatabase().add_alignment_annotation_to_manifestation(
         target_annotation = target_annotation,
-        source_annotation = alignment_annotation,
+        alignment_annotation = alignment_annotation,
         target_manifestation_id = target_manifestation_id,
         source_manifestation_id = manifestation_id,
         target_segments = target_segments_with_ids,
@@ -124,18 +130,24 @@ def _add_alignment_annotation(target_manifestation_id: str, manifestation_id: st
 def _add_segmentation_annotation(manifestation, manifestation_id: str, data: dict) -> dict:
     annotation_id = None
     annotation_type = None
+    annotation_segments = data.get("annotation", [])
+
     if manifestation.type == ManifestationType.CRITICAL:
         annotation_type = AnnotationModel(
             id=generate_id(),
             type=AnnotationType.SEGMENTATION,
         )
     elif manifestation.type == ManifestationType.DIPLOMATIC:
-        annotation_type = AnnotationModel(
-            id=generate_id(),
-            type=AnnotationType.PAGINATION,
-        )
+        if data.get("annotation_type") == AnnotationType.PAGINATION:
+            annotation_type = AnnotationModel(
+                id=generate_id(),
+                type=AnnotationType.PAGINATION,
+            )
+        else:
+            raise InvalidRequest("Annotation type should be pagination for diplomatic manifestation")
+
     logger.info("Adding annotation to manifestation")
-    annotation_id = Neo4JDatabase().add_annotation_to_manifestation(manifestation_id = manifestation_id, annotation = annotation_type, annotation_segments = data)
+    annotation_id = Neo4JDatabase().add_annotation_to_manifestation(manifestation_id = manifestation_id, annotation = annotation_type, annotation_segments = annotation_segments)
     logger.info("Annotation added successfully")
 
     response = {
@@ -159,3 +171,23 @@ def _alignment_annotation_mapping(target_annotation: list[dict], alignment_annot
         for target_idx in seg.get("alignment_index", [])
     ]
     return alignment_segments_with_ids, target_segments_with_ids, alignments
+
+def _add_table_of_contents_annotation(manifestation_id: str, data: dict) -> dict:
+    annotation_id = None
+    annotation_type = None
+    annotation_segments = data.get("annotation", [])
+
+    annotation_type = AnnotationModel(
+        id=generate_id(),
+        type=AnnotationType.TABLE_OF_CONTENTS,
+    )
+    logger.info("Adding table of contents annotation to manifestation")
+    annotation_id = Neo4JDatabase().add_table_of_contents_annotation_to_manifestation(manifestation_id = manifestation_id, annotation = annotation_type, annotation_segments = annotation_segments)
+    logger.info("Table of contents annotation added successfully")
+
+    response = {
+        "message": "Table of contents annotation added successfully",
+        "annotation_id": annotation_id,
+    }
+
+    return response
