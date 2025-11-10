@@ -474,13 +474,15 @@ paths:
       summary: Get text content (unified endpoint)
       description: |
         Unified endpoint to retrieve text content from either:
-        1. A specific segment using segment_id parameter (within the given instance)
+        1. One or more specific segments using segment_id parameter(s) (within the given instance)
         2. An instance excerpt using span_start and span_end parameters
         
         **Validation constraints:**
-        - If segment_id is provided: cannot use span_start or span_end parameters
+        - If segment_id(s) are provided: cannot use span_start or span_end parameters
         - If using span approach: must provide span_start and span_end, cannot use segment_id
-        - Must provide either segment_id OR span_start and span_end (mutually exclusive)
+        - Must provide either segment_id(s) OR span_start and span_end (mutually exclusive)
+        - Multiple segment IDs can be provided as repeated query parameters OR as a single comma-separated string
+        - Examples: ?segment_id=SEG001&segment_id=SEG002 OR ?segment_id=SEG001,SEG002
       tags:
         - Instances
       parameters:
@@ -494,8 +496,12 @@ paths:
           in: query
           required: false
           schema:
-            type: string
-          description: The ID of the segment to retrieve content for (alternative to span approach)
+            type: array
+            items:
+              type: string
+          style: form
+          explode: false
+          description: List of segment IDs to retrieve content for (alternative to span approach). Can provide multiple segment_id parameters OR a single comma-separated string of segment IDs.
         - name: span_start
           in: query
           required: false
@@ -516,20 +522,41 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  content:
-                    type: string
-                    description: The extracted text content
+                type: array
+                description: List of segment content dictionaries
+                items:
+                  type: object
+                  properties:
+                    segment_id:
+                      type: string
+                      nullable: true
+                      description: Segment ID (null for span-based content)
+                    content:
+                      type: string
+                      description: The extracted text content
+                  required:
+                    - segment_id
+                    - content
               examples:
                 segment_content:
-                  summary: Content retrieved by segment ID
+                  summary: Content retrieved by single segment ID
                   value:
-                    content: "This is the text content of the segment."
+                    - segment_id: "SEG001"
+                      content: "This is the text content of the segment."
+                multiple_segments_content:
+                  summary: Content retrieved by multiple segment IDs
+                  value:
+                    - segment_id: "SEG001"
+                      content: "This is the first segment content."
+                    - segment_id: "SEG002"
+                      content: "This is the second segment content."
+                    - segment_id: "SEG003"
+                      content: "This is the third segment content."
                 manifestation_excerpt:
                   summary: Content retrieved by manifestation span
                   value:
-                    content: "This is the text content from the specified span."
+                    - segment_id: null
+                      content: "This is the text content from the specified span."
         "400":
           description: Invalid request
           content:
