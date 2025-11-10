@@ -2974,14 +2974,12 @@ paths:
                   type: table_of_contents
                   data:
                     annotations:
-                      - span:
-                          start: 0
-                          end: 42
-                        type: "title"
-                      - span:
-                          start: 42
-                          end: 100
-                        type: "author"
+                      - title:
+                          "Chapter 1: Introduction"
+                        segments: ["seg_001", "seg_002", "seg_003"]
+                      - title:
+                          "Chapter 2: Main Content"
+                        segments: ["seg_004", "seg_005"]
               pagination:
                 summary: Update pagination annotation
                 value:
