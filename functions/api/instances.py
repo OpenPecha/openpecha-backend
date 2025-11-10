@@ -28,9 +28,9 @@ instances_bp = Blueprint("instances", __name__)
 logger = logging.getLogger(__name__)
 
 
-def _validate_request_parameters(segment_id: str, span_start: str, span_end: str) -> tuple[bool, str]:
+def _validate_request_parameters(segment_ids: list[str], span_start: str, span_end: str) -> tuple[bool, str]:
     """Validate parameter combinations and return (is_valid, error_message)."""
-    if segment_id and (span_start or span_end):
+    if segment_ids and (span_start or span_end):
         return False, "Cannot provide both segment_id and span parameters. Use one approach only."
     
     if span_start and not span_end:
@@ -39,7 +39,7 @@ def _validate_request_parameters(segment_id: str, span_start: str, span_end: str
     if span_end and not span_start:
         return False, "span_start parameter is required when using span_end"
     
-    if not segment_id and not span_start and not span_end:
+    if not segment_ids and not span_start and not span_end:
         return False, "Either segment_id OR span_start and span_end is required"
     
     return True, ""
@@ -70,6 +70,9 @@ def _get_segment_content(segment_id: str) -> tuple[bool, str, str]:
         return True, "", content
     except Exception as e:
         return False, f"Failed to retrieve segment content: {str(e)}", ""
+
+
+
 
 
 def _get_instance_content(instance_id: str, span: SpanModel) -> tuple[bool, str, str]:
@@ -451,21 +454,53 @@ def get_instance_segment_content(instance_id: str) -> tuple[Response, int]:
     """
     
     # Get all parameters
-    segment_id = request.args.get("segment_id")
+    segment_ids_raw = request.args.getlist("segment_id")
     span_start = request.args.get("span_start")
     span_end = request.args.get("span_end")
     
+    # Handle both comma-separated string and multiple parameters
+    segment_ids = []
+    for segment_id_list in segment_ids_raw:
+        # Split by comma if it's a comma-separated string
+        if ',' in segment_id_list:
+            segment_ids.extend([seg_id.strip() for seg_id in segment_id_list.split(',') if seg_id.strip()])
+        else:
+            segment_ids.append(segment_id_list.strip())
+    
+    # Remove empty strings and duplicates while preserving order
+    seen = set()
+    segment_ids = [seg_id for seg_id in segment_ids if seg_id and seg_id not in seen]
+    seen.update(segment_ids)
+    
     # Validate parameter combinations
-    is_valid, error_msg = _validate_request_parameters(segment_id, span_start, span_end)
+    is_valid, error_msg = _validate_request_parameters(segment_ids, span_start, span_end)
     if not is_valid:
         return jsonify({"error": error_msg}), 400
     
     # Handle segment approach
-    if segment_id:
-        success, error_msg, content = _get_segment_content(segment_id)
-        if success:
-            return jsonify({"content": content}), 200
-        return jsonify({"error": error_msg}), 404
+    if segment_ids:
+        result = []
+        errors = []
+        
+        for segment_id in segment_ids:
+            success, error_msg, content = _get_segment_content(segment_id)
+            if success:
+                result.append({
+                    "segment_id": segment_id,
+                    "content": content
+                })
+            else:
+                errors.append(f"Failed to retrieve segment {segment_id}: {error_msg}")
+        
+        # If there are any errors, return error (even for partial failures)
+        if errors:
+            return jsonify({"error": "; ".join(errors)}), 404
+        # If all segments succeeded, return result
+        elif result:
+            return jsonify(result), 200
+        # This should not happen, but handle empty segment_ids
+        else:
+            return jsonify({"error": "No segment IDs provided"}), 400
     
     # Handle span approach
     if span_start and span_end:
@@ -475,7 +510,12 @@ def get_instance_segment_content(instance_id: str) -> tuple[Response, int]:
         
         success, error_msg, content = _get_instance_content(instance_id, span)
         if success:
-            return jsonify({"content": content}), 200
+            # Return span content as list with null segment_id
+            result = [{
+                "segment_id": None,
+                "content": content
+            }]
+            return jsonify(result), 200
         return jsonify({"error": error_msg}), 404
     
     # This should never be reached due to validation
