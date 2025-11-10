@@ -379,8 +379,16 @@ RETURN s.id as id,
        s.span_start as start,
        s.span_end as end,
        r.name as reference,
-       bt.type as bibliography_type
+       bt.name as bibliography_type
 ORDER BY s.span_start
+""",
+    "get_sections": """
+MATCH (a:Annotation {id: $annotation_id})
+<-[:SECTION_OF]-(s:Section)
+OPTIONAL MATCH (seg:Segment)-[:PART_OF]->(s)
+WITH s, collect(seg.id) as segment_ids
+RETURN s.id as id, s.title as title, segment_ids as segments
+ORDER BY s.title
 """,
     "get_alignment_indices": """
 // First, get all target segments ordered by span to establish indices
@@ -400,6 +408,28 @@ WHERE aligned.id = seg_id
 RETURN segment_index as index
 ORDER BY segment_index
 """
+}
+
+Queries.sections = {
+    "create_batch": """
+MATCH (a:Annotation {id: $annotation_id})
+UNWIND $sections AS sec
+CREATE (s:Section {
+    id: sec.id,
+    title: sec.title
+})
+CREATE (s)-[:SECTION_OF]->(a)
+WITH s, sec.segments AS segment_ids
+UNWIND segment_ids AS segment_id
+MATCH (seg:Segment {id: segment_id})
+CREATE (seg)-[:PART_OF]->(s)
+""",
+    "delete_sections": """
+MATCH (a:Annotation {id: $annotation_id})
+OPTIONAL MATCH (s:Section)-[r1:SECTION_OF]->(a)
+OPTIONAL MATCH (seg:Segment)-[r2:PART_OF]->(s)
+DELETE r1, r2
+""",
 }
 
 Queries.segments = {

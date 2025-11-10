@@ -1,4 +1,4 @@
-openapi: 3.1.0
+openapi: 3.0.3
 info:
   title: OpenPecha API v2
   version: '2.1.0'
@@ -31,6 +31,13 @@ paths:
             type: boolean
             default: false
           description: Whether to include annotations (alignment annotations are excluded)
+        - name: content
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: Whether to include content (base text)
       responses:
         "200":
           description: Instance retrieved successfully
@@ -79,8 +86,44 @@ paths:
                           type: string
                           enum: [segmentation, version]
               examples:
-                success:
-                  summary: Instance with metadata and optional annotations
+                with_annotations_no_content:
+                  summary: Instance with metadata, annotation without content
+                  value:
+                    metadata:
+                      id: "I12345678"
+                      type: "critical"
+                      copyright: "public"
+                      bdrc: "W123456"
+                      wiki: "Q123456"
+                      colophon: "colophon text"
+                      incipit_title:
+                        en: "English incipit title"
+                        bo: "Tibetan incipit title"
+                      alt_incipit_titles:
+                        - en: "Alt title 1"
+                        - bo: "Alt title 2"
+                    annotations:
+                      - annotation_id: "A12345678"
+                        type: "segmentation"
+                with_content_no_annotations:
+                  summary: Instance with metadata, content without annotations
+                  value:
+                    content: "This is the base text content"
+                    metadata:
+                      id: "I12345678"
+                      type: "critical"
+                      copyright: "public"
+                      bdrc: "W123456"
+                      wiki: "Q123456"
+                      colophon: "colophon text"
+                      incipit_title:
+                        en: "English incipit title"
+                        bo: "Tibetan incipit title"
+                      alt_incipit_titles:
+                        - en: "Alt title 1"
+                        - bo: "Alt title 2"
+                with_content_and_annotations:
+                  summary: Instance with metadata, annotations and content
                   value:
                     content: "This is the base text content"
                     metadata:
@@ -2181,16 +2224,23 @@ paths:
             application/json:
               schema:
                 type: object
-                description: Annotation data with uniform structure containing all possible keys
+                description: Annotation data with uniform structure
                 required:
-                  - annotation
-                  - alignment_annotation
-                  - target_annotation
+                  - id
+                  - type
+                  - data
                 properties:
-                  annotation:
+                  id:
+                    type: string
+                    description: Annotation ID
+                  type:
+                    type: string
+                    enum: [segmentation, pagination, alignment, table_of_contents, bibliography]
+                    description: Type of annotation
+                  data:
                     oneOf:
                       - type: array
-                        description: Segmentation or pagination or bibliography annotation segments
+                        description: Segmentation, pagination, or bibliography annotation segments
                         items:
                           type: object
                           required:
@@ -2216,84 +2266,108 @@ paths:
                             reference:
                               type: string
                               nullable: true
-                              description: Image ID this annotation is referring to 
-                      - type: 'null'
-                        description: No segmentation/pagination annotation data (not applicable for alignment)
-                  alignment_annotation:
-                    oneOf:
+                              description: Image ID this annotation is referring to (pagination only)
+                            bibliography_type:
+                              type: string
+                              nullable: true
+                              description: Type of bibliography annotation (bibliography only)
                       - type: array
-                        description: Alignment annotation source segments with alignment mappings
+                        description: Table of contents annotation sections
                         items:
                           type: object
                           required:
                             - id
-                            - span
-                            - index
-                            - alignment_index
+                            - title
+                            - segments
                           properties:
                             id:
                               type: string
-                              description: Unique identifier for the segment
-                            span:
-                              type: object
-                              description: Character span of the segment
-                              required:
-                                - start
-                                - end
-                              properties:
-                                start:
-                                  type: integer
-                                  description: Start character position 
-                                end:
-                                  type: integer
-                                  description: End character position
-                            index:
-                              type: integer
-                              description: Index of the segment
-                            alignment_index:
+                              description: Unique identifier for the section
+                            title:
+                              type: string
+                              description: Title of the table of contents section
+                            segments:
                               type: array
+                              description: List of segment IDs that belong to this section
                               items:
-                                type: integer
-                              description: Array of target segment indices this segment aligns to
-                      - type: 'null'
-                        description: No alignment annotation data (not applicable for segmentation/pagination)
-                  target_annotation:
-                    oneOf:
-                      - type: array
-                        description: Target annotation segments for alignment annotations
-                        items:
-                          type: object
-                          required:
-                            - id
-                            - span
-                            - index
-                          properties:
-                            id:
-                              type: string
-                              description: Unique identifier for the segment
-                            span:
+                                type: string
+                      - type: object
+                        description: Alignment annotation with source and target segments
+                        required:
+                          - alignment_annotation
+                          - target_annotation
+                        properties:
+                          alignment_annotation:
+                            type: array
+                            description: Source segments with alignment mappings
+                            items:
                               type: object
-                              description: Character span of the segment
                               required:
-                                - start
-                                - end
+                                - id
+                                - span
+                                - index
+                                - alignment_index
                               properties:
-                                start:
+                                id:
+                                  type: string
+                                  description: Unique identifier for the segment
+                                span:
+                                  type: object
+                                  description: Character span of the segment
+                                  required:
+                                    - start
+                                    - end
+                                  properties:
+                                    start:
+                                      type: integer
+                                      description: Start character position 
+                                    end:
+                                      type: integer
+                                      description: End character position
+                                index:
                                   type: integer
-                                  description: Start character position 
-                                end:
+                                  description: Index of the segment
+                                alignment_index:
+                                  type: array
+                                  items:
+                                    type: integer
+                                  description: Array of target segment indices this segment aligns to
+                          target_annotation:
+                            type: array
+                            description: Target segments
+                            items:
+                              type: object
+                              required:
+                                - id
+                                - span
+                                - index
+                              properties:
+                                id:
+                                  type: string
+                                  description: Unique identifier for the segment
+                                span:
+                                  type: object
+                                  description: Character span of the segment
+                                  required:
+                                    - start
+                                    - end
+                                  properties:
+                                    start:
+                                      type: integer
+                                      description: Start character position 
+                                    end:
+                                      type: integer
+                                      description: End character position
+                                index:
                                   type: integer
-                                  description: End character position
-                            index:
-                              type: integer
-                              description: Index of the segment 
-                      - type: 'null'
-                        description: No target annotation (not applicable for segmentation/pagination) 
+                                  description: Index of the segment 
               examples:
                 segmentation annotation:
                   summary: Segmentation annotation with segments
                   value:
-                    annotation:
+                    id: "ann_seg_123"
+                    type: "segmentation"
+                    data:
                       - id: "sdlsakdf"
                         span:
                           start: 0
@@ -2302,12 +2376,12 @@ paths:
                         span:
                           start: 20
                           end: 45
-                    alignment_annotation: null
-                    target_annotation: null
                 pagination annotation:
                   summary: Pagination annotation with segments and reference
                   value:
-                    annotation:
+                    id: "ann_pag_456"
+                    type: "pagination"
+                    data:
                       - id: "laksdfklsjd"
                         span:
                           start: 0
@@ -2318,63 +2392,94 @@ paths:
                           start: 25
                           end: 50
                         reference: "IMG002.png"
-                    alignment_annotation: null
-                    target_annotation: null
+                bibliography annotation:
+                  summary: Bibliography annotation with segments and type
+                  value:
+                    id: "ann_bib_789"
+                    type: "bibliography"
+                    data:
+                      - id: "bib_sec_001"
+                        span:
+                          start: 0
+                          end: 50
+                        bibliography_type: "colophon"
+                      - id: "bib_sec_002"
+                        span:
+                          start: 50
+                          end: 100
+                        bibliography_type: "title"
                 alignment annotation:
                   summary: Alignment annotation with segments and alignment mappings
                   value:
-                    annotation: null
-                    alignment_annotation:
-                      - id: "idx6tTeELJEwEQiIEyqhQ"
-                        span:
-                          start: 0
-                          end: 1
-                        index: 0
-                        alignment_index: [0, 1]
-                      - id: "NB9oPpSDymL33ZhYYE9xs"
-                        span:
-                          start: 1
-                          end: 2
-                        index: 1
-                        alignment_index: [1, 2]
-                      - id: "Texrsipn60lEZWQJKFH3y"
-                        span:
-                          start: 2
-                          end: 3
-                        index: 2
-                        alignment_index: [3]
-                      - id: "Ah5AIixdu5svKBynmUOhg"
-                        span:
-                          start: 3
-                          end: 4
-                        index: 3
-                        alignment_index: [3, 4]
-                    target_annotation:
-                      - id: "vYnN5yiwBXvA4MJdUtDqz"
-                        span:
-                          start: 0
-                          end: 1
-                        index: 0
-                      - id: "nDMQBXVRvuKfbRbO96qIM"
-                        span:
-                          start: 1
-                          end: 2
-                        index: 1
-                      - id: "mqOyBwAGdfNwXMQMef4XF"
-                        span:
-                          start: 2
-                          end: 3
-                        index: 2
-                      - id: "pMBGOZp4dxOWIEjAAlnWe"
-                        span:
-                          start: 3
-                          end: 4
-                        index: 3
-                      - id: "AWLRjvyTbTtbMXVysSsr6"
-                        span:
-                          start: 4
-                          end: 5
-                        index: 4
+                    id: "ann_align_789"
+                    type: "alignment"
+                    data:
+                      alignment_annotation:
+                        - id: "idx6tTeELJEwEQiIEyqhQ"
+                          span:
+                            start: 0
+                            end: 1
+                          index: 0
+                          alignment_index: [0, 1]
+                        - id: "NB9oPpSDymL33ZhYYE9xs"
+                          span:
+                            start: 1
+                            end: 2
+                          index: 1
+                          alignment_index: [1, 2]
+                        - id: "Texrsipn60lEZWQJKFH3y"
+                          span:
+                            start: 2
+                            end: 3
+                          index: 2
+                          alignment_index: [3]
+                        - id: "Ah5AIixdu5svKBynmUOhg"
+                          span:
+                            start: 3
+                            end: 4
+                          index: 3
+                          alignment_index: [3, 4]
+                      target_annotation:
+                        - id: "vYnN5yiwBXvA4MJdUtDqz"
+                          span:
+                            start: 0
+                            end: 1
+                          index: 0
+                        - id: "nDMQBXVRvuKfbRbO96qIM"
+                          span:
+                            start: 1
+                            end: 2
+                          index: 1
+                        - id: "mqOyBwAGdfNwXMQMef4XF"
+                          span:
+                            start: 2
+                            end: 3
+                          index: 2
+                        - id: "pMBGOZp4dxOWIEjAAlnWe"
+                          span:
+                            start: 3
+                            end: 4
+                          index: 3
+                        - id: "AWLRjvyTbTtbMXVysSsr6"
+                          span:
+                            start: 4
+                            end: 5
+                          index: 4
+                table of contents annotation:
+                  summary: Table of contents annotation with sections
+                  value:
+                    id: "ann_toc_101"
+                    type: "table_of_contents"
+                    data:
+                      - id: "0S0d3z7633mE3TK7IaZWE"
+                        title: "Chapter 1: Introduction"
+                        segments: ["1ZPTJfkyOR28oqFUzb3cF", "Yzkd4ct5icrWYGyI2H3Dn"]
+                      - id: "jqcP8yUpCsv65NSNAlTm9"
+                        title: "Chapter 2: Main Content"
+                        segments: ["CuTHRuW5a6vd5YYWcmTbC"]
+                      - id: "ISmJpRblcnZJmp8BjIlzL"
+                        title: "Chapter 3: Conclusion"
+                        segments: ["pxhHUGHK7cS24Ccr8jCvV", "A1QdkN2gDu6u7ZU3DPZCu"]
         "400":
           $ref: '#/components/responses/InvalidRequest'
         "404":
@@ -2394,6 +2499,8 @@ paths:
         - PAGINATION: Send pagination annotations with span and reference (for DIPLOMATIC manifestations).
         
         - BIBLIOGRAPHY: Send bibliography annotations with span and bibliography type.
+        
+        - TABLE_OF_CONTENTS: Send table of contents annotations with sections containing title and segment IDs.
         
         - ALIGNMENT: Creates alignment relationships between segments of the source and target manifestations.
       tags:
@@ -2416,12 +2523,12 @@ paths:
               properties:
                 annotation_type:
                   type: string
-                  enum: [segmentation, alignment, pagination, bibliography]
+                  enum: [segmentation, alignment, pagination, bibliography, table_of_contents]
                   description: Type of annotation to add
                 annotation:
                   type: array
                   minItems: 1
-                  description: Array of segmentation, pagination, or bibliography annotations (required for SEGMENTATION, PAGINATION, or BIBLIOGRAPHY type respectively)
+                  description: Array of segmentation, pagination, bibliography, or table of contents annotations (required for SEGMENTATION, PAGINATION, BIBLIOGRAPHY, or TABLE_OF_CONTENTS type respectively)
                   items:
                     oneOf:
                       - type: object
@@ -2478,7 +2585,22 @@ paths:
                             type: string
                             description: Type of bibliography annotation
                         description: Bibliography annotation
-                target_instance_id:
+                      - type: object
+                        required: [id, title, segments]
+                        properties:
+                          id:
+                            type: string
+                            description: Unique identifier for the section
+                          title:
+                            type: string
+                            description: Title of the table of contents section
+                          segments:
+                            type: array
+                            description: List of segment IDs that belong to this section
+                            items:
+                              type: string
+                        description: Table of contents annotation
+                target_manifestation_id:
                   type: string
                   description: Target instance ID (required for ALIGNMENT type)
                 target_annotation:
@@ -2570,11 +2692,25 @@ paths:
                         start: 50
                         end: 100
                       type: "title"
+              table of contents:
+                summary: Table of Contents
+                value:
+                  annotation_type: table_of_contents
+                  annotation:
+                    - id: "section_001"
+                      title: "Chapter 1: Introduction"
+                      segments: ["seg_001", "seg_002", "seg_003"]
+                    - id: "section_002"
+                      title: "Chapter 2: Main Content"
+                      segments: ["seg_004", "seg_005"]
+                    - id: "section_003"
+                      title: "Chapter 3: Conclusion"
+                      segments: ["seg_006", "seg_007", "seg_008"]
               alignment:
                 summary: Alignment
                 value:
                   annotation_type: alignment
-                  target_instance_id: "MNF12345678"
+                  target_manifestation_id: "MNF12345678"
                   target_annotation:
                     - span:
                         start: 0
@@ -2618,7 +2754,7 @@ paths:
                 invalid_annotation_type:
                   summary: Invalid annotation type
                   value:
-                    error: "Invalid annotation type. Allowed types are [SEGMENTATION, ALIGNMENT]"
+                    error: "Invalid annotation type. Allowed types are [segmentation, pagination, bibliography, table_of_contents, alignment]"
                 missing_annotation:
                   summary: Missing annotation data
                   value:

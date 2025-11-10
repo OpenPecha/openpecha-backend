@@ -7,6 +7,7 @@ from models import (
     AIContributionModel,
     AnnotationModel,
     AnnotationType,
+    BibliographyAnnotationModel,
     ContributionModel,
     CopyrightStatus,
     ExpressionModelInput,
@@ -16,10 +17,13 @@ from models import (
     ManifestationModelInput,
     ManifestationModelOutput,
     ManifestationType,
+    PaginationAnnotationModel,
     PersonModelInput,
     PersonModelOutput,
     SegmentModel,
+    SegmentationAnnotationModel,
     SpanModel,
+    TableOfContentsAnnotationModel,
     TextType,
 )
 from neo4j import GraphDatabase
@@ -551,7 +555,7 @@ class Neo4JDatabase:
     def add_alignment_annotation_to_manifestation(
         self,
         target_annotation: AnnotationModel,
-        source_annotation: AnnotationModel,
+        alignment_annotation: AnnotationModel,
         target_manifestation_id: str,
         source_manifestation_id: str,
         target_segments: list[dict],
@@ -562,8 +566,8 @@ class Neo4JDatabase:
             _ = self._execute_add_annotation(tx, target_manifestation_id, target_annotation)
             self._create_segments(tx, target_annotation.id, target_segments)
 
-            _ = self._execute_add_annotation(tx, source_manifestation_id, source_annotation)
-            self._create_segments(tx, source_annotation.id, alignment_segments)
+            _ = self._execute_add_annotation(tx, source_manifestation_id, alignment_annotation)
+            self._create_segments(tx, alignment_annotation.id, alignment_segments)
 
             tx.run(Queries.segments["create_alignments_batch"], alignments=alignments)
         
@@ -843,6 +847,41 @@ class Neo4JDatabase:
         )
         return annotation.id
 
+    def _create_sections(self, tx, annotation_id: str, sections: list[dict] = None) -> None:
+        if sections:
+            # Generate IDs for sections that don't have them
+            # Uniqueness is enforced by Neo4j constraint on Section.id (62^21 possibilities)
+            sections_with_ids = []
+            for sec in sections:
+                # Validate section structure
+                if "title" not in sec or "segments" not in sec:
+                    raise ValueError(f"Section must have title and segments: {sec}")
+                if not isinstance(sec["segments"], list):
+                    raise ValueError(f"Section segments must be a list: {sec['segments']}")
+
+                if "id" not in sec or sec["id"] is None:
+                    sec["id"] = generate_id()
+                sections_with_ids.append(sec)
+
+            logger.info(f"Creating {len(sections_with_ids)} sections for annotation {annotation_id}")
+            for sec in sections_with_ids:
+                logger.info(f"Section: {sec['id']}, title: {sec['title']}, segments: {len(sec['segments'])}")
+
+            tx.run(
+                Queries.sections["create_batch"],
+                annotation_id=annotation_id,
+                sections=sections_with_ids,
+            )
+
+    def add_table_of_contents_annotation_to_manifestation(self, manifestation_id: str, annotation: AnnotationModel, annotation_segments: list[TableOfContentsAnnotationModel]):
+        def transaction_function(tx):
+            annotation_id = self._execute_add_annotation(tx, manifestation_id, annotation)
+            self._create_sections(tx, annotation_id, annotation_segments)
+            return annotation_id
+        with self.__driver.session() as session:
+            return session.execute_write(transaction_function)
+
+
     def _create_segments(self, tx, annotation_id: str, segments: list[dict] = None) -> None:
         if segments:
             # Generate IDs for segments that don't have them
@@ -905,7 +944,7 @@ class Neo4JDatabase:
         )
 
     def get_annotation(self, annotation_id: str) ->  dict:
-        """Get all segments for an annotation. For alignment annotations, returns both source and target segments."""
+        """Get all segments for an annotation. Returns uniform structure with all possible keys."""
         with self.get_session() as session:
             # Get annotation type
             annotation_result = session.run(
@@ -918,6 +957,13 @@ class Neo4JDatabase:
                 raise DataNotFound(f"Annotation with ID '{annotation_id}' not found")
             
             annotation_type = annotation_record["annotation_type"]
+            
+            # Initialize uniform response structure
+            response = {
+                "id": annotation_id,
+                "type": annotation_type,
+                "data": None
+            }
             
             # Get aligned annotation ID if it exists
             aligned_to_id = None
@@ -936,8 +982,8 @@ class Neo4JDatabase:
                 target_segments_result = self._get_annotation_segments(aligned_to_id)
                 
                 # Extract the actual segment lists from the dict results
-                source_segments = source_segments_result["annotation"]
-                target_segments = target_segments_result["annotation"]
+                source_segments = source_segments_result
+                target_segments = target_segments_result
                 
                 # Add index and alignment_index to source segments
                 source_segments_with_index = []
@@ -960,16 +1006,41 @@ class Neo4JDatabase:
                     }
                     target_segments_with_index.append(segment_with_index)
                 
-                return {
-                    "annotation": None,
+                response["data"] = {
                     "alignment_annotation": source_segments_with_index,
                     "target_annotation": target_segments_with_index
                 }
+                
+            elif annotation_type == "table_of_contents":
+                # For table of contents annotations, return sections
+                sections = self._get_annotation_sections(annotation_id)
+                response["data"] = sections
+                
             else:
-                # For non-alignment annotations, return the basic segment list
-                return self._get_annotation_segments(annotation_id)
+                # For segmentation and pagination annotations, return segments
+                segments_result = self._get_annotation_segments(annotation_id)
+                response["data"] = segments_result
+            
+            return response
     
-    def _get_annotation_segments(self, annotation_id: str) -> dict:
+    def _get_annotation_sections(self, annotation_id: str) -> list[dict]:
+        """Helper method to get sections for a specific annotation."""
+        with self.get_session() as session:
+            result = session.run(
+                Queries.annotations["get_sections"],
+                annotation_id=annotation_id
+            )
+            sections = []
+            for record in result:
+                section = {
+                    "id": record["id"],
+                    "title": record["title"],
+                    "segments": record["segments"]
+                }
+                sections.append(section)
+        return sections
+    
+    def _get_annotation_segments(self, annotation_id: str) -> list[dict]:
         """Helper method to get segments for a specific annotation."""
         with self.get_session() as session:
             result = session.run(
@@ -988,14 +1059,10 @@ class Neo4JDatabase:
                 if record["reference"]:
                     segment["reference"] = record["reference"]
                 if record["bibliography_type"]:
-                    segment["bibliography_type"] = record["bibliography_type"]
+                    segment["type"] = record["bibliography_type"]
                 segments.append(segment)
 
-        return {
-                "annotation": segments,
-                "alignment_annotation": None,
-                "target_annotation": None,
-            }
+        return segments
     
     def _get_alignment_indices(self, source_segment_id: str, target_annotation_id: str) -> list[int]:
         """Get the indices of target segments that a source segment aligns to."""
@@ -1111,3 +1178,9 @@ class Neo4JDatabase:
         with self.get_session() as session:
             session.run(Queries.segments["delete_all_segments_by_annotation_id"], annotation_id = annotation_id)
             session.run(Queries.annotations["delete"], annotation_id = annotation_id)
+        
+    def delete_table_of_content_annotation(self, annotation_id: str) -> None:
+        with self.get_session() as session:
+            session.run(Queries.sections["delete_sections"], annotation_id = annotation_id)
+            session.run(Queries.annotations["delete"], annotation_id = annotation_id)
+

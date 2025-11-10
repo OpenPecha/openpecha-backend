@@ -255,6 +255,10 @@ class BibliographyAnnotationModel(OpenPechaModel):
     span: SpanModel
     type: NonEmptyStr
 
+class TableOfContentsAnnotationModel(OpenPechaModel):
+    title: NonEmptyStr
+    segments: list[NonEmptyStr]
+
 class InstanceRequestModel(OpenPechaModel):
     metadata: ManifestationModelInput
     annotation: list[SegmentationAnnotationModel | PaginationAnnotationModel] | None = None
@@ -282,46 +286,67 @@ class InstanceRequestModel(OpenPechaModel):
 
 class AddAnnotationRequestModel(OpenPechaModel):
     annotation_type: AnnotationType
-    annotation: list[SegmentationAnnotationModel | PaginationAnnotationModel | BibliographyAnnotationModel] | None = None
+    annotation: list[SegmentationAnnotationModel | PaginationAnnotationModel | BibliographyAnnotationModel | TableOfContentsAnnotationModel] | None = None
     target_manifestation_id: str | None = None
     target_annotation: list[AlignmentAnnotationModel] | None = None
     alignment_annotation: list[AlignmentAnnotationModel] | None = None
 
     @model_validator(mode="after")
     def validate_request_model(self):
-        if self.annotation_type == AnnotationType.SEGMENTATION:
-            if self.annotation is None or len(self.annotation) == 0:
-                raise ValueError("Segmentation annotation cannot be empty")
-            elif self.target_annotation is not None or self.alignment_annotation is not None:
-                raise ValueError("Cannot provide both annotation and alignment annotation or target_annotation")
-            elif not all(isinstance(ann, SegmentationAnnotationModel) for ann in self.annotation):
-                raise ValueError("Invalid annotation")
-        elif self.annotation_type == AnnotationType.PAGINATION:
-            if self.annotation is None or len(self.annotation) == 0:
-                raise ValueError("Pagination annotation cannot be empty")
-            elif self.target_annotation is not None or self.alignment_annotation is not None:
-                raise ValueError("Cannot provide both annotation and alignment annotation or target_annotation")
-            elif not all(isinstance(ann, PaginationAnnotationModel) for ann in self.annotation):
-                raise ValueError("Invalid annotation")
-        elif self.annotation_type == AnnotationType.ALIGNMENT:
-            if self.target_manifestation_id is None:
-                raise ValueError("Target manifestation id must be provided")
-            elif self.target_annotation is None or len(self.target_annotation) == 0:
-                raise ValueError("Target annotation must be provided and cannot be empty")
-            elif self.alignment_annotation is None or len(self.alignment_annotation) == 0:
-                raise ValueError("Alignment annotation must be provided and cannot be empty")
-            elif self.annotation is not None:
-                raise ValueError("Cannot provide both annotation and alignment annotation or target_annotation")
-            elif not all(isinstance(ann, AlignmentAnnotationModel) for ann in self.target_annotation + self.alignment_annotation):
-                raise ValueError("Invalid target annotation or alignment annotation")
-        elif self.annotation_type == AnnotationType.BIBLIOGRAPHY:
-            if self.annotation is None or len(self.annotation) == 0:
-                raise ValueError("Biblography annotation cannot be empty")
-            elif not all(isinstance(ann, BibliographyAnnotationModel) for ann in self.annotation):
-                raise ValueError("Invalid annotation")
+        validators = {
+            AnnotationType.SEGMENTATION: self._validate_segmentation,
+            AnnotationType.PAGINATION: self._validate_pagination,
+            AnnotationType.ALIGNMENT: self._validate_alignment,
+            AnnotationType.BIBLIOGRAPHY: self._validate_bibliography,
+            AnnotationType.TABLE_OF_CONTENTS: self._validate_table_of_contents,
+        }
+        
+        validator = validators.get(self.annotation_type)
+        if validator:
+            validator()
         else:
-            raise ValueError("Invalid annotation type. Allowed types are [SEGMENTATION, ALIGNMENT, PAGINATION, BIBLIOGRAPHY]")
+            raise ValueError("Invalid annotation type. Allowed types are [SEGMENTATION, ALIGNMENT, PAGINATION, BIBLIOGRAPHY, TABLE_OF_CONTENTS]")
         return self
+
+    def _validate_segmentation(self):
+        if self.annotation is None or len(self.annotation) == 0:
+            raise ValueError("Segmentation annotation cannot be empty")
+        if self.target_annotation is not None or self.alignment_annotation is not None:
+            raise ValueError("Cannot provide both segmentation annotation and alignment annotation or target_annotation")
+        if not all(isinstance(ann, SegmentationAnnotationModel) for ann in self.annotation):
+            raise ValueError("Invalid segmentation annotation")
+
+    def _validate_pagination(self):
+        if self.annotation is None or len(self.annotation) == 0:
+            raise ValueError("Pagination annotation cannot be empty")
+        if self.target_annotation is not None or self.alignment_annotation is not None:
+            raise ValueError("Cannot provide both pagination annotation and alignment annotation or target_annotation")
+        if not all(isinstance(ann, PaginationAnnotationModel) for ann in self.annotation):
+            raise ValueError("Invalid pagination annotation")
+
+    def _validate_alignment(self):
+        if self.target_manifestation_id is None:
+            raise ValueError("Target manifestation id must be provided")
+        if self.target_annotation is None or len(self.target_annotation) == 0:
+            raise ValueError("Target annotation must be provided and cannot be empty")
+        if self.alignment_annotation is None or len(self.alignment_annotation) == 0:
+            raise ValueError("Alignment annotation must be provided and cannot be empty")
+        if self.annotation is not None:
+            raise ValueError("Cannot provide both annotation and alignment annotation or target_annotation")
+        if not all(isinstance(ann, AlignmentAnnotationModel) for ann in self.target_annotation + self.alignment_annotation):
+            raise ValueError("Invalid target annotation or alignment annotation")
+
+    def _validate_bibliography(self):
+        if self.annotation is None or len(self.annotation) == 0:
+            raise ValueError("Biblography annotation cannot be empty")
+        if not all(isinstance(ann, BibliographyAnnotationModel) for ann in self.annotation):
+            raise ValueError("Invalid annotation")
+
+    def _validate_table_of_contents(self):
+        if self.annotation is None or len(self.annotation) == 0:
+            raise ValueError("Table of contents annotation cannot be empty")
+        if not all(isinstance(ann, TableOfContentsAnnotationModel) for ann in self.annotation):
+            raise ValueError("Invalid annotation")
 
 class CategoryRequestModel(OpenPechaModel):
     application: NonEmptyStr
@@ -341,7 +366,7 @@ class CategoryListItemModel(OpenPechaModel):
     has_child: bool = False
 
 class UpdateAnnotationDataModel(OpenPechaModel):
-    annotations: list[SegmentationAnnotationModel | PaginationAnnotationModel | BibliographyAnnotationModel] | None = None
+    annotations: list[SegmentationAnnotationModel | PaginationAnnotationModel | BibliographyAnnotationModel | TableOfContentsAnnotationModel] | None = None
     target_annotation: list[AlignmentAnnotationModel] | None = None
     alignment_annotation: list[AlignmentAnnotationModel] | None = None
 
