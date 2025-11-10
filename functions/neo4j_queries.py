@@ -138,6 +138,11 @@ Queries.expressions = {
 
     RETURN {Queries.expression_fragment('e')} AS expression
 """,
+    "fetch_by_bdrc": f"""
+    MATCH (e:Expression {{bdrc: $bdrc_id}})
+
+    RETURN {Queries.expression_fragment('e')} AS expression
+""",
     "fetch_all": f"""
     MATCH (e:Expression)
     WITH e
@@ -322,6 +327,23 @@ RETURN m.id AS manifestation_id
             WHEN related_m1 IS NOT NULL THEN ann.id 
             ELSE source_ann.id 
         END
+    }} as related_instance
+""",
+    "find_expression_related_instances": f"""
+    // First, find the expression for the given manifestation
+    MATCH (m:Manifestation {{id: $manifestation_id}})-[:MANIFESTATION_OF]->(e:Expression)
+    
+    // Find any expression-level relationships (both to and from)
+    MATCH (e)-[:TRANSLATION_OF|:COMMENTARY_OF]-(related_e:Expression)
+    MATCH (related_e)<-[:MANIFESTATION_OF]-(related_m:Manifestation)
+    
+    // Exclude the original manifestation
+    WHERE related_m.id <> $manifestation_id
+    
+    RETURN DISTINCT {{
+        manifestation: {Queries.manifestation_fragment('related_m')},
+        expression: {Queries.expression_fragment('related_e')},
+        alignment_annotation_id: null
     }} as related_instance
 """,
 }

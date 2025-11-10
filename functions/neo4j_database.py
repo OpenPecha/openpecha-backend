@@ -67,6 +67,15 @@ class Neo4JDatabase:
 
             return self._process_expression_data(record.data()["expression"])
 
+    def get_expression_by_bdrc(self, bdrc_id: str) -> ExpressionModelOutput:
+        with self.__driver.session() as session:
+            result = session.run(Queries.expressions["fetch_by_bdrc"], bdrc_id=bdrc_id)
+
+            if (record := result.single()) is None:
+                raise DataNotFound(f"Expression with BDRC ID '{bdrc_id}' not found")
+
+            return self._process_expression_data(record.data()["expression"])
+
     def _process_manifestation_data(self, manifestation_data: dict) -> ManifestationModelOutput:
         annotations = [
             AnnotationModel(
@@ -210,9 +219,33 @@ class Neo4JDatabase:
             List of dictionaries containing instance metadata, expression details, and alignment annotation IDs
         """
         with self.__driver.session() as session:
-            result = session.execute_read(
+            # Step 1: Find instances related through alignment annotations
+            alignment_result = session.execute_read(
                 lambda tx: list(tx.run(Queries.manifestations["find_related_instances"], manifestation_id=manifestation_id))
             )
+            
+            # Step 2: Find instances related through expression-level relationships
+            expression_result = session.execute_read(
+                lambda tx: list(tx.run(Queries.manifestations["find_expression_related_instances"], manifestation_id=manifestation_id))
+            )
+            
+            # Get instance_ids from alignment results to prioritize them
+            alignment_instance_ids = set()
+            for record in alignment_result:
+                data = record.data()["related_instance"]
+                manifestation_data = data["manifestation"]
+                alignment_instance_ids.add(manifestation_data["id"])
+            
+            # Filter expression results to remove duplicates from alignment results
+            filtered_expression_result = []
+            for record in expression_result:
+                data = record.data()["related_instance"]
+                manifestation_data = data["manifestation"]
+                if manifestation_data["id"] not in alignment_instance_ids:
+                    filtered_expression_result.append(record)
+            
+            # Combine alignment results with filtered expression results
+            result = alignment_result + filtered_expression_result
             
             related_instances = []
             for record in result:
