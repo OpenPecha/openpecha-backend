@@ -1,7 +1,6 @@
-from ast import excepthandler
 import logging
 
-from exceptions import InvalidRequest
+from exceptions import InvalidRequest, DataNotFound
 from flask import Blueprint, Response, jsonify, request
 from identifier import generate_id
 from models import (
@@ -55,15 +54,14 @@ def get_texts(text_id: str) -> tuple[Response, int]:
     try:
         expression = db.get_expression(expression_id=text_id)
         return jsonify(expression.model_dump()), 200
-    except Exception as e:
+    except DataNotFound:
         # If not found by ID, try to get by BDRC ID
         try:
             expression = db.get_expression_by_bdrc(bdrc_id=text_id)
             return jsonify(expression.model_dump()), 200
-        except Exception:
+        except DataNotFound:
             # If both fail, return not found
-            return jsonify({"error": f"Text with ID or BDRC ID '{text_id}' not found"}), 404
-
+            raise DataNotFound(f"Text with ID or BDRC ID '{text_id}' not found")
 
 @texts_bp.route("", methods=["POST"], strict_slashes=False)
 def post_texts() -> tuple[Response, int]:
