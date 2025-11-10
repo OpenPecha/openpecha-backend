@@ -138,10 +138,14 @@ def _add_segmentation_annotation(manifestation, manifestation_id: str, data: dic
             type=AnnotationType.SEGMENTATION,
         )
     elif manifestation.type == ManifestationType.DIPLOMATIC:
-        annotation_type = AnnotationModel(
-            id=generate_id(),
-            type=AnnotationType.PAGINATION,
-        )
+        if data.get("annotation_type") == AnnotationType.PAGINATION:
+            annotation_type = AnnotationModel(
+                id=generate_id(),
+                type=AnnotationType.PAGINATION,
+            )
+        else:
+            raise InvalidRequest("Annotation type should be pagination for diplomatic manifestation")
+
     logger.info("Adding annotation to manifestation")
     annotation_id = Neo4JDatabase().add_annotation_to_manifestation(manifestation_id = manifestation_id, annotation = annotation_type, annotation_segments = annotation_segments)
     logger.info("Annotation added successfully")

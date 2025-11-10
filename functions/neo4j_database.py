@@ -1048,7 +1048,7 @@ class Neo4JDatabase:
                 if record["reference"]:
                     segment["reference"] = record["reference"]
                 if record["bibliography_type"]:
-                    segment["bibliography_type"] = record["bibliography_type"]
+                    segment["type"] = record["bibliography_type"]
                 segments.append(segment)
 
         return segments

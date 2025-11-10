@@ -355,7 +355,7 @@ RETURN s.id as id,
        s.span_start as start,
        s.span_end as end,
        r.name as reference,
-       bt.type as bibliography_type
+       bt.name as bibliography_type
 ORDER BY s.span_start
 """,
     "get_sections": """
