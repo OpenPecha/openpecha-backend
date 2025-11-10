@@ -45,16 +45,9 @@ def update_annotation(annotation_id: str) -> tuple[Response, int]:
     # Validate that the annotation exists and type matches
     logger.info(f"Validating that the annotation exists and type matches for annotation {annotation_id}")
     db = Neo4JDatabase()
-    existing_type = db.get_annotation_type(annotation_id)
-    if existing_type is None:
-        raise DataNotFound(f"Annotation with ID {annotation_id} not found")
     
-    if existing_type != request_model.type.value:
-        raise InvalidRequest(
-            f"Annotation type mismatch: annotation {annotation_id} is of type '{existing_type}', "
-            f"but request body specifies type '{request_model.type.value}'"
-        )
-    
+    _validate_update_annotation_request(db = db, annotation_id = annotation_id, request_model = request_model)
+
     if request_model.type != AnnotationType.ALIGNMENT and request_model.type != AnnotationType.TABLE_OF_CONTENTS:
 
         manifestation_id = db.get_manifestation_id_by_annotation_id(annotation_id = annotation_id)
@@ -80,77 +73,19 @@ def update_annotation(annotation_id: str) -> tuple[Response, int]:
             "annotation_id": annotation_id
         }
     elif request_model.type == AnnotationType.TABLE_OF_CONTENTS:
-        
-        manifestation_id = db.get_manifestation_id_by_annotation_id(annotation_id = annotation_id)
-        if manifestation_id is None:
-            raise DataNotFound(f"Manifestation not found for annotation {annotation_id}")
-
-        logger.info("Deleting table of contents annotation and it's sections")
-        db.delete_table_of_content_annotation(annotation_id = annotation_id)
-        logger.info("Table of contents annotation deleted successfully")
-
-        logger.info("Creating new table of contents annotation")
-        annotation_id = db.add_table_of_contents_annotation_to_manifestation(
-            manifestation_id = manifestation_id,
-            annotation = AnnotationModel(
-                id = generate_id(),
-                type = AnnotationType.TABLE_OF_CONTENTS
-            ),
-            annotation_segments=data["data"]["annotations"]
+        response = _update_table_of_contents_annotation(
+            db = db,
+            annotation_id = annotation_id,
+            data = data
         )
-        response = {
-            "message": "Table of contents annotation updated successfully",
-            "annotation_id": annotation_id
-        }
     else:
-        logger.info("Deleting alignment annotation and it's segments")
-        pair = db.get_alignment_pair(annotation_id)
-        if pair is None:
-            raise DataNotFound(f"Alignment pair not found for annotation {annotation_id}")
-
-        source_id, target_id = pair
-        logger.info(f"source id: {source_id}, target id: {target_id}")
-        
-        source_manifestation_id = db.get_manifestation_id_by_annotation_id(source_id)
-        target_manifestation_id = db.get_manifestation_id_by_annotation_id(target_id)
-        logger.info(f"source manifestation id: {source_manifestation_id}, target manifestation id: {target_manifestation_id}")
-
-        db.delete_alignment_annotation(source_id, target_id)
-        logger.info("Alignment annotation deleted successfully")
-
-        logger.info("Creating new alignment annotation")
-        alignment_segments_with_ids, target_segments_with_ids, alignments = _alignment_annotation_mapping(
-            target_annotation=data["data"]["target_annotation"],
-            alignment_annotation=data["data"]["alignment_annotation"]
+        response = _update_alignment_annotation(
+            db = db,
+            annotation_id = annotation_id,
+            data = data
         )
-
-        target_annotation_id = generate_id()
-        source_annotation_id = generate_id()
-        db.add_alignment_annotation_to_manifestation(
-            target_annotation=AnnotationModel(
-                id=target_annotation_id,
-                type=AnnotationType.ALIGNMENT
-            ),
-            source_annotation=AnnotationModel(
-                id=source_annotation_id,
-                type=AnnotationType.ALIGNMENT,
-                aligned_to=target_annotation_id
-            ),
-            target_manifestation_id = target_manifestation_id,
-            source_manifestation_id = source_manifestation_id,
-            target_segments = target_segments_with_ids,
-            alignment_segments = alignment_segments_with_ids,
-            alignments = alignments
-        )
-
-        response = {
-            "message": "Alignment annotation updated successfully",
-            "target_annotation_id": target_annotation_id,
-            "source_annotation_id": source_annotation_id
-        }
 
     return jsonify(response), 201
-        
 
 @annotations_bp.route("/<string:manifestation_id>/annotation", methods=["POST"], strict_slashes=False)
 def add_annotation(manifestation_id: str) -> tuple[Response, int]:
@@ -197,6 +132,90 @@ def add_annotation(manifestation_id: str) -> tuple[Response, int]:
 
     return jsonify(response), 201
 
+def _validate_update_annotation_request(db: Neo4JDatabase, annotation_id: str, request_model: UpdateAnnotationRequestModel) -> None:
+    existing_type = db.get_annotation_type(annotation_id)
+    if existing_type is None:
+        raise DataNotFound(f"Annotation with ID {annotation_id} not found")
+    
+    if existing_type != request_model.type.value:
+        raise InvalidRequest(
+            f"Annotation type mismatch: annotation {annotation_id} is of type '{existing_type}', "
+            f"but request body specifies type '{request_model.type.value}'"
+        )
+
+
+def _update_table_of_contents_annotation(db: Neo4JDatabase, annotation_id: str, data: dict) -> dict:
+    manifestation_id = db.get_manifestation_id_by_annotation_id(annotation_id = annotation_id)
+    if manifestation_id is None:
+        raise DataNotFound(f"Manifestation not found for annotation {annotation_id}")
+
+    logger.info("Deleting table of contents annotation and it's sections")
+    db.delete_table_of_content_annotation(annotation_id = annotation_id)
+    logger.info("Table of contents annotation deleted successfully")
+
+    logger.info("Creating new table of contents annotation")
+    annotation_id = db.add_table_of_contents_annotation_to_manifestation(
+        manifestation_id = manifestation_id,
+        annotation = AnnotationModel(
+            id = generate_id(),
+            type = AnnotationType.TABLE_OF_CONTENTS
+        ),
+        annotation_segments=data["data"]["annotations"]
+    )
+    response = {
+        "message": "Table of contents annotation updated successfully",
+        "annotation_id": annotation_id
+    }
+    return response
+
+def _update_alignment_annotation(db: Neo4JDatabase, annotation_id: str, data: dict) -> dict:
+    logger.info("Deleting alignment annotation and it's segments")
+    pair = db.get_alignment_pair(annotation_id)
+    if pair is None:
+        raise DataNotFound(f"Alignment pair not found for annotation {annotation_id}")
+
+    source_id, target_id = pair
+    logger.info(f"source id: {source_id}, target id: {target_id}")
+    
+    source_manifestation_id = db.get_manifestation_id_by_annotation_id(source_id)
+    target_manifestation_id = db.get_manifestation_id_by_annotation_id(target_id)
+    logger.info(f"source manifestation id: {source_manifestation_id}, target manifestation id: {target_manifestation_id}")
+
+    db.delete_alignment_annotation(source_id, target_id)
+    logger.info("Alignment annotation deleted successfully")
+
+    logger.info("Creating new alignment annotation")
+    alignment_segments_with_ids, target_segments_with_ids, alignments = _alignment_annotation_mapping(
+        target_annotation=data["data"]["target_annotation"],
+        alignment_annotation=data["data"]["alignment_annotation"]
+    )
+
+    target_annotation_id = generate_id()
+    source_annotation_id = generate_id()
+    db.add_alignment_annotation_to_manifestation(
+        target_annotation=AnnotationModel(
+            id=target_annotation_id,
+            type=AnnotationType.ALIGNMENT
+        ),
+        source_annotation=AnnotationModel(
+            id=source_annotation_id,
+            type=AnnotationType.ALIGNMENT,
+            aligned_to=target_annotation_id
+        ),
+        target_manifestation_id = target_manifestation_id,
+        source_manifestation_id = source_manifestation_id,
+        target_segments = target_segments_with_ids,
+        alignment_segments = alignment_segments_with_ids,
+        alignments = alignments
+    )
+
+    response = {
+        "message": "Alignment annotation updated successfully",
+        "target_annotation_id": target_annotation_id,
+        "source_annotation_id": source_annotation_id
+    }
+
+    return response
 
 def _add_bibliography_annotation(request_model: AddAnnotationRequestModel, manifestation_id: str) -> dict:
     db = Neo4JDatabase()
