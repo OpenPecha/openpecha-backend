@@ -2158,9 +2158,9 @@ paths:
             schema:
               type: object
               required:
-                - annotation_type
+                - type
               properties:
-                annotation_type:
+                stype:
                   type: string
                   enum: [segmentation, alignment, pagination, bibliography, table_of_contents]
                   description: Type of annotation to add
@@ -2297,7 +2297,7 @@ paths:
               segmentation:
                 summary: Segmentation (Critical Instance)
                 value:
-                  annotation_type: segmentation
+                  type: segmentation
                   annotation:
                     - span:
                         start: 0
@@ -2308,7 +2308,7 @@ paths:
               pagination:
                 summary: Pagination (Diplomatic Instance)
                 value:
-                  annotation_type: segmentation
+                  type: pagination
                   annotation:
                     - span:
                         start: 0
@@ -2321,7 +2321,7 @@ paths:
               bibliography:
                 summary: Bibliography
                 value:
-                  annotation_type: bibliography
+                  type: bibliography
                   annotation:
                     - span:
                         start: 0
@@ -2334,7 +2334,7 @@ paths:
               table of contents:
                 summary: Table of Contents
                 value:
-                  annotation_type: table_of_contents
+                  type: table_of_contents
                   annotation:
                     - id: "section_001"
                       title: "Chapter 1: Introduction"
@@ -2348,7 +2348,7 @@ paths:
               alignment:
                 summary: Alignment
                 value:
-                  annotation_type: alignment
+                  type: alignment
                   target_manifestation_id: "MNF12345678"
                   target_annotation:
                     - span:
