@@ -673,3 +673,51 @@ MATCH (c:Category {id: $category_id})
 CREATE (w)-[:BELONGS_TO]->(c)
 """,
 }
+
+Queries.enum = {
+    "create_language": """
+CREATE (l:Language {code: toLower($code), name: toLower($name)})
+RETURN l.id as language_id
+""",
+    "list_languages": """
+MATCH (l:Language)
+RETURN l.code AS code, l.name AS name
+ORDER BY name ASC
+""",
+    "create_bibliography": """
+CREATE (bt:BibliographyType {name: toLower($name)})
+RETURN bt.id as bibliography_type_id
+""",
+    "list_bibliography": """
+MATCH (bt:BibliographyType)
+RETURN bt.name AS name
+ORDER BY name ASC
+""",
+    "create_manifestation": """
+CREATE (mt:ManifestationType {name: toLower($name)})
+RETURN mt.id as manifestation_type_id
+""",
+    "list_manifestation": """
+MATCH (mt:ManifestationType)
+RETURN mt.name AS name
+ORDER BY name ASC
+""",
+    "create_role": """
+CREATE (rt:RoleType {name: toLower($name), description: $description})
+RETURN rt.id as role_type_id
+""",
+    "list_role": """
+MATCH (rt:RoleType)
+RETURN rt.name AS name, rt.description AS description
+ORDER BY name ASC
+""",
+    "create_annotation": """
+CREATE (at:AnnotationType {name: toLower($name)})
+RETURN at.id as annotation_type_id
+""",
+    "list_annotation": """
+MATCH (at:AnnotationType)
+RETURN at.name AS name
+ORDER BY name ASC
+""",
+}

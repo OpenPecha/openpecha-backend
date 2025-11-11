@@ -414,3 +414,15 @@ class UpdateAnnotationDataModel(OpenPechaModel):
 class UpdateAnnotationRequestModel(OpenPechaModel):
     type: AnnotationType
     data: UpdateAnnotationDataModel
+
+class EnumType(str, Enum):
+    LANGUAGE = "language"
+    BIBLIOGRAPHY = "bibliography"
+    MANIFESTATION = "manifestation"
+    ROLE = "role"
+    COPYRIGHT_STATUS = "copyright_status"
+    ANNOTATION = "annotation"
+
+class EnumRequestModel(OpenPechaModel):
+    type: EnumType
+    value: dict[str, NonEmptyStr]
