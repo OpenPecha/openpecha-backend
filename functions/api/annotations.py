@@ -18,6 +18,7 @@ from models import (
 )
 from identifier import generate_id
 from exceptions import InvalidRequest
+from neo4j_database_validator import Neo4JDatabaseValidator
 
 @annotations_bp.route("/<string:annotation_id>", methods=["GET"], strict_slashes=False)
 def get_annotation(annotation_id: str) -> tuple[Response, int]:
@@ -54,9 +55,19 @@ def update_annotation(annotation_id: str) -> tuple[Response, int]:
         if manifestation_id is None:
             raise DataNotFound(f"Manifestation not found for annotation {annotation_id}")
 
+        # Validate bibliography types exist in Neo4j before updating
+        if request_model.type == AnnotationType.BIBLIOGRAPHY:
+            bibliography_types = [seg.get("type") for seg in data["data"]["annotations"] if "type" in seg]
+            with db.get_session() as session:
+                Neo4JDatabaseValidator().validate_bibliography_type_exists(
+                    session=session,
+                    bibliography_types=bibliography_types
+                )
+
         logger.info("Deleting annotation and its segments")
         db.delete_annotation_and_its_segments(annotation_id = annotation_id)
         logger.info("Annotation deleted successfully")
+        
         logger.info("Creating new annotation")
         
         annotation_id = db.add_annotation_to_manifestation(
