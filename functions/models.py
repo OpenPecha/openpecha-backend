@@ -285,7 +285,7 @@ class InstanceRequestModel(OpenPechaModel):
         return self
 
 class AddAnnotationRequestModel(OpenPechaModel):
-    annotation_type: AnnotationType
+    type: AnnotationType
     annotation: list[SegmentationAnnotationModel | PaginationAnnotationModel | BibliographyAnnotationModel | TableOfContentsAnnotationModel] | None = None
     target_manifestation_id: str | None = None
     target_annotation: list[AlignmentAnnotationModel] | None = None
@@ -301,7 +301,7 @@ class AddAnnotationRequestModel(OpenPechaModel):
             AnnotationType.TABLE_OF_CONTENTS: self._validate_table_of_contents,
         }
         
-        validator = validators.get(self.annotation_type)
+        validator = validators.get(self.type)
         if validator:
             validator()
         else:
