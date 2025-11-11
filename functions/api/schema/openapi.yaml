@@ -1485,17 +1485,43 @@ paths:
                 contributions:
                   type: array
                   items:
-                    type: object
-                    properties:
-                      person_id:
-                        type: string
-                      person_bdrc_id:
-                        type: string
-                      ai_id:
-                        type: string
-                      role:
-                        type: string
-                        enum: [author, translator, reviser, scholar]
+                    oneOf:
+                      - type: object
+                        description: Human contribution with person_id
+                        required:
+                          - person_id
+                          - role
+                        properties:
+                          person_id:
+                            type: string
+                            description: Person ID (must provide either this OR person_bdrc_id, not both)
+                          role:
+                            type: string
+                            enum: [author, translator, reviser, scholar]
+                      - type: object
+                        description: Human contribution with person_bdrc_id
+                        required:
+                          - person_bdrc_id
+                          - role
+                        properties:
+                          person_bdrc_id:
+                            type: string
+                            description: Person BDRC ID (must provide either this OR person_id, not both)
+                          role:
+                            type: string
+                            enum: [author, translator, reviser, scholar]
+                      - type: object
+                        description: AI contribution
+                        required:
+                          - ai_id
+                          - role
+                        properties:
+                          ai_id:
+                            type: string
+                            description: AI model identifier
+                          role:
+                            type: string
+                            enum: [author, translator, reviser, scholar]
                 date:
                   type: string
                 bdrc:
@@ -1548,6 +1574,22 @@ paths:
                   target: "T12345678"
                   category_id: "CAT12345678"
       responses:
+        "200":
+          description: Expression with BDRC ID already exists
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - "Expression with this BDRC ID already exists"
+                  id:
+                    type: string
+                    description: The ID of the existing expression
+                    examples:
+                      - "T87654321"
         "201":
           description: Text created successfully
           content:
@@ -1561,6 +1603,7 @@ paths:
                       - "Text created successfully"
                   id:
                     type: string
+                    description: The ID of the newly created expression
                     examples:
                       - "T12345678"
         "400":
