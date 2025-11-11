@@ -2,7 +2,6 @@ import logging
 
 from exceptions import InvalidRequest
 from flask import Blueprint, Response, jsonify, request
-from identifier import generate_id
 from models import (
     EnumRequestModel,
     EnumType
