@@ -2455,7 +2455,7 @@ paths:
       description: |
         Replaces ALL segments of an existing annotation. This is a full replacement operation.
         
-        **For SEGMENTATION/PAGINATION/BIBLIOGRAPHY annotations:**
+        **For SEGMENTATION/PAGINATION/BIBLIOGRAPHY/TABLE_OF_CONTENTS annotations:**
         - Deletes all existing segments
         - Creates new segments from request body
         - Annotation node is preserved
