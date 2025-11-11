@@ -3063,6 +3063,75 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /v2/enum:
+    get:
+      summary: List enum entries
+      description: Retrieve enum values by type. Defaults to language if type is not provided.
+      tags:
+        - Enums
+      parameters:
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [language, bibliography, manifestation, role, annotation]
+            default: language
+          description: Enum type to list
+      responses:
+        "200":
+          description: Enums retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  type:
+                    type: string
+                    enum: [language, bibliography, manifestation, role, annotation]
+                  items:
+                    type: array
+                    items:
+                      type: object
+              examples:
+                language:
+                  summary: Language enums
+                  value:
+                    type: language
+                    items:
+                      - code: bo
+                        name: tibetan
+                      - code: en
+                        name: english
+                bibliography:
+                  summary: Bibliography enums
+                  value:
+                    type: bibliography
+                    items:
+                      - name: colophon
+                      - name: title
+                manifestation:
+                  summary: Manifestation enums
+                  value:
+                    type: manifestation
+                    items:
+                      - name: diplomatic
+                      - name: critical
+                role:
+                  summary: Role enums
+                  value:
+                    type: role
+                    items:
+                      - name: author
+                        description: writer of the work
+                      - name: translator
+                        description: translated the work
+                annotation:
+                  summary: Annotation enums
+                  value:
+                    type: annotation
+                    items:
+                      - name: segmentation
+                      - name: pagination
     post:
       summary: Create enum entry
       description: Create a new enum value in Neo4j based on the provided type and value payload. All values are normalized to lowercase before storage.

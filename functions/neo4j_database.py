@@ -7,6 +7,7 @@ from models import (
     AIContributionModel,
     AnnotationModel,
     AnnotationType,
+    EnumType,
     BibliographyAnnotationModel,
     ContributionModel,
     CopyrightStatus,
@@ -1237,3 +1238,24 @@ class Neo4JDatabase:
     def create_annotation_enum(self, name: str):
         with self.get_session() as session:
             session.run(Queries.enum["create_annotation"], name=name)
+
+    def get_enums(self, enum_type: EnumType) -> list[dict]:
+        with self.get_session() as session:
+            match enum_type:
+                case EnumType.LANGUAGE:
+                    result = session.run(Queries.enum["list_languages"])
+                    return [{"code": r["code"], "name": r["name"]} for r in result]
+                case EnumType.BIBLIOGRAPHY:
+                    result = session.run(Queries.enum["list_bibliography"])
+                    return [{"name": r["name"]} for r in result]
+                case EnumType.MANIFESTATION:
+                    result = session.run(Queries.enum["list_manifestation"])
+                    return [{"name": r["name"]} for r in result]
+                case EnumType.ROLE:
+                    result = session.run(Queries.enum["list_role"])
+                    return [{"name": r["name"], "description": r["description"]} for r in result]
+                case EnumType.ANNOTATION:
+                    result = session.run(Queries.enum["list_annotation"])
+                    return [{"name": r["name"]} for r in result]
+                case _:
+                    return []

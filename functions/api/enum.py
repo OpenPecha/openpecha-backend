@@ -13,6 +13,18 @@ enum_bp = Blueprint("enum", __name__)
 
 logger = logging.getLogger(__name__)
 
+@enum_bp.route("", methods=["GET"], strict_slashes=False)
+def get_enums() -> tuple[Response, int]:
+
+    type = request.args.get("type", "language").lower()
+
+    if type not in ["language", "bibliography", "manifestation", "role", "annotation"]:
+        raise InvalidRequest(f"Invalid enum type. Allowed types are [language, bibliography, manifestation, role, annotation]")
+
+    db = Neo4JDatabase() 
+    items = db.get_enums(EnumType(type))
+    return jsonify({"type": type, "items": items}), 200
+
 @enum_bp.route("", methods=["POST"], strict_slashes=False)
 def create_enum() -> tuple[Response, int]:
 
