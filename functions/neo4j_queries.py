@@ -673,3 +673,26 @@ MATCH (c:Category {id: $category_id})
 CREATE (w)-[:BELONGS_TO]->(c)
 """,
 }
+
+Queries.enum = {
+    "create_language": """
+CREATE (l:Language {code: $code, name: $name})
+RETURN l.id as language_id
+""",
+    "create_bibliography": """
+CREATE (bt:BibliographyType {name: $name})
+RETURN bt.id as bibliography_type_id
+""",
+    "create_manifestation": """
+CREATE (mt:ManifestationType {name: $name})
+RETURN mt.id as manifestation_type_id
+""",
+    "create_role": """
+CREATE (rt:RoleType {name: $name, description: $description})
+RETURN rt.id as role_type_id
+""",
+    "create_annotation": """
+CREATE (at:AnnotationType {name: $name})
+RETURN at.id as annotation_type_id
+""",
+}

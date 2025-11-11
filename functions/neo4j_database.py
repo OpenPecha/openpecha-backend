@@ -1217,3 +1217,23 @@ class Neo4JDatabase:
             session.run(Queries.sections["delete_sections"], annotation_id = annotation_id)
             session.run(Queries.annotations["delete"], annotation_id = annotation_id)
 
+
+    def create_language_enum(self, code: str, name: str):
+        with self.get_session() as session:
+            session.run(Queries.enum["create_language"], code=code, name=name)
+        
+    def create_bibliography_enum(self, name: str):
+        with self.get_session() as session:
+            session.run(Queries.enum["create_bibliography"], name=name)
+        
+    def create_manifestation_enum(self, name: str):
+        with self.get_session() as session:
+            session.run(Queries.enum["create_manifestation"], name=name)
+        
+    def create_role_enum(self, description: str, name: str):
+        with self.get_session() as session:
+            session.run(Queries.enum["create_role"], description=description, name=name)
+        
+    def create_annotation_enum(self, name: str):
+        with self.get_session() as session:
+            session.run(Queries.enum["create_annotation"], name=name)
