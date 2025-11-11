@@ -3062,6 +3062,126 @@ paths:
         "500":
           $ref: '#/components/responses/ServerError'
 
+  /v2/enum:
+    post:
+      summary: Create enum entry
+      description: Create a new enum value in Neo4j based on the provided type and value payload. All values are normalized to lowercase before storage.
+      tags:
+        - Enums
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, value]
+              properties:
+                type:
+                  type: string
+                  enum: [language, bibliography, manifestation, role, annotation]
+                  description: Enum type to create
+                value:
+                  oneOf:
+                    - title: LanguageValue
+                      type: object
+                      required: [code, name]
+                      properties:
+                        code:
+                          type: string
+                        name:
+                          type: string
+                    - title: BibliographyValue
+                      type: object
+                      required: [name]
+                      properties:
+                        name:
+                          type: string
+                    - title: ManifestationValue
+                      type: object
+                      required: [name]
+                      properties:
+                        name:
+                          type: string
+                    - title: RoleValue
+                      type: object
+                      required: [description, name]
+                      properties:
+                        description:
+                          type: string
+                        name:
+                          type: string
+                    - title: AnnotationValue
+                      type: object
+                      required: [name]
+                      properties:
+                        name:
+                          type: string
+            examples:
+              language:
+                summary: Create language enum
+                value:
+                  type: language
+                  value:
+                    code: bo
+                    name: Tibetan
+              bibliography:
+                summary: Create bibliography enum
+                value:
+                  type: bibliography
+                  value:
+                    name: colophon
+              manifestation:
+                summary: Create manifestation enum
+                value:
+                  type: manifestation
+                  value:
+                    name: diplomatic
+              role:
+                summary: Create role enum
+                value:
+                  type: role
+                  value:
+                    description: Writer of the work
+                    name: author
+              annotation:
+                summary: Create annotation enum
+                value:
+                  type: annotation
+                  value:
+                    name: segmentation
+      responses:
+        "201":
+          description: Enum created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+              examples:
+                language:
+                  value:
+                    message: Language created successfully
+                bibliography:
+                  value:
+                    message: Bibliography created successfully
+                manifestation:
+                  value:
+                    message: Manifestation created successfully
+                role:
+                  value:
+                    message: Role created successfully
+                annotation:
+                  value:
+                    message: Annotation created successfully
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "422":
+          $ref: '#/components/responses/ValidationError'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
   /api/version:
       get:
         summary: Get API version and Git SHA

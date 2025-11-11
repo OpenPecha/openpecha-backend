@@ -676,23 +676,23 @@ CREATE (w)-[:BELONGS_TO]->(c)
 
 Queries.enum = {
     "create_language": """
-CREATE (l:Language {code: $code, name: $name})
+CREATE (l:Language {code: toLower($code), name: toLower($name)})
 RETURN l.id as language_id
 """,
     "create_bibliography": """
-CREATE (bt:BibliographyType {name: $name})
+CREATE (bt:BibliographyType {name: toLower($name)})
 RETURN bt.id as bibliography_type_id
 """,
     "create_manifestation": """
-CREATE (mt:ManifestationType {name: $name})
+CREATE (mt:ManifestationType {name: toLower($name)})
 RETURN mt.id as manifestation_type_id
 """,
     "create_role": """
-CREATE (rt:RoleType {name: $name, description: $description})
+CREATE (rt:RoleType {name: toLower($name), description: $description})
 RETURN rt.id as role_type_id
 """,
     "create_annotation": """
-CREATE (at:AnnotationType {name: $name})
+CREATE (at:AnnotationType {name: toLower($name)})
 RETURN at.id as annotation_type_id
 """,
 }

@@ -194,7 +194,7 @@ class Neo4JDatabaseValidator:
     def validate_language_enum_exists(self, session, code: str, name: str):
         query = """
         MATCH (l:Language)
-        WHERE l.code = $code OR l.name = $name
+        WHERE toLower(l.code) = toLower($code) OR toLower(l.name) = toLower($name)
         RETURN count(l) as count
         """
         result = session.run(query, code=code, name=name)
@@ -205,7 +205,8 @@ class Neo4JDatabaseValidator:
 
     def validate_bibliography_enum_exists(self, session, name: str):
         query = """
-        MATCH (bt:BibliographyType {name: $name})
+        MATCH (bt:BibliographyType)
+        WHERE toLower(bt.name) = toLower($name)
         RETURN count(bt) as count
         """
         result = session.run(query, name=name)
@@ -216,7 +217,8 @@ class Neo4JDatabaseValidator:
 
     def validate_manifestation_enum_exists(self, session, name: str):
         query = """
-        MATCH (mt:ManifestationType {name: $name})
+        MATCH (mt:ManifestationType)
+        WHERE toLower(mt.name) = toLower($name)
         RETURN count(mt) as count
         """
         result = session.run(query, name=name)
@@ -227,7 +229,8 @@ class Neo4JDatabaseValidator:
 
     def validate_role_enum_exists(self, session, description: str, name: str):
         query = """
-        MATCH (rt:RoleType {name: $name})
+        MATCH (rt:RoleType)
+        WHERE toLower(rt.name) = toLower($name)
         RETURN count(rt) as count
         """
         result = session.run(query, description=description, name=name)
@@ -238,7 +241,8 @@ class Neo4JDatabaseValidator:
 
     def validate_annotation_enum_exists(self, session, name: str):
         query = """
-        MATCH (at:AnnotationType {name: $name})
+        MATCH (at:AnnotationType)
+        WHERE toLower(at.name) = toLower($name)
         RETURN count(at) as count
         """
         result = session.run(query, name=name)
