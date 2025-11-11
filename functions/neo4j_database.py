@@ -7,6 +7,7 @@ from models import (
     AIContributionModel,
     AnnotationModel,
     AnnotationType,
+    EnumType,
     BibliographyAnnotationModel,
     ContributionModel,
     CopyrightStatus,
@@ -197,6 +198,16 @@ class Neo4JDatabase:
             d = record.data()
             return self._process_manifestation_data(d["manifestation"]), d["expression_id"]
 
+    def get_manifestation_id_by_annotation_id(self, annotation_id: str) -> str:
+        with self.__driver.session() as session:
+            record = session.execute_read(
+                lambda tx: tx.run(Queries.manifestations["fetch_by_annotation_id"], annotation_id=annotation_id).single()
+            )
+            if record is None:
+                return None
+            d = record.data()
+            return d["manifestation_id"]
+
     def find_related_instances(self, manifestation_id: str, type_filter: str | None = None) -> list[dict]:
         """
         Find all manifestations that have alignment relationships with the given manifestation.
@@ -209,9 +220,33 @@ class Neo4JDatabase:
             List of dictionaries containing instance metadata, expression details, and alignment annotation IDs
         """
         with self.__driver.session() as session:
-            result = session.execute_read(
+            # Step 1: Find instances related through alignment annotations
+            alignment_result = session.execute_read(
                 lambda tx: list(tx.run(Queries.manifestations["find_related_instances"], manifestation_id=manifestation_id))
             )
+            
+            # Step 2: Find instances related through expression-level relationships
+            expression_result = session.execute_read(
+                lambda tx: list(tx.run(Queries.manifestations["find_expression_related_instances"], manifestation_id=manifestation_id))
+            )
+            
+            # Get instance_ids from alignment results to prioritize them
+            alignment_instance_ids = set()
+            for record in alignment_result:
+                data = record.data()["related_instance"]
+                manifestation_data = data["manifestation"]
+                alignment_instance_ids.add(manifestation_data["id"])
+            
+            # Filter expression results to remove duplicates from alignment results
+            filtered_expression_result = []
+            for record in expression_result:
+                data = record.data()["related_instance"]
+                manifestation_data = data["manifestation"]
+                if manifestation_data["id"] not in alignment_instance_ids:
+                    filtered_expression_result.append(record)
+            
+            # Combine alignment results with filtered expression results
+            result = alignment_result + filtered_expression_result
             
             related_instances = []
             for record in result:
@@ -836,6 +871,7 @@ class Neo4JDatabase:
 
 
     def _execute_add_annotation(self, tx, manifestation_id: str, annotation: AnnotationModel) -> str:
+        logger.info(f"Aligned_to_id: {annotation.aligned_to}")
         tx.run(
             Queries.annotations["create"],
             manifestation_id=manifestation_id,
@@ -1072,6 +1108,63 @@ class Neo4JDatabase:
             )
             return [record["index"] for record in result]
 
+    def get_annotation_type(self, annotation_id: str) -> str | None:
+        """
+        Get the annotation type for a given annotation ID.
+        
+        Returns:
+            The annotation type string or None if not found
+        """
+        with self.__driver.session() as session:
+            result = session.execute_read(
+                lambda tx: tx.run(
+                    Queries.annotations["get_annotation_type"],
+                    annotation_id=annotation_id
+                ).single()
+            )
+            if result:
+                return result["annotation_type"]
+            return None
+
+    def get_alignment_pair(self, annotation_id: str) -> tuple[str, str] | None:
+        """
+        Get source and target annotation IDs for an alignment annotation.
+        Works regardless of which annotation ID is provided.
+        
+        Returns:
+            (source_annotation_id, target_annotation_id) or None if not found
+        """
+        with self.__driver.session() as session:
+            result = session.execute_read(
+                lambda tx: tx.run(
+                    Queries.annotations["get_alignment_pair"],
+                    annotation_id=annotation_id
+                ).single()
+            )
+            if result:
+                return result["source_id"], result["target_id"]
+            return None
+
+    def delete_alignment_annotation(self, source_annotation_id: str, target_annotation_id: str):
+        """
+        Delete alignment annotation including all segments and relationships.
+        """
+        with self.__driver.session() as session:
+            session.execute_write(
+                lambda tx: tx.run(
+                    Queries.segments["delete_alignment_segments"],
+                    source_annotation_id=source_annotation_id,
+                    target_annotation_id=target_annotation_id
+                )
+            )
+            session.execute_write(
+                lambda tx: tx.run(
+                    Queries.annotations["delete_alignment_annotations"],
+                    source_annotation_id=source_annotation_id,
+                    target_annotation_id=target_annotation_id
+                )
+            )
+
     def create_category(self, application: str, title: dict[str, str], parent_id: str | None = None) -> str:
         """Create a category with localized title and optional parent relationship."""
         category_id = generate_id()
@@ -1114,3 +1207,55 @@ class Neo4JDatabase:
                         "has_child": data.get("has_child", False)
                     })
             return categories
+
+    def delete_annotation_and_its_segments(self, annotation_id: str) -> None:
+        with self.get_session() as session:
+            session.run(Queries.segments["delete_all_segments_by_annotation_id"], annotation_id = annotation_id)
+            session.run(Queries.annotations["delete"], annotation_id = annotation_id)
+        
+    def delete_table_of_content_annotation(self, annotation_id: str) -> None:
+        with self.get_session() as session:
+            session.run(Queries.sections["delete_sections"], annotation_id = annotation_id)
+            session.run(Queries.annotations["delete"], annotation_id = annotation_id)
+
+
+    def create_language_enum(self, code: str, name: str):
+        with self.get_session() as session:
+            session.run(Queries.enum["create_language"], code=code, name=name)
+        
+    def create_bibliography_enum(self, name: str):
+        with self.get_session() as session:
+            session.run(Queries.enum["create_bibliography"], name=name)
+        
+    def create_manifestation_enum(self, name: str):
+        with self.get_session() as session:
+            session.run(Queries.enum["create_manifestation"], name=name)
+        
+    def create_role_enum(self, description: str, name: str):
+        with self.get_session() as session:
+            session.run(Queries.enum["create_role"], description=description, name=name)
+        
+    def create_annotation_enum(self, name: str):
+        with self.get_session() as session:
+            session.run(Queries.enum["create_annotation"], name=name)
+
+    def get_enums(self, enum_type: EnumType) -> list[dict]:
+        with self.get_session() as session:
+            match enum_type:
+                case EnumType.LANGUAGE:
+                    result = session.run(Queries.enum["list_languages"])
+                    return [{"code": r["code"], "name": r["name"]} for r in result]
+                case EnumType.BIBLIOGRAPHY:
+                    result = session.run(Queries.enum["list_bibliography"])
+                    return [{"name": r["name"]} for r in result]
+                case EnumType.MANIFESTATION:
+                    result = session.run(Queries.enum["list_manifestation"])
+                    return [{"name": r["name"]} for r in result]
+                case EnumType.ROLE:
+                    result = session.run(Queries.enum["list_role"])
+                    return [{"name": r["name"], "description": r["description"]} for r in result]
+                case EnumType.ANNOTATION:
+                    result = session.run(Queries.enum["list_annotation"])
+                    return [{"name": r["name"]} for r in result]
+                case _:
+                    return []

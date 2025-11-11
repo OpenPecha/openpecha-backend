@@ -263,6 +263,10 @@ Queries.manifestations = {
 
     RETURN {Queries.manifestation_fragment('m')} AS manifestation, e.id AS expression_id
 """,
+    "fetch_by_annotation_id": f"""
+    MATCH (a:Annotation {{id: $annotation_id}})-[:ANNOTATION_OF]->(m:Manifestation)
+    RETURN m.id AS manifestation_id
+""",
     "fetch_by_annotation": f"""
     MATCH (a:Annotation {{id: $annotation_id}})-[:ANNOTATION_OF]->(m:Manifestation)
     MATCH (m)-[:MANIFESTATION_OF]->(e:Expression)
@@ -325,9 +329,30 @@ RETURN m.id AS manifestation_id
         END
     }} as related_instance
 """,
+    "find_expression_related_instances": f"""
+    // First, find the expression for the given manifestation
+    MATCH (m:Manifestation {{id: $manifestation_id}})-[:MANIFESTATION_OF]->(e:Expression)
+    
+    // Find any expression-level relationships (both to and from)
+    MATCH (e)-[:TRANSLATION_OF|:COMMENTARY_OF]-(related_e:Expression)
+    MATCH (related_e)<-[:MANIFESTATION_OF]-(related_m:Manifestation)
+    
+    // Exclude the original manifestation
+    WHERE related_m.id <> $manifestation_id
+    
+    RETURN DISTINCT {{
+        manifestation: {Queries.manifestation_fragment('related_m')},
+        expression: {Queries.expression_fragment('related_e')},
+        alignment_annotation_id: null
+    }} as related_instance
+""",
 }
 
 Queries.annotations = {
+    "delete": """
+MATCH (a:Annotation {id: $annotation_id})
+DETACH DELETE a
+""",
     "create": """
 MATCH (m:Manifestation {id: $manifestation_id})
 MERGE (at:AnnotationType {name: $type})
@@ -350,6 +375,22 @@ RETURN at.name as annotation_type
     "get_aligned_annotation": """
 MATCH (a:Annotation {id: $annotation_id})-[:ALIGNED_TO]->(target_ann:Annotation)
 RETURN target_ann.id as aligned_to_id
+""",
+    "get_alignment_pair": """
+MATCH (a:Annotation {id: $annotation_id})
+OPTIONAL MATCH (a)-[:ALIGNED_TO]->(target:Annotation)
+OPTIONAL MATCH (source:Annotation)-[:ALIGNED_TO]->(a)
+WITH a, 
+     CASE WHEN target IS NOT NULL THEN a.id ELSE source.id END as source_id,
+     CASE WHEN target IS NOT NULL THEN target.id ELSE a.id END as target_id
+RETURN source_id, target_id
+""",
+    "delete_alignment_annotations": """
+MATCH (source:Annotation {id: $source_annotation_id})
+MATCH (target:Annotation {id: $target_annotation_id})
+OPTIONAL MATCH (source)-[aligned:ALIGNED_TO]-(target)
+DELETE aligned
+DETACH DELETE source, target
 """,
     "get_segments": """
 MATCH (a:Annotation {id: $annotation_id})
@@ -404,10 +445,29 @@ WITH s, sec.segments AS segment_ids
 UNWIND segment_ids AS segment_id
 MATCH (seg:Segment {id: segment_id})
 CREATE (seg)-[:PART_OF]->(s)
-"""
+""",
+    "delete_sections": """
+MATCH (a:Annotation {id: $annotation_id})
+OPTIONAL MATCH (s:Section)-[r1:SECTION_OF]->(a)
+OPTIONAL MATCH (seg:Segment)-[r2:PART_OF]->(s)
+DELETE r1, r2
+""",
 }
 
 Queries.segments = {
+    "delete_all_segments_by_annotation_id": """
+MATCH (a:Annotation {id: $annotation_id})<-[:SEGMENTATION_OF]-(s:Segment)
+OPTIONAL MATCH (s)-[:HAS_REFERENCE]->(ref:Reference)
+DELETE ref
+DETACH DELETE s
+""",
+    "delete_alignment_segments": """
+MATCH (source_ann:Annotation {id: $source_annotation_id})<-[:SEGMENTATION_OF]-(source_seg:Segment)
+MATCH (target_ann:Annotation {id: $target_annotation_id})<-[:SEGMENTATION_OF]-(target_seg:Segment)
+OPTIONAL MATCH (source_seg)-[aligned:ALIGNED_TO]-(target_seg)
+DELETE aligned
+DETACH DELETE source_seg, target_seg
+""",
     "create_batch": """
 MATCH (a:Annotation {id: $annotation_id})
 UNWIND $segments AS seg
@@ -611,5 +671,53 @@ Queries.works = {
 MATCH (w:Work {id: $work_id})
 MATCH (c:Category {id: $category_id})
 CREATE (w)-[:BELONGS_TO]->(c)
+""",
+}
+
+Queries.enum = {
+    "create_language": """
+CREATE (l:Language {code: toLower($code), name: toLower($name)})
+RETURN l.id as language_id
+""",
+    "list_languages": """
+MATCH (l:Language)
+RETURN l.code AS code, l.name AS name
+ORDER BY name ASC
+""",
+    "create_bibliography": """
+CREATE (bt:BibliographyType {name: toLower($name)})
+RETURN bt.id as bibliography_type_id
+""",
+    "list_bibliography": """
+MATCH (bt:BibliographyType)
+RETURN bt.name AS name
+ORDER BY name ASC
+""",
+    "create_manifestation": """
+CREATE (mt:ManifestationType {name: toLower($name)})
+RETURN mt.id as manifestation_type_id
+""",
+    "list_manifestation": """
+MATCH (mt:ManifestationType)
+RETURN mt.name AS name
+ORDER BY name ASC
+""",
+    "create_role": """
+CREATE (rt:RoleType {name: toLower($name), description: $description})
+RETURN rt.id as role_type_id
+""",
+    "list_role": """
+MATCH (rt:RoleType)
+RETURN rt.name AS name, rt.description AS description
+ORDER BY name ASC
+""",
+    "create_annotation": """
+CREATE (at:AnnotationType {name: toLower($name)})
+RETURN at.id as annotation_type_id
+""",
+    "list_annotation": """
+MATCH (at:AnnotationType)
+RETURN at.name AS name
+ORDER BY name ASC
 """,
 }

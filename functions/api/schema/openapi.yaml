@@ -1485,17 +1485,43 @@ paths:
                 contributions:
                   type: array
                   items:
-                    type: object
-                    properties:
-                      person_id:
-                        type: string
-                      person_bdrc_id:
-                        type: string
-                      ai_id:
-                        type: string
-                      role:
-                        type: string
-                        enum: [author, translator, reviser, scholar]
+                    oneOf:
+                      - type: object
+                        description: Human contribution with person_id
+                        required:
+                          - person_id
+                          - role
+                        properties:
+                          person_id:
+                            type: string
+                            description: Person ID (must provide either this OR person_bdrc_id, not both)
+                          role:
+                            type: string
+                            enum: [author, translator, reviser, scholar]
+                      - type: object
+                        description: Human contribution with person_bdrc_id
+                        required:
+                          - person_bdrc_id
+                          - role
+                        properties:
+                          person_bdrc_id:
+                            type: string
+                            description: Person BDRC ID (must provide either this OR person_id, not both)
+                          role:
+                            type: string
+                            enum: [author, translator, reviser, scholar]
+                      - type: object
+                        description: AI contribution
+                        required:
+                          - ai_id
+                          - role
+                        properties:
+                          ai_id:
+                            type: string
+                            description: AI model identifier
+                          role:
+                            type: string
+                            enum: [author, translator, reviser, scholar]
                 date:
                   type: string
                 bdrc:
@@ -1548,6 +1574,22 @@ paths:
                   target: "T12345678"
                   category_id: "CAT12345678"
       responses:
+        "200":
+          description: Expression with BDRC ID already exists
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - "Expression with this BDRC ID already exists"
+                  id:
+                    type: string
+                    description: The ID of the existing expression
+                    examples:
+                      - "T87654321"
         "201":
           description: Text created successfully
           content:
@@ -1561,6 +1603,7 @@ paths:
                       - "Text created successfully"
                   id:
                     type: string
+                    description: The ID of the newly created expression
                     examples:
                       - "T12345678"
         "400":
@@ -2158,9 +2201,9 @@ paths:
             schema:
               type: object
               required:
-                - annotation_type
+                - type
               properties:
-                annotation_type:
+                stype:
                   type: string
                   enum: [segmentation, alignment, pagination, bibliography, table_of_contents]
                   description: Type of annotation to add
@@ -2297,7 +2340,7 @@ paths:
               segmentation:
                 summary: Segmentation (Critical Instance)
                 value:
-                  annotation_type: segmentation
+                  type: segmentation
                   annotation:
                     - span:
                         start: 0
@@ -2308,20 +2351,20 @@ paths:
               pagination:
                 summary: Pagination (Diplomatic Instance)
                 value:
-                  annotation_type: segmentation
+                  type: pagination
                   annotation:
                     - span:
                         start: 0
                         end: 42
-                      reference: "folio 1a"
+                      reference: "reference-001"
                     - span:
                         start: 42
                         end: 100
-                      reference: "folio 1b"
+                      reference: "reference-002"
               bibliography:
                 summary: Bibliography
                 value:
-                  annotation_type: bibliography
+                  type: bibliography
                   annotation:
                     - span:
                         start: 0
@@ -2334,7 +2377,7 @@ paths:
               table of contents:
                 summary: Table of Contents
                 value:
-                  annotation_type: table_of_contents
+                  type: table_of_contents
                   annotation:
                     - id: "section_001"
                       title: "Chapter 1: Introduction"
@@ -2348,7 +2391,7 @@ paths:
               alignment:
                 summary: Alignment
                 value:
-                  annotation_type: alignment
+                  type: alignment
                   target_manifestation_id: "MNF12345678"
                   target_annotation:
                     - span:
@@ -2446,6 +2489,447 @@ paths:
           $ref: '#/components/responses/NotFound'
         "422":
           $ref: '#/components/responses/ValidationError'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+  /v2/annotations/{annotation_id}/annotation:
+    put:
+      summary: Update (replace) annotation
+      description: |
+        Replaces ALL segments of an existing annotation. This is a full replacement operation.
+        
+        **For SEGMENTATION/PAGINATION/BIBLIOGRAPHY/TABLE_OF_CONTENTS annotations:**
+        - Deletes all existing segments
+        - Creates new segments from request body
+        - Annotation node is preserved
+        
+        **For ALIGNMENT annotations:**
+        - Deletes all segments from both source and target annotations
+        - Deletes both annotation nodes and their relationship
+        - Must provide both alignment_annotation and target_annotation
+      tags:
+        - Annotations
+      parameters:
+        - name: annotation_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the annotation to update
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - type
+                - data
+              properties:
+                type:
+                  type: string
+                  enum: [segmentation, pagination, bibliography, alignment]
+                  description: Type of annotation being updated
+                data:
+                  type: object
+                  properties:
+                    annotations:
+                      type: array
+                      minItems: 1
+                      description: Segments for segmentation/pagination/bibliography (required for non-alignment types)
+                      items:
+                        oneOf:
+                          - type: object
+                            required: [span]
+                            properties:
+                              span:
+                                type: object
+                                required: [start, end]
+                                properties:
+                                  start:
+                                    type: integer
+                                    minimum: 0
+                                    description: Start character position (inclusive)
+                                  end:
+                                    type: integer
+                                    minimum: 1
+                                    description: End character position (exclusive)
+                            description: Segmentation annotation
+                          - type: object
+                            required: [span, reference]
+                            properties:
+                              span:
+                                type: object
+                                required: [start, end]
+                                properties:
+                                  start:
+                                    type: integer
+                                    minimum: 0
+                                  end:
+                                    type: integer
+                                    minimum: 1
+                              reference:
+                                type: string
+                                description: Page/folio reference
+                            description: Pagination annotation
+                          - type: object
+                            required: [span, type]
+                            properties:
+                              span:
+                                type: object
+                                required: [start, end]
+                                properties:
+                                  start:
+                                    type: integer
+                                    minimum: 0
+                                  end:
+                                    type: integer
+                                    minimum: 1
+                              type:
+                                type: string
+                                enum: [colophon, title, incipit_title, author]
+                                description: Type of bibliography annotation
+                            description: Bibliography annotation
+                    alignment_annotation:
+                      type: array
+                      minItems: 1
+                      description: Source segments (required for alignment type)
+                      items:
+                        type: object
+                        required: [span, index, alignment_index]
+                        properties:
+                          span:
+                            type: object
+                            required: [start, end]
+                            properties:
+                              start:
+                                type: integer
+                                minimum: 0
+                              end:
+                                type: integer
+                                minimum: 1
+                          index:
+                            type: integer
+                            description: Sequential index of this segment
+                          alignment_index:
+                            type: array
+                            items:
+                              type: integer
+                            description: Indices of target segments this aligns to
+                    target_annotation:
+                      type: array
+                      minItems: 1
+                      description: Target segments (required for alignment type)
+                      items:
+                        type: object
+                        required: [span, index]
+                        properties:
+                          span:
+                            type: object
+                            required: [start, end]
+                            properties:
+                              start:
+                                type: integer
+                                minimum: 0
+                              end:
+                                type: integer
+                                minimum: 1
+                          index:
+                            type: integer
+                            description: Sequential index of this segment
+            examples:
+              segmentation:
+                summary: Update segmentation annotation
+                value:
+                  type: segmentation
+                  data:
+                    annotations:
+                      - span:
+                          start: 0
+                          end: 42
+                      - span:
+                          start: 42
+                          end: 100
+              table_of_contents:
+                summary: Update table of contents annotation
+                value:
+                  type: table_of_contents
+                  data:
+                    annotations:
+                      - title:
+                          "Chapter 1: Introduction"
+                        segments: ["seg_001", "seg_002", "seg_003"]
+                      - title:
+                          "Chapter 2: Main Content"
+                        segments: ["seg_004", "seg_005"]
+              pagination:
+                summary: Update pagination annotation
+                value:
+                  type: pagination
+                  data:
+                    annotations:
+                      - span:
+                          start: 0
+                          end: 42
+                        reference: "folio 1a"
+                      - span:
+                          start: 42
+                          end: 100
+                        reference: "folio 1b"
+              bibliography:
+                summary: Update bibliography annotation
+                value:
+                  type: bibliography
+                  data:
+                    annotations:
+                      - span:
+                          start: 0
+                          end: 50
+                        type: "colophon"
+                      - span:
+                          start: 50
+                          end: 100
+                        type: "title"
+              alignment:
+                summary: Update alignment annotation
+                value:
+                  type: alignment
+                  data:
+                    alignment_annotation:
+                      - span:
+                          start: 0
+                          end: 30
+                        index: 0
+                        alignment_index: [0]
+                      - span:
+                          start: 30
+                          end: 60
+                        index: 1
+                        alignment_index: [0, 1]
+                    target_annotation:
+                      - span:
+                          start: 0
+                          end: 50
+                        index: 0
+                      - span:
+                          start: 50
+                          end: 100
+                        index: 1
+      responses:
+        "200":
+          description: Annotation updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - "Annotation updated successfully"
+                  annotation_id:
+                    type: string
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "422":
+          $ref: '#/components/responses/ValidationError'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+  /v2/segments/{segment_id}/related:
+    get:
+      summary: Find related texts for a segment
+      description: Find all related texts and instances that are aligned to a specific segment
+      tags:
+        - Segments
+      parameters:
+        - name: segment_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the segment to find related texts for
+      responses:
+        "200":
+          description: Related texts retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  targets:
+                    type: array
+                    description: Texts that this segment points to (outgoing alignments)
+                    items:
+                      type: object
+                      properties:
+                        instance:
+                          type: object
+                          description: Manifestation details
+                          properties:
+                            id:
+                              type: string
+                            type:
+                              type: string
+                              enum: [diplomatic, critical, collated]
+                            copyright:
+                              type: string
+                              enum: [public, copyrighted]
+                            bdrc:
+                              type: string
+                            wiki:
+                              type: string
+                        text:
+                          type: object
+                          description: Expression (text) details
+                          properties:
+                            id:
+                              type: string
+                            type:
+                              type: string
+                              enum: [root, commentary, translation]
+                            title:
+                              type: object
+                              additionalProperties:
+                                type: string
+                            language:
+                              type: string
+                        segments:
+                          type: array
+                          description: List of aligned segments with their IDs and spans
+                          items:
+                            type: object
+                            properties:
+                              id:
+                                type: string
+                                description: Segment ID
+                              span:
+                                type: object
+                                properties:
+                                  start:
+                                    type: integer
+                                    description: Start character position
+                                  end:
+                                    type: integer
+                                    description: End character position
+                  sources:
+                    type: array
+                    description: Texts whose segments point to this segment (incoming alignments)
+                    items:
+                      type: object
+                      properties:
+                        instance:
+                          type: object
+                          description: Manifestation details
+                          properties:
+                            id:
+                              type: string
+                            type:
+                              type: string
+                              enum: [diplomatic, critical, collated]
+                            copyright:
+                              type: string
+                              enum: [public, copyrighted]
+                            bdrc:
+                              type: string
+                            wiki:
+                              type: string
+                        text:
+                          type: object
+                          description: Expression (text) details
+                          properties:
+                            id:
+                              type: string
+                            type:
+                              type: string
+                              enum: [root, commentary, translation]
+                            title:
+                              type: object
+                              additionalProperties:
+                                type: string
+                            language:
+                              type: string
+                        segments:
+                          type: array
+                          description: List of aligned segments with their IDs and spans
+                          items:
+                            type: object
+                            properties:
+                              id:
+                                type: string
+                                description: Segment ID
+                              span:
+                                type: object
+                                properties:
+                                  start:
+                                    type: integer
+                                    description: Start character position
+                                  end:
+                                    type: integer
+                                    description: End character position
+              examples:
+                success:
+                  summary: Related texts with segments
+                  value:
+                    targets:
+                      - instance:
+                          id: "M12345678"
+                          type: "critical"
+                          copyright: "public"
+                        text:
+                          id: "E12345678"
+                          type: "translation"
+                          title:
+                            en: "Translation of the Text"
+                          language: "en"
+                        segments:
+                          - id: "SEG001"
+                            span:
+                              start: 0
+                              end: 100
+                          - id: "SEG002"
+                            span:
+                              start: 100
+                              end: 200
+                    sources: []
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+  /v2/segments/{segment_id}/content:
+    get:
+      summary: Get segment text content
+      description: Retrieve the base text content for a segment based on its character span
+      tags:
+        - Segments
+      parameters:
+        - name: segment_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the segment to retrieve text content for
+      responses:
+        "200":
+          description: Segment content retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  content:
+                    type: string
+                    description: The text content of the segment
+              examples:
+                success:
+                  summary: Segment text content
+                  value:
+                    content: "This is the text content of the segment."
+        "404":
+          $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/ServerError'
 
@@ -2614,6 +3098,195 @@ paths:
                       en: "Poetry"
                       bo: "སྙན་ངག"
                     parent: "CAT12345678"
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "422":
+          $ref: '#/components/responses/ValidationError'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+  /v2/enum:
+    get:
+      summary: List enum entries
+      description: Retrieve enum values by type. Defaults to language if type is not provided.
+      tags:
+        - Enums
+      parameters:
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [language, bibliography, manifestation, role, annotation]
+            default: language
+          description: Enum type to list
+      responses:
+        "200":
+          description: Enums retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  type:
+                    type: string
+                    enum: [language, bibliography, manifestation, role, annotation]
+                  items:
+                    type: array
+                    items:
+                      type: object
+              examples:
+                language:
+                  summary: Language enums
+                  value:
+                    type: language
+                    items:
+                      - code: bo
+                        name: tibetan
+                      - code: en
+                        name: english
+                bibliography:
+                  summary: Bibliography enums
+                  value:
+                    type: bibliography
+                    items:
+                      - name: colophon
+                      - name: title
+                manifestation:
+                  summary: Manifestation enums
+                  value:
+                    type: manifestation
+                    items:
+                      - name: diplomatic
+                      - name: critical
+                role:
+                  summary: Role enums
+                  value:
+                    type: role
+                    items:
+                      - name: author
+                        description: writer of the work
+                      - name: translator
+                        description: translated the work
+                annotation:
+                  summary: Annotation enums
+                  value:
+                    type: annotation
+                    items:
+                      - name: segmentation
+                      - name: pagination
+    post:
+      summary: Create enum entry
+      description: Create a new enum value in Neo4j based on the provided type and value payload. All values are normalized to lowercase before storage.
+      tags:
+        - Enums
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [type, value]
+              properties:
+                type:
+                  type: string
+                  enum: [language, bibliography, manifestation, role, annotation]
+                  description: Enum type to create
+                value:
+                  oneOf:
+                    - title: LanguageValue
+                      type: object
+                      required: [code, name]
+                      properties:
+                        code:
+                          type: string
+                        name:
+                          type: string
+                    - title: BibliographyValue
+                      type: object
+                      required: [name]
+                      properties:
+                        name:
+                          type: string
+                    - title: ManifestationValue
+                      type: object
+                      required: [name]
+                      properties:
+                        name:
+                          type: string
+                    - title: RoleValue
+                      type: object
+                      required: [description, name]
+                      properties:
+                        description:
+                          type: string
+                        name:
+                          type: string
+                    - title: AnnotationValue
+                      type: object
+                      required: [name]
+                      properties:
+                        name:
+                          type: string
+            examples:
+              language:
+                summary: Create language enum
+                value:
+                  type: language
+                  value:
+                    code: bo
+                    name: Tibetan
+              bibliography:
+                summary: Create bibliography enum
+                value:
+                  type: bibliography
+                  value:
+                    name: colophon
+              manifestation:
+                summary: Create manifestation enum
+                value:
+                  type: manifestation
+                  value:
+                    name: diplomatic
+              role:
+                summary: Create role enum
+                value:
+                  type: role
+                  value:
+                    description: Writer of the work
+                    name: author
+              annotation:
+                summary: Create annotation enum
+                value:
+                  type: annotation
+                  value:
+                    name: segmentation
+      responses:
+        "201":
+          description: Enum created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+              examples:
+                language:
+                  value:
+                    message: Language created successfully
+                bibliography:
+                  value:
+                    message: Bibliography created successfully
+                manifestation:
+                  value:
+                    message: Manifestation created successfully
+                role:
+                  value:
+                    message: Role created successfully
+                annotation:
+                  value:
+                    message: Annotation created successfully
         "400":
           $ref: '#/components/responses/InvalidRequest'
         "422":

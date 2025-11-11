@@ -1,7 +1,7 @@
 from enum import Enum
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, RootModel, StrictStr, StringConstraints, field_serializer, model_validator, field_validator, ValidationError as PydanticValidationError
+from pydantic import BaseModel, ConfigDict, Field, RootModel, StrictStr, StringConstraints, model_validator
 
 NonEmptyStr = Annotated[StrictStr, StringConstraints(min_length=1, strip_whitespace=True)]
 
@@ -78,12 +78,9 @@ class ContributionModel(OpenPechaModel):
     person_bdrc_id: str | None = None
     role: ContributorRole
 
-    @model_validator(mode="after")
-    def validate_person_identifier(self):
-        if self.person_id is None and self.person_bdrc_id is None:
-            raise ValueError("Either person_id or person_bdrc_id must be provided")
-        return self
+    
 
+    
 
 class AnnotationModel(OpenPechaModel):
     id: str
@@ -137,12 +134,44 @@ class ExpressionModelBase(OpenPechaModel):
             raise ValueError(msg)
         return self
 
-
+    @model_validator(mode="after")
+    def validate_contributions(self):
+        if not self.contributions:
+            raise ValueError("At least one contribution must be provided")
+        
+        for i, contribution in enumerate(self.contributions):
+            if isinstance(contribution, ContributionModel):
+                # Validate human contributions
+                if contribution.person_id is None and contribution.person_bdrc_id is None:
+                    raise ValueError(f"Contribution at index {i}: person_id or person_bdrc_id must be provided")
+                if contribution.person_id is not None and contribution.person_bdrc_id is not None:
+                    raise ValueError(f"Contribution at index {i}: person_id and person_bdrc_id cannot both be provided")
+            elif isinstance(contribution, AIContributionModel):
+                # AI contributions are validated by their required fields in the model
+                pass
+            else:
+                raise ValueError(f"Contribution at index {i}: Invalid contribution type")
+        
+        return self
+  
 class ExpressionModelInput(ExpressionModelBase):
     pass
 
 
-class ExpressionModelOutput(ExpressionModelBase):
+class ExpressionModelOutputBase(OpenPechaModel):
+    bdrc: str | None = None
+    wiki: str | None = None
+    type: TextType
+    contributions: list[ContributionModel | AIContributionModel]
+    date: NonEmptyStr | None = None
+    title: LocalizedString
+    alt_titles: list[LocalizedString] | None = None
+    language: NonEmptyStr
+    target: str | None = None
+    category_id: str | None = None
+
+
+class ExpressionModelOutput(ExpressionModelOutputBase):
     id: str
 
 
@@ -285,7 +314,7 @@ class InstanceRequestModel(OpenPechaModel):
         return self
 
 class AddAnnotationRequestModel(OpenPechaModel):
-    annotation_type: AnnotationType
+    type: AnnotationType
     annotation: list[SegmentationAnnotationModel | PaginationAnnotationModel | BibliographyAnnotationModel | TableOfContentsAnnotationModel] | None = None
     target_manifestation_id: str | None = None
     target_annotation: list[AlignmentAnnotationModel] | None = None
@@ -301,7 +330,7 @@ class AddAnnotationRequestModel(OpenPechaModel):
             AnnotationType.TABLE_OF_CONTENTS: self._validate_table_of_contents,
         }
         
-        validator = validators.get(self.annotation_type)
+        validator = validators.get(self.type)
         if validator:
             validator()
         else:
@@ -364,3 +393,36 @@ class CategoryListItemModel(OpenPechaModel):
     parent: str | None = None
     title: NonEmptyStr
     has_child: bool = False
+
+class UpdateAnnotationDataModel(OpenPechaModel):
+    annotations: list[SegmentationAnnotationModel | PaginationAnnotationModel | BibliographyAnnotationModel | TableOfContentsAnnotationModel] | None = None
+    target_annotation: list[AlignmentAnnotationModel] | None = None
+    alignment_annotation: list[AlignmentAnnotationModel] | None = None
+
+    @model_validator(mode="after")
+    def validate_request_model(self):
+        if self.annotations is not None:
+            if len(self.annotations) == 0:
+                raise ValueError("Annotations cannot be empty")
+            elif self.target_annotation is not None or self.alignment_annotation is not None:
+                raise ValueError("Cannot provide both annotations with target and alignment annotation")
+        elif self.target_annotation is None or self.alignment_annotation is None:
+                raise ValueError("Need to provide both target and alignment annotation")
+        return self
+
+
+class UpdateAnnotationRequestModel(OpenPechaModel):
+    type: AnnotationType
+    data: UpdateAnnotationDataModel
+
+class EnumType(str, Enum):
+    LANGUAGE = "language"
+    BIBLIOGRAPHY = "bibliography"
+    MANIFESTATION = "manifestation"
+    ROLE = "role"
+    COPYRIGHT_STATUS = "copyright_status"
+    ANNOTATION = "annotation"
+
+class EnumRequestModel(OpenPechaModel):
+    type: EnumType
+    value: dict[str, NonEmptyStr]

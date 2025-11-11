@@ -190,3 +190,63 @@ class Neo4JDatabaseValidator:
                 f"Category with ID '{category_id}' does not exist. "
                 "Please provide a valid category_id."
             )
+        
+    def validate_language_enum_exists(self, session, code: str, name: str):
+        query = """
+        MATCH (l:Language)
+        WHERE toLower(l.code) = toLower($code) OR toLower(l.name) = toLower($name)
+        RETURN count(l) as count
+        """
+        result = session.run(query, code=code, name=name)
+        record = result.single()
+        
+        if record and record["count"] > 0:
+            raise DataValidationError(f"Language with code '{code}' or name '{name}' already exists")
+
+    def validate_bibliography_enum_exists(self, session, name: str):
+        query = """
+        MATCH (bt:BibliographyType)
+        WHERE toLower(bt.name) = toLower($name)
+        RETURN count(bt) as count
+        """
+        result = session.run(query, name=name)
+        record = result.single()
+        
+        if record and record["count"] > 0:
+            raise DataValidationError(f"Bibliography type with name '{name}' already exists")
+
+    def validate_manifestation_enum_exists(self, session, name: str):
+        query = """
+        MATCH (mt:ManifestationType)
+        WHERE toLower(mt.name) = toLower($name)
+        RETURN count(mt) as count
+        """
+        result = session.run(query, name=name)
+        record = result.single()
+        
+        if record and record["count"] > 0:
+            raise DataValidationError(f"Manifestation type with name '{name}' already exists")
+
+    def validate_role_enum_exists(self, session, description: str, name: str):
+        query = """
+        MATCH (rt:RoleType)
+        WHERE toLower(rt.name) = toLower($name)
+        RETURN count(rt) as count
+        """
+        result = session.run(query, description=description, name=name)
+        record = result.single()
+        
+        if record and record["count"] > 0:
+            raise DataValidationError(f"Role type with name '{name}' already exists")
+
+    def validate_annotation_enum_exists(self, session, name: str):
+        query = """
+        MATCH (at:AnnotationType)
+        WHERE toLower(at.name) = toLower($name)
+        RETURN count(at) as count
+        """
+        result = session.run(query, name=name)
+        record = result.single()
+        
+        if record and record["count"] > 0:
+            raise DataValidationError(f"Annotation type with name '{name}' already exists")

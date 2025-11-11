@@ -3,6 +3,7 @@ import logging
 from flask import Blueprint, Response, jsonify, request
 from neo4j_database import Neo4JDatabase
 from identifier import generate_id
+from exceptions import DataNotFound
 
 annotations_bp = Blueprint("annotations", __name__)
 
@@ -13,12 +14,11 @@ from models import (
     AnnotationModel,
     AnnotationType,
     AddAnnotationRequestModel,
-    BibliographyAnnotationModel
+    UpdateAnnotationRequestModel
 )
 from identifier import generate_id
 from exceptions import InvalidRequest
-
-from storage import MockStorage
+from neo4j_database_validator import Neo4JDatabaseValidator
 
 @annotations_bp.route("/<string:annotation_id>", methods=["GET"], strict_slashes=False)
 def get_annotation(annotation_id: str) -> tuple[Response, int]:
@@ -33,6 +33,61 @@ def get_annotation(annotation_id: str) -> tuple[Response, int]:
     """
     annotation = Neo4JDatabase().get_annotation(annotation_id)
     return jsonify(annotation), 200
+
+@annotations_bp.route("/<string:annotation_id>/annotation", methods=["PUT"], strict_slashes=False)
+def update_annotation(annotation_id: str) -> tuple[Response, int]:
+    data = request.get_json(force=True, silent=True)
+    if not data:
+        raise InvalidRequest("Request body is required")
+
+    logger.info("Parsing and validating request body")
+    request_model = UpdateAnnotationRequestModel.model_validate(data)
+    
+    # Validate that the annotation exists and type matches
+    logger.info(f"Validating that the annotation exists and type matches for annotation {annotation_id}")
+    db = Neo4JDatabase()
+    
+    _validate_update_annotation_request(db = db, annotation_id = annotation_id, request_model = request_model, data = data)
+
+    if request_model.type != AnnotationType.ALIGNMENT and request_model.type != AnnotationType.TABLE_OF_CONTENTS:
+
+        manifestation_id = db.get_manifestation_id_by_annotation_id(annotation_id = annotation_id)
+        if manifestation_id is None:
+            raise DataNotFound(f"Manifestation not found for annotation {annotation_id}")
+
+        logger.info("Deleting annotation and its segments")
+        db.delete_annotation_and_its_segments(annotation_id = annotation_id)
+        logger.info("Annotation deleted successfully")
+
+        logger.info("Creating new annotation")
+        
+        annotation_id = db.add_annotation_to_manifestation(
+            manifestation_id=manifestation_id,
+            annotation=AnnotationModel(
+                id=generate_id(),
+                type=request_model.type
+            ),
+            annotation_segments=data["data"]["annotations"]
+        )
+        logger.info("Annotation added successfully")
+        response = {
+            "message": "Annotation updated successfully",
+            "annotation_id": annotation_id
+        }
+    elif request_model.type == AnnotationType.TABLE_OF_CONTENTS:
+        response = _update_table_of_contents_annotation(
+            db = db,
+            annotation_id = annotation_id,
+            data = data
+        )
+    else:
+        response = _update_alignment_annotation(
+            db = db,
+            annotation_id = annotation_id,
+            data = data
+        )
+
+    return jsonify(response), 201
 
 @annotations_bp.route("/<string:manifestation_id>/annotation", methods=["POST"], strict_slashes=False)
 def add_annotation(manifestation_id: str) -> tuple[Response, int]:
@@ -51,44 +106,154 @@ def add_annotation(manifestation_id: str) -> tuple[Response, int]:
  
     
     response = None
-    if request_model.annotation_type == AnnotationType.SEGMENTATION or request_model.annotation_type == AnnotationType.PAGINATION:
+    if request_model.type == AnnotationType.SEGMENTATION or request_model.type == AnnotationType.PAGINATION:
         response = _add_segmentation_annotation(
             manifestation=manifestation,
             manifestation_id=manifestation_id,
             data=data
         )
 
-    elif request_model.annotation_type == AnnotationType.BIBLIOGRAPHY:
-        bibliography_annotation_id = generate_id()
-        bibliography_annotation = AnnotationModel(
-            id=bibliography_annotation_id,
-            type=AnnotationType.BIBLIOGRAPHY
+    elif request_model.type == AnnotationType.BIBLIOGRAPHY:
+        response = _add_bibliography_annotation(
+            request_model=request_model,
+            manifestation_id=manifestation_id
         )
-        bibliography_segments = [seg.model_dump() for seg in request_model.annotation] if request_model.annotation else []
-        annotation_id = db.add_annotation_to_manifestation(
-            manifestation_id=manifestation_id,
-            annotation=bibliography_annotation,
-            annotation_segments=bibliography_segments
-        )
-        response = {
-            "message": "Bibliography annotation added successfully",
-            "annotation_id": annotation_id,
-        }
 
-    elif request_model.annotation_type == AnnotationType.ALIGNMENT:
+    elif request_model.type == AnnotationType.ALIGNMENT:
         response = _add_alignment_annotation(
             target_manifestation_id = request_model.target_manifestation_id,
             manifestation_id = manifestation_id,
             data = data
         )
 
-    elif request_model.annotation_type == AnnotationType.TABLE_OF_CONTENTS:
+    elif request_model.type == AnnotationType.TABLE_OF_CONTENTS:
         response = _add_table_of_contents_annotation(
             manifestation_id = manifestation_id,
             data = data
         )
 
     return jsonify(response), 201
+
+def _validate_update_annotation_request(db: Neo4JDatabase, annotation_id: str, request_model: UpdateAnnotationRequestModel, data: dict) -> None:
+    existing_type = db.get_annotation_type(annotation_id)
+    if existing_type is None:
+        raise DataNotFound(f"Annotation with ID {annotation_id} not found")
+    
+    if existing_type != request_model.type.value:
+        raise InvalidRequest(
+            f"Annotation type mismatch: annotation {annotation_id} is of type '{existing_type}', "
+            f"but request body specifies type '{request_model.type.value}'"
+        )
+    
+    # Validate bibliography types exist in Neo4j before updating
+    if request_model.type == AnnotationType.BIBLIOGRAPHY:
+        bibliography_types = [seg.get("type") for seg in data["data"]["annotations"] if "type" in seg]
+        with db.get_session() as session:
+            Neo4JDatabaseValidator().validate_bibliography_type_exists(
+                session=session,
+                bibliography_types=bibliography_types
+            )
+
+
+def _update_table_of_contents_annotation(db: Neo4JDatabase, annotation_id: str, data: dict) -> dict:
+    manifestation_id = db.get_manifestation_id_by_annotation_id(annotation_id = annotation_id)
+    if manifestation_id is None:
+        raise DataNotFound(f"Manifestation not found for annotation {annotation_id}")
+
+    logger.info("Deleting table of contents annotation and it's sections")
+    db.delete_table_of_content_annotation(annotation_id = annotation_id)
+    logger.info("Table of contents annotation deleted successfully")
+
+    logger.info("Creating new table of contents annotation")
+    annotation_id = db.add_table_of_contents_annotation_to_manifestation(
+        manifestation_id = manifestation_id,
+        annotation = AnnotationModel(
+            id = generate_id(),
+            type = AnnotationType.TABLE_OF_CONTENTS
+        ),
+        annotation_segments=data["data"]["annotations"]
+    )
+    response = {
+        "message": "Table of contents annotation updated successfully",
+        "annotation_id": annotation_id
+    }
+    return response
+
+def _update_alignment_annotation(db: Neo4JDatabase, annotation_id: str, data: dict) -> dict:
+    logger.info("Deleting alignment annotation and it's segments")
+    pair = db.get_alignment_pair(annotation_id)
+    if pair is None:
+        raise DataNotFound(f"Alignment pair not found for annotation {annotation_id}")
+
+    source_id, target_id = pair
+    logger.info(f"source id: {source_id}, target id: {target_id}")
+    
+    source_manifestation_id = db.get_manifestation_id_by_annotation_id(source_id)
+    target_manifestation_id = db.get_manifestation_id_by_annotation_id(target_id)
+    logger.info(f"source manifestation id: {source_manifestation_id}, target manifestation id: {target_manifestation_id}")
+
+    db.delete_alignment_annotation(source_id, target_id)
+    logger.info("Alignment annotation deleted successfully")
+
+    logger.info("Creating new alignment annotation")
+    alignment_segments_with_ids, target_segments_with_ids, alignments = _alignment_annotation_mapping(
+        target_annotation=data["data"]["target_annotation"],
+        alignment_annotation=data["data"]["alignment_annotation"]
+    )
+
+    target_annotation_id = generate_id()
+    source_annotation_id = generate_id()
+    db.add_alignment_annotation_to_manifestation(
+        target_annotation=AnnotationModel(
+            id=target_annotation_id,
+            type=AnnotationType.ALIGNMENT
+        ),
+        source_annotation=AnnotationModel(
+            id=source_annotation_id,
+            type=AnnotationType.ALIGNMENT,
+            aligned_to=target_annotation_id
+        ),
+        target_manifestation_id = target_manifestation_id,
+        source_manifestation_id = source_manifestation_id,
+        target_segments = target_segments_with_ids,
+        alignment_segments = alignment_segments_with_ids,
+        alignments = alignments
+    )
+
+    response = {
+        "message": "Alignment annotation updated successfully",
+        "target_annotation_id": target_annotation_id,
+        "source_annotation_id": source_annotation_id
+    }
+
+    return response
+
+def _add_bibliography_annotation(request_model: AddAnnotationRequestModel, manifestation_id: str) -> dict:
+    db = Neo4JDatabase()
+    # Validate bibliography types exist in Neo4j before adding
+    bibliography_types = [seg.type for seg in request_model.annotation] if request_model.annotation else []
+    if bibliography_types:
+        with db.get_session() as session:
+            Neo4JDatabaseValidator().validate_bibliography_type_exists(
+                session=session,
+                bibliography_types=bibliography_types
+            )
+    bibliography_annotation_id = generate_id()
+    bibliography_annotation = AnnotationModel(
+        id=bibliography_annotation_id,
+        type=AnnotationType.BIBLIOGRAPHY
+    )
+    bibliography_segments = [seg.model_dump() for seg in request_model.annotation] if request_model.annotation else []
+    annotation_id = db.add_annotation_to_manifestation(
+        manifestation_id=manifestation_id,
+        annotation=bibliography_annotation,
+        annotation_segments=bibliography_segments
+    )
+    response = {
+        "message": "Bibliography annotation added successfully",
+        "annotation_id": annotation_id,
+    }
+    return response
 
 def _add_alignment_annotation(target_manifestation_id: str, manifestation_id: str, data: dict) -> dict:
     alignment_annotation_id = generate_id()
@@ -138,7 +303,7 @@ def _add_segmentation_annotation(manifestation, manifestation_id: str, data: dic
             type=AnnotationType.SEGMENTATION,
         )
     elif manifestation.type == ManifestationType.DIPLOMATIC:
-        if data.get("annotation_type") == AnnotationType.PAGINATION:
+        if data.get("type") == AnnotationType.PAGINATION:
             annotation_type = AnnotationModel(
                 id=generate_id(),
                 type=AnnotationType.PAGINATION,
@@ -182,7 +347,11 @@ def _add_table_of_contents_annotation(manifestation_id: str, data: dict) -> dict
         type=AnnotationType.TABLE_OF_CONTENTS,
     )
     logger.info("Adding table of contents annotation to manifestation")
-    annotation_id = Neo4JDatabase().add_table_of_contents_annotation_to_manifestation(manifestation_id = manifestation_id, annotation = annotation_type, annotation_segments = annotation_segments)
+    annotation_id = Neo4JDatabase().add_table_of_contents_annotation_to_manifestation(
+        manifestation_id = manifestation_id, 
+        annotation = annotation_type, 
+        annotation_segments = annotation_segments
+    )
     logger.info("Table of contents annotation added successfully")
 
     response = {

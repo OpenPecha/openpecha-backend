@@ -75,9 +75,24 @@ def post_texts() -> tuple[Response, int]:
 
     logger.info("Successfully parsed expression: %s", expression.model_dump_json())
 
-    expression_id = Neo4JDatabase().create_expression(expression)
+    db = Neo4JDatabase()
+    
+    # First check if expression with same BDRC ID already exists
+    if expression.bdrc:
+        try:
+            existing_expression = db.get_expression_by_bdrc(expression.bdrc)
+            logger.info("Expression with BDRC ID %s already exists: %s", expression.bdrc, existing_expression.id)
+            return jsonify({
+                "message": "Expression with this BDRC ID already exists", 
+                "id": existing_expression.id
+            }), 200
+        except DataNotFound:
+            # No existing expression found, proceed to create new one
+            logger.info("No existing expression found with BDRC ID %s, creating new expression", expression.bdrc)
+    
+    # Create new expression
+    expression_id = db.create_expression(expression)
     logger.info("Successfully created expression with ID: %s", expression_id)
-
     return jsonify({"message": "Text created successfully", "id": expression_id}), 201
 
 
