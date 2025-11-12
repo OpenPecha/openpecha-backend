@@ -315,7 +315,11 @@ def get_excerpt(manifestation_id: str) -> tuple[Response, int]:
 def get_segment_related(manifestation_id: str) -> tuple[Response, int]:
     # Parse transformed parameter (boolean)
     transform = request.args.get("transform")
-    print(transform)
+    if transform == "true":
+        transform = True
+    else:
+        transform = False
+        
     segment_id = request.args.get("segment_id")
     span_start = request.args.get("span_start")
     span_end = request.args.get("span_end")

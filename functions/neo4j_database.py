@@ -1328,12 +1328,11 @@ class Neo4JDatabase:
             span_start = item["span_start"]
             span_end = item["span_end"]
             alignment_list = self._get_alignment_pairs_by_manifestation(manifestation_1_id)
-            print(item)
-            print(alignment_list)
+            
             for alignment in alignment_list:
                 if (alignment["alignment_1_id"], alignment["alignment_2_id"]) not in traversed_alignment_pairs:
                     segments_list = self._get_aligned_segments(alignment["alignment_1_id"], span_start, span_end)
-                    print(segments_list)
+                    
                     # Skip if no segments found
                     if not segments_list:
                         continue
@@ -1341,7 +1340,7 @@ class Neo4JDatabase:
                     overall_start = min(segments_list, key=lambda x: x["span"]["start"])["span"]["start"]
                     overall_end = max(segments_list, key=lambda x: x["span"]["end"])["span"]["end"]
                     manifestation_2_id = self.get_manifestation_id_by_annotation_id(alignment["alignment_2_id"])
-                    print(manifestation_2_id)
+                    
                     # Skip if manifestation already visited (prevents infinite loops)
                     if manifestation_2_id in visited_manifestations:
                         continue
@@ -1350,6 +1349,7 @@ class Neo4JDatabase:
                     
                     if transform:
                         transformed_segments = self._get_overlapping_segments(manifestation_2_id, overall_start, overall_end)
+                        print(transformed_segments)
                         transformed_related_segments.append({"manifestation_id": manifestation_2_id, "segments": transformed_segments})
                     else:
                         untransformed_related_segments.append({"manifestation_id": manifestation_2_id, "segments": segments_list})
