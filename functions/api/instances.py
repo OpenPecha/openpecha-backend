@@ -49,7 +49,7 @@ def get_instance(manifestation_id: str):
     metadata = {
         "id": manifestation.id,
         "type": manifestation.type.value,
-        "copyright": manifestation.copyright.value,
+        "source": manifestation.source,
         "bdrc": manifestation.bdrc,
         "wiki": manifestation.wiki,
         "colophon": manifestation.colophon,
@@ -130,9 +130,13 @@ def _create_aligned_text(
         contributions=contributions,
         target=target_expression_id,
         category_id=request_model.category_id,
+        copyright=request_model.copyright,
+        license=request_model.license,
+        bdrc=request_model.bdrc,
+        wiki=request_model.wiki,
     )
 
-    manifestation = ManifestationModelInput(type=ManifestationType.CRITICAL, copyright=request_model.copyright)
+    manifestation = ManifestationModelInput(type=ManifestationType.CRITICAL)
 
     aligned = request_model.alignment_annotation is not None
     

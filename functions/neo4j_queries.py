@@ -75,7 +75,7 @@ class Queries:
         }}
     ],
     colophon: {label}.colophon,
-    copyright: [({label})-[:HAS_COPYRIGHT]->(mf_cs:CopyrightStatus) | mf_cs.name][0],
+    source: [({label})-[:HAS_SOURCE]->(mf_s:Source) | mf_s.name][0],
     incipit_title: [{Queries.primary_nomen(label, 'HAS_INCIPIT_TITLE')}],
     alt_incipit_titles: [{Queries.alternative_nomen(label, 'HAS_INCIPIT_TITLE')}],
     alignment_sources: {Queries.manifestation_alignment_sources(label)},
@@ -123,13 +123,34 @@ END
     title: [{Queries.primary_nomen(label, 'HAS_TITLE')}],
     alt_titles: [{Queries.alternative_nomen(label, 'HAS_TITLE')}],
     language: [({label})-[:HAS_LANGUAGE]->(ef_lang:Language) | ef_lang.code][0],
-    category_id: [({label})-[:EXPRESSION_OF]->(ef_work:Work)-[:BELONGS_TO]->(ef_cat:Category) | ef_cat.id][0]
+    category_id: [({label})-[:EXPRESSION_OF]->(ef_work:Work)-[:BELONGS_TO]->(ef_cat:Category) | ef_cat.id][0],
+    copyright: [({label})-[:HAS_COPYRIGHT]->(ef_copyright:Copyright) | ef_copyright.name][0],
+    license: [({label})-[:HAS_LICENSE]->(ef_license:License) | ef_license.name][0]
 }}
 """
 
     @staticmethod
     def create_expression_base(label):
         return f"CREATE ({label}:Expression {{id: $expression_id, bdrc: $bdrc, wiki: $wiki, date: $date}})"
+
+    @staticmethod
+    def create_copyright_and_license(expression_label):
+        """
+        Matches existing Copyright node by status and links it to the expression.
+        Also matches existing License node by name and links it.
+        
+        Returns Cypher fragment that:
+        1. Matches Copyright node by status value
+        2. Links Expression to Copyright
+        3. Matches License node by name (creates if not exists)
+        4. Links Expression to License
+        """
+        return f"""
+MATCH (copyright:Copyright {{status: $copyright}})
+CREATE ({expression_label})-[:HAS_COPYRIGHT]->(copyright)
+MERGE (license:License {{name: $license}})
+CREATE ({expression_label})-[:HAS_LICENSE]->(license)
+"""
 
 
 Queries.expressions = {
@@ -172,6 +193,7 @@ MATCH (l:Language {{code: $language_code}})
 CREATE (e)-[:EXPRESSION_OF {{original: $original}}]->(w),
        (e)-[:HAS_LANGUAGE {{bcp47: $bcp47_tag}}]->(l),
        (e)-[:HAS_TITLE]->(n)
+{Queries.create_copyright_and_license('e')}
 RETURN e.id as expression_id
 """,
     "create_contribution": """
@@ -201,6 +223,7 @@ CREATE (e)-[:EXPRESSION_OF {{original: false}}]->(w),
        (e)-[:TRANSLATION_OF]->(target),
        (e)-[:HAS_LANGUAGE {{bcp47: $bcp47_tag}}]->(l),
        (e)-[:HAS_TITLE]->(n)
+{Queries.create_copyright_and_license('e')}
 RETURN e.id as expression_id
 """,
     "create_commentary": f"""
@@ -214,6 +237,7 @@ CREATE (e)-[:COMMENTARY_OF]->(target),
        (e)-[:EXPRESSION_OF {{original: true}}]->(commentary_work),
        (e)-[:HAS_LANGUAGE {{bcp47: $bcp47_tag}}]->(l),
        (e)-[:HAS_TITLE]->(n)
+{Queries.create_copyright_and_license('e')}
 RETURN e.id as expression_id
 """,
 }
@@ -261,7 +285,7 @@ Queries.manifestations = {
     MATCH (m)-[:MANIFESTATION_OF]->(e:Expression)
     WHERE $manifestation_type IS NULL OR [(m)-[:HAS_TYPE]->(mt:ManifestationType) | mt.name][0] = $manifestation_type
 
-    RETURN {Queries.manifestation_fragment('m')} AS manifestation, e.id AS expression_id
+    RETURN {Queries.manifestation_fragment('m')} AS manifestation, e.id AS expression_id 
 """,
     "fetch_by_annotation_id": f"""
     MATCH (a:Annotation {{id: $annotation_id}})-[:ANNOTATION_OF]->(m:Manifestation)
@@ -278,18 +302,18 @@ MATCH (e:Expression {id: $expression_id})
 OPTIONAL MATCH (it:Nomen)
   WHERE elementId(it) = $incipit_element_id
 MERGE (mt:ManifestationType {name: $type})
-MERGE (cs:CopyrightStatus {name: $copyright})
+MERGE (S:Source {name: $source})
 CREATE (m:Manifestation {
   id: $manifestation_id,
   bdrc: $bdrc,
   wiki: $wiki,
   colophon: $colophon
 })
-WITH m, e, mt, cs, it
+WITH m, e, mt, S, it
 
 CREATE (m)-[:MANIFESTATION_OF]->(e),
        (m)-[:HAS_TYPE]->(mt),
-       (m)-[:HAS_COPYRIGHT]->(cs)
+       (m)-[:HAS_SOURCE]->(S)
 CALL (*) {
   WHEN it IS NOT NULL THEN { CREATE (m)-[:HAS_INCIPIT_TITLE]->(it) }
 }
