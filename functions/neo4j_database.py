@@ -30,7 +30,6 @@ from models import (
 from neo4j import GraphDatabase
 from neo4j_database_validator import Neo4JDatabaseValidator
 from neo4j_queries import Queries
-from segment_alignment import SegmentAlignmentService
 
 logger = logging.getLogger(__name__)
 
@@ -46,10 +45,7 @@ class Neo4JDatabase:
             )
         self.__driver.verify_connectivity()
         self.__validator = Neo4JDatabaseValidator()
-        
-        # Initialize segment alignment service
-        self.__segment_alignment_service = SegmentAlignmentService(self.__driver, self)
-        
+
         logger.info("Connection to neo4j established.")
 
     def __del__(self):
@@ -358,34 +354,6 @@ class Neo4JDatabase:
                 },
             }
 
-    def get_segmentation_segments_for_spans(
-        self, manifestation_id: str, spans: list[dict[str, int]]
-    ) -> list[dict]:
-        """
-        Retrieve segmentation annotation segments overlapping with the provided spans.
-
-        Args:
-            manifestation_id: The manifestation to search within.
-            spans: List of dicts containing 'start' and 'end' keys representing spans.
-
-        Returns:
-            List of dicts with 'id' and 'span' keys following the API response format.
-        """
-        if not spans:
-            return []
-
-        segmentation_segments = self.__segment_alignment_service._find_segmentation_segments_for_spans(
-            manifestation_id, spans
-        )
-
-        return [
-            {
-                "id": segment["segment_id"],
-                "span": {"start": segment["span_start"], "end": segment["span_end"]},
-            }
-            for segment in segmentation_segments
-        ]
-
     def _get_segment(self, segment_id: str) -> tuple[SegmentModel, str, str]:
         with self.__driver.session() as session:
             record = session.execute_read(
@@ -410,129 +378,6 @@ class Neo4JDatabase:
             data = record.data()
             segment = SegmentModel(id=data["segment_id"], span={"start": data["span_start"], "end": data["span_end"]})
             return segment, data["manifestation_id"], data["expression_id"]
-
-    def get_segment_related_alignment_only(
-        self, manifestation_id: str, span_start: int, span_end: int
-    ) -> list[dict]:
-        """Get related manifestations via alignment layer (no transfer)."""
-        logger.info(
-            "Finding related manifestations via alignment layer for manifestation '%s', span=[%d, %d)",
-            manifestation_id, span_start, span_end
-        )
-        
-        with self.__driver.session() as session:
-            result = session.execute_read(
-                lambda tx: list(
-                    tx.run(
-                        Queries.segments["find_related_alignment_only"],
-                        manifestation_id=manifestation_id,
-                        span_start=span_start,
-                        span_end=span_end,
-                    )
-                )
-            )
-            
-            logger.info("Query returned %d related manifestation(s)", len(result))
-            
-            # Build manifestation_data dict in standard format
-            manifestation_data = {}
-            for record in result:
-                data = record.data()
-                manif_id = data["manifestation_id"]
-                
-                logger.info(
-                    "Processing manifestation '%s' with %d alignment segment(s)",
-                    manif_id, len(data["segments"])
-                )
-                
-                manifestation_data[manif_id] = {
-                    'expression_id': data["expression_id"],
-                    'segments': [
-                        {
-                            'segment_id': seg["id"],
-                            'span_start': seg["span_start"],
-                            'span_end': seg["span_end"]
-                        }
-                        for seg in data["segments"]
-                    ]
-                }
-            
-            logger.info("Successfully built %d related manifestation response(s)", len(manifestation_data))
-            return self.__segment_alignment_service._build_segment_related_response(manifestation_data)
-
-    def get_segment_related_with_transfer(
-        self, manifestation_id: str, span_start: int, span_end: int
-    ) -> list[dict]:
-        """Get related manifestations with alignment transfer to segmentation layer."""
-        logger.info(
-            "Finding related manifestations with transfer to segmentation layer for manifestation '%s', span=[%d, %d)",
-            manifestation_id, span_start, span_end
-        )
-        
-        with self.__driver.session() as session:
-            result = session.execute_read(
-                lambda tx: list(
-                    tx.run(
-                        Queries.segments["find_related_with_transfer"],
-                        manifestation_id=manifestation_id,
-                        span_start=span_start,
-                        span_end=span_end,
-                    )
-                )
-            )
-            
-            logger.info("Query returned %d related manifestation(s)", len(result))
-            
-            # Build manifestation_data dict in standard format
-            manifestation_data = {}
-            for record in result:
-                data = record.data()
-                manif_id = data["manifestation_id"]
-                
-                logger.info(
-                    "Processing manifestation '%s' with %d segmentation segment(s)",
-                    manif_id, len(data["segments"])
-                )
-                
-                manifestation_data[manif_id] = {
-                    'expression_id': data["expression_id"],
-                    'segments': [
-                        {
-                            'segment_id': seg["id"],
-                            'span_start': seg["span_start"],
-                            'span_end': seg["span_end"]
-                        }
-                        for seg in data["segments"]
-                    ]
-                }
-            
-            logger.info("Successfully built %d related manifestation response(s)", len(manifestation_data))
-            return self.__segment_alignment_service._build_segment_related_response(manifestation_data)
-
-    def get_segment_related_transitive(
-        self, manifestation_id: str, span_start: int, span_end: int, transform: bool = False
-    ) -> list[dict]:
-        """
-        Transitive traversal through alignment graph AND expression relationships.
-        Expression-level relationships are discovered during BFS traversal.
-        
-        Returns all manifestations and their segments that are transitively aligned
-        to the given span in the source manifestation.
-        
-        Args:
-            manifestation_id: Source manifestation ID
-            span_start: Start of the span
-            span_end: End of the span
-            transform: If True, convert alignment segments to segmentation segments;
-                      if False, return alignment segments as-is
-                      
-        Returns:
-            List of related manifestations with their segments
-        """
-        # Delegate to the segment alignment service
-        return self.__segment_alignment_service.get_segment_related_transitive(
-            manifestation_id, span_start, span_end, transform
-        )
 
     def get_all_persons(self, offset: int = 0, limit: int = 20) -> list[PersonModelOutput]:
         params = {
