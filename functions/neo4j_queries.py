@@ -387,10 +387,11 @@ RETURN source_id, target_id
 """,
     "get_alignment_pairs_by_manifestation": """
 MATCH (m:Manifestation {id: $manifestation_id})
-MATCH (m)-[:ANNOTATION_OF]->(a:Annotation)-[:HAS_TYPE]->(:AnnotationType {name: 'alignment'})
-WITH a, m.id as manifestation_id
+MATCH (m)<-[:ANNOTATION_OF]-(a1:Annotation)-[:HAS_TYPE]->(:AnnotationType {name: 'alignment'})
+MATCH (a1)-[:ALIGNED_TO]-(a2:Annotation)
+WITH a1, a2, m.id as manifestation_id
 
-RETURN manifestation_id, a.id as alignment_1_id, a.id as alignment_2_id
+RETURN manifestation_id, a1.id as alignment_1_id, a2.id as alignment_2_id
 """,
     "delete_alignment_annotations": """
 MATCH (source:Annotation {id: $source_annotation_id})
