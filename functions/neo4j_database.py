@@ -1262,7 +1262,7 @@ class Neo4JDatabase:
         with self.get_session() as session:
             result = session.execute_read(
                 lambda tx: tx.run(
-                    Queries.annotations["get_alignment_pairs"],
+                    Queries.annotations["get_alignment_pairs_by_manifestation"],
                     manifestation_id=manifestation_id
                 ).data()
             )

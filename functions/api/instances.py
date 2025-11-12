@@ -282,102 +282,10 @@ def create_translation(original_manifestation_id: str) -> tuple[Response, int]:
     return _create_aligned_text(request_model, TextType.TRANSLATION, original_manifestation_id)
 
 
-@instances_bp.route("/<string:manifestation_id>/excerpt", methods=["GET"], strict_slashes=False)
-def get_excerpt(manifestation_id: str) -> tuple[Response, int]:
-    logger.info("Fetching excerpt for manifestation ID: %s", manifestation_id)
-
-    span = SpanModel(
-        start=int(request.args.get("span_start", -1)),
-        end=int(request.args.get("span_end", -1)),
-    )
-
-    db = Neo4JDatabase()
-
-    _, expression_id = db.get_manifestation(manifestation_id)
-
-    pecha = retrieve_pecha(expression_id)
-    base_text = next(iter(pecha.bases.values()))
-
-    if span.end > len(base_text):
-        return jsonify({"error": f"span end ({span.end}) exceeds base text length ({len(base_text)})"}), 400
-
-    return jsonify({"excerpt": base_text[span.start : span.end]}), 200
-
-
-# @instances_bp.route("/<string:manifestation_id>/related", methods=["GET"], strict_slashes=False)
-# def get_related_texts(manifestation_id: str) -> tuple[Response, int]:
-
-#     logger.info("Finding related texts for manifestation ID: %s", manifestation_id)
-
-#     span = SpanModel(
-#         start=int(request.args.get("span_start", -1)),
-#         end=int(request.args.get("span_end", -1)),
-#     )
-
-#     db = Neo4JDatabase()
-
-#     # Find segments from database that overlap with the given character span
-#     matching_segments = db.find_segments_by_span(manifestation_id, span)
-
-#     if not matching_segments:
-#         error_msg = f"No segments found containing span [{span.start}, {span.end}) in instance '{manifestation_id}'"
-#         return jsonify({"error": error_msg}), 404
-
-#     # For each matching segment, find all aligned segments separated by direction
-#     targets_map = {}
-#     sources_map = {}
-
-#     for source_segment in matching_segments:
-#         aligned = db.find_aligned_segments(source_segment.id)
-
-#         # Process targets (outgoing relationships)
-#         for manifestation_id, segments in aligned["targets"].items():
-#             existing = targets_map.setdefault(manifestation_id, [])
-#             existing.extend(seg for seg in segments if seg not in existing)
-
-#         # Process sources (incoming relationships)
-#         for manifestation_id, segments in aligned["sources"].items():
-#             existing = sources_map.setdefault(manifestation_id, [])
-#             existing.extend(seg for seg in segments if seg not in existing)
-
-#     def build_related_texts(manifestations_map):
-#         """Helper to build the related texts structure from a manifestations map"""
-#         result = []
-#         for manifestation_id, segments in manifestations_map.items():
-#             manifestation_model, expression_id = db.get_manifestation(manifestation_id)
-#             expression_model = db.get_expression(expression_id)
-
-#             # Merge neighboring/overlapping spans
-#             merged_spans = []
-#             for span in sorted([seg.span for seg in segments], key=lambda s: s[0]):
-#                 if merged_spans and span[0] <= merged_spans[-1][1]:
-#                     merged_spans[-1] = (merged_spans[-1][0], max(merged_spans[-1][1], span[1]))
-#                 else:
-#                     merged_spans.append(span)
-
-#             result.append(
-#                 {
-#                     "text": expression_model.model_dump(),
-#                     "instance": manifestation_model.model_dump(),
-#                     "spans": [{"start": s[0], "end": s[1]} for s in merged_spans],
-#                 }
-#             )
-#         return result
-
-#     return (
-#         jsonify(
-#             {
-#                 "targets": build_related_texts(targets_map),
-#                 "sources": build_related_texts(sources_map),
-#             }
-#         ),
-#         200,
-#     )
-
 @instances_bp.route("/<string:manifestation_id>/segment-related", methods=["GET"], strict_slashes=False)
 def get_segment_related(manifestation_id: str) -> tuple[Response, int]:
     # Parse transformed parameter (boolean)
-    transformed = request.args.get("transformed", "false").lower() == "true"
+    transform = request.args.get("transform", "false").lower() == "true"
     segment_id = request.args.get("segment_id")
     span_start = request.args.get("span_start")
     span_end = request.args.get("span_end")
@@ -428,48 +336,10 @@ def get_segment_related(manifestation_id: str) -> tuple[Response, int]:
         except (ValueError, Exception) as e:
             return jsonify({"error": f"Invalid span parameters: {str(e)}"}), 422
     
-    scope = request.args.get("scope", "direct").lower()
-    if scope not in {"direct", "transitive"}:
-        return jsonify({
-            "error": "Invalid scope parameter. Must be 'direct' or 'transitive'."
-        }), 400
+    related_segments = db._get_related_segments(manifestation_id, span.start, span.end, transform)
     
-    logger.info(
-        "Getting segment related by span [%d, %d), transformed=%s, scope=%s",
-        span.start,
-        span.end,
-        transformed,
-        scope,
-    )
-    
-    if scope == "indirect":
-        result = db.get_segment_related_alignment_only(
-            manifestation_id, span.start, span.end
-        )
+    return jsonify(related_segments), 200
 
-        if transformed and result:
-            for entry in result:
-                spans = [
-                    {
-                        "start": segment["span"]["start"],
-                        "end": segment["span"]["end"],
-                    }
-                    for segment in entry.get("segments", [])
-                ]
-
-                transformed_segments = db.get_segmentation_segments_for_spans(
-                    entry["instance_id"], spans
-                )
-
-                entry["segments"] = transformed_segments
-    else:
-        # scope == "transitive"
-        logger.info("Getting segment related by span [%d, %d), transformed=%s, scope=transitive", span.start, span.end, transformed)
-        result = db.get_segment_related_transitive(
-            manifestation_id, span.start, span.end, transform=transformed
-        )
-    
-    return jsonify(result), 200
 
 @instances_bp.route("/<string:manifestation_id>/related", methods=["GET"], strict_slashes=False)
 def get_related_instances(manifestation_id: str) -> tuple[Response, int]:
@@ -491,6 +361,7 @@ def get_related_instances(manifestation_id: str) -> tuple[Response, int]:
         return jsonify({"error": str(e)}), 500
 
     return jsonify(related_instances), 200
+
 
 @instances_bp.route("/<string:instance_id>/segment-content", methods=["GET"], strict_slashes=False)
 def get_instance_segment_content(instance_id: str) -> tuple[Response, int]:

@@ -385,7 +385,7 @@ WITH a,
      CASE WHEN target IS NOT NULL THEN target.id ELSE a.id END as target_id
 RETURN source_id, target_id
 """,
-    "get_alignment_pairs": """
+    "get_alignment_pairs_by_manifestation": """
 MATCH (m:Manifestation {id: $manifestation_id})
 MATCH (m)-[:ANNOTATION_OF]->(a:Annotation)-[:HAS_TYPE]->(:AnnotationType {name: 'alignment'})
 WITH a, m.id as manifestation_id
@@ -546,7 +546,7 @@ RETURN manifestation_id, segments
 """,
     "get_aligned_segments": """
 MATCH (a1:Annotation {id: $alignment_1_id})<-[:SEGMENTATION_OF]-(s1:Segment)
-WHERE s1.span_start >= $span_start AND s1.span_end <= $span_end
+WHERE s1.span_start < $span_end AND s1.span_end > $span_start
 MATCH (s1)-[:ALIGNED_TO]-(s2:Segment)
 RETURN DISTINCT s2.id as segment_id,
        s2.span_start as span_start,
