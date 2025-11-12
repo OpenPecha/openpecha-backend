@@ -1,6 +1,7 @@
 from collections import OrderedDict
 import os
 import logging
+import queue
 from exceptions import DataNotFound
 from identifier import generate_id
 from models import (
@@ -29,6 +30,7 @@ from models import (
 from neo4j import GraphDatabase
 from neo4j_database_validator import Neo4JDatabaseValidator
 from neo4j_queries import Queries
+from segment_alignment import SegmentAlignmentService
 
 logger = logging.getLogger(__name__)
 
@@ -44,6 +46,10 @@ class Neo4JDatabase:
             )
         self.__driver.verify_connectivity()
         self.__validator = Neo4JDatabaseValidator()
+        
+        # Initialize segment alignment service
+        self.__segment_alignment_service = SegmentAlignmentService(self.__driver, self)
+        
         logger.info("Connection to neo4j established.")
 
     def __del__(self):
@@ -313,7 +319,7 @@ class Neo4JDatabase:
             return [
                 SegmentModel(
                     id=data["segment_id"],
-                    span=SpanModel(start=data["span_start"], end=data["span_end"]),
+                    span={"start": data["span_start"], "end": data["span_end"]},
                 )
                 for record in result
                 for data in [record.data()]
@@ -338,19 +344,48 @@ class Neo4JDatabase:
             return {
                 "targets": {
                     record["manifestation_id"]: [
-                        SegmentModel(id=seg["segment_id"], span=SpanModel(start=seg["span_start"], end=seg["span_end"]))
+                        SegmentModel(id=seg["segment_id"], span={"start": seg["span_start"], "end": seg["span_end"]})
                         for seg in record["segments"]
                     ]
                     for record in targets_result
                 },
                 "sources": {
                     record["manifestation_id"]: [
-                        SegmentModel(id=seg["segment_id"], span=SpanModel(start=seg["span_start"], end=seg["span_end"]))
+                        SegmentModel(id=seg["segment_id"], span={"start": seg["span_start"], "end": seg["span_end"]})
                         for seg in record["segments"]
                     ]
                     for record in sources_result
                 },
             }
+
+    def get_segmentation_segments_for_spans(
+        self, manifestation_id: str, spans: list[dict[str, int]]
+    ) -> list[dict]:
+        """
+        Retrieve segmentation annotation segments overlapping with the provided spans.
+
+        Args:
+            manifestation_id: The manifestation to search within.
+            spans: List of dicts containing 'start' and 'end' keys representing spans.
+
+        Returns:
+            List of dicts with 'id' and 'span' keys following the API response format.
+        """
+        if not spans:
+            return []
+
+        segmentation_segments = self.__segment_alignment_service._find_segmentation_segments_for_spans(
+            manifestation_id, spans
+        )
+
+        return [
+            {
+                "id": segment["segment_id"],
+                "span": {"start": segment["span_start"], "end": segment["span_end"]},
+            }
+            for segment in segmentation_segments
+        ]
+
     def _get_segment(self, segment_id: str) -> tuple[SegmentModel, str, str]:
         with self.__driver.session() as session:
             record = session.execute_read(
@@ -359,7 +394,7 @@ class Neo4JDatabase:
             if record is None:
                 raise DataNotFound(f"Segment with ID {segment_id} not found")
             data = record.data()
-            segment = SegmentModel(id=data["segment_id"], span=SpanModel(start=data["span_start"], end=data["span_end"]))
+            segment = SegmentModel(id=data["segment_id"], span={"start": data["span_start"], "end": data["span_end"]})
             return segment, data["manifestation_id"], data["expression_id"]
 
 
@@ -373,7 +408,7 @@ class Neo4JDatabase:
                 raise DataNotFound(f"Segment with ID {segment_id} not found")
 
             data = record.data()
-            segment = SegmentModel(id=data["segment_id"], span=SpanModel(start=data["span_start"], end=data["span_end"]))
+            segment = SegmentModel(id=data["segment_id"], span={"start": data["span_start"], "end": data["span_end"]})
             return segment, data["manifestation_id"], data["expression_id"]
 
     def get_segment_related_alignment_only(
@@ -399,41 +434,31 @@ class Neo4JDatabase:
             
             logger.info("Query returned %d related manifestation(s)", len(result))
             
-            related = []
+            # Build manifestation_data dict in standard format
+            manifestation_data = {}
             for record in result:
                 data = record.data()
-                # Get full manifestation and expression details
-                manifestation_model, _ = self.get_manifestation(data["manifestation_id"])
-                expression_model = self.get_expression(data["expression_id"])
+                manif_id = data["manifestation_id"]
                 
                 logger.info(
                     "Processing manifestation '%s' with %d alignment segment(s)",
-                    data["manifestation_id"], len(data["segments"])
+                    manif_id, len(data["segments"])
                 )
                 
-                # Convert to dict and remove unwanted fields
-                instance_dict = manifestation_model.model_dump()
-                instance_dict.pop("annotations", None)
-                instance_dict.pop("alignment_sources", None)
-                instance_dict.pop("alignment_targets", None)
-                
-                related.append({
-                    "text": expression_model.model_dump(),
-                    "instance": instance_dict,
-                    "segments": [
+                manifestation_data[manif_id] = {
+                    'expression_id': data["expression_id"],
+                    'segments': [
                         {
-                            "id": seg["id"],
-                            "span": {
-                                "start": seg["span_start"],
-                                "end": seg["span_end"]
-                            }
+                            'segment_id': seg["id"],
+                            'span_start': seg["span_start"],
+                            'span_end': seg["span_end"]
                         }
                         for seg in data["segments"]
                     ]
-                })
+                }
             
-            logger.info("Successfully built %d related manifestation response(s)", len(related))
-            return related
+            logger.info("Successfully built %d related manifestation response(s)", len(manifestation_data))
+            return self.__segment_alignment_service._build_segment_related_response(manifestation_data)
 
     def get_segment_related_with_transfer(
         self, manifestation_id: str, span_start: int, span_end: int
@@ -458,41 +483,56 @@ class Neo4JDatabase:
             
             logger.info("Query returned %d related manifestation(s)", len(result))
             
-            related = []
+            # Build manifestation_data dict in standard format
+            manifestation_data = {}
             for record in result:
                 data = record.data()
-                # Get full manifestation and expression details
-                manifestation_model, _ = self.get_manifestation(data["manifestation_id"])
-                expression_model = self.get_expression(data["expression_id"])
+                manif_id = data["manifestation_id"]
                 
                 logger.info(
                     "Processing manifestation '%s' with %d segmentation segment(s)",
-                    data["manifestation_id"], len(data["segments"])
+                    manif_id, len(data["segments"])
                 )
                 
-                # Convert to dict and remove unwanted fields
-                instance_dict = manifestation_model.model_dump()
-                instance_dict.pop("annotations", None)
-                instance_dict.pop("alignment_sources", None)
-                instance_dict.pop("alignment_targets", None)
-                
-                related.append({
-                    "text": expression_model.model_dump(),
-                    "instance": instance_dict,
-                    "segments": [
+                manifestation_data[manif_id] = {
+                    'expression_id': data["expression_id"],
+                    'segments': [
                         {
-                            "id": seg["id"],
-                            "span": {
-                                "start": seg["span_start"],
-                                "end": seg["span_end"]
-                            }
+                            'segment_id': seg["id"],
+                            'span_start': seg["span_start"],
+                            'span_end': seg["span_end"]
                         }
                         for seg in data["segments"]
                     ]
-                })
+                }
             
-            logger.info("Successfully built %d related manifestation response(s)", len(related))
-            return related
+            logger.info("Successfully built %d related manifestation response(s)", len(manifestation_data))
+            return self.__segment_alignment_service._build_segment_related_response(manifestation_data)
+
+    def get_segment_related_transitive(
+        self, manifestation_id: str, span_start: int, span_end: int, transform: bool = False
+    ) -> list[dict]:
+        """
+        Transitive traversal through alignment graph AND expression relationships.
+        Expression-level relationships are discovered during BFS traversal.
+        
+        Returns all manifestations and their segments that are transitively aligned
+        to the given span in the source manifestation.
+        
+        Args:
+            manifestation_id: Source manifestation ID
+            span_start: Start of the span
+            span_end: End of the span
+            transform: If True, convert alignment segments to segmentation segments;
+                      if False, return alignment segments as-is
+                      
+        Returns:
+            List of related manifestations with their segments
+        """
+        # Delegate to the segment alignment service
+        return self.__segment_alignment_service.get_segment_related_transitive(
+            manifestation_id, span_start, span_end, transform
+        )
 
     def get_all_persons(self, offset: int = 0, limit: int = 20) -> list[PersonModelOutput]:
         params = {
@@ -1215,5 +1255,86 @@ class Neo4JDatabase:
     def delete_table_of_content_annotation(self, annotation_id: str) -> None:
         with self.get_session() as session:
             session.run(Queries.sections["delete_sections"], annotation_id = annotation_id)
-            session.run(Queries.annotations["delete"], annotation_id = annotation_id)
+            session.run(Queries.annotations["delete"], annotation_id = annotation_id) 
 
+    
+    def _get_alignment_pairs_by_manifestation(self, manifestation_id: str) -> list[dict]:
+        with self.get_session() as session:
+            result = session.execute_read(
+                lambda tx: tx.run(
+                    Queries.annotations["get_alignment_pairs"],
+                    manifestation_id=manifestation_id
+                ).data()
+            )
+            return result
+    
+    def _get_overlapping_segments(self, manifestation_id: str, start:int, end:int) -> list[dict]:
+        with self.get_session() as session:
+            result = session.execute_read(
+                lambda tx: tx.run(
+                    Queries.segments["get_overlapping_segments"],
+                    manifestation_id=manifestation_id,
+                    span_start=start,
+                    span_end=end
+                ).data()
+            )
+            return [
+                {
+                    "segment_id": record["segment_id"],
+                    "span": {"start": record["span_start"], "end": record["span_end"]},
+                }
+                for record in result
+            ]
+
+
+    def _get_aligned_segments(self, alignment_1_id: str, start:int, end:int) -> list[dict]:
+        with self.get_session() as session:
+            result = session.execute_read(
+                lambda tx: tx.run(
+                    Queries.segments["get_aligned_segments"],
+                    alignment_1_id=alignment_1_id,
+                    span_start=start,
+                    span_end=end
+                ).data()
+            )
+            return [
+                {
+                    "segment_id": record["segment_id"],
+                    "span": {"start": record["span_start"], "end": record["span_end"]},
+                }
+                for record in result
+            ]
+
+
+    def _get_related_segments(self, manifestation_id:str, start:int, end:int, transform:bool = False) -> list[dict]:
+        
+        global transformed_related_segments, untransformed_related_segments, traversed_alignment_pairs
+        transformed_related_segments = []
+        untransformed_related_segments = []
+        traversed_alignment_pairs = []
+
+        queue = queue.Queue()
+        queue.put({"manifestation_id": manifestation_id, "span_start": start, "span_end": end})
+        while queue:
+            manifestation_1_id, span_start, span_end = queue.get()
+            alignment_list = self._get_alignment_pairs_by_manifestation(manifestation_1_id)
+            for alignment in alignment_list:
+                if (alignment["alignment_1_id"], alignment["alignment_2_id"]) not in traversed_alignment_pairs:
+                    segments_list = self._get_aligned_segments(alignment["alignment_1_id"], span_start, span_end)
+                    overall_start = min(segments_list, key=lambda x: x["span"]["start"])["span"]["start"]
+                    overall_end = max(segments_list, key=lambda x: x["span"]["end"])["span"]["end"]
+                    manifestation_2_id = self.get_manifestation_id_by_annotation_id(alignment["alignment_2_id"])
+                    if transform:
+                        transformed_segments = self._get_overlapping_segments(manifestation_2_id, overall_start, overall_end)
+                        transformed_related_segments.extend({"manifestation_id": manifestation_2_id, "segments": transformed_segments})
+                    else:
+                        untransformed_related_segments.extend({"manifestation_id": manifestation_2_id, "segments": segments_list})
+                    traversed_alignment_pairs.append((alignment["alignment_1_id"], alignment["alignment_2_id"]))
+                    traversed_alignment_pairs.append((alignment["alignment_2_id"], alignment["alignment_1_id"]))
+                    queue.put({"manifestation_id": manifestation_2_id, "span_start": overall_start, "span_end": overall_end})
+            queue.pop()
+
+        if transform:
+            return transformed_related_segments
+        else:
+            return untransformed_related_segments

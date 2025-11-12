@@ -385,6 +385,13 @@ WITH a,
      CASE WHEN target IS NOT NULL THEN target.id ELSE a.id END as target_id
 RETURN source_id, target_id
 """,
+    "get_alignment_pairs": """
+MATCH (m:Manifestation {id: $manifestation_id})
+MATCH (m)-[:ANNOTATION_OF]->(a:Annotation)-[:HAS_TYPE]->(:AnnotationType {name: 'alignment'})
+WITH a, m.id as manifestation_id
+
+RETURN manifestation_id, a.id as alignment_1_id, a.id as alignment_2_id
+""",
     "delete_alignment_annotations": """
 MATCH (source:Annotation {id: $source_annotation_id})
 MATCH (target:Annotation {id: $target_annotation_id})
@@ -429,7 +436,27 @@ WHERE aligned.id = seg_id
 
 RETURN segment_index as index
 ORDER BY segment_index
-"""
+""",
+    "get_alignment_annotations_of_an_expression": """
+MATCH (e:Expression {id: $expression_id})
+<-[:MANIFESTATION_OF]-(m:Manifestation)-[:HAS_TYPE]->(:ManifestationType {name: 'critical'})
+<-[:ANNOTATION_OF]-(ann:Annotation)-[:HAS_TYPE]->(:AnnotationType {name: 'alignment'})
+
+OPTIONAL MATCH (ann)-[:ALIGNED_TO]->(outgoing:Annotation)
+OPTIONAL MATCH (incoming:Annotation)-[:ALIGNED_TO]->(ann)
+
+WITH ann,
+     collect(DISTINCT outgoing.id) AS outgoing_ids,
+     collect(DISTINCT incoming.id) AS incoming_ids
+WITH ann, outgoing_ids + incoming_ids AS aligned_ids
+UNWIND aligned_ids AS aligned_id
+
+WITH ann, aligned_id
+WHERE aligned_id IS NOT NULL
+
+RETURN DISTINCT ann.id AS annotation_id,
+       aligned_id AS aligned_annotation_id
+""",
 }
 
 Queries.sections = {
@@ -517,6 +544,24 @@ WITH m.id as manifestation_id,
      }) as segments
 RETURN manifestation_id, segments
 """,
+    "get_aligned_segments": """
+MATCH (a1:Annotation {id: $alignment_1_id})<-[:SEGMENTATION_OF]-(s1:Segment)
+WHERE s1.span_start >= $span_start AND s1.span_end <= $span_end
+MATCH (s1)-[:ALIGNED_TO]-(s2:Segment)
+RETURN DISTINCT s2.id as segment_id,
+       s2.span_start as span_start,
+       s2.span_end as span_end
+ORDER BY s2.span_start
+""",
+    "get_overlapping_segments": """
+MATCH (m:Manifestation {id: $manifestation_id})<-[:ANNOTATION_OF]-(ann:Annotation)-[:HAS_TYPE]->(:AnnotationType {name: 'segmentation'})
+MATCH (ann)<-[:SEGMENTATION_OF]-(s:Segment)
+WHERE s.span_start < $span_end AND s.span_end > $span_start
+RETURN s.id as segment_id,
+       s.span_start as span_start,
+       s.span_end as span_end
+ORDER BY s.span_start
+""",
     "get_by_id": """
 MATCH (seg:Segment {id: $segment_id})
       -[:SEGMENTATION_OF]->(:Annotation)
@@ -587,6 +632,96 @@ RETURN
         span_start: seg.span_start,
         span_end: seg.span_end
     }] as segments
+""",
+    "find_overlapping_alignment_segments": """
+MATCH (m:Manifestation {id: $manifestation_id})
+      <-[:ANNOTATION_OF]-(ann:Annotation)-[:HAS_TYPE]->(:AnnotationType {name: 'alignment'})
+MATCH (ann)<-[:SEGMENTATION_OF]-(seg:Segment)
+WHERE seg.span_start < $span_end AND seg.span_end > $span_start
+RETURN seg.id as segment_id, 
+       seg.span_start as span_start, 
+       seg.span_end as span_end
+""",
+    "find_directly_aligned_segments_batch": """
+UNWIND $segment_ids AS seg_id
+MATCH (source:Segment {id: seg_id})-[:ALIGNED_TO]-(target:Segment)
+MATCH (target)-[:SEGMENTATION_OF]->(:Annotation)-[:ANNOTATION_OF]->(m:Manifestation)
+MATCH (m)-[:MANIFESTATION_OF]->(e:Expression)
+RETURN source.id as source_segment_id,
+       target.id as target_segment_id,
+       target.span_start as target_span_start,
+       target.span_end as target_span_end,
+       m.id as target_manifestation_id,
+       e.id as target_expression_id
+""",
+    "find_segmentation_segments_for_spans": """
+MATCH (m:Manifestation {id: $manifestation_id})
+      <-[:ANNOTATION_OF]-(ann:Annotation)-[:HAS_TYPE]->(:AnnotationType {name: 'segmentation'})
+MATCH (ann)<-[:SEGMENTATION_OF]-(seg:Segment)
+WHERE ANY(span IN $spans WHERE seg.span_start < span.end AND seg.span_end > span.start)
+RETURN seg.id as segment_id,
+       seg.span_start as span_start,
+       seg.span_end as span_end
+""",
+    "find_related_expressions_for_manifestations": """
+// Given a list of manifestation IDs, find all related expressions
+UNWIND $manifestation_ids AS manif_id
+MATCH (m:Manifestation {id: manif_id})-[:MANIFESTATION_OF]->(e:Expression)
+
+// Find related expressions via TRANSLATION_OF and COMMENTARY_OF
+OPTIONAL MATCH (e)-[:TRANSLATION_OF]->(translation_target:Expression)
+OPTIONAL MATCH (translation_target)<-[:TRANSLATION_OF]-(sibling_translation:Expression)
+WHERE sibling_translation.id <> e.id
+
+OPTIONAL MATCH (translation_target)<-[:COMMENTARY_OF]-(commentary_of_target:Expression)
+OPTIONAL MATCH (commentary_of_target)<-[:TRANSLATION_OF]-(commentary_translation:Expression)
+
+OPTIONAL MATCH (e)-[:COMMENTARY_OF]->(commentary_target:Expression)
+OPTIONAL MATCH (commentary_target)<-[:COMMENTARY_OF]-(sibling_commentary:Expression)
+WHERE sibling_commentary.id <> e.id
+
+OPTIONAL MATCH (commentary_target)<-[:TRANSLATION_OF]-(translation_of_target:Expression)
+
+OPTIONAL MATCH (e)<-[:TRANSLATION_OF]-(translation_of_e:Expression)
+OPTIONAL MATCH (e)<-[:COMMENTARY_OF]-(commentary_of_e:Expression)
+
+WITH m, e,
+     collect(DISTINCT sibling_translation) + 
+     collect(DISTINCT commentary_of_target) +
+     collect(DISTINCT commentary_translation) +
+     collect(DISTINCT sibling_commentary) +
+     collect(DISTINCT translation_of_target) +
+     collect(DISTINCT translation_of_e) +
+     collect(DISTINCT commentary_of_e) as related_expressions
+
+UNWIND related_expressions AS related_expr
+WITH m, e, related_expr
+WHERE related_expr IS NOT NULL
+
+MATCH (related_expr)<-[:MANIFESTATION_OF]-(related_manif:Manifestation)
+
+RETURN m.id as source_manifestation_id,
+       e.id as source_expression_id,
+       related_expr.id as related_expression_id,
+       related_manif.id as related_manifestation_id,
+       CASE
+           WHEN (related_expr)-[:TRANSLATION_OF]->(e) THEN 'translation_of_source'
+           WHEN (related_expr)-[:COMMENTARY_OF]->(e) THEN 'commentary_of_source'
+           WHEN (e)-[:TRANSLATION_OF]->()<-[:TRANSLATION_OF]-(related_expr) THEN 'sibling_translation'
+           WHEN (e)-[:TRANSLATION_OF]->()<-[:COMMENTARY_OF]-(related_expr) THEN 'commentary_of_common_target'
+           WHEN (e)-[:COMMENTARY_OF]->()<-[:COMMENTARY_OF]-(related_expr) THEN 'sibling_commentary'
+           WHEN (e)-[:COMMENTARY_OF]->()<-[:TRANSLATION_OF]-(related_expr) THEN 'translation_of_common_target'
+           WHEN (e)-[:TRANSLATION_OF]->()<-[:COMMENTARY_OF]-()<-[:TRANSLATION_OF]-(related_expr) THEN 'translation_of_commentary_of_target'
+           ELSE 'other'
+       END as relationship_type
+""",
+"get_alignment_segments": """
+MATCH (a:Annotation {id: $annotation_id})<-[:SEGMENTATION_OF]-(s:Segment)
+MATCH (s)-[:ALIGNED_TO]->(a2:Annotation {id: $alignment_id})<-[:SEGMENTATION_OF]-(s2:Segment)
+WHERE s2.span_start < $span_end AND s2.span_end > $span_start
+RETURN s2.id as segment_id,
+       s2.span_start as span_start,
+       s2.span_end as span_end
 """,
 }
 

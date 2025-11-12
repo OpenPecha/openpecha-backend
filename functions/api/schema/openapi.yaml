@@ -295,12 +295,28 @@ paths:
 
   /v2/instances/{instance_id}/segment-related:
     get:
-      summary: Find related segments or spans for an instance
+      summary: Find all related segments (direct and indirect) for an instance
       description: >-
-        Exactly one of `segment_id` or (`span_start` and `span_end`) must be provided.
-        - If `segment_id` is provided, returns related segments across manifestations.
-        - If `span_start` and `span_end` are provided, returns manifestations with merged spans overlapping the given range.
-        - If both are provided, `segment_id` takes precedence.
+        Returns all directly and indirectly related segments across the entire alignment graph using transitive traversal (BFS).
+        
+        **Input (XOR requirement):** EXACTLY ONE of the following must be provided:
+        - `segment_id` alone: Returns segments related to this specific segment across all aligned manifestations.
+        - `span_start` AND `span_end` together: Returns segments related to this span range across all aligned manifestations.
+        
+        **Note:** You cannot provide both `segment_id` and span parameters together. You must choose one approach.
+        
+        **Traversal:** Uses Breadth-First Search (BFS) to find:
+        - Direct alignments (1-hop): Manifestations directly aligned to the source
+        - Indirect alignments (2+ hops): Manifestations aligned through intermediate texts
+        
+        **Output:** The `transformed` parameter controls which annotation layer to return:
+        - `transformed=false` (default): Returns alignment annotation segments
+        - `transformed=true`: Returns segmentation annotation segments (aligned spans transferred to segmentation layer)
+        
+        **Use cases:**
+        - Query a Tibetan root text → get all translations and commentaries
+        - Query a translation → get root text, other translations, and all commentaries
+        - Query a commentary → get root text, translations, and commentary translations
       tags:
         - Instances
       parameters:
@@ -309,57 +325,87 @@ paths:
           required: true
           schema:
             type: string
-          description: The ID of the instance to search within (used when querying by span)
+          description: The ID of the source instance (manifestation)
         - name: segment_id
           in: query
           required: false
           schema:
             type: string
-          description: Segment ID to find related segments across other manifestations
+          description: >-
+            Segment ID to find related segments. Can be from either segmentation or alignment annotation.
+            **XOR requirement:** Cannot be used together with span_start/span_end.
+            Either provide segment_id alone OR (span_start AND span_end) together.
         - name: span_start
           in: query
           required: false
           schema:
             type: integer
             minimum: 0
-          description: Inclusive start offset when searching by span
+          description: >-
+            Inclusive start character offset. Must be provided together with span_end.
+            **XOR requirement:** Cannot be used together with segment_id.
+            Either provide (span_start AND span_end) together OR segment_id alone.
         - name: span_end
           in: query
           required: false
           schema:
             type: integer
             minimum: 1
-          description: Exclusive end offset (must be greater than span_start)
-        - name: transfer
+          description: >-
+            Exclusive end character offset (must be greater than span_start). Must be provided together with span_start.
+            **XOR requirement:** Cannot be used together with segment_id.
+            Either provide (span_start AND span_end) together OR segment_id alone.
+        - name: transformed
           in: query
           required: false
           schema:
             type: boolean
             default: false
-          description: Whether to transfer alignments to segmentation layer. If false (default), returns alignment annotation segments. If true, returns segmentation annotation segments.
+          description: >-
+            Controls which annotation layer to return:
+            - `false` (default): Returns alignment annotation segments (as-is from alignment layer)
+            - `true`: Returns segmentation annotation segments (alignment spans transferred to segmentation layer)
+            
+            Both options traverse the entire graph (direct + indirect), only the returned segment type differs.
       responses:
         "200":
-          description: Related items retrieved successfully
+          description: Related segments retrieved successfully across all aligned manifestations
           content:
             application/json:
               schema:
                 type: array
-                description: List of related manifestations with their segments. Same format for both transfer modes - only segment source differs (alignment vs segmentation annotation).
+                description: >-
+                  List of related manifestations with simplified metadata and their segments.
+                  Includes both directly and indirectly related manifestations found through transitive traversal.
                 items:
                   type: object
-                  required: [text, instance, segments]
+                  required: [title, contributors, language, type, instance_id, segments]
                   properties:
-                    text:
+                    title:
                       type: object
-                      description: Expression (text) metadata
-                      additionalProperties: true
-                    instance:
-                      type: object
-                      description: Manifestation (instance) metadata
-                      additionalProperties: true
+                      description: Localized title strings (language code as key)
+                      additionalProperties:
+                        type: string
+                    contributors:
+                      type: array
+                      description: List of contributor names
+                      items:
+                        type: string
+                    language:
+                      type: string
+                      description: Primary language code (ISO 639-1/639-3)
+                    type:
+                      type: string
+                      enum: [root, translation, commentary]
+                      description: Expression type
+                    instance_id:
+                      type: string
+                      description: Manifestation ID
                     segments:
                       type: array
-                      description: Segments from alignment annotation (transfer=false) or segmentation annotation (transfer=true)
+                      description: >-
+                        Segments from alignment annotation (transformed=false) or 
+                        segmentation annotation (transformed=true)
                       items:
                         type: object
                         required: [id, span]
@@ -374,46 +420,85 @@ paths:
                               start:
                                 type: integer
                                 minimum: 0
-                                description: Inclusive start offset
+                                description: Inclusive start character offset
                               end:
                                 type: integer
                                 minimum: 1
-                                description: Exclusive end offset
+                                description: Exclusive end character offset
               examples:
-                withoutTransfer:
-                  summary: Related segments without transfer (alignment annotation)
+                alignmentSegments:
+                  summary: Transitive traversal with alignment segments (transformed=false)
+                  description: >-
+                    Example showing direct relationships (English translation, Chinese translation) 
+                    and indirect relationships (Tibetan commentary) all found through transitive traversal.
+                    Returns alignment annotation segments.
                   value:
-                    - text:
-                        id: "E123"
-                        type: "translation"
-                        language: "en"
-                        title: { en: "English Translation" }
-                      instance:
-                        id: "I456"
-                        type: "critical"
-                        copyright: "public"
+                    - title:
+                        en: "English Translation of Root Text"
+                      contributors:
+                        - "པཎྜིཏ་ཤྲཱི་ར་ཐ།"
+                      language: "en"
+                      type: "translation"
+                      instance_id: "BbFdJG0cGKM8Kkj7CGUtt"
                       segments:
-                        - id: "SEG789"
-                          span: { start: 50, end: 90 }
-                        - id: "SEG790"
-                          span: { start: 90, end: 120 }
-                withTransfer:
-                  summary: Related segments with transfer (segmentation annotation)
+                        - id: "xLGBgSiirBFPiKSNlowRP"
+                          span: { start: 30, end: 100 }
+                        - id: "QbJzd1VGntnh94KuFI0ad"
+                          span: { start: 100, end: 2000 }
+                    - title:
+                        lzh: "Translated Title chinese for testing purposes"
+                      contributors:
+                        - "པཎྜིཏ་ཤྲཱི་ར་ཐ།"
+                      language: "lzh"
+                      type: "translation"
+                      instance_id: "itDvByrRRIf7nauuavRSI"
+                      segments:
+                        - id: "11yYtKiUDuUY5BxkvvzwP"
+                          span: { start: 287, end: 2091 }
+                    - title:
+                        bo: "Commentary testing purpose text"
+                      contributors:
+                        - "པཎྜིཏ་ཤྲཱི་ར་ཐ།"
+                      language: "bo"
+                      type: "commentary"
+                      instance_id: "mqZHozzIOjR5nJ9z7IZfz"
+                      segments:
+                        - id: "SvIhBEW6R8v4JyZDwJ3ZX"
+                          span: { start: 0, end: 999 }
+                        - id: "JldSglOM0N49tCnEwngAV"
+                          span: { start: 999, end: 2031 }
+                segmentationSegments:
+                  summary: Transitive traversal with segmentation segments (transformed=true)
+                  description: >-
+                    Same transitive traversal as above, but returns segmentation annotation segments 
+                    (alignment spans transferred to meaningful segmentation boundaries).
                   value:
-                    - text:
-                        id: "E123"
-                        type: "translation"
-                        language: "en"
-                        title: { en: "English Translation" }
-                      instance:
-                        id: "I456"
-                        type: "critical"
-                        copyright: "public"
+                    - title:
+                        en: "English Translation of Root Text"
+                      contributors:
+                        - "པཎྜིཏ་ཤྲཱི་ར་ཐ།"
+                      language: "en"
+                      type: "translation"
+                      instance_id: "BbFdJG0cGKM8Kkj7CGUtt"
                       segments:
                         - id: "SEG_S101"
-                          span: { start: 50, end: 75 }
+                          span: { start: 30, end: 75 }
                         - id: "SEG_S102"
-                          span: { start: 75, end: 100 }
+                          span: { start: 75, end: 150 }
+                        - id: "SEG_S103"
+                          span: { start: 150, end: 200 }
+                    - title:
+                        bo: "Commentary testing purpose text"
+                      contributors:
+                        - "པཎྜིཏ་ཤྲཱི་ར་ཐ།"
+                      language: "bo"
+                      type: "commentary"
+                      instance_id: "mqZHozzIOjR5nJ9z7IZfz"
+                      segments:
+                        - id: "SEG_C201"
+                          span: { start: 0, end: 500 }
+                        - id: "SEG_C202"
+                          span: { start: 500, end: 1000 }
         "400":
           description: Invalid request
           content:
