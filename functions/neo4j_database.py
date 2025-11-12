@@ -979,7 +979,7 @@ class Neo4JDatabase:
             segment_and_type_names=segment_and_type_names,
         )
 
-    def _create_durchen_note(tx, segments: list[dict]) -> None :
+    def _create_durchen_note(self, tx, segments: list[dict]) -> None:
         tx.run(
             Queries.durchen_notes["create"],
             segments=segments
