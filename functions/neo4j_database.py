@@ -759,6 +759,61 @@ class Neo4JDatabase:
                 )
         return out
 
+    def get_texts_by_category(
+        self,
+        category_id: str,
+        offset: int = 0,
+        limit: int = 20,
+        language: str | None = None,
+        instance_type: str | None = None,
+    ) -> list[dict]:
+        params = {
+            "category_id": category_id,
+            "offset": offset,
+            "limit": limit,
+            "language": language,
+            "instance_type": instance_type,
+        }
+
+        with self.__driver.session() as session:
+            # Validate language filter against Neo4j if provided
+            if language:
+                self.__validator.validate_language_code_exists(session, language)
+
+            result = session.run(Queries.expressions["fetch_by_category"], params)
+            out: list[dict] = []
+
+            for record in result:
+                item = record.data()["item"]
+                text_md_raw = item.get("text_metadata") or {}
+                inst_md_raw_list = item.get("instance_metadata") or []
+
+                # Convert raw fragments to typed models for consistent shape
+                text_model = self._process_expression_data(text_md_raw)
+                inst_models = [self._process_manifestation_data(md) for md in inst_md_raw_list]
+
+                allowed_instance_fields = {
+                    "id",
+                    "bdrc",
+                    "wiki",
+                    "type",
+                    "copyright",
+                    "colophon",
+                    "incipit_title",
+                    "alt_incipit_titles",
+                }
+                filtered_instances = []
+                for im in inst_models:
+                    im_dump = im.model_dump()
+                    filtered_instances.append({k: im_dump.get(k) for k in allowed_instance_fields})
+
+                out.append({
+                    "text_metadata": text_model.model_dump(),
+                    "instance_metadata": filtered_instances,
+                })
+
+            return out
+
     def _execute_create_expression(self, tx, expression: ExpressionModelInput, expression_id: str | None = None) -> str:
         # TODO: move the validation based on language to the database validator
         expression_id = expression_id or generate_id()

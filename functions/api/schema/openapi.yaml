@@ -3105,6 +3105,140 @@ paths:
         "500":
           $ref: '#/components/responses/ServerError'
 
+  /v2/categories/{category_id}/texts:
+    get:
+      summary: Retrieve texts by category (excluding commentary)
+      description: Fetch texts that belong to a given category with optional filtering and pagination. Commentary texts are excluded.
+      tags:
+        - Texts
+      parameters:
+        - name: category_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Category ID
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Number of results per page
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: Number of results to skip
+        - name: language
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by expression language code (e.g., "bo", "en")
+        - name: instance_type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [diplomatic, critical, all]
+            default: all
+          description: Require texts to have at least one instance of the given type
+      responses:
+        "200":
+          description: Text and instance metadata retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    text_metadata:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        type:
+                          type: string
+                          enum: [root, commentary, translation]
+                        title:
+                          type: object
+                          additionalProperties:
+                            type: string
+                          description: Localized expression title map (language code to text)
+                        alt_titles:
+                          type: array
+                          items:
+                            type: object
+                            additionalProperties:
+                              type: string
+                        language:
+                          type: string
+                        contributions:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              person_id:
+                                type: string
+                              person_bdrc_id:
+                                type: string
+                              ai_id:
+                                type: string
+                              role:
+                                type: string
+                        date:
+                          type: string
+                        bdrc:
+                          type: string
+                        wiki:
+                          type: string
+                        target:
+                          type: string
+                          nullable: true
+                        category_id:
+                          type: string
+                          nullable: true
+                    instance_metadata:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                          type:
+                            type: string
+                            enum: [diplomatic, critical]
+                          copyright:
+                            type: string
+                          bdrc:
+                            type: string
+                          wiki:
+                            type: string
+                          colophon:
+                            type: string
+                          incipit_title:
+                            type: object
+                            additionalProperties:
+                              type: string
+                            description: Localized instance title (incipit) map (language code to text)
+                          alt_incipit_titles:
+                            type: array
+                            items:
+                              type: object
+                              additionalProperties:
+                                type: string
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
   /v2/enum:
     get:
       summary: List enum entries

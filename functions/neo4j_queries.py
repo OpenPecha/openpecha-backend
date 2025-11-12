@@ -154,6 +154,31 @@ Queries.expressions = {
 
     RETURN {Queries.expression_fragment('e')} AS expression
 """,
+    "fetch_by_category": f"""
+    MATCH (c:Category {{id: $category_id}})
+    MATCH (e:Expression)-[:EXPRESSION_OF]->(:Work)-[:BELONGS_TO]->(c)
+    WITH e
+    WHERE {Queries.infer_expression_type('e')} <> 'commentary'
+      AND ($language IS NULL OR [(e)-[:HAS_LANGUAGE]->(l:Language) | l.code][0] = $language)
+      AND (
+        $instance_type IS NULL OR EXISTS {{
+          MATCH (e)<-[:MANIFESTATION_OF]-(m:Manifestation)-[:HAS_TYPE]->(mt:ManifestationType)
+          WHERE mt.name = $instance_type
+          RETURN 1
+        }}
+      )
+    OPTIONAL MATCH (e)<-[:MANIFESTATION_OF]-(m:Manifestation)-[:HAS_TYPE]->(mt:ManifestationType)
+    WHERE $instance_type IS NULL OR mt.name = $instance_type
+    WITH e, collect(m) as ms
+
+    OFFSET $offset
+    LIMIT $limit
+
+    RETURN {{
+      text_metadata: {Queries.expression_fragment('e')},
+      instance_metadata: [m IN ms | {Queries.manifestation_fragment('m')}]
+    }} AS item
+""",
     "fetch_related": f"""
     MATCH (e:Expression {{id: $id}})
 
