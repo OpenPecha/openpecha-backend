@@ -131,6 +131,11 @@ def add_annotation(manifestation_id: str) -> tuple[Response, int]:
             manifestation_id = manifestation_id,
             data = data
         )
+    elif request_model.type == AnnotationType.DURCHEN:
+        response = _add_durchen_annotation(
+            manifestation_id = manifestation_id,
+            data = data
+        )
 
     return jsonify(response), 201
 
@@ -359,4 +364,21 @@ def _add_table_of_contents_annotation(manifestation_id: str, data: dict) -> dict
         "annotation_id": annotation_id,
     }
 
+    return response
+
+def _add_durchen_annotation(manifestation_id: str, data: dict) -> dict:
+    annotation_segments = data.get("annotation", [])
+
+    annotation = AnnotationModel(
+        id=generate_id(),
+        type=AnnotationType.DURCHEN,
+    )
+    logger.info(f"Adding {annotation.type.value} annotation to manifestation")
+    Neo4JDatabase().add_annotation_to_manifestation(manifestation_id = manifestation_id, annotation = annotation, annotation_segments = annotation_segments)
+    logger.info("Durchen annotation added successfully")
+    response = {
+        "message": "Durchen annotation added successfully",
+        "annotation_id": annotation.id
+    }
+    logger.info(f"Response: {response}")
     return response

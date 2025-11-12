@@ -26,6 +26,7 @@ class AnnotationType(str, Enum):
     VERSION = "version"
     BIBLIOGRAPHY = "bibliography"
     TABLE_OF_CONTENTS = "table_of_contents"
+    DURCHEN = "durchen"
 
 
 class ManifestationType(str, Enum):
@@ -288,6 +289,10 @@ class TableOfContentsAnnotationModel(OpenPechaModel):
     title: NonEmptyStr
     segments: list[NonEmptyStr]
 
+class DurchenAnnotationModel(OpenPechaModel):
+    span: SpanModel
+    note: NonEmptyStr
+
 class InstanceRequestModel(OpenPechaModel):
     metadata: ManifestationModelInput
     annotation: list[SegmentationAnnotationModel | PaginationAnnotationModel] | None = None
@@ -315,7 +320,7 @@ class InstanceRequestModel(OpenPechaModel):
 
 class AddAnnotationRequestModel(OpenPechaModel):
     type: AnnotationType
-    annotation: list[SegmentationAnnotationModel | PaginationAnnotationModel | BibliographyAnnotationModel | TableOfContentsAnnotationModel] | None = None
+    annotation: list[SegmentationAnnotationModel | PaginationAnnotationModel | BibliographyAnnotationModel | TableOfContentsAnnotationModel | DurchenAnnotationModel] | None = None
     target_manifestation_id: str | None = None
     target_annotation: list[AlignmentAnnotationModel] | None = None
     alignment_annotation: list[AlignmentAnnotationModel] | None = None
@@ -328,13 +333,14 @@ class AddAnnotationRequestModel(OpenPechaModel):
             AnnotationType.ALIGNMENT: self._validate_alignment,
             AnnotationType.BIBLIOGRAPHY: self._validate_bibliography,
             AnnotationType.TABLE_OF_CONTENTS: self._validate_table_of_contents,
+            AnnotationType.DURCHEN: self._validate_durchen,
         }
         
         validator = validators.get(self.type)
         if validator:
             validator()
         else:
-            raise ValueError("Invalid annotation type. Allowed types are [SEGMENTATION, ALIGNMENT, PAGINATION, BIBLIOGRAPHY, TABLE_OF_CONTENTS]")
+            raise ValueError("Invalid annotation type. Allowed types are [SEGMENTATION, ALIGNMENT, PAGINATION, BIBLIOGRAPHY, TABLE_OF_CONTENTS, DURCHEN]")
         return self
 
     def _validate_segmentation(self):
@@ -376,6 +382,13 @@ class AddAnnotationRequestModel(OpenPechaModel):
             raise ValueError("Table of contents annotation cannot be empty")
         if not all(isinstance(ann, TableOfContentsAnnotationModel) for ann in self.annotation):
             raise ValueError("Invalid annotation")
+    
+    def _validate_durchen(self):
+        if self.annotation is None or len(self.annotation) == 0:
+            raise ValueError("Durchen annotation cannot be empty")
+        if not all(isinstance(ann, DurchenAnnotationModel) for ann in self.annotation):
+            raise ValueError("Invalid annotation")
+
 
 class CategoryRequestModel(OpenPechaModel):
     application: NonEmptyStr

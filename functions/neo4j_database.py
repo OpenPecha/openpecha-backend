@@ -578,10 +578,12 @@ class Neo4JDatabase:
             annotation_id = self._execute_add_annotation(tx, manifestation_id, annotation)
             self._create_segments(tx, annotation_id, annotation_segments)
             if annotation_segments and len(annotation_segments) > 0:
-                if annotation_segments[0].get("reference", None) is not None:
+                if annotation.type == AnnotationType.PAGINATION:
                     self._create_and_link_references(tx, annotation_segments)
-                if annotation_segments[0].get("type", None) is not None:
+                if annotation.type == AnnotationType.BIBLIOGRAPHY:
                     self._link_segment_and_bibliography_type(tx, annotation_segments)
+                if annotation.type == AnnotationType.DURCHEN:
+                    self._create_durchen_note(tx, annotation_segments)
             return annotation_id
         with self.__driver.session() as session:
             return session.execute_write(transaction_function)
@@ -977,6 +979,12 @@ class Neo4JDatabase:
             segment_and_type_names=segment_and_type_names,
         )
 
+    def _create_durchen_note(tx, segments: list[dict]) -> None :
+        tx.run(
+            Queries.durchen_notes["create"],
+            segments=segments
+        )
+
     def get_annotation(self, annotation_id: str) ->  dict:
         """Get all segments for an annotation. Returns uniform structure with all possible keys."""
         with self.get_session() as session:
@@ -1049,6 +1057,10 @@ class Neo4JDatabase:
                 # For table of contents annotations, return sections
                 sections = self._get_annotation_sections(annotation_id)
                 response["data"] = sections
+
+            elif annotation_type == "durchen":
+                durchen_notes = self._get_durchen_annotation(annotation_id)
+                response["data"] = durchen_notes
                 
             else:
                 # For segmentation and pagination annotations, return segments
@@ -1057,6 +1069,27 @@ class Neo4JDatabase:
             
             return response
     
+    
+    def _get_durchen_annotation(self, annotation_id: str) -> list[dict]:
+        """Helper method to get durchen annotation for a specific annotation."""
+        with self.get_session() as session:
+            result = session.run(
+                Queries.annotations["get_durchen_annotation"],
+                annotation_id=annotation_id
+            )
+            durchen_annotation = []
+            for record in result:
+                durchen_annotation.append({
+                    "segment_id": record["segment_id"],
+                    "span": {
+                    "start": record["span_start"],
+                    "end": record["span_end"]
+                    },
+                    "note": record["note"]
+                })
+            return durchen_annotation
+
+
     def _get_annotation_sections(self, annotation_id: str) -> list[dict]:
         """Helper method to get sections for a specific annotation."""
         with self.get_session() as session:

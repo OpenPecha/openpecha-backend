@@ -1917,7 +1917,7 @@ paths:
                     description: Annotation ID
                   type:
                     type: string
-                    enum: [segmentation, pagination, alignment, table_of_contents, bibliography]
+                    enum: [segmentation, pagination, alignment, table_of_contents, bibliography, durchen]
                     description: Type of annotation
                   data:
                     oneOf:
@@ -1973,6 +1973,34 @@ paths:
                               description: List of segment IDs that belong to this section
                               items:
                                 type: string
+                      - type: array
+                        description: Durchen annotation segments with notes
+                        items:
+                          type: object
+                          required:
+                            - segment_id
+                            - span
+                            - note
+                          properties:
+                            segment_id:
+                              type: string
+                              description: Unique identifier for the segment
+                            span:
+                              type: object
+                              description: Character span of the segment
+                              required:
+                                - start
+                                - end
+                              properties:
+                                start:
+                                  type: integer
+                                  description: Start character position
+                                end:
+                                  type: integer
+                                  description: End character position
+                            note:
+                              type: string
+                              description: The durchen note content
                       - type: object
                         description: Alignment annotation with source and target segments
                         required:
@@ -2162,6 +2190,22 @@ paths:
                       - id: "ISmJpRblcnZJmp8BjIlzL"
                         title: "Chapter 3: Conclusion"
                         segments: ["pxhHUGHK7cS24Ccr8jCvV", "A1QdkN2gDu6u7ZU3DPZCu"]
+                durchen annotation:
+                  summary: Durchen annotation with segments and notes
+                  value:
+                    id: "ann_durchen_123"
+                    type: "durchen"
+                    data:
+                      - segment_id: "seg_001"
+                        span:
+                          start: 0
+                          end: 50
+                        note: "This is a durchen note explaining some aspect of the text"
+                      - segment_id: "seg_002"
+                        span:
+                          start: 100
+                          end: 150
+                        note: "Another durchen note with additional explanation"
         "400":
           $ref: '#/components/responses/InvalidRequest'
         "404":
@@ -2183,7 +2227,9 @@ paths:
         - BIBLIOGRAPHY: Send bibliography annotations with span and bibliography type.
         
         - TABLE_OF_CONTENTS: Send table of contents annotations with sections containing title and segment IDs.
-        
+
+        - DURCHEN: Send durchen annotations with span and note content.
+
         - ALIGNMENT: Creates alignment relationships between segments of the source and target manifestations.
       tags:
         - Annotations
@@ -2203,14 +2249,14 @@ paths:
               required:
                 - type
               properties:
-                stype:
+                type:
                   type: string
-                  enum: [segmentation, alignment, pagination, bibliography, table_of_contents]
+                  enum: [segmentation, alignment, pagination, bibliography, table_of_contents, durchen]
                   description: Type of annotation to add
                 annotation:
                   type: array
                   minItems: 1
-                  description: Array of segmentation, pagination, bibliography, or table of contents annotations (required for SEGMENTATION, PAGINATION, BIBLIOGRAPHY, or TABLE_OF_CONTENTS type respectively)
+                  description: Array of segmentation, pagination, bibliography, table of contents, or durchen annotations (required for SEGMENTATION, PAGINATION, BIBLIOGRAPHY, TABLE_OF_CONTENTS, or DURCHEN type respectively)
                   items:
                     oneOf:
                       - type: object
@@ -2282,6 +2328,25 @@ paths:
                             items:
                               type: string
                         description: Table of contents annotation
+                      - type: object
+                        required: [span, note]
+                        properties:
+                          span:
+                            type: object
+                            required: [start, end]
+                            properties:
+                              start:
+                                type: integer
+                                minimum: 0
+                                description: Start character position (inclusive)
+                              end:
+                                type: integer
+                                minimum: 1
+                                description: End character position (exclusive)
+                          note:
+                            type: string
+                            description: The durchen note content
+                        description: Durchen annotation
                 target_manifestation_id:
                   type: string
                   description: Target instance ID (required for ALIGNMENT type)
@@ -2418,6 +2483,19 @@ paths:
                         end: 100
                       index: 2
                       alignment_index: [1]
+              durchen:
+                summary: Durchen
+                value:
+                  type: durchen
+                  annotation:
+                    - span:
+                        start: 0
+                        end: 50
+                      note: "This is a durchen note explaining some aspect of the text"
+                    - span:
+                        start: 100
+                        end: 150
+                      note: "Another durchen note with additional explanation"
       responses:
         "400":
           description: Invalid request
