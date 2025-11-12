@@ -313,16 +313,37 @@ def get_excerpt(manifestation_id: str) -> tuple[Response, int]:
 
 @instances_bp.route("/<string:manifestation_id>/segment-related", methods=["GET"], strict_slashes=False)
 def get_segment_related(manifestation_id: str) -> tuple[Response, int]:
-    # Parse transfer parameter
-    transfer = request.args.get("transfer", "false").lower() == "true"
+    # Parse transformed parameter (boolean)
+    transform = request.args.get("transform", "false").lower() == "true"
     segment_id = request.args.get("segment_id")
+    span_start = request.args.get("span_start")
+    span_end = request.args.get("span_end")
+    
+    # Validate XOR: Either segment_id OR (span_start AND span_end)
+    has_segment_id = segment_id is not None and segment_id != ""
+    has_span = span_start is not None or span_end is not None
+    
+    if has_segment_id and has_span:
+        return jsonify({
+            "error": "Cannot provide both segment_id and span parameters. Use one approach only."
+        }), 400
+    
+    if not has_segment_id and not has_span:
+        return jsonify({
+            "error": "Either segment_id OR (span_start and span_end) is required"
+        }), 400
     
     db = Neo4JDatabase()
     
     # Scenario 1: segment_id provided
-    if segment_id is not None:
+    if has_segment_id:
         logger.info("Getting segment related by segment ID: %s", segment_id)
-        segment, seg_manifestation_id, _ = db.get_segment(segment_id)
+        try:
+            segment, seg_manifestation_id, _ = db.get_segment(segment_id)
+        except Exception as e:
+            return jsonify({
+                "error": f"Failed to retrieve segment {segment_id}: {str(e)}"
+            }), 404
         
         # Verify segment belongs to the provided manifestation
         if seg_manifestation_id != manifestation_id:
@@ -334,27 +355,19 @@ def get_segment_related(manifestation_id: str) -> tuple[Response, int]:
     
     # Scenario 2: span_start + span_end provided
     else:
-        span_start = request.args.get("span_start")
-        span_end = request.args.get("span_end")
-        
         if not span_start or not span_end:
-            return jsonify({"error": "No segment ID or span provided"}), 400
+            return jsonify({
+                "error": "Both span_start and span_end are required when using span parameters"
+            }), 400
         
         try:
             span = SpanModel(start=int(span_start), end=int(span_end))
         except (ValueError, Exception) as e:
-            return jsonify({"error": str(e)}), 422
+            return jsonify({"error": f"Invalid span parameters: {str(e)}"}), 422
     
-    logger.info("Getting segment related by span [%d, %d), transfer=%s", 
-                span.start, span.end, transfer)
+    related_segments = db._get_related_segments(manifestation_id, span.start, span.end, transform)
     
-    # Execute query based on transfer parameter
-    if transfer:
-        result = db.get_segment_related_with_transfer(manifestation_id, span.start, span.end)
-    else:
-        result = db.get_segment_related_alignment_only(manifestation_id, span.start, span.end)
-    
-    return jsonify(result), 200
+    return jsonify(related_segments), 200
 
 @instances_bp.route("/<string:manifestation_id>/related", methods=["GET"], strict_slashes=False)
 def get_related_instances(manifestation_id: str) -> tuple[Response, int]:
