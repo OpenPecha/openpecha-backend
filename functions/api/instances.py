@@ -314,7 +314,8 @@ def get_excerpt(manifestation_id: str) -> tuple[Response, int]:
 @instances_bp.route("/<string:manifestation_id>/segment-related", methods=["GET"], strict_slashes=False)
 def get_segment_related(manifestation_id: str) -> tuple[Response, int]:
     # Parse transformed parameter (boolean)
-    transform = request.args.get("transform", "false").lower() == "true"
+    transform = request.args.get("transform")
+    print(transform)
     segment_id = request.args.get("segment_id")
     span_start = request.args.get("span_start")
     span_end = request.args.get("span_end")
