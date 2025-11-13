@@ -22,6 +22,7 @@ from storage import MockStorage
 from pecha_handling import retrieve_base_text
 from api.annotations import _alignment_annotation_mapping
 from exceptions import InvalidRequest
+from api.relation import _get_relation_for_an_expression
 
 instances_bp = Blueprint("instances", __name__)
 
@@ -193,6 +194,46 @@ def _create_aligned_text(
         201,
     )
 
+
+@instances_bp.route("/<string:instance_id>/segments-relation", methods=["GET"], strict_slashes=False)
+def get_segments_relation_by_manifestation(instance_id: str):
+    
+    logger.info("Getting segmentation annotation and it's segments by manifestation")
+    db = Neo4JDatabase()
+    segments = db.get_segmentation_annotation_by_manifestation(manifestation_id=instance_id)
+    logger.info("Fetched segmentation annotation with it's segments nodes")
+    response = {
+        "instance_id": instance_id,
+        "segments_relations": []
+    }
+
+    # Process each segment
+    logger.info("Beginning with getting segments relation for each segment node")
+    for segment in segments:
+        
+        start = int(segment["span"]["start"])
+        end = int(segment["span"]["end"])
+        
+        logger.info(f"Getting related segments for segment id: {segment["id"]} with span_start: {start}, span_end: {end}")
+        
+        related_segments = db._get_related_segments(
+            manifestation_id = instance_id, 
+            start = start, 
+            end = end, 
+            transform = True
+        )
+        
+        logger.info(f"Fetched related segments for segment id: {segment["id"]} with span_start: {start}, span_end: {end}")
+        logger.info("Appending to response list")
+        response["segments_relations"].append({
+            "segment_id": segment["id"],
+            "related_segments": related_segments
+        })
+
+        logger.info(f"Completed searching segment related for segment id: {segment["id"]} with span_start: {start}, span_end: {end}")
+
+    return jsonify(response), 200
+    
 
 @instances_bp.route("/<string:original_manifestation_id>/commentary", methods=["POST"], strict_slashes=False)
 def create_commentary(original_manifestation_id: str) -> tuple[Response, int]:
@@ -375,7 +416,24 @@ def get_segment_related(manifestation_id: str) -> tuple[Response, int]:
             return jsonify({"error": f"Invalid span parameters: {str(e)}"}), 422
     
     related_segments = db._get_related_segments(manifestation_id, span.start, span.end, transform)
-    
+    manifestation_ids = [segment["manifestation_id"] for segment in related_segments]
+    manifestation_ids.append(manifestation_id)
+    # Get expression_id mapping for all manifestation_ids
+    expression_map = db.get_expression_ids_by_manifestation_ids(manifestation_ids)
+
+    relations = _get_relation_for_an_expression(
+        expression_id = expression_map[manifestation_id]
+    )
+    relations_look_up = {
+        expression_id: relation_type
+        for relation_type, expression_ids in relations.items()
+        for expression_id in expression_ids
+    }
+
+
+    for related_segment in related_segments:
+        related_segment["relation"] = relations_look_up.get(expression_map.get(related_segment.get("manifestation_id")))
+        related_segment["expression_id"] = expression_map.get(related_segment.get("manifestation_id"))
     return jsonify(related_segments), 200
 
 @instances_bp.route("/<string:manifestation_id>/related", methods=["GET"], strict_slashes=False)

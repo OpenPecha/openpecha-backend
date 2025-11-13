@@ -618,6 +618,98 @@ paths:
         "500":
           $ref: '#/components/responses/ServerError'
 
+  /v2/instances/{instance_id}/segments-relation:
+    get:
+      summary: Get segmentation/pagination annotations with segments for an instance
+      description: |
+        Retrieve all segmentation or pagination annotations with their segments for a given instance.
+        Includes both 'segmentation' (for critical instances) and 'pagination' (for diplomatic instances)
+        annotation types, as both are conceptually segmentation annotations.
+      tags:
+        - Instances
+      parameters:
+        - name: instance_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the instance (manifestation) to retrieve segmentation annotations for
+      responses:
+        "200":
+          description: Segmentation annotations with segments retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  required: [annotation_id, annotation_type, segments]
+                  properties:
+                    annotation_id:
+                      type: string
+                      description: The segmentation or pagination annotation ID
+                    annotation_type:
+                      type: string
+                      enum: [segmentation, pagination]
+                      description: Type of annotation (segmentation for critical, pagination for diplomatic)
+                    segments:
+                      type: array
+                      description: List of segments under this annotation
+                      items:
+                        type: object
+                        required: [id, span]
+                        properties:
+                          id:
+                            type: string
+                            description: Segment ID
+                          span:
+                            type: object
+                            required: [start, end]
+                            properties:
+                              start:
+                                type: integer
+                                description: Start character position (inclusive)
+                              end:
+                                type: integer
+                                description: End character position (exclusive)
+                description: List of annotations with their segments (typically one, but can be multiple)
+              examples:
+                single_annotation_with_segments:
+                  summary: Single segmentation annotation with segments
+                  value:
+                    - annotation_id: "A12345678"
+                      annotation_type: "segmentation"
+                      segments:
+                        - id: "SEG001"
+                          span:
+                            start: 0
+                            end: 100
+                        - id: "SEG002"
+                          span:
+                            start: 100
+                            end: 200
+                pagination_annotation_with_segments:
+                  summary: Pagination annotation with segments
+                  value:
+                    - annotation_id: "A87654321"
+                      annotation_type: "pagination"
+                      segments:
+                        - id: "SEG101"
+                          span:
+                            start: 0
+                            end: 50
+                        - id: "SEG102"
+                          span:
+                            start: 50
+                            end: 100
+                empty_result:
+                  summary: No segmentation annotations found
+                  value: []
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
   /v2/texts/{text_id}/instances:
     get:
       summary: Get instances for text
