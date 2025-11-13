@@ -491,6 +491,14 @@ WHERE aligned.id = seg_id
 RETURN segment_index as index
 ORDER BY segment_index
 """,
+    "get_durchen_annotation": """
+MATCH (a:Annotation {id: $annotation_id})<-[:SEGMENTATION_OF]-(s:Segment)-[:HAS_DURCHEN_NOTE]->(n:DurchenNote)
+RETURN DISTINCT
+    s.id as id,
+    s.span_start as span_start,
+    s.span_end as span_end,
+    n.note as note
+""",
     "get_alignment_pairs_by_manifestation": """
 MATCH (m:Manifestation {id: $manifestation_id})
 MATCH (m)<-[:ANNOTATION_OF]-(a1:Annotation)-[:HAS_TYPE]->(:AnnotationType {name: 'alignment'})
@@ -710,6 +718,14 @@ CREATE (s)-[:HAS_REFERENCE]->(r)
 """
 }
 
+Queries.durchen_notes = {
+    "create": """
+UNWIND $segments AS seg
+MATCH (s:Segment {id: seg.id})
+CREATE (n:DurchenNote {note: seg.note})
+CREATE (s)-[:HAS_DURCHEN_NOTE]->(n)
+"""
+}
 Queries.bibliography_types = {
     "link_to_segments": """
 // Link segments to existing bibliography types only (no new types created)
