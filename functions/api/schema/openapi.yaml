@@ -756,6 +756,7 @@ paths:
                   type: object
                   required:
                     - type
+                    - source
                   properties:
                     type:
                       type: string
@@ -1101,6 +1102,28 @@ paths:
                   type: string
                   nullable: true
                   description: Wiki ID for the translation (optional)
+                biblography_annotation:
+                  type: array
+                  items:
+                    type: object
+                    required: [span, biblography_type]
+                    properties:
+                      span:
+                        type: object
+                        required: [start, end]
+                        properties:
+                          start:
+                            type: integer
+                            minimum: 0
+                            description: Start character position (inclusive)
+                          end:
+                            type: integer
+                            minimum: 1
+                            description: End character position (exclusive)
+                      type:
+                        type: string
+                        enum: [colophon, title, incipit_title, author]
+                        description: Type of bibliography annotation
             examples:
               valid_translation_with_alignment_annotation:
                 summary: Valid translation creation request with alignment annotation
@@ -1273,6 +1296,28 @@ paths:
                   type: string
                   nullable: true
                   description: ID of the category this commentary belongs to (optional)
+                biblography_annotation:
+                  type: array
+                  items:
+                    type: object
+                    required: [span, biblography_type]
+                    properties:
+                      span:
+                        type: object
+                        required: [start, end]
+                        properties:
+                          start:
+                            type: integer
+                            minimum: 0
+                            description: Start character position (inclusive)
+                          end:
+                            type: integer
+                            minimum: 1
+                            description: End character position (exclusive)
+                      type:
+                        type: string
+                        enum: [colophon, title, incipit_title, author]
+                        description: Type of bibliography annotation
             examples:
               valid_commentary_with_alignment_annotation:
                 summary: Valid commentary creation request with alignment annotation
