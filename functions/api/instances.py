@@ -136,7 +136,7 @@ def _create_aligned_text(
         wiki=request_model.wiki,
     )
 
-    manifestation = ManifestationModelInput(type=ManifestationType.CRITICAL)
+    manifestation = ManifestationModelInput(type=ManifestationType.CRITICAL, source=request_model.source)
 
     aligned = request_model.alignment_annotation is not None
     

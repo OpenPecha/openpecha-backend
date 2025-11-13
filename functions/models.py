@@ -316,6 +316,7 @@ class AlignedTextRequestModel(OpenPechaModel):
     language: NonEmptyStr
     content: NonEmptyStr
     title: NonEmptyStr
+    source: NonEmptyStr
     alt_titles: list[NonEmptyStr] | None = None
     author: CreatorRequestModel | None = None
     target_annotation: list[dict] | None = None
