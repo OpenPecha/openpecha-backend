@@ -11,6 +11,7 @@ class TextType(str, Enum):
     ROOT = "root"
     COMMENTARY = "commentary"
     TRANSLATION = "translation"
+    TRANSLATION_SOURCE = "translation_source"
 
 
 class ContributorRole(str, Enum):
