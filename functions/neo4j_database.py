@@ -1318,6 +1318,29 @@ class Neo4JDatabase:
                 return result["annotation_type"]
             return None
 
+    def has_annotation_type(self, manifestation_id: str, annotation_type: str) -> bool:
+        """
+        Check if a manifestation has an annotation of the specified type.
+        
+        Args:
+            manifestation_id: The ID of the manifestation to check
+            annotation_type: The annotation type to check for (e.g., 'segmentation', 'alignment')
+        
+        Returns:
+            True if an annotation of the specified type exists, False otherwise
+        """
+        with self.__driver.session() as session:
+            result = session.execute_read(
+                lambda tx: tx.run(
+                    Queries.annotations["check_annotation_type_exists"],
+                    manifestation_id=manifestation_id,
+                    annotation_type=annotation_type
+                ).single()
+            )
+            if result:
+                return result["exists"]
+            return False
+
     def get_alignment_pair(self, annotation_id: str) -> tuple[str, str] | None:
         """
         Get source and target annotation IDs for an alignment annotation.

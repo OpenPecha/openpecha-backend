@@ -539,6 +539,10 @@ WITH collect(DISTINCT {
     span_end: s.span_end
 }) as segments
 RETURN segments
+""",
+    "check_annotation_type_exists": """
+MATCH (m:Manifestation {id: $manifestation_id})<-[:ANNOTATION_OF]-(a:Annotation)-[:HAS_TYPE]->(at:AnnotationType {name: $annotation_type})
+RETURN count(a) > 0 as exists
 """
 }
 

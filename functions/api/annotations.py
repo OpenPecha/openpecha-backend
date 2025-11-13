@@ -104,6 +104,22 @@ def add_annotation(manifestation_id: str) -> tuple[Response, int]:
     db = Neo4JDatabase()
     manifestation, expression_id = db.get_manifestation(manifestation_id=manifestation_id)
  
+    # Check if annotation of the same type already exists in Neo4j database
+    logger.info(f"Checking if annotation of type '{request_model.type.value}' already exists for manifestation '{manifestation_id}'")
+    
+    # For ALIGNMENT annotations, check both source and target manifestations
+    if request_model.type == AnnotationType.ALIGNMENT:
+        if request_model.target_manifestation_id is None:
+            raise InvalidRequest("Target manifestation id must be provided for alignment annotation")
+        
+        # Check source manifestation
+        _check_annotation_type_exists(db, manifestation_id, request_model.type)
+        
+        # Check target manifestation
+        logger.info(f"Checking if annotation of type '{request_model.type.value}' already exists for target manifestation '{request_model.target_manifestation_id}'")
+        _check_annotation_type_exists(db, request_model.target_manifestation_id, request_model.type)
+    else:
+        _check_annotation_type_exists(db, manifestation_id, request_model.type)
     
     response = None
     if request_model.type == AnnotationType.SEGMENTATION or request_model.type == AnnotationType.PAGINATION:
@@ -138,6 +154,24 @@ def add_annotation(manifestation_id: str) -> tuple[Response, int]:
         )
 
     return jsonify(response), 201
+
+def _check_annotation_type_exists(db: Neo4JDatabase, manifestation_id: str, annotation_type: AnnotationType) -> None:
+    """
+    Check if an annotation of the given type already exists for the manifestation in Neo4j database.
+    Raises InvalidRequest if a duplicate annotation type is found.
+    
+    Args:
+        db: The Neo4JDatabase instance
+        manifestation_id: The ID of the manifestation to check
+        annotation_type: The type of annotation we're trying to add
+        
+    Raises:
+        InvalidRequest: If an annotation of the same type already exists
+    """
+    if db.has_annotation_type(manifestation_id, annotation_type.value):
+        raise InvalidRequest(
+            f"Cannot add annotation: annotation of type '{annotation_type.value}' already exists for manifestation '{manifestation_id}'"
+        )
 
 def _validate_update_annotation_request(db: Neo4JDatabase, annotation_id: str, request_model: UpdateAnnotationRequestModel, data: dict) -> None:
     existing_type = db.get_annotation_type(annotation_id)
