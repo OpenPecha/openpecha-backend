@@ -281,8 +281,10 @@ class Neo4JDatabase:
                     relationship_type = "commentary"
                 elif expression.type == TextType.TRANSLATION_SOURCE:
                     relationship_type = "translation_source"
-                else:  # TextType.ROOT
+                elif expression.type == TextType.ROOT:  # TextType.ROOT
                     relationship_type = "root"
+                else:
+                    relationship_type = "none"
                 
                 # Apply type filter if provided
                 if type_filter and relationship_type != type_filter:
