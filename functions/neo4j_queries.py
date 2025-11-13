@@ -96,13 +96,26 @@ END
 """
 
     @staticmethod
+    def get_expression_type(label):
+        """Fragment to infer expression type from relationships instead of HAS_TYPE"""
+        return f"""
+CASE
+    WHEN ({label})-[:COMMENTARY_OF]->(:Expression) THEN 'commentary'
+    WHEN ({label})-[:TRANSLATION_OF]->(:Expression) THEN 'translation'
+    WHEN ({label})<-[:TRANSLATION_OF]-(:Expression) THEN 'translation_source'
+    WHEN ({label})<-[:COMMENTARY_OF]-(:Expression) THEN 'root'
+    ELSE null
+END
+"""
+
+    @staticmethod
     def expression_fragment(label):
         return f"""
 {{
     id: {label}.id,
     bdrc: {label}.bdrc,
     wiki: {label}.wiki,
-    type: {Queries.infer_expression_type(label)},
+    type: {Queries.get_expression_type(label)},
     target: COALESCE(
         [({label})-[:TRANSLATION_OF]->(ef_target:Expression) | ef_target.id][0],
         [({label})-[:COMMENTARY_OF]->(ef_target:Expression) | ef_target.id][0]
