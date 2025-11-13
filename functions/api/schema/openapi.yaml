@@ -2933,6 +2933,63 @@ paths:
         "500":
           $ref: '#/components/responses/ServerError'
 
+  /v2/relations/expressions/{expression_id}:
+    get:
+      summary: Get relations for an expression
+      description: Returns all relationships for a given expression, including direction and related expression IDs.
+      tags:
+        - Relations
+      parameters:
+        - name: expression_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the expression to retrieve relations for
+      responses:
+        "200":
+          description: Relations retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: array
+                  items:
+                    type: object
+                    required: [type, direction, otherId]
+                    properties:
+                      type:
+                        type: string
+                        enum: [TRANSLATION_OF, COMMENTARY_OF]
+                        description: Relationship type
+                      direction:
+                        type: string
+                        enum: [in, out]
+                        description: Direction relative to the expression
+                      otherId:
+                        type: string
+                        description: Related expression ID
+                description: Object where keys are expression IDs and values are arrays of relations
+              examples:
+                success:
+                  summary: Relations for an expression
+                  value:
+                    "13mxFPmsmIqktVTYVV8AL":
+                      - type: "TRANSLATION_OF"
+                        direction: "in"
+                        otherId: "RQKWt16H22fyxodz1Hpu8"
+                      - type: "TRANSLATION_OF"
+                        direction: "in"
+                        otherId: "zRsb99ocU5fM8wurAUfMQ"
+                      - type: "TRANSLATION_OF"
+                        direction: "in"
+                        otherId: "t0CzlMC69QUySNEBzSL4e"
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
   /v2/categories:
     get:
       summary: Retrieve categories

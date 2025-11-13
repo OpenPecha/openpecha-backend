@@ -78,6 +78,18 @@ class Neo4JDatabase:
 
             return self._process_expression_data(record.data()["expression"])
 
+    def get_all_expression_relations(self) -> dict:
+        with self.__driver.session() as session:
+            result = session.run(Queries.expressions["fetch_all_relations"])
+            return {r["id"]: r["relations"] for r in result}
+
+    def get_expression_relations(self, expression_id: str) -> dict:
+        with self.__driver.session() as session:
+            record = session.run(Queries.expressions["fetch_relations_by_id"], id=expression_id).single()
+            if record is None:
+                raise DataNotFound(f"Expression with ID '{expression_id}' not found")
+            return {"id": record["id"], "relations": record["relations"]}
+
     def _process_manifestation_data(self, manifestation_data: dict) -> ManifestationModelOutput:
         annotations = [
             AnnotationModel(

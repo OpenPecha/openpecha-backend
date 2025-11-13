@@ -154,6 +154,18 @@ Queries.expressions = {
 
     RETURN {Queries.expression_fragment('e')} AS expression
 """,
+    "fetch_all_relations": """
+    MATCH (e:Expression)
+    RETURN e.id AS id,
+      [ (e)-[r:TRANSLATION_OF|COMMENTARY_OF]-(other:Expression)
+        | {
+            type: type(r),
+            direction: CASE WHEN startNode(r) = e THEN 'out' ELSE 'in' END,
+            otherId: other.id
+          }
+      ] AS relations
+    ORDER BY id
+""",
     "fetch_by_category": f"""
     MATCH (c:Category {{id: $category_id}})
     MATCH (e:Expression)-[:EXPRESSION_OF]->(:Work)-[:BELONGS_TO]->(c)
