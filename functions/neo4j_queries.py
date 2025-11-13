@@ -188,6 +188,11 @@ Queries.expressions = {
       ] AS relations
     ORDER BY id
 """,
+    "get_expressions_metadata_by_ids": f"""
+MATCH (e:Expression)
+WHERE e.id IN $expression_ids
+RETURN e.id as expression_id, {Queries.expression_fragment('e')} as metadata
+""",
     "fetch_by_category": f"""
     MATCH (c:Category {{id: $category_id}})
     MATCH (e:Expression)-[:EXPRESSION_OF]->(:Work)-[:BELONGS_TO]->(c)
@@ -408,6 +413,16 @@ RETURN m.id AS manifestation_id
         alignment_annotation_id: null
     }} as related_instance
 """,
+    "get_expression_ids_by_manifestation_ids": """
+MATCH (m:Manifestation)-[:MANIFESTATION_OF]->(e:Expression)
+WHERE m.id IN $manifestation_ids
+RETURN m.id as manifestation_id, e.id as expression_id
+""",
+    "get_manifestations_metadata_by_ids": f"""
+MATCH (m:Manifestation)
+WHERE m.id IN $manifestation_ids
+RETURN m.id as manifestation_id, {Queries.manifestation_fragment('m')} as metadata
+""",
 }
 
 Queries.annotations = {
@@ -510,6 +525,20 @@ MATCH (a1)-[:ALIGNED_TO]-(a2:Annotation)
 WITH a1, a2, m.id as manifestation_id
 
 RETURN manifestation_id, a1.id as alignment_1_id, a2.id as alignment_2_id
+""",
+    "get_segmentation_annotation_by_manifestation": """
+MATCH (m:Manifestation {id: $manifestation_id})
+MATCH (m)<-[:ANNOTATION_OF]-(a:Annotation)-[:HAS_TYPE]->(at:AnnotationType)
+WHERE at.name IN ['segmentation', 'pagination']
+WITH a
+LIMIT 1
+OPTIONAL MATCH (a)<-[:SEGMENTATION_OF]-(s:Segment)
+WITH collect(DISTINCT {
+    id: s.id,
+    span_start: s.span_start,
+    span_end: s.span_end
+}) as segments
+RETURN segments
 """
 }
 

@@ -12,8 +12,14 @@ logger = logging.getLogger(__name__)
 @relation_bp.route("/expressions/<string:expression_id>", methods=["GET"], strict_slashes=False)
 def get_expression_relations(expression_id: str) -> tuple[Response, int]:
     
-    relationship = solve(expression_id)
+    
+    response: dict = _get_relation_for_an_expression(expression_id=expression_id)
 
+    return jsonify(response), 200
+
+def _get_relation_for_an_expression(expression_id: str) -> dict:
+
+    relationship = _get_expression_relations(expression_id)
     response = {}
 
     for key, value in relationship.items():
@@ -23,9 +29,9 @@ def get_expression_relations(expression_id: str) -> tuple[Response, int]:
             response[value] = []
         response[value].append(key)
     
-    return jsonify(response), 200
+    return response
 
-def get_relation_according_to_relation_rule(relation: str) -> str:
+def _get_relation_according_to_relation_rule(relation: str) -> str:
     rules = {
         "ROOT-ROOT": "SIBLING_ROOT",
         "ROOT-TRANSLATION": "ROOT",
@@ -47,7 +53,7 @@ def get_relation_according_to_relation_rule(relation: str) -> str:
     return rules.get(relation, None)
 
 
-def solve(expression_id: str):
+def _get_expression_relations(expression_id: str):
     db = Neo4JDatabase()
     expression_relations = db.get_all_expression_relations()
     if expression_id not in expression_relations:
@@ -84,7 +90,7 @@ def solve(expression_id: str):
                     relation_dict[other_id] = new_relation
                 else:
                     combined_relation = f"{pre_relation}-{new_relation}"
-                    final_relation = get_relation_according_to_relation_rule(combined_relation)
+                    final_relation = _get_relation_according_to_relation_rule(combined_relation)
                     relation_dict[other_id] = final_relation
                 # Only add to queue if not already explored
                 if other_id not in explored_expression:
@@ -101,7 +107,7 @@ def solve(expression_id: str):
                     relation_dict[other_id] = new_relation
                 else:
                     combined_relation = f"{pre_relation}-{new_relation}"
-                    final_relation = get_relation_according_to_relation_rule(combined_relation)
+                    final_relation = _get_relation_according_to_relation_rule(combined_relation)
                     relation_dict[other_id] = final_relation
                 # Only add to queue if not already explored
                 if other_id not in explored_expression:

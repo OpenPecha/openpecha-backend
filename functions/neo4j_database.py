@@ -224,6 +224,106 @@ class Neo4JDatabase:
             d = record.data()
             return d["manifestation_id"]
 
+    def get_segmentation_annotation_by_manifestation(self, manifestation_id: str) -> list[dict]:
+        """
+        Get segments from the segmentation/pagination annotation for a given manifestation.
+        Since there's always one segmentation annotation, returns only the segments array.
+        Includes both 'segmentation' (for critical) and 'pagination' (for diplomatic) types.
+        
+        Args:
+            manifestation_id: The ID of the manifestation
+            
+        Returns:
+            List of segment dictionaries, each containing: id, span (with start and end)
+        """
+        with self.__driver.session() as session:
+            result = session.execute_read(
+                lambda tx: tx.run(
+                    Queries.annotations["get_segmentation_annotation_by_manifestation"],
+                    manifestation_id=manifestation_id
+                ).single()
+            )
+            if not result:
+                return []
+            
+            segments = []
+            for seg in result["segments"]:
+                if seg.get("id"):  # Only include segments that have an ID (filter out nulls)
+                    segments.append({
+                        "id": seg["id"],
+                        "span": {
+                            "start": seg["span_start"],
+                            "end": seg["span_end"]
+                        }
+                    })
+            return segments
+
+    def get_expression_ids_by_manifestation_ids(self, manifestation_ids: list[str]) -> dict[str, str]:
+        """
+        Get expression IDs for a list of manifestation IDs.
+        
+        Args:
+            manifestation_ids: List of manifestation IDs
+            
+        Returns:
+            Dictionary mapping manifestation_id to expression_id
+        """
+        if not manifestation_ids:
+            return {}
+        
+        with self.__driver.session() as session:
+            result = session.execute_read(
+                lambda tx: list(tx.run(
+                    Queries.manifestations["get_expression_ids_by_manifestation_ids"],
+                    manifestation_ids=manifestation_ids
+                ))
+            )
+            return {record["manifestation_id"]: record["expression_id"] for record in result}
+
+    def get_manifestations_metadata_by_ids(self, manifestation_ids: list[str]) -> dict[str, dict]:
+        """
+        Get metadata for a list of manifestation IDs.
+        
+        Args:
+            manifestation_ids: List of manifestation IDs
+            
+        Returns:
+            Dictionary mapping manifestation_id to metadata dictionary
+        """
+        if not manifestation_ids:
+            return {}
+        
+        with self.__driver.session() as session:
+            result = session.execute_read(
+                lambda tx: list(tx.run(
+                    Queries.manifestations["get_manifestations_metadata_by_ids"],
+                    manifestation_ids=manifestation_ids
+                ))
+            )
+            return {record["manifestation_id"]: record["metadata"] for record in result}
+
+    def get_expressions_metadata_by_ids(self, expression_ids: list[str]) -> dict[str, dict]:
+        """
+        Get metadata for a list of expression IDs.
+        
+        Args:
+            expression_ids: List of expression IDs
+            
+        Returns:
+            Dictionary mapping expression_id to metadata dictionary
+        """
+        if not expression_ids:
+            return {}
+        
+        with self.__driver.session() as session:
+            result = session.execute_read(
+                lambda tx: list(tx.run(
+                    Queries.expressions["get_expressions_metadata_by_ids"],
+                    expression_ids=expression_ids
+                ))
+            )
+            return {record["expression_id"]: record["metadata"] for record in result}
+
     def find_related_instances(self, manifestation_id: str, type_filter: str | None = None) -> list[dict]:
         """
         Find all manifestations that have alignment relationships with the given manifestation.
