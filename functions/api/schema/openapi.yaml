@@ -1511,6 +1511,9 @@ paths:
                 - title
                 - language
                 - contributions
+                - copyright
+                - license
+                - category_id
               properties:
                 type:
                   type: string
