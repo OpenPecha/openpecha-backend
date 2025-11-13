@@ -462,7 +462,7 @@ def get_segment_related(manifestation_id: str) -> tuple[Response, int]:
         )
 
         related_segment["text_metadata"] = expression_metadata.get(expression_map.get(manifestation_id))
-        related_segment["relation"] = relations_look_up.get(expression_map.get(manifestation_id))
+        related_segment["relation"] = relations_look_up.get(expression_map.get(manifestation_id)).lower()
         
 
     return jsonify(related_segments), 200
