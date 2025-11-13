@@ -14,6 +14,7 @@ from models import (
     CopyrightStatus,
     ExpressionModelInput,
     ExpressionModelOutput,
+    LicenseType,
     LocalizedString,
     ManifestationModelBase,
     ManifestationModelInput,
@@ -113,7 +114,7 @@ class Neo4JDatabase:
             wiki=manifestation_data.get("wiki"),
             type=ManifestationType(manifestation_data["type"]),
             annotations=annotations,
-            copyright=CopyrightStatus(manifestation_data["copyright"]),
+            source=manifestation_data.get("source"),
             colophon=manifestation_data.get("colophon"),
             incipit_title=incipit_title,
             alt_incipit_titles=alt_incipit_titles,
@@ -142,6 +143,8 @@ class Neo4JDatabase:
             language=expression_data.get("language"),
             target=target,
             category_id=expression_data.get("category_id"),
+            copyright=CopyrightStatus(expression_data.get("copyright") or "Public domain"),
+            license=LicenseType(expression_data.get("license") or "Public Domain Mark"),
         )
 
     def get_manifestations_by_expression(self, expression_id: str) -> list[ManifestationModelOutput]:
@@ -180,7 +183,7 @@ class Neo4JDatabase:
             bdrc=manifestation_data.get("bdrc"),
             wiki=manifestation_data.get("wiki"),
             type=ManifestationType(manifestation_data["type"]),
-            copyright=CopyrightStatus(manifestation_data["copyright"]),
+            source=manifestation_data.get("source"),
             colophon=manifestation_data.get("colophon"),
             incipit_title=self.__convert_to_localized_text(manifestation_data.get("incipit_title")),
             alt_incipit_titles=[self.__convert_to_localized_text(alt) for alt in manifestation_data.get("alt_incipit_titles", [])],
@@ -296,7 +299,7 @@ class Neo4JDatabase:
                     "instance_id": manifestation.id,
                     "metadata": {
                         "instance_type": manifestation.type.value,
-                        "copyright": manifestation.copyright.value,
+                        "source": manifestation.source,
                         "text_id": expression.id,
                         "title": expression.title.root if expression.title else None,
                         "alt_titles": [alt.root for alt in expression.alt_titles] if expression.alt_titles else [],
@@ -857,6 +860,8 @@ class Neo4JDatabase:
             "bcp47_tag": expression.language,
             "title_nomen_element_id": expression_title_element_id,
             "target_id": target_id,
+            "copyright": expression.copyright.value,
+            "license": expression.license.value,
         }
 
         match expression.type:
@@ -929,7 +934,7 @@ class Neo4JDatabase:
             bdrc=manifestation.bdrc,
             wiki=manifestation.wiki,
             type=manifestation.type.value if manifestation.type else None,
-            copyright=manifestation.copyright.value if manifestation.copyright else "public",
+            source=manifestation.source,
             colophon=manifestation.colophon,
             incipit_element_id=incipit_element_id,
         )

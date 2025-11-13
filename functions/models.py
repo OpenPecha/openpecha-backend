@@ -1,7 +1,8 @@
 from enum import Enum
-from typing import Annotated
+from typing import Annotated, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, RootModel, StrictStr, StringConstraints, model_validator
+from pydantic import BaseModel, ConfigDict, Field, RootModel, StrictStr, StringConstraints, model_validator, Extra
+
 
 NonEmptyStr = Annotated[StrictStr, StringConstraints(min_length=1, strip_whitespace=True)]
 
@@ -35,15 +36,22 @@ class ManifestationType(str, Enum):
 
 
 class CopyrightStatus(str, Enum):
-    PUBLIC_DOMAIN = "public"
-    COPYRIGHTED = "copyrighted"
+    UNKNOWN = "Unknown"
+    COPYRIGHTED = "In copyright"
+    PUBLIC_DOMAIN = "Public domain"
 
 
-class LocalizedString(RootModel[dict[str, NonEmptyStr]]):
-    root: dict[str, NonEmptyStr] = Field(min_length=1)
-
-    def __getitem__(self, item: str) -> str:
-        return self.root[item]
+class LicenseType(str, Enum):
+    # based on https://creativecommons.org/licenses/
+    CC0 = "CC0"
+    PUBLIC_DOMAIN_MARK = "Public Domain Mark"
+    CC_BY = "CC BY"
+    CC_BY_SA = "CC BY-SA"
+    CC_BY_ND = "CC BY-ND"
+    CC_BY_NC = "CC BY-NC"
+    CC_BY_NC_SA = "CC BY-NC-SA"
+    CC_BY_NC_ND = "CC BY-NC-ND"
+    UNDER_COPYRIGHT = "under copyright"
 
 
 class OpenPechaModel(BaseModel):
@@ -51,6 +59,22 @@ class OpenPechaModel(BaseModel):
         extra="forbid",
         str_strip_whitespace=True,
     )
+
+
+class Copyright(OpenPechaModel):
+    status: CopyrightStatus = CopyrightStatus.UNKNOWN
+    notice: Optional[str] = ""
+    info_url: Optional[str] = None
+
+
+
+
+
+class LocalizedString(RootModel[dict[str, NonEmptyStr]]):
+    root: dict[str, NonEmptyStr] = Field(min_length=1)
+
+    def __getitem__(self, item: str) -> str:
+        return self.root[item]
 
 
 class PersonModelBase(OpenPechaModel):
@@ -121,6 +145,8 @@ class ExpressionModelBase(OpenPechaModel):
     language: NonEmptyStr
     target: str | None = None
     category_id: str | None = None
+    copyright: CopyrightStatus 
+    license: LicenseType 
 
     @model_validator(mode="after")
     def validate_target_field(self):
@@ -132,6 +158,24 @@ class ExpressionModelBase(OpenPechaModel):
                 "(use 'N/A' for standalone translations/commentaries)"
             )
             raise ValueError(msg)
+        return self
+
+    @model_validator(mode="after")
+    def validate_copyright_and_license(self):
+        # Validate copyright enum
+        if not isinstance(self.copyright, CopyrightStatus):
+            valid_copyrights = [status.value for status in CopyrightStatus]
+            raise ValueError(
+                f"Invalid copyright value. Must be one of: {valid_copyrights}"
+            )
+        
+        # Validate license enum
+        if not isinstance(self.license, LicenseType):
+            valid_licenses = [license.value for license in LicenseType]
+            raise ValueError(
+                f"Invalid license value. Must be one of: {valid_licenses}"
+            )
+        
         return self
 
     @model_validator(mode="after")
@@ -169,6 +213,26 @@ class ExpressionModelOutputBase(OpenPechaModel):
     language: NonEmptyStr
     target: str | None = None
     category_id: str | None = None
+    copyright: CopyrightStatus 
+    license: LicenseType 
+
+    @model_validator(mode="after")
+    def validate_copyright_and_license(self):
+        # Validate copyright enum
+        if not isinstance(self.copyright, CopyrightStatus):
+            valid_copyrights = [status.value for status in CopyrightStatus]
+            raise ValueError(
+                f"Invalid copyright value. Must be one of: {valid_copyrights}"
+            )
+        
+        # Validate license enum
+        if not isinstance(self.license, LicenseType):
+            valid_licenses = [license.value for license in LicenseType]
+            raise ValueError(
+                f"Invalid license value. Must be one of: {valid_licenses}"
+            )
+        
+        return self
 
 
 class ExpressionModelOutput(ExpressionModelOutputBase):
@@ -180,8 +244,7 @@ class ManifestationModelBase(OpenPechaModel):
     bdrc: str | None = None
     wiki: str | None = None
     type: ManifestationType
-
-    copyright: CopyrightStatus = CopyrightStatus.PUBLIC_DOMAIN
+    source: str | None = None
     colophon: NonEmptyStr | None = None
     incipit_title: LocalizedString | None = None
     alt_incipit_titles: list[LocalizedString] | None = None
@@ -253,12 +316,16 @@ class AlignedTextRequestModel(OpenPechaModel):
     language: NonEmptyStr
     content: NonEmptyStr
     title: NonEmptyStr
+    source: NonEmptyStr
     alt_titles: list[NonEmptyStr] | None = None
     author: CreatorRequestModel | None = None
     target_annotation: list[dict] | None = None
     alignment_annotation: list[dict] | None = None
     segmentation: list[dict]
-    copyright: CopyrightStatus = CopyrightStatus.PUBLIC_DOMAIN
+    copyright: CopyrightStatus
+    license: LicenseType
+    bdrc: str | None = None
+    wiki: str | None = None
     category_id: str | None = None
 
     @model_validator(mode="after")

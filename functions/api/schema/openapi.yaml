@@ -56,9 +56,9 @@ paths:
                       type:
                         type: string
                         enum: [diplomatic, critical]
-                      copyright:
+                      source:
                         type: string
-                        enum: [public, copyrighted]
+                        nullable: true
                       bdrc:
                         type: string
                       wiki:
@@ -92,7 +92,7 @@ paths:
                     metadata:
                       id: "I12345678"
                       type: "critical"
-                      copyright: "public"
+                      source: "source-name"
                       bdrc: "W123456"
                       wiki: "Q123456"
                       colophon: "colophon text"
@@ -112,7 +112,7 @@ paths:
                     metadata:
                       id: "I12345678"
                       type: "critical"
-                      copyright: "public"
+                      source: "source-name"
                       bdrc: "W123456"
                       wiki: "Q123456"
                       colophon: "colophon text"
@@ -129,7 +129,7 @@ paths:
                     metadata:
                       id: "I12345678"
                       type: "critical"
-                      copyright: "public"
+                      source: "source-name"
                       bdrc: "W123456"
                       wiki: "Q123456"
                       colophon: "colophon text"
@@ -192,10 +192,9 @@ paths:
                           type: string
                           enum: [diplomatic, critical]
                           description: Instance type
-                        copyright:
+                        source:
                           type: string
-                          enum: [public, copyrighted]
-                          description: Copyright status
+                          description: Source of the manifestation
                         text_id:
                           type: string
                           description: Text ID
@@ -240,7 +239,7 @@ paths:
                     - instance_id: "I87654321"
                       metadata:
                         instance_type: "critical"
-                        copyright: "public"
+                        source: "source-name"
                         text_id: "E12345678"
                         title:
                           en: "Heart Sutra - English Translation"
@@ -258,7 +257,7 @@ paths:
                     - instance_id: "I87654322"
                       metadata:
                         instance_type: "critical"
-                        copyright: "copyrighted"
+                        source: "source-name"
                         text_id: "E12345679"
                         title:
                           zh: "心经 - 中文翻译"
@@ -275,7 +274,8 @@ paths:
                     - instance_id: "I87654323"
                       metadata:
                         instance_type: "critical"
-                        copyright: "public"
+                        source: "source-name"
+
                         text_id: "E12345680"
                         title:
                           en: "AI Generated Translation"
@@ -391,7 +391,7 @@ paths:
                       instance:
                         id: "I456"
                         type: "critical"
-                        copyright: "public"
+                        source: "source-name"
                       segments:
                         - id: "SEG789"
                           span: { start: 50, end: 90 }
@@ -408,7 +408,7 @@ paths:
                       instance:
                         id: "I456"
                         type: "critical"
-                        copyright: "public"
+                        source: "source-name"
                       segments:
                         - id: "SEG_S101"
                           span: { start: 50, end: 75 }
@@ -654,9 +654,9 @@ paths:
                     type:
                       type: string
                       enum: [diplomatic, critical]
-                    copyright:
+                    source:
                       type: string
-                      enum: [public, copyrighted]
+                      nullable: true
                     bdrc:
                       type: string
                     wiki:
@@ -680,7 +680,6 @@ paths:
                     - alt_incipit_titles: []
                       bdrc: "W123456"
                       colophon: "Sample colophon text"
-                      copyright: "public"
                       incipit_title:
                         bo: "དབུ་ཚིག"
                         en: "Opening words"
@@ -689,7 +688,6 @@ paths:
                     - alt_incipit_titles: []
                       bdrc: "W123456"
                       colophon: "Sample colophon text"
-                      copyright: "public"
                       incipit_title:
                         bo: "དབུ་ཚིག"
                         en: "Opening words"
@@ -698,7 +696,6 @@ paths:
                     - alt_incipit_titles: []
                       bdrc: "W123456"
                       colophon: "Sample colophon text"
-                      copyright: "public"
                       incipit_title:
                         bo: "དབུ་ཚིག"
                         en: "Opening words"
@@ -707,7 +704,6 @@ paths:
                     - alt_incipit_titles: []
                       bdrc: "W123456"
                       colophon: "Sample colophon text"
-                      copyright: "public"
                       incipit_title:
                         bo: "དབུ་ཚིག"
                         en: "Opening words"
@@ -716,7 +712,6 @@ paths:
                     - alt_incipit_titles: []
                       bdrc: "W123456"
                       colophon: "Sample colophon text"
-                      copyright: "public"
                       incipit_title:
                         bo: "དབུ་ཚིག"
                         en: "Opening words"
@@ -725,7 +720,6 @@ paths:
                     - alt_incipit_titles: []
                       bdrc: "W123456"
                       colophon: "Sample colophon text"
-                      copyright: "public"
                       incipit_title: null
                       type: "diplomatic"
                       wiki: null
@@ -767,11 +761,10 @@ paths:
                       type: string
                       enum: [diplomatic, critical]
                       description: Type of manifestation
-                    copyright:
+                    source:
                       type: string
-                      enum: [public, copyrighted]
-                      default: public
-                      description: Copyright status
+                      nullable: true
+                      description: Source identifier for the manifestation
                     bdrc:
                       type: string
                       description: BDRC identifier (required for diplomatic type)
@@ -885,7 +878,7 @@ paths:
                 value:
                   metadata:
                     type: "diplomatic"
-                    copyright: "public"
+                    source: "source-name"
                     bdrc: "W123456"
                     colophon: "Sample colophon text"
                     incipit_title:
@@ -906,7 +899,7 @@ paths:
                 value:
                   metadata:
                     type: "critical"
-                    copyright: "public"
+                    source: "source-name"
                     colophon: "Sample colophon text"
                     incipit_title:
                       en: "Opening words"
@@ -924,7 +917,7 @@ paths:
                 value:
                   metadata:
                     type: "critical"
-                    copyright: "public"
+                    source: "source-name"
                     colophon: "Sample colophon text"
                     incipit_title:
                       en: "Opening words"
@@ -935,7 +928,7 @@ paths:
                 value:
                   metadata:
                     type: "diplomatic"
-                    copyright: "public"
+                    source: "source-name"
                     bdrc: "W123456"
                     colophon: "Sample colophon text"
                     incipit_title:
@@ -947,7 +940,7 @@ paths:
                 value:
                   metadata:
                     type: "diplomatic"
-                    copyright: "public"
+                    source: "source-name"
                     bdrc: "W123456"
                     colophon: "Sample colophon text"
                     incipit_title:
@@ -977,7 +970,7 @@ paths:
                 value:
                   metadata:
                     type: "critical"
-                    copyright: "public"
+                    source: "source-name"
                     colophon: "Sample colophon text"
                     incipit_title:
                       en: "Opening words"
@@ -1045,7 +1038,10 @@ paths:
                 - language
                 - content
                 - title
+                - source
                 - segmentation
+                - copyright
+                - license
               properties:
                 language:
                   type: string
@@ -1057,6 +1053,9 @@ paths:
                 title:
                   type: string
                   description: Title of the translation
+                source:
+                  type: string
+                  description: Source of the translation
                 alt_titles:
                   type: array
                   items:
@@ -1088,8 +1087,20 @@ paths:
                   description: Alignment annotation for original text (optional, must be provided together with alignment_annotation)
                 copyright:
                   type: string
-                  enum: [public, copyrighted]
-                  default: public
+                  enum: ["Public domain", "In copyright", "Unknown"]
+                  description: Copyright status of the translation
+                license:
+                  type: string
+                  enum: ["CC0", "Public Domain Mark", "CC BY", "CC BY-SA", "CC BY-ND", "CC BY-NC", "CC BY-NC-SA", "CC BY-NC-ND", "under copyright"]
+                  description: License type for the translation
+                bdrc:
+                  type: string
+                  nullable: true
+                  description: BDRC ID for the translation (optional)
+                wiki:
+                  type: string
+                  nullable: true
+                  description: Wiki ID for the translation (optional)
             examples:
               valid_translation_with_alignment_annotation:
                 summary: Valid translation creation request with alignment annotation
@@ -1097,6 +1108,7 @@ paths:
                   language: "en"
                   content: "This is the translated text content"
                   title: "Translated Title"
+                  source: "Source of the translation"
                   author:
                     person_id: "P12345678"
                   segmentation:
@@ -1126,13 +1138,15 @@ paths:
                         end: 50
                       index: 1
                       alignment_index: [1]
-                  copyright: "public"
+                  copyright: "Public domain"
+                  license: "CC0"
               valid_translation_without_alignment_annotation:
                 summary: Valid translation creation request without alignment annotation
                 value:
                   language: "en"
                   content: "This is the translated text content"
                   title: "Translated Title"
+                  source: "Source of the translation"
                   author:
                     person_id: "P12345678"
                   segmentation:
@@ -1142,7 +1156,8 @@ paths:
                     - span:
                         start: 21
                         end: 40
-                  copyright: "public"    
+                  copyright: "Public domain"
+                  license: "CC0"    
       responses:
         "201":
           description: Translation created successfully
@@ -1193,7 +1208,11 @@ paths:
                 - language
                 - content
                 - title
+                - source
                 - segmentation
+                - copyright
+                - license
+                - category_id
               properties:
                 language:
                   type: string
@@ -1205,6 +1224,9 @@ paths:
                 title:
                   type: string
                   description: Title of the commentary
+                source:
+                  type: string
+                  description: Source of the commentary
                 alt_titles:
                   type: array
                   items:
@@ -1233,8 +1255,20 @@ paths:
                   description: Alignment annotation for original text (optional, must be provided together with alignment_annotation)
                 copyright:
                   type: string
-                  enum: [public, copyrighted]
+                  enum: [Public domain, In copyright, Unknown]
                   default: public
+                license:
+                  type: string
+                  enum: [CC0, "Public Domain Mark", "CC BY", "CC BY-SA", "CC BY-ND", "CC BY-NC", "CC BY-NC-SA", "CC BY-NC-ND", "under copyright"]
+                  default: public
+                bdrc:
+                  type: string
+                  nullable: true
+                  description: BDRC ID of the commentary (optional)
+                wiki:
+                  type: string
+                  nullable: true
+                  description: Wikipedia ID of the commentary (optional)
                 category_id:
                   type: string
                   nullable: true
@@ -1246,6 +1280,7 @@ paths:
                   language: "en"
                   content: "This is the commentary text content"
                   title: "Commentary Title"
+                  source: "Source of the commentary"
                   author:
                     person_id: "P12345678"
                   segmentation:
@@ -1279,7 +1314,8 @@ paths:
                         end: 50
                       index: 1
                       alignment_index: [1,2]
-                  copyright: "public"
+                  copyright: "Public domain"
+                  license: "CC0"
                   category_id: "CAT12345678"
               valid_commentary_without_alignment_annotation:
                 summary: Valid commentary creation request without alignment annotation
@@ -1287,6 +1323,7 @@ paths:
                   language: "en"
                   content: "This is the commentary text content"
                   title: "Commentary Title"
+                  source: "Source of the commentary"
                   author:
                     person_id: "P12345678"
                   segmentation:
@@ -1296,7 +1333,8 @@ paths:
                     - span:
                         start: 21
                         end: 40
-                  copyright: "public"
+                  copyright: "Public domain"
+                  license: "CC0"
                   category_id: "CAT12345678"
       responses:
         "201":
@@ -1418,6 +1456,12 @@ paths:
                       type: string
                     target:
                       type: string
+                    copyright:
+                      type: string
+                      enum: ["Public domain", "In copyright", "Unknown"]
+                    license:
+                      type: string
+                      nullable: true
               examples:
                 success:
                   summary: List of texts
@@ -1433,6 +1477,8 @@ paths:
                           role: "author"
                       date: "2024-01-01"
                       bdrc: "W123456"
+                      copyright: "Public domain"
+                      license: "CC0"
                     - id: "DEF87654321"
                       type: "translation"
                       title:
@@ -1442,6 +1488,8 @@ paths:
                         - ai_id: "gpt-4"
                           role: "translator"
                       target: "ABC12345678"
+                      copyright: "Public domain"
+                      license: "CC0"
         "400":
           $ref: '#/components/responses/InvalidRequest'
         "500":
@@ -1535,6 +1583,15 @@ paths:
                   type: string
                   nullable: true
                   description: ID of the category this text belongs to (optional)
+                copyright:
+                  type: string
+                  enum: ["Public domain", "In copyright", "Unknown"]
+                  default: "Public domain"
+                  description: Copyright status
+                license:
+                  type: string
+                  nullable: true
+                  description: License type (optional)
             examples:
               root_text:
                 summary: Root text creation
@@ -1550,6 +1607,8 @@ paths:
                   date: "2024-01-01"
                   bdrc: "W123456"
                   category_id: "CAT12345678"
+                  copyright: "Public domain"
+                  license: "CC0"
               translation_text:
                 summary: Translation text creation
                 value:
@@ -1561,6 +1620,8 @@ paths:
                     - person_bdrc_id: "P87654321"
                       role: "translator"
                   category_id: "CAT12345678"
+                  copyright: "Public domain"
+                  license: "Public Domain Mark"
               ai_translation_text:
                 summary: AI translation text creation
                 value:
@@ -1573,6 +1634,8 @@ paths:
                       role: "translator"
                   target: "T12345678"
                   category_id: "CAT12345678"
+                  copyright: "In copyright"
+                  license: "CC BY-NC-ND"
       responses:
         "200":
           description: Expression with BDRC ID already exists
@@ -1674,6 +1737,12 @@ paths:
                     type: string
                   target:
                     type: string
+                  copyright:
+                    type: string
+                    enum: ["Public domain", "In copyright", "Unknown"]
+                  license:
+                    type: string
+                    nullable: true
               examples:
                 success:
                   summary: Single text
@@ -1689,6 +1758,8 @@ paths:
                         role: "author"
                     date: "2024-01-01"
                     bdrc: "W123456"
+                    copyright: "Public domain"
+                    license: "CC0"
         "400":
           $ref: '#/components/responses/InvalidRequest'
         "404":
@@ -2774,9 +2845,8 @@ paths:
                             type:
                               type: string
                               enum: [diplomatic, critical, collated]
-                            copyright:
+                            source:
                               type: string
-                              enum: [public, copyrighted]
                             bdrc:
                               type: string
                             wiki:
@@ -2829,9 +2899,8 @@ paths:
                             type:
                               type: string
                               enum: [diplomatic, critical, collated]
-                            copyright:
+                            source:
                               type: string
-                              enum: [public, copyrighted]
                             bdrc:
                               type: string
                             wiki:
@@ -2877,7 +2946,7 @@ paths:
                       - instance:
                           id: "M12345678"
                           type: "critical"
-                          copyright: "public"
+                          source: "S12345678"
                         text:
                           id: "E12345678"
                           type: "translation"
