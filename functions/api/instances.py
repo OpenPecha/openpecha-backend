@@ -454,7 +454,7 @@ def get_segment_related(manifestation_id: str) -> tuple[Response, int]:
     for related_segment in related_segments:
         manifestation_id = related_segment.get("manifestation_id")
         del related_segment["manifestation_id"]
-        related_segment["manifestation_metadata"] = manifestations_metadata.get(manifestation_id)
+        related_segment["instance_metadata"] = manifestations_metadata.get(manifestation_id)
         
         _delete_unwanted_fields(
             dictionary = related_segment["manifestation_metadata"],
