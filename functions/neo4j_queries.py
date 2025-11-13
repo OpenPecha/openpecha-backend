@@ -55,7 +55,7 @@ class Queries:
     id: {label}.id,
     title: [{Queries.primary_nomen(label, "HAS_TITLE")}],
     language: [({label})-[:HAS_LANGUAGE]->({label}_l:Language) | {label}_l.code][0],
-    type: {Queries.infer_expression_type(label)},
+    type: {Queries.get_expression_type(label)},
 }}
 """
 
@@ -84,18 +84,6 @@ class Queries:
 """
 
     @staticmethod
-    def infer_expression_type(label):
-        """Fragment to infer expression type from relationships instead of HAS_TYPE"""
-        return f"""
-CASE
-    WHEN ({label})-[:EXPRESSION_OF {{original: false}}]->(:Work) THEN 'translation'
-    WHEN ({label})-[:COMMENTARY_OF]->(:Expression) THEN 'commentary'
-    WHEN ({label})-[:EXPRESSION_OF {{original: true}}]->(:Work) THEN 'root'
-    ELSE null
-END
-"""
-
-    @staticmethod
     def get_expression_type(label):
         """Fragment to infer expression type from relationships instead of HAS_TYPE"""
         return f"""
@@ -104,7 +92,7 @@ CASE
     WHEN ({label})-[:TRANSLATION_OF]->(:Expression) THEN 'translation'
     WHEN ({label})<-[:TRANSLATION_OF]-(:Expression) THEN 'translation_source'
     WHEN ({label})<-[:COMMENTARY_OF]-(:Expression) THEN 'root'
-    ELSE null
+    ELSE 'none'
 END
 """
 
@@ -180,7 +168,7 @@ Queries.expressions = {
     "fetch_all": f"""
     MATCH (e:Expression)
     WITH e
-    WHERE ($type IS NULL OR {Queries.infer_expression_type('e')} = $type)
+    WHERE ($type IS NULL OR {Queries.get_expression_type('e')} = $type)
     AND ($language IS NULL OR [(e)-[:HAS_LANGUAGE]->(l:Language) | l.code][0] = $language)
 
     OFFSET $offset
@@ -204,7 +192,7 @@ Queries.expressions = {
     MATCH (c:Category {{id: $category_id}})
     MATCH (e:Expression)-[:EXPRESSION_OF]->(:Work)-[:BELONGS_TO]->(c)
     WITH e
-    WHERE {Queries.infer_expression_type('e')} <> 'commentary'
+    WHERE {Queries.get_expression_type('e')} <> 'commentary'
       AND ($language IS NULL OR [(e)-[:HAS_LANGUAGE]->(l:Language) | l.code][0] = $language)
       AND (
         $instance_type IS NULL OR EXISTS {{

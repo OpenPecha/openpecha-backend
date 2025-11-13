@@ -1392,7 +1392,7 @@ paths:
           required: false
           schema:
             type: string
-            enum: [root, commentary, translation]
+            enum: [root, commentary, translation, translation_source, none]
           description: Filter by text type
         - name: language
           in: query
