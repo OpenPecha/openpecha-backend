@@ -134,6 +134,9 @@ class SegmentModel(OpenPechaModel):
     id: str
     span: SpanModel
 
+class BibliographyAnnotationModel(OpenPechaModel):
+    span: SpanModel
+    type: NonEmptyStr
 
 class ExpressionModelBase(OpenPechaModel):
     bdrc: str | None = None
@@ -249,6 +252,7 @@ class ManifestationModelBase(OpenPechaModel):
     colophon: NonEmptyStr | None = None
     incipit_title: LocalizedString | None = None
     alt_incipit_titles: list[LocalizedString] | None = None
+    biblography_annotation: list[BibliographyAnnotationModel] | None = None
 
     @model_validator(mode="after")
     def validate_bdrc_for_diplomatic_and_critical(self):
@@ -328,11 +332,18 @@ class AlignedTextRequestModel(OpenPechaModel):
     bdrc: str | None = None
     wiki: str | None = None
     category_id: str | None = None
+    biblography_annotation: list[BibliographyAnnotationModel] | None = None
+
 
     @model_validator(mode="after")
     def validate_alignment_annotations(self):
         if (self.target_annotation is not None) != (self.alignment_annotation is not None):
             raise ValueError("Both target_annotation and alignment_annotation must be provided together, or neither")
+        if self.biblography_annotation is not None:
+            if len(self.biblography_annotation) == 0:
+                raise ValueError("Biblography annotation cannot be empty list")
+            elif not all(isinstance(ann, BibliographyAnnotationModel) for ann in self.biblography_annotation):
+                raise ValueError("All biblography annotations must be of type BibliographyAnnotationModel")
         return self
 
 
@@ -348,9 +359,6 @@ class AlignmentAnnotationModel(OpenPechaModel):
     index: int
     alignment_index: list[int] | None = None
 
-class BibliographyAnnotationModel(OpenPechaModel):
-    span: SpanModel
-    type: NonEmptyStr
 
 class TableOfContentsAnnotationModel(OpenPechaModel):
     title: NonEmptyStr
