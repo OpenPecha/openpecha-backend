@@ -2425,11 +2425,8 @@ paths:
                             description: Type of bibliography annotation
                         description: Bibliography annotation
                       - type: object
-                        required: [id, title, segments]
+                        required: [title, segments]
                         properties:
-                          id:
-                            type: string
-                            description: Unique identifier for the section
                           title:
                             type: string
                             description: Title of the table of contents section
@@ -2555,14 +2552,11 @@ paths:
                 value:
                   type: table_of_contents
                   annotation:
-                    - id: "section_001"
-                      title: "Chapter 1: Introduction"
+                    - title: "Chapter 1: Introduction"
                       segments: ["seg_001", "seg_002", "seg_003"]
-                    - id: "section_002"
-                      title: "Chapter 2: Main Content"
+                    - title: "Chapter 2: Main Content"
                       segments: ["seg_004", "seg_005"]
-                    - id: "section_003"
-                      title: "Chapter 3: Conclusion"
+                    - title: "Chapter 3: Conclusion"
                       segments: ["seg_006", "seg_007", "seg_008"]
               alignment:
                 summary: Alignment
