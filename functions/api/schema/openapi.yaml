@@ -330,7 +330,7 @@ paths:
             type: integer
             minimum: 1
           description: Exclusive end offset (must be greater than span_start)
-        - name: transfer
+        - name: transform
           in: query
           required: false
           schema:
@@ -380,7 +380,7 @@ paths:
                                 minimum: 1
                                 description: Exclusive end offset
               examples:
-                withoutTransfer:
+                untransform:
                   summary: Related segments without transfer (alignment annotation)
                   value:
                     - text:
@@ -397,7 +397,7 @@ paths:
                           span: { start: 50, end: 90 }
                         - id: "SEG790"
                           span: { start: 90, end: 120 }
-                withTransfer:
+                transform:
                   summary: Related segments with transfer (segmentation annotation)
                   value:
                     - text:

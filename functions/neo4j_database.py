@@ -1,6 +1,7 @@
 from collections import OrderedDict
 import os
 import logging
+import queue as queue_module
 from exceptions import DataNotFound
 from identifier import generate_id
 from models import (
@@ -1161,6 +1162,7 @@ class Neo4JDatabase:
                 source_segment_id=source_segment_id,
                 target_annotation_id=target_annotation_id
             )
+            logger.info(f"Alignment indices: {result}")
             return [record["index"] for record in result]
 
     def get_annotation_type(self, annotation_id: str) -> str | None:
@@ -1314,3 +1316,103 @@ class Neo4JDatabase:
                     return [{"name": r["name"]} for r in result]
                 case _:
                     return []
+    
+    def _get_alignment_pairs_by_manifestation(self, manifestation_id: str) -> list[dict]:
+        with self.get_session() as session:
+            result = session.execute_read(
+                lambda tx: tx.run(
+                    Queries.annotations["get_alignment_pairs_by_manifestation"],
+                    manifestation_id=manifestation_id
+                ).data()
+            )
+            return result
+    
+    def _get_overlapping_segments(self, manifestation_id: str, start:int, end:int) -> list[dict]:
+        with self.get_session() as session:
+            result = session.execute_read(
+                lambda tx: tx.run(
+                    Queries.segments["get_overlapping_segments"],
+                    manifestation_id=manifestation_id,
+                    span_start=start,
+                    span_end=end
+                ).data()
+            )
+            return [
+                {
+                    "segment_id": record["segment_id"],
+                    "span": {"start": record["span_start"], "end": record["span_end"]},
+                }
+                for record in result
+            ]
+
+
+    def _get_aligned_segments(self, alignment_1_id: str, start:int, end:int) -> list[dict]:
+        with self.get_session() as session:
+            result = session.execute_read(
+                lambda tx: tx.run(
+                    Queries.segments["get_aligned_segments"],
+                    alignment_1_id=alignment_1_id,
+                    span_start=start,
+                    span_end=end
+                ).data()
+            )
+            return [
+                {
+                    "segment_id": record["segment_id"],
+                    "span": {"start": record["span_start"], "end": record["span_end"]},
+                }
+                for record in result
+            ]
+
+
+    def _get_related_segments(self, manifestation_id:str, start:int, end:int, transform:bool = False) -> list[dict]:
+        
+        global transformed_related_segments, untransformed_related_segments, traversed_alignment_pairs
+        transformed_related_segments = []
+        untransformed_related_segments = []
+        traversed_alignment_pairs = []
+        visited_manifestations = set()  # Track visited manifestations to prevent infinite loops
+
+        queue = queue_module.Queue()
+        queue.put({"manifestation_id": manifestation_id, "span_start": start, "span_end": end})
+        visited_manifestations.add(manifestation_id)  # Mark initial manifestation as visited
+        
+        while not queue.empty():
+            item = queue.get()  # get() removes and returns the item (like pop())
+            manifestation_1_id = item["manifestation_id"]
+            span_start = item["span_start"]
+            span_end = item["span_end"]
+            alignment_list = self._get_alignment_pairs_by_manifestation(manifestation_1_id)
+            
+            for alignment in alignment_list:
+                if (alignment["alignment_1_id"], alignment["alignment_2_id"]) not in traversed_alignment_pairs:
+                    segments_list = self._get_aligned_segments(alignment["alignment_1_id"], span_start, span_end)
+                    
+                    # Skip if no segments found
+                    if not segments_list:
+                        continue
+                    
+                    overall_start = min(segments_list, key=lambda x: x["span"]["start"])["span"]["start"]
+                    overall_end = max(segments_list, key=lambda x: x["span"]["end"])["span"]["end"]
+                    manifestation_2_id = self.get_manifestation_id_by_annotation_id(alignment["alignment_2_id"])
+                    
+                    # Skip if manifestation already visited (prevents infinite loops)
+                    if manifestation_2_id in visited_manifestations:
+                        continue
+                    
+                    visited_manifestations.add(manifestation_2_id)
+                    
+                    if transform:
+                        transformed_segments = self._get_overlapping_segments(manifestation_2_id, overall_start, overall_end)
+                        print(transformed_segments)
+                        transformed_related_segments.append({"manifestation_id": manifestation_2_id, "segments": transformed_segments})
+                    else:
+                        untransformed_related_segments.append({"manifestation_id": manifestation_2_id, "segments": segments_list})
+                    traversed_alignment_pairs.append((alignment["alignment_1_id"], alignment["alignment_2_id"]))
+                    traversed_alignment_pairs.append((alignment["alignment_2_id"], alignment["alignment_1_id"]))
+                    queue.put({"manifestation_id": manifestation_2_id, "span_start": overall_start, "span_end": overall_end})
+
+        if transform:
+            return transformed_related_segments
+        else:
+            return untransformed_related_segments
