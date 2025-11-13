@@ -279,6 +279,8 @@ class Neo4JDatabase:
                     relationship_type = "translation"
                 elif expression.type == TextType.COMMENTARY:
                     relationship_type = "commentary"
+                elif expression.type == TextType.TRANSLATION_SOURCE:
+                    relationship_type = "translation_source"
                 else:  # TextType.ROOT
                     relationship_type = "root"
                 
@@ -1093,39 +1095,18 @@ class Neo4JDatabase:
             
             if annotation_type == "alignment" and aligned_to_id:
                 # For alignment annotations, return both source and target segments
-                source_segments_result = self._get_annotation_segments(annotation_id)
-                target_segments_result = self._get_annotation_segments(aligned_to_id)
-                
-                # Extract the actual segment lists from the dict results
-                source_segments = source_segments_result
-                target_segments = target_segments_result
-                
-                # Add index and alignment_index to source segments
-                source_segments_with_index = []
-                for i, segment in enumerate(source_segments):
-                    # Find target indices this segment aligns to
-                    alignment_indices = self._get_alignment_indices(segment["id"], aligned_to_id)
-                    segment_with_index = {
-                        **segment,
-                        "index": i,
-                        "alignment_index": alignment_indices
-                    }
-                    source_segments_with_index.append(segment_with_index)
-                
-                # Add index to target segments
-                target_segments_with_index = []
-                for i, segment in enumerate(target_segments):
-                    segment_with_index = {
-                        **segment,
-                        "index": i
-                    }
-                    target_segments_with_index.append(segment_with_index)
+                source_segments = self._get_annotation_segments(annotation_id)
+                target_segments = self._get_annotation_segments(aligned_to_id)
                 
                 response["data"] = {
-                    "alignment_annotation": source_segments_with_index,
-                    "target_annotation": target_segments_with_index
+                    "alignment_annotation": source_segments,
+                    "target_annotation": target_segments
                 }
                 
+                response["data"] = {
+                    "alignment_annotation": source_segments,
+                    "target_annotation": target_segments
+                }    
             elif annotation_type == "table_of_contents":
                 # For table of contents annotations, return sections
                 sections = self._get_annotation_sections(annotation_id)
@@ -1200,6 +1181,8 @@ class Neo4JDatabase:
                     segment["reference"] = record["reference"]
                 if record["bibliography_type"]:
                     segment["type"] = record["bibliography_type"]
+                if record["aligned_segments"]:
+                    segment["aligned_segments"] = record["aligned_segments"]
                 segments.append(segment)
 
         return segments
