@@ -1978,11 +1978,11 @@ paths:
                         items:
                           type: object
                           required:
-                            - segment_id
+                            - id
                             - span
                             - note
                           properties:
-                            segment_id:
+                            id:
                               type: string
                               description: Unique identifier for the segment
                             span:
@@ -2196,12 +2196,12 @@ paths:
                     id: "ann_durchen_123"
                     type: "durchen"
                     data:
-                      - segment_id: "seg_001"
+                      - id: "seg_001"
                         span:
                           start: 0
                           end: 50
                         note: "This is a durchen note explaining some aspect of the text"
-                      - segment_id: "seg_002"
+                      - id: "seg_002"
                         span:
                           start: 100
                           end: 150

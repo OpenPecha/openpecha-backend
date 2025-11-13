@@ -1148,7 +1148,7 @@ class Neo4JDatabase:
             durchen_annotation = []
             for record in result:
                 durchen_annotation.append({
-                    "segment_id": record["segment_id"],
+                    "id": record["id"],
                     "span": {
                     "start": record["span_start"],
                     "end": record["span_end"]

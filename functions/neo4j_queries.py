@@ -470,7 +470,7 @@ ORDER BY segment_index
     "get_durchen_annotation": """
 MATCH (a:Annotation {id: $annotation_id})<-[:SEGMENTATION_OF]-(s:Segment)-[:HAS_DURCHEN_NOTE]->(n:DurchenNote)
 RETURN DISTINCT
-    s.id as segment_id,
+    s.id as id,
     s.span_start as span_start,
     s.span_end as span_end,
     n.note as note
