@@ -17,13 +17,20 @@ from models import (
     TextType,
     SegmentModel,
 )
+import UUID
 from neo4j_database import Neo4JDatabase
 from storage import MockStorage
 from pecha_handling import retrieve_base_text
 from api.annotations import _alignment_annotation_mapping
-from exceptions import InvalidRequest
+from exceptions import InvalidRequest, OpenPechaException
 from api.relation import _get_relation_for_an_expression
 from neo4j_database_validator import Neo4JDatabaseValidator
+from db.postgres import SessionLocal
+from db.postgres_models import RootJob
+from datetime import datetime, timezone
+from celery.main import process_segment_task
+
+from uuid import uuid4
 
 instances_bp = Blueprint("instances", __name__)
 
@@ -212,42 +219,77 @@ def _create_aligned_text(
 
 @instances_bp.route("/<string:instance_id>/segments-relation", methods=["GET"], strict_slashes=False)
 def get_segments_relation_by_manifestation(instance_id: str):
-    
+
     logger.info("Getting segmentation annotation and it's segments by manifestation")
     db = Neo4JDatabase()
     segments = db.get_segmentation_annotation_by_manifestation(manifestation_id=instance_id)
     logger.info("Fetched segmentation annotation with it's segments nodes")
-    response = {
-        "instance_id": instance_id,
-        "segments_relations": []
-    }
 
-    # Process each segment
-    logger.info("Beginning with getting segments relation for each segment node")
+    logger.info("Creating root job for segments relation task")
+    logger.info("Generating job ID")
+    job_id = uuid4()
+    logger.info(f"Job ID generated: {job_id}")
+
+    logger.info("Calculating total segments")
+    total_segments = len(segments)
+    logger.info(f"Total segments: {total_segments}")
+
+    logger.info("Entering root job detail in database")
+    _create_root_job(
+        job_id = job_id,
+        total_segments = total_segments,
+        manifestation_id = instance_id
+    )
+    logger.info("Root job detail entered in database, proceeding to individual segment relation task")
+
     for segment in segments:
         
         start = int(segment["span"]["start"])
         end = int(segment["span"]["end"])
+        segment_id = segment["id"]
         
         logger.info(f"Getting related segments for segment id: {segment["id"]} with span_start: {start}, span_end: {end}")
-        
-        related_segments = db._get_related_segments(
+
+        logger.info(f"Adding segment with id: {segment_id} to task queue")
+        process_segment_task.delay(
+            job_id = job_id,
             manifestation_id = instance_id, 
+            segment_id = segment_id,
             start = start, 
-            end = end, 
-            transform = True
+            end = end
         )
-        
-        logger.info(f"Fetched related segments for segment id: {segment["id"]} with span_start: {start}, span_end: {end}")
-        logger.info("Appending to response list")
-        response["segments_relations"].append({
-            "segment_id": segment["id"],
-            "related_segments": related_segments
-        })
+        logger.info(f"SEgment with id: {segment_id} added to task queue successfully")
 
-        logger.info(f"Completed searching segment related for segment id: {segment["id"]} with span_start: {start}, span_end: {end}")
+    return jsonify({
+        "job_id": job_id,
+        "status": "QUEUED",
+        "total_segments": total_segments,
+        "message": f"Segments relation task queued, you can track the process by using the job ID: {job_id}"
+    }), 202
 
-    return jsonify(response), 200
+@instances_bp.route("/<string:job_id>/status", methods=["GET"], strict_slashes=False)
+def get_job_status(job_id: UUID):
+    try:
+        with SessionLocal() as session:
+            root_job = session.query(RootJob).filter(RootJob.job_id == job_id).first()
+
+            if not root_job:
+                raise InvalidRequest(f"Job with ID: {job_id} not found")
+            
+            total = root_job.total_segments
+            completed= root_job.completed_segments
+
+        return jsonify({
+            "job_id": job_id,
+            "status": root_job.status,
+            "total_segments": total,
+            "completed_segments": completed,
+            "created_at": root_job.created_at,
+            "updated_at": root_job.updated_at
+        }), 200
+
+    except:
+        raise OpenPechaException(f"Failed to get job status for job ID: {job_id}")
     
 
 @instances_bp.route("/<string:original_manifestation_id>/commentary", methods=["POST"], strict_slashes=False)
@@ -275,8 +317,6 @@ def create_translation(original_manifestation_id: str) -> tuple[Response, int]:
         return jsonify({"error": "Request body is required"}), 400
 
     request_model = AlignedTextRequestModel.model_validate(data)
-
-    
 
     return _create_aligned_text(request_model, TextType.TRANSLATION, original_manifestation_id)
 
@@ -457,7 +497,7 @@ def get_segment_related(manifestation_id: str) -> tuple[Response, int]:
         related_segment["instance_metadata"] = manifestations_metadata.get(manifestation_id)
         
         _delete_unwanted_fields(
-            dictionary = related_segment["manifestation_metadata"],
+            dictionary = related_segment["instance_metadata"],
             unwanted_fields = ["annotations", "alignment_sources", "alignment_targets"]
         )
 
@@ -631,3 +671,22 @@ def _get_instance_content(instance_id: str, span: SpanModel) -> tuple[bool, str,
         return True, "", content
     except Exception as e:
         return False, f"Failed to retrieve instance content: {str(e)}", ""
+
+
+def _create_root_job(job_id: uuid4, total_segments: int, manifestation_id: str):
+    try:
+        with SessionLocal() as session:
+            session.add(
+                RootJob(
+                    job_id = job_id,
+                    manifestation_id = manifestation_id,
+                    total_segments = total_segments,
+                    completed_segments = 0,
+                    status = "QUEUED",
+                    created_at = datetime.now(timezone.utc),
+                    updated_at = datetime.now(timezone.utc)
+                )
+            )
+
+    except:
+        raise Exception("Failed to create root job")

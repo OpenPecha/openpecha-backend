@@ -1,0 +1,46 @@
+version: '3.8'
+
+services:
+  db-local:
+    image: postgres:16-alpine
+    container_name: pecha-database
+    restart: always
+    environment:
+      - POSTGRES_USER=admin
+      - POSTGRES_PASSWORD=pechaAdmin
+      - POSTGRES_DB=pecha
+      - POSTGRES_HOST_AUTH_METHOD=scram-sha-256
+    logging:
+      options:
+        max-size: 10m
+        max-file: "3"
+    ports:
+      - "5435:5432"
+    volumes:
+      - ./data/database-local:/var/lib/postgresql/data
+    networks:
+      - pecha-network
+
+  redis:
+    image: redis:7-alpine
+    container_name: pecha-redis
+    restart: always
+    command: redis-server --requirepass pechaAdmin
+    logging:
+      options:
+        max-size: 10m
+        max-file: "3"
+    ports:
+      - "6379:6379"
+    volumes:
+      - ./data/redis-local:/data
+    networks:
+      - pecha-network
+
+volumes:
+  dbdata6:
+
+networks:
+  pecha-network:
+    driver: bridge
+
