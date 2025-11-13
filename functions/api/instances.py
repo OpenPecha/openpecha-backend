@@ -23,6 +23,7 @@ from pecha_handling import retrieve_base_text
 from api.annotations import _alignment_annotation_mapping
 from exceptions import InvalidRequest
 from api.relation import _get_relation_for_an_expression
+from neo4j_database_validator import Neo4JDatabaseValidator
 
 instances_bp = Blueprint("instances", __name__)
 
@@ -183,6 +184,20 @@ def _create_aligned_text(
         MockStorage().rollback_base_text(expression_id=expression_id, manifestation_id=manifestation_id)
         raise e
 
+    # Handle bibliography annotations in separate transaction
+    if request_model.biblography_annotation:
+        bibliography_annotation_id = generate_id()
+        bibliography_annotation = AnnotationModel(id=bibliography_annotation_id, type=AnnotationType.BIBLIOGRAPHY)
+        bibliography_types = [seg.type for seg in request_model.biblography_annotation]
+        with db.get_session() as session:
+            Neo4JDatabaseValidator().validate_bibliography_type_exists(session=session, bibliography_types=bibliography_types)
+        bibliography_segments = [seg.model_dump() for seg in request_model.biblography_annotation]
+        db.add_annotation_to_manifestation(
+            manifestation_id=manifestation_id,
+            annotation=bibliography_annotation,
+            annotation_segments=bibliography_segments,
+        )
+
     return (
         jsonify(
             {
@@ -260,6 +275,8 @@ def create_translation(original_manifestation_id: str) -> tuple[Response, int]:
         return jsonify({"error": "Request body is required"}), 400
 
     request_model = AlignedTextRequestModel.model_validate(data)
+
+    
 
     return _create_aligned_text(request_model, TextType.TRANSLATION, original_manifestation_id)
 
