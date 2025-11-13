@@ -200,6 +200,11 @@ Queries.expressions = {
       ] AS relations
     ORDER BY id
 """,
+    "get_expressions_metadata_by_ids": f"""
+MATCH (e:Expression)
+WHERE e.id IN $expression_ids
+RETURN e.id as expression_id, {Queries.expression_fragment('e')} as metadata
+""",
     "fetch_by_category": f"""
     MATCH (c:Category {{id: $category_id}})
     MATCH (e:Expression)-[:EXPRESSION_OF]->(:Work)-[:BELONGS_TO]->(c)
@@ -424,6 +429,11 @@ RETURN m.id AS manifestation_id
 MATCH (m:Manifestation)-[:MANIFESTATION_OF]->(e:Expression)
 WHERE m.id IN $manifestation_ids
 RETURN m.id as manifestation_id, e.id as expression_id
+""",
+    "get_manifestations_metadata_by_ids": f"""
+MATCH (m:Manifestation)
+WHERE m.id IN $manifestation_ids
+RETURN m.id as manifestation_id, {Queries.manifestation_fragment('m')} as metadata
 """,
 }
 

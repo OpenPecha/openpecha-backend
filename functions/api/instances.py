@@ -373,15 +373,7 @@ def get_excerpt(manifestation_id: str) -> tuple[Response, int]:
 #         200,
 #     )
 
-@instances_bp.route("/<string:manifestation_id>/segment-related", methods=["GET"], strict_slashes=False)
-def get_segment_related(manifestation_id: str) -> tuple[Response, int]:
-    # Parse transformed parameter (boolean)
-    transform = request.args.get("transform")
-    if transform == "true":
-        transform = True
-    else:
-        transform = False
-        
+def _validate_segment_related_request(db: Neo4JDatabase, manifestation_id: str) -> tuple[SpanModel, tuple[Response, int] | None]:
     segment_id = request.args.get("segment_id")
     span_start = request.args.get("span_start")
     span_end = request.args.get("span_end")
@@ -391,52 +383,63 @@ def get_segment_related(manifestation_id: str) -> tuple[Response, int]:
     has_span = span_start is not None or span_end is not None
     
     if has_segment_id and has_span:
-        return jsonify({
+        return None, (jsonify({
             "error": "Cannot provide both segment_id and span parameters. Use one approach only."
-        }), 400
+        }), 400)
     
     if not has_segment_id and not has_span:
-        return jsonify({
+        return None, (jsonify({
             "error": "Either segment_id OR (span_start and span_end) is required"
-        }), 400
-    
-    db = Neo4JDatabase()
+        }), 400)
     
     # Scenario 1: segment_id provided
     if has_segment_id:
         logger.info("Getting segment related by segment ID: %s", segment_id)
-        try:
-            segment, seg_manifestation_id, _ = db.get_segment(segment_id)
-        except Exception as e:
-            return jsonify({
-                "error": f"Failed to retrieve segment {segment_id}: {str(e)}"
-            }), 404
+        segment, seg_manifestation_id, _ = db.get_segment(segment_id)
         
         # Verify segment belongs to the provided manifestation
         if seg_manifestation_id != manifestation_id:
-            return jsonify({
+            return None, (jsonify({
                 "error": f"Segment {segment_id} does not belong to manifestation {manifestation_id}"
-            }), 400
+            }), 400)
         
         span = segment.span
     
     # Scenario 2: span_start + span_end provided
     else:
         if not span_start or not span_end:
-            return jsonify({
+            return None, (jsonify({
                 "error": "Both span_start and span_end are required when using span parameters"
-            }), 400
-        
-        try:
-            span = SpanModel(start=int(span_start), end=int(span_end))
-        except (ValueError, Exception) as e:
-            return jsonify({"error": f"Invalid span parameters: {str(e)}"}), 422
+            }), 400)
+        span = SpanModel(start=int(span_start), end=int(span_end))
+    
+    return span, None
+
+
+@instances_bp.route("/<string:manifestation_id>/segment-related", methods=["GET"], strict_slashes=False)
+def get_segment_related(manifestation_id: str) -> tuple[Response, int]:
+    # Parse transformed parameter (boolean)
+    transform = request.args.get("transform")
+    if transform == "true":
+        transform = True
+    else:
+        transform = False
+    db = Neo4JDatabase()
+    span, error_response = _validate_segment_related_request(db, manifestation_id)
+    if error_response:
+        return error_response
     
     related_segments = db._get_related_segments(manifestation_id, span.start, span.end, transform)
     manifestation_ids = [segment["manifestation_id"] for segment in related_segments]
     manifestation_ids.append(manifestation_id)
+
     # Get expression_id mapping for all manifestation_ids
     expression_map = db.get_expression_ids_by_manifestation_ids(manifestation_ids)
+
+    expression_ids = [expression_map.get(manifestation_id) for manifestation_id in manifestation_ids]
+
+    manifestations_metadata = db.get_manifestations_metadata_by_ids(manifestation_ids)
+    expression_metadata = db.get_expressions_metadata_by_ids(expression_ids)
 
     relations = _get_relation_for_an_expression(
         expression_id = expression_map[manifestation_id]
@@ -449,9 +452,24 @@ def get_segment_related(manifestation_id: str) -> tuple[Response, int]:
 
 
     for related_segment in related_segments:
-        related_segment["relation"] = relations_look_up.get(expression_map.get(related_segment.get("manifestation_id")))
-        related_segment["expression_id"] = expression_map.get(related_segment.get("manifestation_id"))
+        manifestation_id = related_segment.get("manifestation_id")
+        del related_segment["manifestation_id"]
+        related_segment["manifestation_metadata"] = manifestations_metadata.get(manifestation_id)
+        
+        _delete_unwanted_fields(
+            dictionary = related_segment["manifestation_metadata"],
+            unwanted_fields = ["annotations", "alignment_sources", "alignment_targets"]
+        )
+
+        related_segment["text_metadata"] = expression_metadata.get(expression_map.get(manifestation_id))
+        related_segment["relation"] = relations_look_up.get(expression_map.get(manifestation_id))
+        
+
     return jsonify(related_segments), 200
+
+def _delete_unwanted_fields(dictionary: dict, unwanted_fields: list[str]) -> None:
+    for field in unwanted_fields:
+        del dictionary[field]
 
 @instances_bp.route("/<string:manifestation_id>/related", methods=["GET"], strict_slashes=False)
 def get_related_instances(manifestation_id: str) -> tuple[Response, int]:

@@ -280,6 +280,50 @@ class Neo4JDatabase:
             )
             return {record["manifestation_id"]: record["expression_id"] for record in result}
 
+    def get_manifestations_metadata_by_ids(self, manifestation_ids: list[str]) -> dict[str, dict]:
+        """
+        Get metadata for a list of manifestation IDs.
+        
+        Args:
+            manifestation_ids: List of manifestation IDs
+            
+        Returns:
+            Dictionary mapping manifestation_id to metadata dictionary
+        """
+        if not manifestation_ids:
+            return {}
+        
+        with self.__driver.session() as session:
+            result = session.execute_read(
+                lambda tx: list(tx.run(
+                    Queries.manifestations["get_manifestations_metadata_by_ids"],
+                    manifestation_ids=manifestation_ids
+                ))
+            )
+            return {record["manifestation_id"]: record["metadata"] for record in result}
+
+    def get_expressions_metadata_by_ids(self, expression_ids: list[str]) -> dict[str, dict]:
+        """
+        Get metadata for a list of expression IDs.
+        
+        Args:
+            expression_ids: List of expression IDs
+            
+        Returns:
+            Dictionary mapping expression_id to metadata dictionary
+        """
+        if not expression_ids:
+            return {}
+        
+        with self.__driver.session() as session:
+            result = session.execute_read(
+                lambda tx: list(tx.run(
+                    Queries.expressions["get_expressions_metadata_by_ids"],
+                    expression_ids=expression_ids
+                ))
+            )
+            return {record["expression_id"]: record["metadata"] for record in result}
+
     def find_related_instances(self, manifestation_id: str, type_filter: str | None = None) -> list[dict]:
         """
         Find all manifestations that have alignment relationships with the given manifestation.
