@@ -330,7 +330,7 @@ paths:
             type: integer
             minimum: 1
           description: Exclusive end offset (must be greater than span_start)
-        - name: transfer
+        - name: transform
           in: query
           required: false
           schema:
@@ -380,7 +380,7 @@ paths:
                                 minimum: 1
                                 description: Exclusive end offset
               examples:
-                withoutTransfer:
+                untransform:
                   summary: Related segments without transfer (alignment annotation)
                   value:
                     - text:
@@ -397,7 +397,7 @@ paths:
                           span: { start: 50, end: 90 }
                         - id: "SEG790"
                           span: { start: 90, end: 120 }
-                withTransfer:
+                transform:
                   summary: Related segments with transfer (segmentation annotation)
                   value:
                     - text:
@@ -3011,6 +3011,63 @@ paths:
         "500":
           $ref: '#/components/responses/ServerError'
 
+  /v2/relations/expressions/{expression_id}:
+    get:
+      summary: Get relations for an expression
+      description: Returns all relationships for a given expression, including direction and related expression IDs.
+      tags:
+        - Relations
+      parameters:
+        - name: expression_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the expression to retrieve relations for
+      responses:
+        "200":
+          description: Relations retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: array
+                  items:
+                    type: object
+                    required: [type, direction, otherId]
+                    properties:
+                      type:
+                        type: string
+                        enum: [TRANSLATION_OF, COMMENTARY_OF]
+                        description: Relationship type
+                      direction:
+                        type: string
+                        enum: [in, out]
+                        description: Direction relative to the expression
+                      otherId:
+                        type: string
+                        description: Related expression ID
+                description: Object where keys are expression IDs and values are arrays of relations
+              examples:
+                success:
+                  summary: Relations for an expression
+                  value:
+                    "13mxFPmsmIqktVTYVV8AL":
+                      - type: "TRANSLATION_OF"
+                        direction: "in"
+                        otherId: "RQKWt16H22fyxodz1Hpu8"
+                      - type: "TRANSLATION_OF"
+                        direction: "in"
+                        otherId: "zRsb99ocU5fM8wurAUfMQ"
+                      - type: "TRANSLATION_OF"
+                        direction: "in"
+                        otherId: "t0CzlMC69QUySNEBzSL4e"
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
   /v2/categories:
     get:
       summary: Retrieve categories
@@ -3180,6 +3237,140 @@ paths:
           $ref: '#/components/responses/InvalidRequest'
         "422":
           $ref: '#/components/responses/ValidationError'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+  /v2/categories/{category_id}/texts:
+    get:
+      summary: Retrieve texts by category (excluding commentary)
+      description: Fetch texts that belong to a given category with optional filtering and pagination. Commentary texts are excluded.
+      tags:
+        - Texts
+      parameters:
+        - name: category_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: Category ID
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Number of results per page
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: Number of results to skip
+        - name: language
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by expression language code (e.g., "bo", "en")
+        - name: instance_type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [diplomatic, critical, all]
+            default: all
+          description: Require texts to have at least one instance of the given type
+      responses:
+        "200":
+          description: Text and instance metadata retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    text_metadata:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        type:
+                          type: string
+                          enum: [root, commentary, translation]
+                        title:
+                          type: object
+                          additionalProperties:
+                            type: string
+                          description: Localized expression title map (language code to text)
+                        alt_titles:
+                          type: array
+                          items:
+                            type: object
+                            additionalProperties:
+                              type: string
+                        language:
+                          type: string
+                        contributions:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              person_id:
+                                type: string
+                              person_bdrc_id:
+                                type: string
+                              ai_id:
+                                type: string
+                              role:
+                                type: string
+                        date:
+                          type: string
+                        bdrc:
+                          type: string
+                        wiki:
+                          type: string
+                        target:
+                          type: string
+                          nullable: true
+                        category_id:
+                          type: string
+                          nullable: true
+                    instance_metadata:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                          type:
+                            type: string
+                            enum: [diplomatic, critical]
+                          copyright:
+                            type: string
+                          bdrc:
+                            type: string
+                          wiki:
+                            type: string
+                          colophon:
+                            type: string
+                          incipit_title:
+                            type: object
+                            additionalProperties:
+                              type: string
+                            description: Localized instance title (incipit) map (language code to text)
+                          alt_incipit_titles:
+                            type: array
+                            items:
+                              type: object
+                              additionalProperties:
+                                type: string
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
         "500":
           $ref: '#/components/responses/ServerError'
 

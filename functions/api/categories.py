@@ -88,3 +88,42 @@ def create_category() -> tuple[Response, int]:
     
     return jsonify(response.model_dump()), 201
 
+
+@categories_bp.route("/<string:category_id>/texts", methods=["GET"], strict_slashes=False)
+def get_texts_by_category(category_id: str) -> tuple[Response, int]:
+    """
+    Get texts for a given category with optional filters:
+      - language: filter by expression language code (e.g. 'bo', 'en')
+      - instance_type: one of ['diplomatic', 'critical', 'all'] (default: 'all')
+      - limit: page size (1..100, default 20)
+      - offset: page offset (>= 0, default 0)
+    """
+    # Pagination
+    limit = request.args.get("limit", 20, type=int)
+    offset = request.args.get("offset", 0, type=int)
+    if limit < 1 or limit > 100:
+        raise InvalidRequest("Limit must be between 1 and 100")
+    if offset < 0:
+        raise InvalidRequest("Offset must be non-negative")
+
+    # Filters
+    language = request.args.get("language", None)
+    instance_type = request.args.get("instance_type", "all").lower()
+    allowed_instance_types = ["diplomatic", "critical", "all"]
+    if instance_type not in allowed_instance_types:
+        raise InvalidRequest(f"instance_type must be one of: {', '.join(allowed_instance_types)}")
+
+    # Normalize 'all' to None for DB filtering
+    normalized_instance_type = None if instance_type == "all" else instance_type
+
+    db = Neo4JDatabase()
+    texts = db.get_texts_by_category(
+        category_id=category_id,
+        offset=offset,
+        limit=limit,
+        language=language,
+        instance_type=normalized_instance_type,
+    )
+
+    # Already minimal dicts with only title and instance_id
+    return jsonify(texts), 200
