@@ -166,16 +166,30 @@ Queries.expressions = {
       ] AS relations
     ORDER BY id
 """,
-    "fetch_relations_by_id": """
-    MATCH (e:Expression {id: $id})
-    RETURN e.id AS id,
-      [ (e)-[r:TRANSLATION_OF|COMMENTARY_OF]-(other:Expression)
-        | {
-            type: type(r),
-            direction: CASE WHEN startNode(r) = e THEN 'out' ELSE 'in' END,
-            otherId: other.id
-          }
-      ] AS relations
+    "fetch_by_category": f"""
+    MATCH (c:Category {{id: $category_id}})
+    MATCH (e:Expression)-[:EXPRESSION_OF]->(:Work)-[:BELONGS_TO]->(c)
+    WITH e
+    WHERE {Queries.infer_expression_type('e')} <> 'commentary'
+      AND ($language IS NULL OR [(e)-[:HAS_LANGUAGE]->(l:Language) | l.code][0] = $language)
+      AND (
+        $instance_type IS NULL OR EXISTS {{
+          MATCH (e)<-[:MANIFESTATION_OF]-(m:Manifestation)-[:HAS_TYPE]->(mt:ManifestationType)
+          WHERE mt.name = $instance_type
+          RETURN 1
+        }}
+      )
+    OPTIONAL MATCH (e)<-[:MANIFESTATION_OF]-(m:Manifestation)-[:HAS_TYPE]->(mt:ManifestationType)
+    WHERE $instance_type IS NULL OR mt.name = $instance_type
+    WITH e, collect(m) as ms
+
+    OFFSET $offset
+    LIMIT $limit
+
+    RETURN {{
+      text_metadata: {Queries.expression_fragment('e')},
+      instance_metadata: [m IN ms | {Queries.manifestation_fragment('m')}]
+    }} AS item
 """,
     "fetch_related": f"""
     MATCH (e:Expression {{id: $id}})
@@ -452,6 +466,14 @@ WHERE aligned.id = seg_id
 
 RETURN segment_index as index
 ORDER BY segment_index
+""",
+    "get_alignment_pairs_by_manifestation": """
+MATCH (m:Manifestation {id: $manifestation_id})
+MATCH (m)<-[:ANNOTATION_OF]-(a1:Annotation)-[:HAS_TYPE]->(:AnnotationType {name: 'alignment'})
+MATCH (a1)-[:ALIGNED_TO]-(a2:Annotation)
+WITH a1, a2, m.id as manifestation_id
+
+RETURN manifestation_id, a1.id as alignment_1_id, a2.id as alignment_2_id
 """
 }
 
@@ -540,6 +562,15 @@ WITH m.id as manifestation_id,
      }) as segments
 RETURN manifestation_id, segments
 """,
+    "get_aligned_segments": """
+MATCH (a1:Annotation {id: $alignment_1_id})<-[:SEGMENTATION_OF]-(s1:Segment)
+WHERE s1.span_start < $span_end AND s1.span_end > $span_start
+MATCH (s1)-[:ALIGNED_TO]-(s2:Segment)
+RETURN DISTINCT s2.id as segment_id,
+       s2.span_start as span_start,
+       s2.span_end as span_end
+ORDER BY s2.span_start
+""",
     "get_by_id": """
 MATCH (seg:Segment {id: $segment_id})
       -[:SEGMENTATION_OF]->(:Annotation)
@@ -611,6 +642,24 @@ RETURN
         span_end: seg.span_end
     }] as segments
 """,
+    "get_related_segments": """
+MATCH (a1:Annotation {id: $alignment_1_id})<-[:SEGMENTATION_OF]-(s1:Segment)
+WHERE s1.span_start < $span_end AND s1.span_end > $span_start
+MATCH (s1)-[:ALIGNED_TO]-(s2:Segment)
+RETURN DISTINCT s2.id as segment_id,
+       s2.span_start as span_start,
+       s2.span_end as span_end
+ORDER BY s2.span_start
+""",
+    "get_overlapping_segments": """
+MATCH (m:Manifestation {id: $manifestation_id})<-[:ANNOTATION_OF]-(ann:Annotation)-[:HAS_TYPE]->(:AnnotationType {name: 'segmentation'})
+MATCH (ann)<-[:SEGMENTATION_OF]-(s:Segment)
+WHERE s.span_start < $span_end AND s.span_end > $span_start
+RETURN s.id as segment_id,
+       s.span_start as span_start,
+       s.span_end as span_end
+ORDER BY s.span_start
+"""
 }
 
 Queries.references = {
