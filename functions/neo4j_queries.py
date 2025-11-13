@@ -447,6 +447,7 @@ WITH a,
      CASE WHEN target IS NOT NULL THEN target.id ELSE a.id END as target_id
 RETURN source_id, target_id
 """,
+
     "delete_alignment_annotations": """
 MATCH (source:Annotation {id: $source_annotation_id})
 MATCH (target:Annotation {id: $target_annotation_id})
@@ -510,6 +511,13 @@ MATCH (a1)-[:ALIGNED_TO]-(a2:Annotation)
 WITH a1, a2, m.id as manifestation_id
 
 RETURN manifestation_id, a1.id as alignment_1_id, a2.id as alignment_2_id
+""",
+    "get_texts_group": f"""
+MATCH (e1:Expression {id: $expression_id})
+MATCH (e1)-[:EXPRESSION_OF]->(w:Work)
+MATCH (w)<-[:EXPRESSION_OF]-(e:Expression)
+WHERE e.id <> $expression_id
+RETURN {Queries.expression_fragment('e')} AS expression
 """
 }
 
