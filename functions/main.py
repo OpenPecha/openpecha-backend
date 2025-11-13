@@ -12,6 +12,7 @@ from api.schema import schema_bp
 from api.segments import segments_bp
 from api.texts import texts_bp
 from api.enum import enum_bp
+from api.relation import relation_bp
 from exceptions import OpenPechaException
 from firebase_admin import credentials
 from firebase_functions import https_fn, options
@@ -50,6 +51,7 @@ def create_app(testing=False):
     app.register_blueprint(annotations_bp, url_prefix="/v2/annotations")
     app.register_blueprint(categories_bp, url_prefix="/v2/categories")
     app.register_blueprint(enum_bp, url_prefix="/v2/enum")
+    app.register_blueprint(relation_bp, url_prefix="/v2/relations")
 
     @app.route("/__/health")
     def health_check():
@@ -116,6 +118,7 @@ def create_app(testing=False):
         cors_methods=["GET", "POST", "OPTIONS", "PUT"],
     ),
     max_instances=1,
+    timeout_sec=540,  # Maximum timeout: 540 seconds (9 minutes)
     secrets=[
         "PECHA_API_KEY",
         "NEO4J_URI",

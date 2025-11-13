@@ -1,6 +1,7 @@
 from collections import OrderedDict
 import os
 import logging
+import queue as queue_module
 from exceptions import DataNotFound
 from identifier import generate_id
 from models import (
@@ -13,6 +14,7 @@ from models import (
     CopyrightStatus,
     ExpressionModelInput,
     ExpressionModelOutput,
+    LicenseType,
     LocalizedString,
     ManifestationModelBase,
     ManifestationModelInput,
@@ -77,6 +79,18 @@ class Neo4JDatabase:
 
             return self._process_expression_data(record.data()["expression"])
 
+    def get_all_expression_relations(self) -> dict:
+        with self.__driver.session() as session:
+            result = session.run(Queries.expressions["fetch_all_relations"])
+            return {r["id"]: r["relations"] for r in result}
+
+    def get_expression_relations(self, expression_id: str) -> dict:
+        with self.__driver.session() as session:
+            record = session.run(Queries.expressions["fetch_relations_by_id"], id=expression_id).single()
+            if record is None:
+                raise DataNotFound(f"Expression with ID '{expression_id}' not found")
+            return {"id": record["id"], "relations": record["relations"]}
+
     def _process_manifestation_data(self, manifestation_data: dict) -> ManifestationModelOutput:
         annotations = [
             AnnotationModel(
@@ -100,7 +114,7 @@ class Neo4JDatabase:
             wiki=manifestation_data.get("wiki"),
             type=ManifestationType(manifestation_data["type"]),
             annotations=annotations,
-            copyright=CopyrightStatus(manifestation_data["copyright"]),
+            source=manifestation_data.get("source"),
             colophon=manifestation_data.get("colophon"),
             incipit_title=incipit_title,
             alt_incipit_titles=alt_incipit_titles,
@@ -129,6 +143,8 @@ class Neo4JDatabase:
             language=expression_data.get("language"),
             target=target,
             category_id=expression_data.get("category_id"),
+            copyright=CopyrightStatus(expression_data.get("copyright") or "Public domain"),
+            license=LicenseType(expression_data.get("license") or "Public Domain Mark"),
         )
 
     def get_manifestations_by_expression(self, expression_id: str) -> list[ManifestationModelOutput]:
@@ -167,7 +183,7 @@ class Neo4JDatabase:
             bdrc=manifestation_data.get("bdrc"),
             wiki=manifestation_data.get("wiki"),
             type=ManifestationType(manifestation_data["type"]),
-            copyright=CopyrightStatus(manifestation_data["copyright"]),
+            source=manifestation_data.get("source"),
             colophon=manifestation_data.get("colophon"),
             incipit_title=self.__convert_to_localized_text(manifestation_data.get("incipit_title")),
             alt_incipit_titles=[self.__convert_to_localized_text(alt) for alt in manifestation_data.get("alt_incipit_titles", [])],
@@ -283,7 +299,7 @@ class Neo4JDatabase:
                     "instance_id": manifestation.id,
                     "metadata": {
                         "instance_type": manifestation.type.value,
-                        "copyright": manifestation.copyright.value,
+                        "source": manifestation.source,
                         "text_id": expression.id,
                         "title": expression.title.root if expression.title else None,
                         "alt_titles": [alt.root for alt in expression.alt_titles] if expression.alt_titles else [],
@@ -578,10 +594,12 @@ class Neo4JDatabase:
             annotation_id = self._execute_add_annotation(tx, manifestation_id, annotation)
             self._create_segments(tx, annotation_id, annotation_segments)
             if annotation_segments and len(annotation_segments) > 0:
-                if annotation_segments[0].get("reference", None) is not None:
+                if annotation.type == AnnotationType.PAGINATION:
                     self._create_and_link_references(tx, annotation_segments)
-                if annotation_segments[0].get("type", None) is not None:
+                if annotation.type == AnnotationType.BIBLIOGRAPHY:
                     self._link_segment_and_bibliography_type(tx, annotation_segments)
+                if annotation.type == AnnotationType.DURCHEN:
+                    self._create_durchen_note(tx, annotation_segments)
             return annotation_id
         with self.__driver.session() as session:
             return session.execute_write(transaction_function)
@@ -759,6 +777,61 @@ class Neo4JDatabase:
                 )
         return out
 
+    def get_texts_by_category(
+        self,
+        category_id: str,
+        offset: int = 0,
+        limit: int = 20,
+        language: str | None = None,
+        instance_type: str | None = None,
+    ) -> list[dict]:
+        params = {
+            "category_id": category_id,
+            "offset": offset,
+            "limit": limit,
+            "language": language,
+            "instance_type": instance_type,
+        }
+
+        with self.__driver.session() as session:
+            # Validate language filter against Neo4j if provided
+            if language:
+                self.__validator.validate_language_code_exists(session, language)
+
+            result = session.run(Queries.expressions["fetch_by_category"], params)
+            out: list[dict] = []
+
+            for record in result:
+                item = record.data()["item"]
+                text_md_raw = item.get("text_metadata") or {}
+                inst_md_raw_list = item.get("instance_metadata") or []
+
+                # Convert raw fragments to typed models for consistent shape
+                text_model = self._process_expression_data(text_md_raw)
+                inst_models = [self._process_manifestation_data(md) for md in inst_md_raw_list]
+
+                allowed_instance_fields = {
+                    "id",
+                    "bdrc",
+                    "wiki",
+                    "type",
+                    "copyright",
+                    "colophon",
+                    "incipit_title",
+                    "alt_incipit_titles",
+                }
+                filtered_instances = []
+                for im in inst_models:
+                    im_dump = im.model_dump()
+                    filtered_instances.append({k: im_dump.get(k) for k in allowed_instance_fields})
+
+                out.append({
+                    "text_metadata": text_model.model_dump(),
+                    "instance_metadata": filtered_instances,
+                })
+
+            return out
+
     def _execute_create_expression(self, tx, expression: ExpressionModelInput, expression_id: str | None = None) -> str:
         # TODO: move the validation based on language to the database validator
         expression_id = expression_id or generate_id()
@@ -789,6 +862,8 @@ class Neo4JDatabase:
             "bcp47_tag": expression.language,
             "title_nomen_element_id": expression_title_element_id,
             "target_id": target_id,
+            "copyright": expression.copyright.value,
+            "license": expression.license.value,
         }
 
         match expression.type:
@@ -861,7 +936,7 @@ class Neo4JDatabase:
             bdrc=manifestation.bdrc,
             wiki=manifestation.wiki,
             type=manifestation.type.value if manifestation.type else None,
-            copyright=manifestation.copyright.value if manifestation.copyright else "public",
+            source=manifestation.source,
             colophon=manifestation.colophon,
             incipit_element_id=incipit_element_id,
         )
@@ -977,6 +1052,12 @@ class Neo4JDatabase:
             segment_and_type_names=segment_and_type_names,
         )
 
+    def _create_durchen_note(self, tx, segments: list[dict]) -> None:
+        tx.run(
+            Queries.durchen_notes["create"],
+            segments=segments
+        )
+
     def get_annotation(self, annotation_id: str) ->  dict:
         """Get all segments for an annotation. Returns uniform structure with all possible keys."""
         with self.get_session() as session:
@@ -1049,6 +1130,10 @@ class Neo4JDatabase:
                 # For table of contents annotations, return sections
                 sections = self._get_annotation_sections(annotation_id)
                 response["data"] = sections
+
+            elif annotation_type == "durchen":
+                durchen_notes = self._get_durchen_annotation(annotation_id)
+                response["data"] = durchen_notes
                 
             else:
                 # For segmentation and pagination annotations, return segments
@@ -1057,6 +1142,27 @@ class Neo4JDatabase:
             
             return response
     
+    
+    def _get_durchen_annotation(self, annotation_id: str) -> list[dict]:
+        """Helper method to get durchen annotation for a specific annotation."""
+        with self.get_session() as session:
+            result = session.run(
+                Queries.annotations["get_durchen_annotation"],
+                annotation_id=annotation_id
+            )
+            durchen_annotation = []
+            for record in result:
+                durchen_annotation.append({
+                    "id": record["id"],
+                    "span": {
+                    "start": record["span_start"],
+                    "end": record["span_end"]
+                    },
+                    "note": record["note"]
+                })
+            return durchen_annotation
+
+
     def _get_annotation_sections(self, annotation_id: str) -> list[dict]:
         """Helper method to get sections for a specific annotation."""
         with self.get_session() as session:
@@ -1106,6 +1212,7 @@ class Neo4JDatabase:
                 source_segment_id=source_segment_id,
                 target_annotation_id=target_annotation_id
             )
+            logger.info(f"Alignment indices: {result}")
             return [record["index"] for record in result]
 
     def get_annotation_type(self, annotation_id: str) -> str | None:
@@ -1259,3 +1366,103 @@ class Neo4JDatabase:
                     return [{"name": r["name"]} for r in result]
                 case _:
                     return []
+    
+    def _get_alignment_pairs_by_manifestation(self, manifestation_id: str) -> list[dict]:
+        with self.get_session() as session:
+            result = session.execute_read(
+                lambda tx: tx.run(
+                    Queries.annotations["get_alignment_pairs_by_manifestation"],
+                    manifestation_id=manifestation_id
+                ).data()
+            )
+            return result
+    
+    def _get_overlapping_segments(self, manifestation_id: str, start:int, end:int) -> list[dict]:
+        with self.get_session() as session:
+            result = session.execute_read(
+                lambda tx: tx.run(
+                    Queries.segments["get_overlapping_segments"],
+                    manifestation_id=manifestation_id,
+                    span_start=start,
+                    span_end=end
+                ).data()
+            )
+            return [
+                {
+                    "segment_id": record["segment_id"],
+                    "span": {"start": record["span_start"], "end": record["span_end"]},
+                }
+                for record in result
+            ]
+
+
+    def _get_aligned_segments(self, alignment_1_id: str, start:int, end:int) -> list[dict]:
+        with self.get_session() as session:
+            result = session.execute_read(
+                lambda tx: tx.run(
+                    Queries.segments["get_aligned_segments"],
+                    alignment_1_id=alignment_1_id,
+                    span_start=start,
+                    span_end=end
+                ).data()
+            )
+            return [
+                {
+                    "segment_id": record["segment_id"],
+                    "span": {"start": record["span_start"], "end": record["span_end"]},
+                }
+                for record in result
+            ]
+
+
+    def _get_related_segments(self, manifestation_id:str, start:int, end:int, transform:bool = False) -> list[dict]:
+        
+        global transformed_related_segments, untransformed_related_segments, traversed_alignment_pairs
+        transformed_related_segments = []
+        untransformed_related_segments = []
+        traversed_alignment_pairs = []
+        visited_manifestations = set()  # Track visited manifestations to prevent infinite loops
+
+        queue = queue_module.Queue()
+        queue.put({"manifestation_id": manifestation_id, "span_start": start, "span_end": end})
+        visited_manifestations.add(manifestation_id)  # Mark initial manifestation as visited
+        
+        while not queue.empty():
+            item = queue.get()  # get() removes and returns the item (like pop())
+            manifestation_1_id = item["manifestation_id"]
+            span_start = item["span_start"]
+            span_end = item["span_end"]
+            alignment_list = self._get_alignment_pairs_by_manifestation(manifestation_1_id)
+            
+            for alignment in alignment_list:
+                if (alignment["alignment_1_id"], alignment["alignment_2_id"]) not in traversed_alignment_pairs:
+                    segments_list = self._get_aligned_segments(alignment["alignment_1_id"], span_start, span_end)
+                    
+                    # Skip if no segments found
+                    if not segments_list:
+                        continue
+                    
+                    overall_start = min(segments_list, key=lambda x: x["span"]["start"])["span"]["start"]
+                    overall_end = max(segments_list, key=lambda x: x["span"]["end"])["span"]["end"]
+                    manifestation_2_id = self.get_manifestation_id_by_annotation_id(alignment["alignment_2_id"])
+                    
+                    # Skip if manifestation already visited (prevents infinite loops)
+                    if manifestation_2_id in visited_manifestations:
+                        continue
+                    
+                    visited_manifestations.add(manifestation_2_id)
+                    
+                    if transform:
+                        transformed_segments = self._get_overlapping_segments(manifestation_2_id, overall_start, overall_end)
+                        print(transformed_segments)
+                        transformed_related_segments.append({"manifestation_id": manifestation_2_id, "segments": transformed_segments})
+                    else:
+                        untransformed_related_segments.append({"manifestation_id": manifestation_2_id, "segments": segments_list})
+                    traversed_alignment_pairs.append((alignment["alignment_1_id"], alignment["alignment_2_id"]))
+                    traversed_alignment_pairs.append((alignment["alignment_2_id"], alignment["alignment_1_id"]))
+                    queue.put({"manifestation_id": manifestation_2_id, "span_start": overall_start, "span_end": overall_end})
+
+        if transform:
+            return transformed_related_segments
+        else:
+            return untransformed_related_segments

@@ -1,7 +1,8 @@
 from enum import Enum
-from typing import Annotated
+from typing import Annotated, Optional
 
-from pydantic import BaseModel, ConfigDict, Field, RootModel, StrictStr, StringConstraints, model_validator
+from pydantic import BaseModel, ConfigDict, Field, RootModel, StrictStr, StringConstraints, model_validator, Extra
+
 
 NonEmptyStr = Annotated[StrictStr, StringConstraints(min_length=1, strip_whitespace=True)]
 
@@ -26,6 +27,7 @@ class AnnotationType(str, Enum):
     VERSION = "version"
     BIBLIOGRAPHY = "bibliography"
     TABLE_OF_CONTENTS = "table_of_contents"
+    DURCHEN = "durchen"
 
 
 class ManifestationType(str, Enum):
@@ -35,15 +37,22 @@ class ManifestationType(str, Enum):
 
 
 class CopyrightStatus(str, Enum):
-    PUBLIC_DOMAIN = "public"
-    COPYRIGHTED = "copyrighted"
+    UNKNOWN = "Unknown"
+    COPYRIGHTED = "In copyright"
+    PUBLIC_DOMAIN = "Public domain"
 
 
-class LocalizedString(RootModel[dict[str, NonEmptyStr]]):
-    root: dict[str, NonEmptyStr] = Field(min_length=1)
-
-    def __getitem__(self, item: str) -> str:
-        return self.root[item]
+class LicenseType(str, Enum):
+    # based on https://creativecommons.org/licenses/
+    CC0 = "CC0"
+    PUBLIC_DOMAIN_MARK = "Public Domain Mark"
+    CC_BY = "CC BY"
+    CC_BY_SA = "CC BY-SA"
+    CC_BY_ND = "CC BY-ND"
+    CC_BY_NC = "CC BY-NC"
+    CC_BY_NC_SA = "CC BY-NC-SA"
+    CC_BY_NC_ND = "CC BY-NC-ND"
+    UNDER_COPYRIGHT = "under copyright"
 
 
 class OpenPechaModel(BaseModel):
@@ -51,6 +60,22 @@ class OpenPechaModel(BaseModel):
         extra="forbid",
         str_strip_whitespace=True,
     )
+
+
+class Copyright(OpenPechaModel):
+    status: CopyrightStatus = CopyrightStatus.UNKNOWN
+    notice: Optional[str] = ""
+    info_url: Optional[str] = None
+
+
+
+
+
+class LocalizedString(RootModel[dict[str, NonEmptyStr]]):
+    root: dict[str, NonEmptyStr] = Field(min_length=1)
+
+    def __getitem__(self, item: str) -> str:
+        return self.root[item]
 
 
 class PersonModelBase(OpenPechaModel):
@@ -121,6 +146,8 @@ class ExpressionModelBase(OpenPechaModel):
     language: NonEmptyStr
     target: str | None = None
     category_id: str | None = None
+    copyright: CopyrightStatus 
+    license: LicenseType 
 
     @model_validator(mode="after")
     def validate_target_field(self):
@@ -132,6 +159,24 @@ class ExpressionModelBase(OpenPechaModel):
                 "(use 'N/A' for standalone translations/commentaries)"
             )
             raise ValueError(msg)
+        return self
+
+    @model_validator(mode="after")
+    def validate_copyright_and_license(self):
+        # Validate copyright enum
+        if not isinstance(self.copyright, CopyrightStatus):
+            valid_copyrights = [status.value for status in CopyrightStatus]
+            raise ValueError(
+                f"Invalid copyright value. Must be one of: {valid_copyrights}"
+            )
+        
+        # Validate license enum
+        if not isinstance(self.license, LicenseType):
+            valid_licenses = [license.value for license in LicenseType]
+            raise ValueError(
+                f"Invalid license value. Must be one of: {valid_licenses}"
+            )
+        
         return self
 
     @model_validator(mode="after")
@@ -169,6 +214,26 @@ class ExpressionModelOutputBase(OpenPechaModel):
     language: NonEmptyStr
     target: str | None = None
     category_id: str | None = None
+    copyright: CopyrightStatus 
+    license: LicenseType 
+
+    @model_validator(mode="after")
+    def validate_copyright_and_license(self):
+        # Validate copyright enum
+        if not isinstance(self.copyright, CopyrightStatus):
+            valid_copyrights = [status.value for status in CopyrightStatus]
+            raise ValueError(
+                f"Invalid copyright value. Must be one of: {valid_copyrights}"
+            )
+        
+        # Validate license enum
+        if not isinstance(self.license, LicenseType):
+            valid_licenses = [license.value for license in LicenseType]
+            raise ValueError(
+                f"Invalid license value. Must be one of: {valid_licenses}"
+            )
+        
+        return self
 
 
 class ExpressionModelOutput(ExpressionModelOutputBase):
@@ -180,8 +245,7 @@ class ManifestationModelBase(OpenPechaModel):
     bdrc: str | None = None
     wiki: str | None = None
     type: ManifestationType
-
-    copyright: CopyrightStatus = CopyrightStatus.PUBLIC_DOMAIN
+    source: str | None = None
     colophon: NonEmptyStr | None = None
     incipit_title: LocalizedString | None = None
     alt_incipit_titles: list[LocalizedString] | None = None
@@ -253,12 +317,16 @@ class AlignedTextRequestModel(OpenPechaModel):
     language: NonEmptyStr
     content: NonEmptyStr
     title: NonEmptyStr
+    source: NonEmptyStr
     alt_titles: list[NonEmptyStr] | None = None
     author: CreatorRequestModel | None = None
     target_annotation: list[dict] | None = None
     alignment_annotation: list[dict] | None = None
     segmentation: list[dict]
-    copyright: CopyrightStatus = CopyrightStatus.PUBLIC_DOMAIN
+    copyright: CopyrightStatus
+    license: LicenseType
+    bdrc: str | None = None
+    wiki: str | None = None
     category_id: str | None = None
 
     @model_validator(mode="after")
@@ -288,6 +356,10 @@ class TableOfContentsAnnotationModel(OpenPechaModel):
     title: NonEmptyStr
     segments: list[NonEmptyStr]
 
+class DurchenAnnotationModel(OpenPechaModel):
+    span: SpanModel
+    note: NonEmptyStr
+
 class InstanceRequestModel(OpenPechaModel):
     metadata: ManifestationModelInput
     annotation: list[SegmentationAnnotationModel | PaginationAnnotationModel] | None = None
@@ -315,7 +387,7 @@ class InstanceRequestModel(OpenPechaModel):
 
 class AddAnnotationRequestModel(OpenPechaModel):
     type: AnnotationType
-    annotation: list[SegmentationAnnotationModel | PaginationAnnotationModel | BibliographyAnnotationModel | TableOfContentsAnnotationModel] | None = None
+    annotation: list[SegmentationAnnotationModel | PaginationAnnotationModel | BibliographyAnnotationModel | TableOfContentsAnnotationModel | DurchenAnnotationModel] | None = None
     target_manifestation_id: str | None = None
     target_annotation: list[AlignmentAnnotationModel] | None = None
     alignment_annotation: list[AlignmentAnnotationModel] | None = None
@@ -328,13 +400,14 @@ class AddAnnotationRequestModel(OpenPechaModel):
             AnnotationType.ALIGNMENT: self._validate_alignment,
             AnnotationType.BIBLIOGRAPHY: self._validate_bibliography,
             AnnotationType.TABLE_OF_CONTENTS: self._validate_table_of_contents,
+            AnnotationType.DURCHEN: self._validate_durchen,
         }
         
         validator = validators.get(self.type)
         if validator:
             validator()
         else:
-            raise ValueError("Invalid annotation type. Allowed types are [SEGMENTATION, ALIGNMENT, PAGINATION, BIBLIOGRAPHY, TABLE_OF_CONTENTS]")
+            raise ValueError("Invalid annotation type. Allowed types are [SEGMENTATION, ALIGNMENT, PAGINATION, BIBLIOGRAPHY, TABLE_OF_CONTENTS, DURCHEN]")
         return self
 
     def _validate_segmentation(self):
@@ -376,6 +449,13 @@ class AddAnnotationRequestModel(OpenPechaModel):
             raise ValueError("Table of contents annotation cannot be empty")
         if not all(isinstance(ann, TableOfContentsAnnotationModel) for ann in self.annotation):
             raise ValueError("Invalid annotation")
+    
+    def _validate_durchen(self):
+        if self.annotation is None or len(self.annotation) == 0:
+            raise ValueError("Durchen annotation cannot be empty")
+        if not all(isinstance(ann, DurchenAnnotationModel) for ann in self.annotation):
+            raise ValueError("Invalid annotation")
+
 
 class CategoryRequestModel(OpenPechaModel):
     application: NonEmptyStr

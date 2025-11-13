@@ -75,7 +75,7 @@ class Queries:
         }}
     ],
     colophon: {label}.colophon,
-    copyright: [({label})-[:HAS_COPYRIGHT]->(mf_cs:CopyrightStatus) | mf_cs.name][0],
+    source: [({label})-[:HAS_SOURCE]->(mf_s:Source) | mf_s.name][0],
     incipit_title: [{Queries.primary_nomen(label, 'HAS_INCIPIT_TITLE')}],
     alt_incipit_titles: [{Queries.alternative_nomen(label, 'HAS_INCIPIT_TITLE')}],
     alignment_sources: {Queries.manifestation_alignment_sources(label)},
@@ -123,13 +123,34 @@ END
     title: [{Queries.primary_nomen(label, 'HAS_TITLE')}],
     alt_titles: [{Queries.alternative_nomen(label, 'HAS_TITLE')}],
     language: [({label})-[:HAS_LANGUAGE]->(ef_lang:Language) | ef_lang.code][0],
-    category_id: [({label})-[:EXPRESSION_OF]->(ef_work:Work)-[:BELONGS_TO]->(ef_cat:Category) | ef_cat.id][0]
+    category_id: [({label})-[:EXPRESSION_OF]->(ef_work:Work)-[:BELONGS_TO]->(ef_cat:Category) | ef_cat.id][0],
+    copyright: [({label})-[:HAS_COPYRIGHT]->(ef_copyright:Copyright) | ef_copyright.name][0],
+    license: [({label})-[:HAS_LICENSE]->(ef_license:License) | ef_license.name][0]
 }}
 """
 
     @staticmethod
     def create_expression_base(label):
         return f"CREATE ({label}:Expression {{id: $expression_id, bdrc: $bdrc, wiki: $wiki, date: $date}})"
+
+    @staticmethod
+    def create_copyright_and_license(expression_label):
+        """
+        Matches existing Copyright node by status and links it to the expression.
+        Also matches existing License node by name and links it.
+        
+        Returns Cypher fragment that:
+        1. Matches Copyright node by status value
+        2. Links Expression to Copyright
+        3. Matches License node by name (creates if not exists)
+        4. Links Expression to License
+        """
+        return f"""
+MATCH (copyright:Copyright {{status: $copyright}})
+CREATE ({expression_label})-[:HAS_COPYRIGHT]->(copyright)
+MERGE (license:License {{name: $license}})
+CREATE ({expression_label})-[:HAS_LICENSE]->(license)
+"""
 
 
 Queries.expressions = {
@@ -154,6 +175,43 @@ Queries.expressions = {
 
     RETURN {Queries.expression_fragment('e')} AS expression
 """,
+    "fetch_all_relations": """
+    MATCH (e:Expression)
+    RETURN e.id AS id,
+      [ (e)-[r:TRANSLATION_OF|COMMENTARY_OF]-(other:Expression)
+        | {
+            type: type(r),
+            direction: CASE WHEN startNode(r) = e THEN 'out' ELSE 'in' END,
+            otherId: other.id
+          }
+      ] AS relations
+    ORDER BY id
+""",
+    "fetch_by_category": f"""
+    MATCH (c:Category {{id: $category_id}})
+    MATCH (e:Expression)-[:EXPRESSION_OF]->(:Work)-[:BELONGS_TO]->(c)
+    WITH e
+    WHERE {Queries.infer_expression_type('e')} <> 'commentary'
+      AND ($language IS NULL OR [(e)-[:HAS_LANGUAGE]->(l:Language) | l.code][0] = $language)
+      AND (
+        $instance_type IS NULL OR EXISTS {{
+          MATCH (e)<-[:MANIFESTATION_OF]-(m:Manifestation)-[:HAS_TYPE]->(mt:ManifestationType)
+          WHERE mt.name = $instance_type
+          RETURN 1
+        }}
+      )
+    OPTIONAL MATCH (e)<-[:MANIFESTATION_OF]-(m:Manifestation)-[:HAS_TYPE]->(mt:ManifestationType)
+    WHERE $instance_type IS NULL OR mt.name = $instance_type
+    WITH e, collect(m) as ms
+
+    OFFSET $offset
+    LIMIT $limit
+
+    RETURN {{
+      text_metadata: {Queries.expression_fragment('e')},
+      instance_metadata: [m IN ms | {Queries.manifestation_fragment('m')}]
+    }} AS item
+""",
     "fetch_related": f"""
     MATCH (e:Expression {{id: $id}})
 
@@ -172,6 +230,7 @@ MATCH (l:Language {{code: $language_code}})
 CREATE (e)-[:EXPRESSION_OF {{original: $original}}]->(w),
        (e)-[:HAS_LANGUAGE {{bcp47: $bcp47_tag}}]->(l),
        (e)-[:HAS_TITLE]->(n)
+{Queries.create_copyright_and_license('e')}
 RETURN e.id as expression_id
 """,
     "create_contribution": """
@@ -201,6 +260,7 @@ CREATE (e)-[:EXPRESSION_OF {{original: false}}]->(w),
        (e)-[:TRANSLATION_OF]->(target),
        (e)-[:HAS_LANGUAGE {{bcp47: $bcp47_tag}}]->(l),
        (e)-[:HAS_TITLE]->(n)
+{Queries.create_copyright_and_license('e')}
 RETURN e.id as expression_id
 """,
     "create_commentary": f"""
@@ -214,6 +274,7 @@ CREATE (e)-[:COMMENTARY_OF]->(target),
        (e)-[:EXPRESSION_OF {{original: true}}]->(commentary_work),
        (e)-[:HAS_LANGUAGE {{bcp47: $bcp47_tag}}]->(l),
        (e)-[:HAS_TITLE]->(n)
+{Queries.create_copyright_and_license('e')}
 RETURN e.id as expression_id
 """,
 }
@@ -261,7 +322,7 @@ Queries.manifestations = {
     MATCH (m)-[:MANIFESTATION_OF]->(e:Expression)
     WHERE $manifestation_type IS NULL OR [(m)-[:HAS_TYPE]->(mt:ManifestationType) | mt.name][0] = $manifestation_type
 
-    RETURN {Queries.manifestation_fragment('m')} AS manifestation, e.id AS expression_id
+    RETURN {Queries.manifestation_fragment('m')} AS manifestation, e.id AS expression_id 
 """,
     "fetch_by_annotation_id": f"""
     MATCH (a:Annotation {{id: $annotation_id}})-[:ANNOTATION_OF]->(m:Manifestation)
@@ -278,18 +339,18 @@ MATCH (e:Expression {id: $expression_id})
 OPTIONAL MATCH (it:Nomen)
   WHERE elementId(it) = $incipit_element_id
 MERGE (mt:ManifestationType {name: $type})
-MERGE (cs:CopyrightStatus {name: $copyright})
+MERGE (S:Source {name: $source})
 CREATE (m:Manifestation {
   id: $manifestation_id,
   bdrc: $bdrc,
   wiki: $wiki,
   colophon: $colophon
 })
-WITH m, e, mt, cs, it
+WITH m, e, mt, S, it
 
 CREATE (m)-[:MANIFESTATION_OF]->(e),
        (m)-[:HAS_TYPE]->(mt),
-       (m)-[:HAS_COPYRIGHT]->(cs)
+       (m)-[:HAS_SOURCE]->(S)
 CALL (*) {
   WHEN it IS NOT NULL THEN { CREATE (m)-[:HAS_INCIPIT_TITLE]->(it) }
 }
@@ -429,6 +490,22 @@ WHERE aligned.id = seg_id
 
 RETURN segment_index as index
 ORDER BY segment_index
+""",
+    "get_durchen_annotation": """
+MATCH (a:Annotation {id: $annotation_id})<-[:SEGMENTATION_OF]-(s:Segment)-[:HAS_DURCHEN_NOTE]->(n:DurchenNote)
+RETURN DISTINCT
+    s.id as id,
+    s.span_start as span_start,
+    s.span_end as span_end,
+    n.note as note
+""",
+    "get_alignment_pairs_by_manifestation": """
+MATCH (m:Manifestation {id: $manifestation_id})
+MATCH (m)<-[:ANNOTATION_OF]-(a1:Annotation)-[:HAS_TYPE]->(:AnnotationType {name: 'alignment'})
+MATCH (a1)-[:ALIGNED_TO]-(a2:Annotation)
+WITH a1, a2, m.id as manifestation_id
+
+RETURN manifestation_id, a1.id as alignment_1_id, a2.id as alignment_2_id
 """
 }
 
@@ -517,6 +594,15 @@ WITH m.id as manifestation_id,
      }) as segments
 RETURN manifestation_id, segments
 """,
+    "get_aligned_segments": """
+MATCH (a1:Annotation {id: $alignment_1_id})<-[:SEGMENTATION_OF]-(s1:Segment)
+WHERE s1.span_start < $span_end AND s1.span_end > $span_start
+MATCH (s1)-[:ALIGNED_TO]-(s2:Segment)
+RETURN DISTINCT s2.id as segment_id,
+       s2.span_start as span_start,
+       s2.span_end as span_end
+ORDER BY s2.span_start
+""",
     "get_by_id": """
 MATCH (seg:Segment {id: $segment_id})
       -[:SEGMENTATION_OF]->(:Annotation)
@@ -588,6 +674,24 @@ RETURN
         span_end: seg.span_end
     }] as segments
 """,
+    "get_related_segments": """
+MATCH (a1:Annotation {id: $alignment_1_id})<-[:SEGMENTATION_OF]-(s1:Segment)
+WHERE s1.span_start < $span_end AND s1.span_end > $span_start
+MATCH (s1)-[:ALIGNED_TO]-(s2:Segment)
+RETURN DISTINCT s2.id as segment_id,
+       s2.span_start as span_start,
+       s2.span_end as span_end
+ORDER BY s2.span_start
+""",
+    "get_overlapping_segments": """
+MATCH (m:Manifestation {id: $manifestation_id})<-[:ANNOTATION_OF]-(ann:Annotation)-[:HAS_TYPE]->(:AnnotationType {name: 'segmentation'})
+MATCH (ann)<-[:SEGMENTATION_OF]-(s:Segment)
+WHERE s.span_start < $span_end AND s.span_end > $span_start
+RETURN s.id as segment_id,
+       s.span_start as span_start,
+       s.span_end as span_end
+ORDER BY s.span_start
+"""
 }
 
 Queries.references = {
@@ -614,6 +718,14 @@ CREATE (s)-[:HAS_REFERENCE]->(r)
 """
 }
 
+Queries.durchen_notes = {
+    "create": """
+UNWIND $segments AS seg
+MATCH (s:Segment {id: seg.id})
+CREATE (n:DurchenNote {note: seg.note})
+CREATE (s)-[:HAS_DURCHEN_NOTE]->(n)
+"""
+}
 Queries.bibliography_types = {
     "link_to_segments": """
 // Link segments to existing bibliography types only (no new types created)
