@@ -458,11 +458,14 @@ MATCH (a:Annotation {id: $annotation_id})
 <-[:SEGMENTATION_OF]-(s:Segment)
 OPTIONAL MATCH (s)-[:HAS_REFERENCE]->(r:Reference)
 OPTIONAL MATCH (s)-[:HAS_TYPE]->(bt:BibliographyType)
+OPTIONAL MATCH (s)-[:ALIGNED_TO]->(aligned_seg:Segment)
+WITH s, r, bt, collect(aligned_seg.id) as aligned_segments
 RETURN s.id as id,
        s.span_start as start,
        s.span_end as end,
        r.name as reference,
-       bt.name as bibliography_type
+       bt.name as bibliography_type,
+       aligned_segments
 ORDER BY s.span_start
 """,
     "get_sections": """
