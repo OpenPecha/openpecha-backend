@@ -1340,6 +1340,27 @@ class Neo4JDatabase:
                 return result["exists"]
             return False
 
+    def has_alignment_relationship(self, source_manifestation_id: str, target_manifestation_id: str) -> bool:
+        """
+        Check if an alignment relationship already exists between two manifestations.
+        
+        Args:
+            source_manifestation_id: The ID of the source manifestation
+            target_manifestation_id: The ID of the target manifestation
+        
+        Returns:
+            True if an alignment relationship exists between the manifestations, False otherwise
+        """
+        with self.__driver.session() as session:
+            result = session.execute_read(
+                lambda tx: tx.run(
+                    Queries.annotations["check_alignment_relationship_exists"],
+                    source_manifestation_id=source_manifestation_id,
+                    target_manifestation_id=target_manifestation_id
+                ).single()
+            )
+            return bool(result and result.get("exists", False))
+
     def get_alignment_pair(self, annotation_id: str) -> tuple[str, str] | None:
         """
         Get source and target annotation IDs for an alignment annotation.
