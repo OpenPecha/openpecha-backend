@@ -492,8 +492,8 @@ def get_related_instances(manifestation_id: str) -> tuple[Response, int]:
 
     return jsonify(related_instances), 200
 
-@instances_bp.route("/<string:instance_id>/segment-content", methods=["GET"], strict_slashes=False)
-def get_instance_segment_content(instance_id: str) -> tuple[Response, int]:
+@instances_bp.route("/<string:manifestation_id>/segment-content", methods=["GET"], strict_slashes=False)
+def get_instance_segment_content(manifestation_id: str) -> tuple[Response, int]:
     """
     Unified endpoint to get text content from either:
     1. A segment (using segment_id parameter) within the given instance
@@ -528,31 +528,64 @@ def get_instance_segment_content(instance_id: str) -> tuple[Response, int]:
     is_valid, error_msg = _validate_request_parameters(segment_ids, span_start, span_end)
     if not is_valid:
         return jsonify({"error": error_msg}), 400
+
     
     # Handle segment approach
     if segment_ids:
+        db = Neo4JDatabase()
+        
+        # Get all segments in batch using Cypher query
+        segments_data = db._get_segments_batch(segment_ids)
+        
+        # Create a lookup map for quick access
+        segments_map = {seg["segment_id"]: seg for seg in segments_data}
+        
+        # Verify all requested segments were found
+        missing_segments = [seg_id for seg_id in segment_ids if seg_id not in segments_map]
+        if missing_segments:
+            return jsonify({"error": f"Segments not found: {', '.join(missing_segments)}"}), 404
+        
+        # Verify all segments belong to the same manifestation
+        manifestation_ids = {seg["manifestation_id"] for seg in segments_data}
+        if len(manifestation_ids) > 1:
+            return jsonify({"error": f"Segments belong to different manifestations: {manifestation_ids}"}), 400
+        
+        # Verify all segments belong to the provided manifestation_id
+        if manifestation_id not in manifestation_ids:
+            return jsonify({"error": f"Segments do not belong to manifestation {manifestation_id}"}), 400
+        
+        # Get expression_id (should be the same for all segments from same manifestation)
+        expression_id = segments_data[0]["expression_id"]
+        
+        # Load base text once
+        base_text = retrieve_base_text(expression_id=expression_id, manifestation_id=manifestation_id)
+        
+        # Extract content for each segment using their spans
         result = []
         errors = []
         
         for segment_id in segment_ids:
-            success, error_msg, content = _get_segment_content(segment_id)
-            if success:
-                result.append({
-                    "segment_id": segment_id,
-                    "content": content
-                })
-            else:
-                errors.append(f"Failed to retrieve segment {segment_id}: {error_msg}")
+            seg_data = segments_map[segment_id]
+            span_start = seg_data["span_start"]
+            span_end = seg_data["span_end"]
+            
+            # Validate segment span bounds
+            if span_end > len(base_text):
+                errors.append(f"Segment {segment_id} span end ({span_end}) exceeds base text length ({len(base_text)})")
+                continue
+            
+            content = base_text[span_start : span_end]
+            result.append({
+                "segment_id": segment_id,
+                "content": content
+            })
         
-        # If there are any errors, return error (even for partial failures)
+        # If there are any errors, return error
         if errors:
             return jsonify({"error": "; ".join(errors)}), 404
-        # If all segments succeeded, return result
-        elif result:
-            return jsonify(result), 200
-        # This should not happen, but handle empty segment_ids
-        else:
-            return jsonify({"error": "No segment IDs provided"}), 400
+        
+        # Return result
+        return jsonify(result), 200
     
     # Handle span approach
     if span_start and span_end:
@@ -560,7 +593,7 @@ def get_instance_segment_content(instance_id: str) -> tuple[Response, int]:
         if not is_valid:
             return jsonify({"error": error_msg}), 400
         
-        success, error_msg, content = _get_instance_content(instance_id, span)
+        success, error_msg, content = _get_instance_content(manifestation_id, span)
         if success:
             # Return span content as list with null segment_id
             result = [{
