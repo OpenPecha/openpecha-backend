@@ -1596,7 +1596,7 @@ class Neo4JDatabase:
             return untransformed_related_segments
     
         
-    def get_texts_group(self, texts_id: str) -> list[ExpressionModelOutput]:
+    def get_texts_group(self, texts_id: str) -> dict:
         with self.get_session() as session:
             result = session.execute_read(
                 lambda tx: tx.run(
@@ -1604,4 +1604,11 @@ class Neo4JDatabase:
                     expression_id=texts_id
                 ).data()
             )
-        return [self._process_expression_data(record["expression"]) for record in result]
+        print(result)
+        expressions = [self._process_expression_data(record["expression"]) for record in result]
+        # Get category_id from the first result if available
+        category_id = result[0]["category_id"] if result else None
+        return {
+            "texts": expressions,
+            "category_id": category_id
+        }

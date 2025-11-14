@@ -288,7 +288,8 @@ MATCH (e1:Expression {{id: $expression_id}})
 MATCH (e1)-[:EXPRESSION_OF]->(w:Work)
 MATCH (w)<-[:EXPRESSION_OF]-(e:Expression)
 WHERE e.id <> e1.id
-RETURN
+OPTIONAL MATCH (w)-[:BELONGS_TO]->(c:Category)
+RETURN c.id AS category_id,
     {Queries.expression_fragment('e')} AS expression
 """
 }
