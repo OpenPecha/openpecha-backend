@@ -128,6 +128,11 @@ def add_annotation(manifestation_id: str) -> tuple[Response, int]:
             manifestation_id=manifestation_id,
             data=data
         )
+    elif  request_model.type == AnnotationType.SEARCH_SEGMENTATION:
+        response = _add_search_segmentation_annotation(
+            manifestation_id=manifestation_id,
+            data=data
+        )
 
     elif request_model.type == AnnotationType.BIBLIOGRAPHY:
         response = _add_bibliography_annotation(
@@ -357,6 +362,25 @@ def _add_segmentation_annotation(manifestation, manifestation_id: str, data: dic
     response = {
         "message": "Annotation added successfully",
         "annotation_id": annotation_id,
+    }
+
+    return response
+
+def _add_search_segmentation_annotation(manifestation_id: str, data: dict) -> dict:
+
+    annotation_segments = data.get("annotation", [])
+
+    annotation = AnnotationModel(
+        id=generate_id(),
+        type=AnnotationType.SEARCH_SEGMENTATION
+    )
+    logger.info("Adding annotation to manifestation")
+    Neo4JDatabase().add_annotation_to_manifestation(manifestation_id = manifestation_id, annotation = annotation, annotation_segments = annotation_segments)
+    logger.info("Annotation added successfully")
+
+    response = {
+        "message": "Annotation added successfully",
+        "annotation_id": annotation.id,
     }
 
     return response

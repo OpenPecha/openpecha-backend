@@ -2275,6 +2275,15 @@ paths:
                         span:
                           start: 20
                           end: 45
+                search segmentation annotation:
+                  summary: Search segmentation annotation with segments
+                  value:
+                    id: "ann_search_seg_123"
+                    type: "search_segmentation"
+                    data:
+                      - span:
+                          start: 0
+                          end: 100
                 pagination annotation:
                   summary: Pagination annotation with segments and reference
                   value:
@@ -2410,6 +2419,8 @@ paths:
 
         - DURCHEN: Send durchen annotations with span and note content.
 
+        - SEARCH_SEGMENTATION: Send search segmentation annotations with span.
+
         - ALIGNMENT: Creates alignment relationships between segments of the source and target manifestations.
       tags:
         - Annotations
@@ -2431,7 +2442,7 @@ paths:
               properties:
                 type:
                   type: string
-                  enum: [segmentation, alignment, pagination, bibliography, table_of_contents, durchen]
+                  enum: [segmentation, alignment, pagination, bibliography, table_of_contents, durchen, search_segmentation]
                   description: Type of annotation to add
                 annotation:
                   type: array
@@ -2524,6 +2535,22 @@ paths:
                             type: string
                             description: The durchen note content
                         description: Durchen annotation
+                      - type: object
+                          required: [span]
+                          properties:
+                            span:
+                              type: object
+                              required: [start, end]
+                              properties:
+                                start:
+                                  type: integer
+                                  minimum: 0
+                                  description: Start character position (inclusive)
+                                end:
+                                  type: integer
+                                  minimum: 1
+                                  description: End character position (exclusive)
+                          description: search segmentation annotation
                 target_manifestation_id:
                   type: string
                   description: Target instance ID (required for ALIGNMENT type)
@@ -2589,6 +2616,14 @@ paths:
                         end: 42
                     - span:
                         start: 42
+                        end: 100
+              search_segmentation:
+                summary: Search Segmentation
+                value:
+                  type: search_segmentation
+                  annotation:
+                    - span:
+                        start: 0
                         end: 100
               pagination:
                 summary: Pagination (Diplomatic Instance)
