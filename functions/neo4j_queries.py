@@ -735,8 +735,7 @@ Queries.references = {
     "create": """
 CREATE (r:Reference {
     id: $reference_id,
-    name: $name,
-    description: $description
+    name: $name
 })
 RETURN r.id as reference_id
 """,

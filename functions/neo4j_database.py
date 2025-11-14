@@ -1131,14 +1131,13 @@ class Neo4JDatabase:
                 segment_references=segment_references,
             )
 
-    def _create_reference(self, tx, reference_name: str, description: str = None) -> str:
+    def _create_reference(self, tx, reference_name: str) -> str:
         """Create a single reference node and return its ID."""
         reference_id = generate_id()
         tx.run(
             Queries.references["create"],
             reference_id=reference_id,
             name=reference_name,
-            description=description,
         )
         return reference_id
 
