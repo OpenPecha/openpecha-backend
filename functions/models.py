@@ -56,6 +56,7 @@ class LicenseType(str, Enum):
     CC_BY_NC_SA = "CC BY-NC-SA"
     CC_BY_NC_ND = "CC BY-NC-ND"
     UNDER_COPYRIGHT = "under copyright"
+    UNKNOWN = "unknown"
 
 
 class OpenPechaModel(BaseModel):
