@@ -1092,7 +1092,7 @@ paths:
                   description: Copyright status of the translation
                 license:
                   type: string
-                  enum: ["CC0", "Public Domain Mark", "CC BY", "CC BY-SA", "CC BY-ND", "CC BY-NC", "CC BY-NC-SA", "CC BY-NC-ND", "under copyright"]
+                  enum: ["unknown", "CC0", "Public Domain Mark", "CC BY", "CC BY-SA", "CC BY-ND", "CC BY-NC", "CC BY-NC-SA", "CC BY-NC-ND", "under copyright"]
                   description: License type for the translation
                 bdrc:
                   type: string
