@@ -113,11 +113,7 @@ def add_annotation(manifestation_id: str) -> tuple[Response, int]:
             raise InvalidRequest("Target manifestation id must be provided for alignment annotation")
         
         # Check source manifestation
-        _check_annotation_type_exists(db, manifestation_id, request_model.type)
-        
-        # Check target manifestation
-        logger.info(f"Checking if annotation of type '{request_model.type.value}' already exists for target manifestation '{request_model.target_manifestation_id}'")
-        _check_annotation_type_exists(db, request_model.target_manifestation_id, request_model.type)
+        _check_alignement_annotation_type_exists(db, manifestation_id, request_model.target_manifestation_id, request_model.type)
     else:
         _check_annotation_type_exists(db, manifestation_id, request_model.type)
     
@@ -125,6 +121,11 @@ def add_annotation(manifestation_id: str) -> tuple[Response, int]:
     if request_model.type == AnnotationType.SEGMENTATION or request_model.type == AnnotationType.PAGINATION:
         response = _add_segmentation_annotation(
             manifestation=manifestation,
+            manifestation_id=manifestation_id,
+            data=data
+        )
+    elif  request_model.type == AnnotationType.SEARCH_SEGMENTATION:
+        response = _add_search_segmentation_annotation(
             manifestation_id=manifestation_id,
             data=data
         )
@@ -154,6 +155,31 @@ def add_annotation(manifestation_id: str) -> tuple[Response, int]:
         )
 
     return jsonify(response), 201
+    
+def _check_alignement_annotation_type_exists(db: Neo4JDatabase, manifestation_id: str, target_manifestation_id: str, annotation_type: AnnotationType) -> None:
+    """
+    Check if an alignment annotation already exists between the source and target manifestations.
+    Specifically checks:
+    1. If source manifestation has an alignment annotation
+    2. If target manifestation has an alignment annotation that is aligned_to the source's alignment annotation
+    
+    Raises InvalidRequest if an alignment relationship already exists.
+    
+    Args:
+        db: The Neo4JDatabase instance
+        manifestation_id: The ID of the source manifestation
+        target_manifestation_id: The ID of the target manifestation
+        annotation_type: The type of annotation we're trying to add (should be ALIGNMENT)
+        
+    Raises:
+        InvalidRequest: If an alignment relationship already exists between the manifestations
+    """
+    
+    # Check if an alignment relationship already exists between these two manifestations
+    if db.has_alignment_relationship(manifestation_id, target_manifestation_id):
+        raise InvalidRequest(
+            f"Cannot add annotation: alignment relationship already exists between manifestation '{manifestation_id}' and target manifestation '{target_manifestation_id}'"
+        )
 
 def _check_annotation_type_exists(db: Neo4JDatabase, manifestation_id: str, annotation_type: AnnotationType) -> None:
     """
@@ -357,6 +383,25 @@ def _add_segmentation_annotation(manifestation, manifestation_id: str, data: dic
     response = {
         "message": "Annotation added successfully",
         "annotation_id": annotation_id,
+    }
+
+    return response
+
+def _add_search_segmentation_annotation(manifestation_id: str, data: dict) -> dict:
+
+    annotation_segments = data.get("annotation", [])
+
+    annotation = AnnotationModel(
+        id=generate_id(),
+        type=AnnotationType.SEARCH_SEGMENTATION
+    )
+    logger.info("Adding annotation to manifestation")
+    Neo4JDatabase().add_annotation_to_manifestation(manifestation_id = manifestation_id, annotation = annotation, annotation_segments = annotation_segments)
+    logger.info("Annotation added successfully")
+
+    response = {
+        "message": "Annotation added successfully",
+        "annotation_id": annotation.id,
     }
 
     return response
