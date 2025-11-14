@@ -851,7 +851,7 @@ paths:
                   type: array
                   items:
                     type: object
-                    required: [span, biblography_type]
+                    required: [span, type]
                     properties:
                       span:
                         type: object
@@ -1818,7 +1818,7 @@ paths:
   /v2/texts/{texts_id}/group:
     get:
       summary: Retrieve texts group by text ID
-      description: Fetch all texts in the same work group as the specified text ID, along with the category information
+      description: Fetch all texts in the same work group as the specified text ID
       tags:
         - Texts
       parameters:
@@ -1845,7 +1845,7 @@ paths:
                           type: string
                         type:
                           type: string
-                          enum: [root, translation, commentary, translation_source, none]
+                          enum: [root, translation, commentary, none]
                         title:
                           type: object
                           additionalProperties:
@@ -1897,15 +1897,12 @@ paths:
                         license:
                           type: string
                           nullable: true
-                  category_id:
-                    type: string
-                    nullable: true
-                    description: The category ID that all expressions in this group belong to
+
               examples:
                 success:
                   summary: Texts group response
                   value:
-                    expressions:
+                    texts:
                       - id: "T12345679"
                         type: "translation"
                         title:
@@ -1916,6 +1913,7 @@ paths:
                           - person_id: "P87654321"
                             role: "translator"
                         target: "T12345678"
+                        category_id: "C12345678"
                         copyright: "Public domain"
                         license: "CC0"
                       - id: "T12345680"
@@ -1928,8 +1926,8 @@ paths:
                             role: "author"
                         target: "T12345678"
                         copyright: "Public domain"
+                        category_id: "C12345678"
                         license: "CC0"
-                    category_id: "C12345678"
         "400":
           $ref: '#/components/responses/InvalidRequest'
         "404":

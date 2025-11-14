@@ -1619,9 +1619,6 @@ class Neo4JDatabase:
             )
         print(result)
         expressions = [self._process_expression_data(record["expression"]) for record in result]
-        # Get category_id from the first result if available
-        category_id = result[0]["category_id"] if result else None
         return {
-            "texts": expressions,
-            "category_id": category_id
+            "texts": expressions
         }
