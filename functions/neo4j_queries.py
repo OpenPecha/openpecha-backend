@@ -278,6 +278,14 @@ CREATE (e)-[:COMMENTARY_OF]->(target),
 {Queries.create_copyright_and_license('e')}
 RETURN e.id as expression_id
 """,
+    "get_texts_group": f"""
+MATCH (e1:Expression {{id: $expression_id}})
+MATCH (e1)-[:EXPRESSION_OF]->(w:Work)
+MATCH (w)<-[:EXPRESSION_OF]-(e:Expression)
+WHERE e.id <> e1.id
+RETURN
+    {Queries.expression_fragment('e')} AS expression
+"""
 }
 
 Queries.persons = {
@@ -407,7 +415,7 @@ RETURN m.id AS manifestation_id
         expression: {Queries.expression_fragment('related_e')},
         alignment_annotation_id: null
     }} as related_instance
-""",
+"""
 }
 
 Queries.annotations = {
@@ -511,13 +519,6 @@ MATCH (a1)-[:ALIGNED_TO]-(a2:Annotation)
 WITH a1, a2, m.id as manifestation_id
 
 RETURN manifestation_id, a1.id as alignment_1_id, a2.id as alignment_2_id
-""",
-    "get_texts_group": f"""
-MATCH (e1:Expression {id: $expression_id})
-MATCH (e1)-[:EXPRESSION_OF]->(w:Work)
-MATCH (w)<-[:EXPRESSION_OF]-(e:Expression)
-WHERE e.id <> $expression_id
-RETURN {Queries.expression_fragment('e')} AS expression
 """
 }
 
