@@ -416,7 +416,7 @@ class AddAnnotationRequestModel(OpenPechaModel):
             AnnotationType.BIBLIOGRAPHY: self._validate_bibliography,
             AnnotationType.TABLE_OF_CONTENTS: self._validate_table_of_contents,
             AnnotationType.DURCHEN: self._validate_durchen,
-            AnnotationType.SEARCH_SEGMENTATION: self._validate_search_segmentation
+            AnnotationType.SEARCH_SEGMENTATION: self._validate_segmentation
         }
         
         validator = validators.get(self.type)
@@ -433,13 +433,8 @@ class AddAnnotationRequestModel(OpenPechaModel):
             raise ValueError("Cannot provide both segmentation annotation and alignment annotation or target_annotation")
         if not all(isinstance(ann, SegmentationAnnotationModel) for ann in self.annotation):
             raise ValueError("Invalid segmentation annotation")
-    def _validate_search_segmentation(self):
-            if self.annotation is None or len(self.annotation) == 0:
-                raise ValueError("Segmentation annotation cannot be empty")
-            if self.target_annotation is not None or self.alignment_annotation is not None:
-                raise ValueError("Cannot provide both segmentation annotation and alignment annotation or target_annotation")
-            if not all(isinstance(ann, SearchSegmentationAnnotationModel) for ann in self.annotation):
-                raise ValueError("Invalid segmentation annotation")
+
+    
     def _validate_pagination(self):
         if self.annotation is None or len(self.annotation) == 0:
             raise ValueError("Pagination annotation cannot be empty")
