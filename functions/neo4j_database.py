@@ -1131,14 +1131,13 @@ class Neo4JDatabase:
                 segment_references=segment_references,
             )
 
-    def _create_reference(self, tx, reference_name: str, description: str = None) -> str:
+    def _create_reference(self, tx, reference_name: str) -> str:
         """Create a single reference node and return its ID."""
         reference_id = generate_id()
         tx.run(
             Queries.references["create"],
             reference_id=reference_id,
             name=reference_name,
-            description=description,
         )
         return reference_id
 
@@ -1317,6 +1316,29 @@ class Neo4JDatabase:
             if result:
                 return result["annotation_type"]
             return None
+
+    def has_annotation_type(self, manifestation_id: str, annotation_type: str) -> bool:
+        """
+        Check if a manifestation has an annotation of the specified type.
+        
+        Args:
+            manifestation_id: The ID of the manifestation to check
+            annotation_type: The annotation type to check for (e.g., 'segmentation', 'alignment')
+        
+        Returns:
+            True if an annotation of the specified type exists, False otherwise
+        """
+        with self.__driver.session() as session:
+            result = session.execute_read(
+                lambda tx: tx.run(
+                    Queries.annotations["check_annotation_type_exists"],
+                    manifestation_id=manifestation_id,
+                    annotation_type=annotation_type
+                ).single()
+            )
+            if result:
+                return result["exists"]
+            return False
 
     def get_alignment_pair(self, annotation_id: str) -> tuple[str, str] | None:
         """
@@ -1551,3 +1573,14 @@ class Neo4JDatabase:
             return transformed_related_segments
         else:
             return untransformed_related_segments
+    
+        
+    def get_texts_group(self, texts_id: str) -> list[ExpressionModelOutput]:
+        with self.get_session() as session:
+            result = session.execute_read(
+                lambda tx: tx.run(
+                    Queries.expressions["get_texts_group"],
+                    expression_id=texts_id
+                ).data()
+            )
+        return [self._process_expression_data(record["expression"]) for record in result]
