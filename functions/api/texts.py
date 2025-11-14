@@ -51,7 +51,10 @@ def get_texts_group(texts_id: str) -> tuple[Response, int]:
     logger.info("Getting texts group for texts ID: %s", texts_id)
     db = Neo4JDatabase()
     texts_group = db.get_texts_group(texts_id=texts_id)
-    response_data = [item.model_dump() for item in texts_group]
+    response_data = {
+        "texts": [expr.model_dump() for expr in texts_group["texts"]],
+        "category_id": texts_group["category_id"]
+    }
     return jsonify(response_data), 200
 
 

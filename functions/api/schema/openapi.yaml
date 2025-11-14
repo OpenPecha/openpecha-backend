@@ -1818,7 +1818,7 @@ paths:
   /v2/texts/{texts_id}/group:
     get:
       summary: Retrieve texts group by text ID
-      description: Fetch texts group by text ID
+      description: Fetch all texts in the same work group as the specified text ID, along with the category information
       tags:
         - Texts
       parameters:
@@ -1827,56 +1827,109 @@ paths:
           required: true
           schema:
             type: string
-          description: The ID of the text to retrieve
+          description: The ID of the text to retrieve the group for
       responses:
         "200":
           description: Texts group retrieved successfully
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    id:
-                      type: string
-                    type:
-                      type: string
-                    title:
+                type: object
+                properties:
+                  texts:
+                    type: array
+                    items:
                       type: object
-                      additionalProperties:
-                        type: string
-                    language:
-                      type: string
-                      enum: [en, bo, zh, sa]
-                    contributions:
-                      type: array
-                      items:
-                        type: object
-                        properties:
-                          person_id:
+                      properties:
+                        id:
+                          type: string
+                        type:
+                          type: string
+                          enum: [root, translation, commentary, translation_source, none]
+                        title:
+                          type: object
+                          additionalProperties:
                             type: string
-                          person_bdrc_id:
-                            type: string
-                          ai_id:
-                            type: string
-                          role:
-                            type: string
-                            enum: [author, translator, reviser, scholar]
-                    date:
-                      type: string
-                    bdrc:
-                      type: string
-                    wiki:
-                      type: string
-                    target:
-                      type: string
-                    copyright:
-                      type: string
-                      enum: ["Public domain", "In copyright", "Unknown"]
-                    license:
-                      type: string
-                      nullable: true
+                        alt_titles:
+                          type: array
+                          items:
+                            type: object
+                            additionalProperties:
+                              type: string
+                          nullable: true
+                        language:
+                          type: string
+                        contributions:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              person_id:
+                                type: string
+                                nullable: true
+                              person_bdrc_id:
+                                type: string
+                                nullable: true
+                              ai_id:
+                                type: string
+                                nullable: true
+                              role:
+                                type: string
+                                enum: [author, translator, reviser, scholar]
+                        date:
+                          type: string
+                          nullable: true
+                        bdrc:
+                          type: string
+                          nullable: true
+                        wiki:
+                          type: string
+                          nullable: true
+                        target:
+                          type: string
+                          nullable: true
+                        category_id:
+                          type: string
+                          nullable: true
+                        copyright:
+                          type: string
+                          enum: ["Public domain", "In copyright", "Unknown"]
+                        license:
+                          type: string
+                          nullable: true
+                  category_id:
+                    type: string
+                    nullable: true
+                    description: The category ID that all expressions in this group belong to
+              examples:
+                success:
+                  summary: Texts group response
+                  value:
+                    expressions:
+                      - id: "T12345679"
+                        type: "translation"
+                        title:
+                          en: "Translation of Sample Text"
+                          bo: "དཔེ་མཚོན་ཚིག་སྒྲུབ་ཀྱི་སྒྱུར་བ།"
+                        language: "en"
+                        contributions:
+                          - person_id: "P87654321"
+                            role: "translator"
+                        target: "T12345678"
+                        copyright: "Public domain"
+                        license: "CC0"
+                      - id: "T12345680"
+                        type: "commentary"
+                        title:
+                          bo: "དཔེ་མཚོན་ཚིག་སྒྲུབ་ཀྱི་འགྲེལ་བ།"
+                        language: "bo"
+                        contributions:
+                          - person_id: "P11111111"
+                            role: "author"
+                        target: "T12345678"
+                        copyright: "Public domain"
+                        license: "CC0"
+                    category_id: "C12345678"
         "400":
           $ref: '#/components/responses/InvalidRequest'
         "404":
