@@ -210,15 +210,15 @@ def _create_aligned_text(
     )
 
 
-@instances_bp.route("/<string:instance_id>/segments-relation", methods=["GET"], strict_slashes=False)
-def get_segments_relation_by_manifestation(instance_id: str):
+@instances_bp.route("/<string:manifestation_id>/segments-relation", methods=["GET"], strict_slashes=False)
+def get_segments_relation_by_manifestation(manifestation_id: str):
     
     logger.info("Getting segmentation annotation and it's segments by manifestation")
     db = Neo4JDatabase()
-    segments = db.get_segmentation_annotation_by_manifestation(manifestation_id=instance_id)
+    segments = db.get_segmentation_annotation_by_manifestation(manifestation_id=manifestation_id)
     logger.info("Fetched segmentation annotation with it's segments nodes")
     response = {
-        "instance_id": instance_id,
+        "instance_id": manifestation_id,
         "segments_relations": []
     }
 
@@ -232,7 +232,7 @@ def get_segments_relation_by_manifestation(instance_id: str):
         logger.info(f"Getting related segments for segment id: {segment["id"]} with span_start: {start}, span_end: {end}")
         
         related_segments = db._get_related_segments(
-            manifestation_id = instance_id, 
+            manifestation_id = manifestation_id, 
             start = start, 
             end = end, 
             transform = True
@@ -276,102 +276,9 @@ def create_translation(original_manifestation_id: str) -> tuple[Response, int]:
 
     request_model = AlignedTextRequestModel.model_validate(data)
 
-    
 
     return _create_aligned_text(request_model, TextType.TRANSLATION, original_manifestation_id)
 
-
-@instances_bp.route("/<string:manifestation_id>/excerpt", methods=["GET"], strict_slashes=False)
-def get_excerpt(manifestation_id: str) -> tuple[Response, int]:
-    logger.info("Fetching excerpt for manifestation ID: %s", manifestation_id)
-
-    span = SpanModel(
-        start=int(request.args.get("span_start", -1)),
-        end=int(request.args.get("span_end", -1)),
-    )
-
-    db = Neo4JDatabase()
-
-    _, expression_id = db.get_manifestation(manifestation_id)
-
-    pecha = retrieve_pecha(expression_id)
-    base_text = next(iter(pecha.bases.values()))
-
-    if span.end > len(base_text):
-        return jsonify({"error": f"span end ({span.end}) exceeds base text length ({len(base_text)})"}), 400
-
-    return jsonify({"excerpt": base_text[span.start : span.end]}), 200
-
-
-# @instances_bp.route("/<string:manifestation_id>/related", methods=["GET"], strict_slashes=False)
-# def get_related_texts(manifestation_id: str) -> tuple[Response, int]:
-
-#     logger.info("Finding related texts for manifestation ID: %s", manifestation_id)
-
-#     span = SpanModel(
-#         start=int(request.args.get("span_start", -1)),
-#         end=int(request.args.get("span_end", -1)),
-#     )
-
-#     db = Neo4JDatabase()
-
-#     # Find segments from database that overlap with the given character span
-#     matching_segments = db.find_segments_by_span(manifestation_id, span)
-
-#     if not matching_segments:
-#         error_msg = f"No segments found containing span [{span.start}, {span.end}) in instance '{manifestation_id}'"
-#         return jsonify({"error": error_msg}), 404
-
-#     # For each matching segment, find all aligned segments separated by direction
-#     targets_map = {}
-#     sources_map = {}
-
-#     for source_segment in matching_segments:
-#         aligned = db.find_aligned_segments(source_segment.id)
-
-#         # Process targets (outgoing relationships)
-#         for manifestation_id, segments in aligned["targets"].items():
-#             existing = targets_map.setdefault(manifestation_id, [])
-#             existing.extend(seg for seg in segments if seg not in existing)
-
-#         # Process sources (incoming relationships)
-#         for manifestation_id, segments in aligned["sources"].items():
-#             existing = sources_map.setdefault(manifestation_id, [])
-#             existing.extend(seg for seg in segments if seg not in existing)
-
-#     def build_related_texts(manifestations_map):
-#         """Helper to build the related texts structure from a manifestations map"""
-#         result = []
-#         for manifestation_id, segments in manifestations_map.items():
-#             manifestation_model, expression_id = db.get_manifestation(manifestation_id)
-#             expression_model = db.get_expression(expression_id)
-
-#             # Merge neighboring/overlapping spans
-#             merged_spans = []
-#             for span in sorted([seg.span for seg in segments], key=lambda s: s[0]):
-#                 if merged_spans and span[0] <= merged_spans[-1][1]:
-#                     merged_spans[-1] = (merged_spans[-1][0], max(merged_spans[-1][1], span[1]))
-#                 else:
-#                     merged_spans.append(span)
-
-#             result.append(
-#                 {
-#                     "text": expression_model.model_dump(),
-#                     "instance": manifestation_model.model_dump(),
-#                     "spans": [{"start": s[0], "end": s[1]} for s in merged_spans],
-#                 }
-#             )
-#         return result
-
-#     return (
-#         jsonify(
-#             {
-#                 "targets": build_related_texts(targets_map),
-#                 "sources": build_related_texts(sources_map),
-#             }
-#         ),
-#         200,
-#     )
 
 def _validate_segment_related_request(db: Neo4JDatabase, manifestation_id: str) -> tuple[SpanModel, tuple[Response, int] | None]:
     segment_id = request.args.get("segment_id")
@@ -467,9 +374,11 @@ def get_segment_related(manifestation_id: str) -> tuple[Response, int]:
 
     return jsonify(related_segments), 200
 
+
 def _delete_unwanted_fields(dictionary: dict, unwanted_fields: list[str]) -> None:
     for field in unwanted_fields:
         del dictionary[field]
+
 
 @instances_bp.route("/<string:manifestation_id>/related", methods=["GET"], strict_slashes=False)
 def get_related_instances(manifestation_id: str) -> tuple[Response, int]:
@@ -491,6 +400,7 @@ def get_related_instances(manifestation_id: str) -> tuple[Response, int]:
         return jsonify({"error": str(e)}), 500
 
     return jsonify(related_instances), 200
+
 
 @instances_bp.route("/<string:instance_id>/segment-content", methods=["GET"], strict_slashes=False)
 def get_instance_segment_content(instance_id: str) -> tuple[Response, int]:
@@ -572,6 +482,7 @@ def get_instance_segment_content(instance_id: str) -> tuple[Response, int]:
     
     # This should never be reached due to validation
     return jsonify({"error": "Invalid request"}), 400
+
 
 def _validate_request_parameters(segment_ids: list[str], span_start: str, span_end: str) -> tuple[bool, str]:
     """Validate parameter combinations and return (is_valid, error_message)."""
