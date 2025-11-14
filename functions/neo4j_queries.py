@@ -288,9 +288,7 @@ MATCH (e1:Expression {{id: $expression_id}})
 MATCH (e1)-[:EXPRESSION_OF]->(w:Work)
 MATCH (w)<-[:EXPRESSION_OF]-(e:Expression)
 WHERE e.id <> e1.id
-OPTIONAL MATCH (w)-[:BELONGS_TO]->(c:Category)
-RETURN c.id AS category_id,
-    {Queries.expression_fragment('e')} AS expression
+RETURN {Queries.expression_fragment('e')} AS expression
 """
 }
 
@@ -667,6 +665,19 @@ RETURN seg.id as segment_id,
        seg.span_end as span_end,
        m.id as manifestation_id,
        e.id as expression_id
+""",
+    "get_batch_by_ids": """
+UNWIND $segment_ids AS segment_id
+MATCH (seg:Segment {id: segment_id})
+      -[:SEGMENTATION_OF]->(:Annotation)
+      -[:ANNOTATION_OF]->(m:Manifestation)
+      -[:MANIFESTATION_OF]->(e:Expression)
+RETURN seg.id as segment_id,
+       seg.span_start as span_start,
+       seg.span_end as span_end,
+       m.id as manifestation_id,
+       e.id as expression_id
+ORDER BY seg.id
 """,
     "find_related_alignment_only": """
 MATCH (source_manif:Manifestation {id: $manifestation_id})<-[:ANNOTATION_OF]-(align_annot:Annotation)-[:HAS_TYPE]->(at:AnnotationType {name: 'alignment'})

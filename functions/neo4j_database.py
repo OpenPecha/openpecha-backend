@@ -483,6 +483,19 @@ class Neo4JDatabase:
             segment = SegmentModel(id=data["segment_id"], span=SpanModel(start=data["span_start"], end=data["span_end"]))
             return segment, data["manifestation_id"], data["expression_id"]
 
+    def _get_segments_batch(self, segment_ids: list[str]) -> list[dict]:
+        """
+        Get multiple segments by their IDs in a single query.
+        Returns a list of dicts with keys: segment_id, span_start, span_end, manifestation_id, expression_id
+        """
+        if not segment_ids:
+            return []
+        
+        with self.__driver.session() as session:
+            records = session.execute_read(
+                lambda tx: tx.run(Queries.segments["get_batch_by_ids"], segment_ids=segment_ids).data()
+            )
+            return records
 
     def get_segment(self, segment_id: str) -> tuple[SegmentModel, str, str]:
         with self.__driver.session() as session:
@@ -1606,9 +1619,6 @@ class Neo4JDatabase:
             )
         print(result)
         expressions = [self._process_expression_data(record["expression"]) for record in result]
-        # Get category_id from the first result if available
-        category_id = result[0]["category_id"] if result else None
         return {
-            "texts": expressions,
-            "category_id": category_id
+            "texts": expressions
         }
