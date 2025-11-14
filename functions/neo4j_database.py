@@ -1551,3 +1551,14 @@ class Neo4JDatabase:
             return transformed_related_segments
         else:
             return untransformed_related_segments
+    
+        
+    def get_texts_group(self, texts_id: str) -> list[ExpressionModelOutput]:
+        with self.get_session() as session:
+            result = session.execute_read(
+                lambda tx: tx.run(
+                    Queries.expressions["get_texts_group"],
+                    expression_id=texts_id
+                ).data()
+            )
+        return [self._process_expression_data(record["expression"]) for record in result]

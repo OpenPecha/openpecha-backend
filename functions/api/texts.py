@@ -46,6 +46,15 @@ def get_all_texts() -> tuple[Response, int]:
     return jsonify(response_data), 200
 
 
+@texts_bp.route("/<string:texts_id>/group", methods=["GET"], strict_slashes=False)
+def get_texts_group(texts_id: str) -> tuple[Response, int]:
+    logger.info("Getting texts group for texts ID: %s", texts_id)
+    db = Neo4JDatabase()
+    texts_group = db.get_texts_group(texts_id=texts_id)
+    response_data = [item.model_dump() for item in texts_group]
+    return jsonify(response_data), 200
+
+
 @texts_bp.route("/<string:id>", methods=["GET"], strict_slashes=False)
 def get_texts(id: str) -> tuple[Response, int]:
     db = Neo4JDatabase()

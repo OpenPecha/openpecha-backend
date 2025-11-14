@@ -283,6 +283,14 @@ CREATE (e)-[:COMMENTARY_OF]->(target),
 {Queries.create_copyright_and_license('e')}
 RETURN e.id as expression_id
 """,
+    "get_texts_group": f"""
+MATCH (e1:Expression {{id: $expression_id}})
+MATCH (e1)-[:EXPRESSION_OF]->(w:Work)
+MATCH (w)<-[:EXPRESSION_OF]-(e:Expression)
+WHERE e.id <> e1.id
+RETURN
+    {Queries.expression_fragment('e')} AS expression
+"""
 }
 
 Queries.persons = {
@@ -462,6 +470,7 @@ WITH a,
      CASE WHEN target IS NOT NULL THEN target.id ELSE a.id END as target_id
 RETURN source_id, target_id
 """,
+
     "delete_alignment_annotations": """
 MATCH (source:Annotation {id: $source_annotation_id})
 MATCH (target:Annotation {id: $target_annotation_id})
