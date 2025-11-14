@@ -523,3 +523,24 @@ class EnumType(str, Enum):
 class EnumRequestModel(OpenPechaModel):
     type: EnumType
     value: dict[str, NonEmptyStr]
+
+class SearchFilterModel(OpenPechaModel):
+    title: str | None = None
+
+class SearchRequestModel(OpenPechaModel):
+    query: NonEmptyStr
+    search_type: str = "hybrid"
+    limit: int = Field(default=10, ge=1, le=100)
+    filter: SearchFilterModel | None = None
+
+class SearchResultModel(OpenPechaModel):
+    id: str
+    distance: float
+    entity: dict
+    segmentation_ids: list[str] = Field(default_factory=list)
+
+class SearchResponseModel(OpenPechaModel):
+    query: str
+    search_type: str
+    results: list[SearchResultModel]
+    count: int

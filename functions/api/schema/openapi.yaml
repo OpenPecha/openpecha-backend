@@ -3219,6 +3219,140 @@ paths:
         "500":
           $ref: '#/components/responses/ServerError'
 
+  /v2/segments/search:
+    post:
+      summary: Search segments with segmentation mapping
+      description: >-
+        Search segments by forwarding request to external search API and enriching results
+        with overlapping segmentation annotation segment IDs. For each search result (which contains
+        a search_segmentation segment ID), finds overlapping segments from segmentation annotations
+        and adds them as segmentation_ids.
+      tags:
+        - Segments
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - query
+              properties:
+                query:
+                  type: string
+                  minLength: 1
+                  description: The search query text
+                search_type:
+                  type: string
+                  enum: [hybrid, bm25, semantic, exact]
+                  default: hybrid
+                  description: Type of search (hybrid, bm25, semantic, or exact)
+                limit:
+                  type: integer
+                  minimum: 1
+                  maximum: 100
+                  default: 10
+                  description: Maximum number of results to return
+                filter:
+                  type: object
+                  properties:
+                    title:
+                      type: string
+                      description: Filter results by title
+                  description: Optional filters to apply
+            examples:
+              hybrid_search:
+                summary: Hybrid search request
+                value:
+                  query: "བོད་ཀྱི་རིག་གནས།"
+                  search_type: "hybrid"
+                  limit: 10
+                  filter:
+                    title: "Kangyur"
+              semantic_search:
+                summary: Semantic search request
+                value:
+                  query: "Buddhist philosophy"
+                  search_type: "semantic"
+                  limit: 20
+      responses:
+        "200":
+          description: Search completed successfully with enriched results
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - query
+                  - search_type
+                  - results
+                  - count
+                properties:
+                  query:
+                    type: string
+                    description: The search query that was used
+                  search_type:
+                    type: string
+                    description: The search type that was used
+                  results:
+                    type: array
+                    description: List of search results with segmentation IDs
+                    items:
+                      type: object
+                      required:
+                        - id
+                        - distance
+                        - entity
+                        - segmentation_ids
+                      properties:
+                        id:
+                          type: string
+                          description: Search segmentation segment ID
+                        distance:
+                          type: number
+                          description: Search distance/score
+                        entity:
+                          type: object
+                          additionalProperties: true
+                          description: Additional entity data from search
+                        segmentation_ids:
+                          type: array
+                          items:
+                            type: string
+                          description: List of overlapping segmentation annotation segment IDs
+                  count:
+                    type: integer
+                    description: Number of results returned
+              examples:
+                success:
+                  summary: Search results with segmentation IDs
+                  value:
+                    query: "བོད་ཀྱི་རིག་གནས།"
+                    search_type: "hybrid"
+                    results:
+                      - id: "SEG_SEARCH_001"
+                        distance: 0.85
+                        entity:
+                          text: "Sample text content"
+                        segmentation_ids:
+                          - "SEG_001"
+                          - "SEG_002"
+                          - "SEG_003"
+                      - id: "SEG_SEARCH_002"
+                        distance: 0.78
+                        entity:
+                          text: "Another text content"
+                        segmentation_ids:
+                          - "SEG_004"
+                          - "SEG_005"
+                    count: 2
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "422":
+          $ref: '#/components/responses/ValidationError'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
   /v2/relations/expressions/{expression_id}:
     get:
       summary: Get relations for an expression
