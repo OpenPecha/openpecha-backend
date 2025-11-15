@@ -12,7 +12,7 @@ from models import (
     SegmentationAnnotationModel
 )
 from neo4j_database import Neo4JDatabase
-from storage import MockStorage
+from storage import Storage
 from neo4j_database_validator import Neo4JDatabaseValidator
 
 texts_bp = Blueprint("texts", __name__)
@@ -141,7 +141,7 @@ def create_instance(expression_id: str) -> tuple[Response, int]:
                 raise InvalidRequest("Critical manifestation already present for this expression")
 
     manifestation_id = generate_id()
-    storage = MockStorage()
+    storage = Storage()
     
     storage.store_base_text(
         expression_id=expression_id, 

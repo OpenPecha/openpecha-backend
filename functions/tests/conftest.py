@@ -1,8 +1,9 @@
 # pylint: disable=redefined-outer-name
-from unittest.mock import patch
+from unittest.mock import patch, MagicMock
 
 import pytest
 from main import create_app
+from exceptions import DataNotFound
 
 
 class MockStorageBucket:
@@ -11,9 +12,6 @@ class MockStorageBucket:
 
     def blob(self, path: str):
         return MockBlob(path, self._storage)
-
-    def store_pecha_opf(self, pecha):
-        pass
 
     def get_blob(self, path: str):
         # Mimics GCS get_blob, returns None if not found
@@ -89,6 +87,32 @@ def mock_storage():
 
     with patch("firebase_admin.storage.bucket", return_value=mock_storage_bucket):
         yield mock_storage_bucket
+
+
+@pytest.fixture(autouse=True)
+def mock_neo4j():
+    """Mock Neo4J database to prevent connection attempts in tests"""
+    mock_db = MagicMock()
+    
+    # Configure mock to raise DataNotFound for non-existent resources
+    def mock_get_manifestation(manifestation_id):
+        raise DataNotFound(f"Manifestation {manifestation_id} not found")
+    
+    def mock_get_expression(expression_id):
+        raise DataNotFound(f"Expression {expression_id} not found")
+    
+    def mock_get_expression_by_bdrc(bdrc_id):
+        raise DataNotFound(f"Expression with BDRC ID {bdrc_id} not found")
+    
+    mock_db.get_manifestation.side_effect = mock_get_manifestation
+    mock_db.get_expression.side_effect = mock_get_expression
+    mock_db.get_expression_by_bdrc.side_effect = mock_get_expression_by_bdrc
+    mock_db.get_all_expressions.return_value = []  # Return empty list for queries
+    
+    with patch("neo4j_database.Neo4JDatabase", return_value=mock_db):
+        with patch("api.instances.Neo4JDatabase", return_value=mock_db):
+            with patch("api.texts.Neo4JDatabase", return_value=mock_db):
+                yield mock_db
 
 
 @pytest.fixture(autouse=True)

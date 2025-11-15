@@ -340,8 +340,13 @@ class TestInstancesV2Endpoints:
             "language": "en",
             "content": "Translation content",
             "title": "Translation Title",
+            "source": "MF000000",
             "author": {"person_id": "person123"},
+            "target_annotation": [{"span": {"start": 0, "end": 20}, "index": 0}],
             "alignment_annotation": [{"span": {"start": 0, "end": 20}, "index": 0, "alignment_index": [0]}],
+            "segmentation": [{"span": {"start": 0, "end": 20}, "index": 0}],
+            "copyright": "Unknown",
+            "license": "CC0",
         }
 
         response = client.post("/v2/instances/non-existent-manifestation/translation", json=translation_data)

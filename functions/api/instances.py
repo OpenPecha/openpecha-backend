@@ -18,8 +18,7 @@ from models import (
     SegmentModel,
 )
 from neo4j_database import Neo4JDatabase
-from storage import MockStorage
-from pecha_handling import retrieve_base_text
+from storage import Storage
 from api.annotations import _alignment_annotation_mapping
 from exceptions import InvalidRequest
 from api.relation import _get_relation_for_an_expression
@@ -46,7 +45,7 @@ def get_instance(manifestation_id: str):
     logger.info("Retrieving base text from storage")
     base_text = None
     if content_param:
-        base_text = retrieve_base_text(expression_id = expression_id, manifestation_id = manifestation_id)
+        base_text = Storage().retrieve_base_text(expression_id = expression_id, manifestation_id = manifestation_id)
 
     metadata = {
         "id": manifestation.id,
@@ -101,7 +100,7 @@ def _create_aligned_text(
     segmentation = AnnotationModel(id=segmentation_annotation_id, type=AnnotationType.SEGMENTATION)
     segmentation_segments = [SegmentModel(id=generate_id(), span=span["span"]).model_dump() for span in request_model.segmentation]
 
-    storage = MockStorage()
+    storage = Storage()
     storage.store_base_text(expression_id=expression_id, manifestation_id=manifestation_id, base_text=request_model.content)
 
     # Build contributions based on text type
@@ -181,7 +180,7 @@ def _create_aligned_text(
             )
     except Exception as e:
         logger.error("Error creating aligned text: %s", e)
-        MockStorage().rollback_base_text(expression_id=expression_id, manifestation_id=manifestation_id)
+        Storage().rollback_base_text(expression_id=expression_id, manifestation_id=manifestation_id)
         raise e
 
     # Handle bibliography annotations in separate transaction
@@ -468,7 +467,7 @@ def get_instance_segment_content(manifestation_id: str) -> tuple[Response, int]:
         expression_id = segments_data[0]["expression_id"]
         
         # Load base text once
-        base_text = retrieve_base_text(expression_id=expression_id, manifestation_id=manifestation_id)
+        base_text = Storage().retrieve_base_text(expression_id=expression_id, manifestation_id=manifestation_id)
         
         # Extract content for each segment using their spans
         result = []
@@ -544,29 +543,12 @@ def _validate_span_parameters(span_start: str, span_end: str) -> tuple[bool, str
         return False, f"Invalid span parameters: {str(e)}", None
 
 
-def _get_segment_content(segment_id: str) -> tuple[bool, str, str]:
-    """Get content for a specific segment. Return (success, error_message, content)."""
-    try:
-        db = Neo4JDatabase()
-        segment, manifestation_id, expression_id = db._get_segment(segment_id)
-        base_text = retrieve_base_text(expression_id=expression_id, manifestation_id=manifestation_id)
-        
-        # Validate segment span bounds
-        if segment.span.end > len(base_text):
-            return False, f"segment span end ({segment.span.end}) exceeds base text length ({len(base_text)})", ""
-        
-        content = base_text[segment.span.start : segment.span.end]
-        return True, "", content
-    except Exception as e:
-        return False, f"Failed to retrieve segment content: {str(e)}", ""
-
-
 def _get_instance_content(instance_id: str, span: SpanModel) -> tuple[bool, str, str]:
     """Get content for an instance span. Return (success, error_message, content)."""
     try:
         db = Neo4JDatabase()
         _, expression_id = db.get_manifestation(instance_id)
-        base_text = retrieve_base_text(expression_id=expression_id, manifestation_id=instance_id)
+        base_text = Storage().retrieve_base_text(expression_id=expression_id, manifestation_id=instance_id)
         
         if span.end > len(base_text):
             return False, f"span end ({span.end}) exceeds base text length ({len(base_text)})", ""
