@@ -688,6 +688,32 @@ class Neo4JDatabase:
         with self.__driver.session() as session:
             return session.execute_write(lambda tx: self._execute_create_expression(tx, expression))
 
+    # def create_manifestation(
+    #     self,
+    #     manifestation: ManifestationModelInput,
+    #     expression_id: str,
+    #     manifestation_id: str,
+    #     annotation: AnnotationModel = None,
+    #     annotation_segments: list[dict] = None,
+    #     expression: ExpressionModelInput = None
+    # ) -> str:
+    #     def transaction_function(tx):
+    #         if expression:
+    #             self._execute_create_expression(tx, expression, expression_id)
+
+    #         self._execute_create_manifestation(tx, manifestation, expression_id, manifestation_id)
+    #         if annotation:
+    #             self._execute_add_annotation(tx, manifestation_id, annotation)
+    #             self._create_segments(tx, annotation.id, annotation_segments)
+    #             if annotation_segments and len(annotation_segments) > 0:
+    #                 if annotation_segments[0].get("reference", None) is not None:
+    #                     self._create_and_link_references(tx, annotation_segments)
+    #                 if annotation_segments[0].get("type", None) is not None:
+    #                     self._link_segment_and_bibliography_type(tx, annotation_segments)
+
+    #     with self.__driver.session() as session:
+    #         return session.execute_write(transaction_function)
+
     def create_manifestation(
         self,
         manifestation: ManifestationModelInput,
@@ -695,13 +721,16 @@ class Neo4JDatabase:
         manifestation_id: str,
         annotation: AnnotationModel = None,
         annotation_segments: list[dict] = None,
-        expression: ExpressionModelInput = None
-    ) -> str:
+        expression: ExpressionModelInput = None,
+        bibliography_annotation: AnnotationModel = None,
+        bibliography_segments: list[dict] = None
+        ) -> str:
         def transaction_function(tx):
             if expression:
                 self._execute_create_expression(tx, expression, expression_id)
 
             self._execute_create_manifestation(tx, manifestation, expression_id, manifestation_id)
+            
             if annotation:
                 self._execute_add_annotation(tx, manifestation_id, annotation)
                 self._create_segments(tx, annotation.id, annotation_segments)
@@ -710,12 +739,17 @@ class Neo4JDatabase:
                         self._create_and_link_references(tx, annotation_segments)
                     if annotation_segments[0].get("type", None) is not None:
                         self._link_segment_and_bibliography_type(tx, annotation_segments)
+            
+            # Add bibliography annotation in the same transaction
+            if bibliography_annotation:
+                self._execute_add_annotation(tx, manifestation_id, bibliography_annotation)
+                self._create_segments(tx, bibliography_annotation.id, bibliography_segments)
+                if bibliography_segments and len(bibliography_segments) > 0:
+                    self._link_segment_and_bibliography_type(tx, bibliography_segments)
 
         with self.__driver.session() as session:
             return session.execute_write(transaction_function)
 
-    
-    
     def add_annotation_to_manifestation(self, manifestation_id: str, annotation: AnnotationModel, annotation_segments: list[dict]):
         def transaction_function(tx):
             annotation_id = self._execute_add_annotation(tx, manifestation_id, annotation)
@@ -754,6 +788,43 @@ class Neo4JDatabase:
             return session.execute_write(transaction_function)
 
 
+    # def create_aligned_manifestation(
+    #     self,
+    #     expression: ExpressionModelInput,
+    #     expression_id: str,
+    #     manifestation_id: str,
+    #     manifestation: ManifestationModelInput,
+    #     target_manifestation_id: str,
+    #     segmentation: AnnotationModel,
+    #     segmentation_segments: list[dict],
+    #     alignment_annotation: AnnotationModel,
+    #     alignment_segments: list[dict],
+    #     target_annotation: AnnotationModel,
+    #     target_segments: list[dict],
+    #     alignments: list[dict],
+    # ) -> str:
+    #     def transaction_function(tx):
+    #         _ = self._execute_create_expression(tx, expression, expression_id)
+    #         self._execute_create_manifestation(tx, manifestation, expression_id, manifestation_id)
+
+    #         _ = self._execute_add_annotation(tx, manifestation_id, segmentation)
+    #         self._create_segments(tx, segmentation.id, segmentation_segments)
+    #         self._create_and_link_references(tx, segmentation_segments)
+
+    #         _ = self._execute_add_annotation(tx, target_manifestation_id, target_annotation)
+    #         self._create_segments(tx, target_annotation.id, target_segments)
+    #         self._create_and_link_references(tx, target_segments)
+
+    #         _ = self._execute_add_annotation(tx, manifestation_id, alignment_annotation)
+    #         self._create_segments(tx, alignment_annotation.id, alignment_segments)
+    #         self._create_and_link_references(tx, alignment_segments)
+
+    #         tx.run(Queries.segments["create_alignments_batch"], alignments=alignments)
+
+
+    #     with self.__driver.session() as session:
+    #         return session.execute_write(transaction_function)
+
     def create_aligned_manifestation(
         self,
         expression: ExpressionModelInput,
@@ -768,6 +839,8 @@ class Neo4JDatabase:
         target_annotation: AnnotationModel,
         target_segments: list[dict],
         alignments: list[dict],
+        bibliography_annotation: AnnotationModel = None,
+        bibliography_segments: list[dict] = None,
     ) -> str:
         def transaction_function(tx):
             _ = self._execute_create_expression(tx, expression, expression_id)
@@ -787,6 +860,12 @@ class Neo4JDatabase:
 
             tx.run(Queries.segments["create_alignments_batch"], alignments=alignments)
 
+            # Add bibliography annotation in the same transaction
+            if bibliography_annotation:
+                self._execute_add_annotation(tx, manifestation_id, bibliography_annotation)
+                self._create_segments(tx, bibliography_annotation.id, bibliography_segments)
+                if bibliography_segments and len(bibliography_segments) > 0:
+                    self._link_segment_and_bibliography_type(tx, bibliography_segments)
 
         with self.__driver.session() as session:
             return session.execute_write(transaction_function)
