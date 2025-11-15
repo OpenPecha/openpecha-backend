@@ -1011,6 +1011,9 @@ class Neo4JDatabase:
             tx.run(Queries.works["link_to_category"], work_id=work_id, category_id=expression.category_id)
 
         for contribution in expression.contributions:
+            # Validate that the role exists in the database
+            self.__validator.validate_role_exists(tx, contribution.role.value)
+            
             if isinstance(contribution, ContributionModel):
                 result = tx.run(
                     Queries.expressions["create_contribution"],
