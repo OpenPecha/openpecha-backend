@@ -3271,7 +3271,7 @@ paths:
           $ref: '#/components/responses/ServerError'
 
   /v2/segments/search:
-    post:
+    get:
       summary: Search segments with segmentation mapping
       description: >-
         Search segments by forwarding request to external search API and enriching results
@@ -3280,52 +3280,41 @@ paths:
         and adds them as segmentation_ids.
       tags:
         - Segments
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - query
-              properties:
-                query:
-                  type: string
-                  minLength: 1
-                  description: The search query text
-                search_type:
-                  type: string
-                  enum: [hybrid, bm25, semantic, exact]
-                  default: hybrid
-                  description: Type of search (hybrid, bm25, semantic, or exact)
-                limit:
-                  type: integer
-                  minimum: 1
-                  maximum: 100
-                  default: 10
-                  description: Maximum number of results to return
-                filter:
-                  type: object
-                  properties:
-                    title:
-                      type: string
-                      description: Filter results by title
-                  description: Optional filters to apply
-            examples:
-              hybrid_search:
-                summary: Hybrid search request
-                value:
-                  query: "བོད་ཀྱི་རིག་གནས།"
-                  search_type: "hybrid"
-                  limit: 10
-                  filter:
-                    title: "Kangyur"
-              semantic_search:
-                summary: Semantic search request
-                value:
-                  query: "Buddhist philosophy"
-                  search_type: "semantic"
-                  limit: 20
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+          description: The search query text
+          example: "བོད་ཀྱི་རིག་གནས།"
+        - name: search_type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [hybrid, bm25, semantic, exact]
+            default: hybrid
+          description: Type of search (hybrid, bm25, semantic, or exact)
+          example: "hybrid"
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+          description: Maximum number of results to return
+          example: 10
+        - name: title
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter results by title
+          example: "Kangyur"
       responses:
         "200":
           description: Search completed successfully with enriched results
