@@ -298,7 +298,15 @@ MATCH (e1)-[:EXPRESSION_OF]->(w:Work)
 MATCH (w)<-[:EXPRESSION_OF]-(e:Expression)
 WHERE e.id <> e1.id
 RETURN {Queries.expression_fragment('e')} AS expression
-"""
+""",
+    "title_search": f"""
+MATCH (lt:LocalizedText)<-[:HAS_LOCALIZATION]-(n:Nomen)
+MATCH (e:Expression)-[:HAS_TITLE]->(titleNomen:Nomen)
+WHERE lt.text CONTAINS $title
+  AND (n = titleNomen OR (n)-[:ALTERNATIVE_OF]->(titleNomen))
+MATCH (e)<-[:MANIFESTATION_OF]-(m:Manifestation)-[:HAS_TYPE]->(mt: ManifestationType {{name: 'critical'}})
+RETURN DISTINCT e.id as expression_id, lt.text as title, m.id as manifestation_id
+""",
 }
 
 Queries.persons = {
