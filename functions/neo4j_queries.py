@@ -289,6 +289,11 @@ MATCH (e1)-[:EXPRESSION_OF]->(w:Work)
 MATCH (w)<-[:EXPRESSION_OF]-(e:Expression)
 WHERE e.id <> e1.id
 RETURN {Queries.expression_fragment('e')} AS expression
+""",
+    "get_work_ids_by_expression_ids": """
+MATCH (e:Expression)-[:EXPRESSION_OF]->(w:Work)
+WHERE e.id IN $expression_ids
+RETURN e.id as expression_id, w.id as work_id
 """
 }
 

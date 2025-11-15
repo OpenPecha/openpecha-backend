@@ -290,6 +290,28 @@ class Neo4JDatabase:
             )
             return {record["manifestation_id"]: record["expression_id"] for record in result}
 
+    def get_work_ids_by_expression_ids(self, expression_ids: list[str]) -> dict[str, str]:
+        """
+        Get work IDs for a list of expression IDs.
+        
+        Args:
+            expression_ids: List of expression IDs
+            
+        Returns:
+            Dictionary mapping expression_id to work_id
+        """
+        if not expression_ids:
+            return {}
+        
+        with self.__driver.session() as session:
+            result = session.execute_read(
+                lambda tx: list(tx.run(
+                    Queries.expressions["get_work_ids_by_expression_ids"],
+                    expression_ids=expression_ids
+                ))
+            )
+            return {record["expression_id"]: record["work_id"] for record in result}
+
     def get_manifestations_metadata_by_ids(self, manifestation_ids: list[str]) -> dict[str, dict]:
         """
         Get metadata for a list of manifestation IDs.
