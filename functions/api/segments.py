@@ -75,6 +75,7 @@ def search_segments() -> tuple[Response, int]:
     search_type = request.args.get("search_type", "hybrid")
     limit = request.args.get("limit", 10, type=int)
     title_filter = request.args.get("title")
+    return_text = request.args.get("return_text", "true").lower() == "true"
     
     # Build search request model
     filter_obj = SearchFilterModel(title=title_filter) if title_filter else None
@@ -93,7 +94,8 @@ def search_segments() -> tuple[Response, int]:
         params = {
             "query": search_request.query,
             "search_type": search_request.search_type,
-            "limit": search_request.limit
+            "limit": search_request.limit,
+            "return_text": return_text
         }
         if search_request.filter and search_request.filter.title:
             params["title"] = search_request.filter.title
