@@ -204,6 +204,16 @@ class Neo4JDatabase:
             d = record.data()
             return self._process_manifestation_data(d["manifestation"]), d["expression_id"]
 
+    def get_expression_id_by_manifestation_id(self, manifestation_id: str) -> str:
+        with self.__driver.session() as session:
+            record = session.execute_read(
+                lambda tx: tx.run(Queries.manifestations["fetch_expression_id_by_manifestation_id"], manifestation_id=manifestation_id).single()
+            )
+            if record is None:
+                return None
+            d = record.data()
+            return d["expression_id"]
+
     def get_manifestation_by_annotation(self, annotation_id: str) -> tuple[ManifestationModelOutput, str] | None:
         with self.__driver.session() as session:
             record = session.execute_read(
