@@ -18,7 +18,7 @@ from models import (
     SegmentModel,
 )
 from neo4j_database import Neo4JDatabase
-from storage import Storage
+from storage import MockStorage
 from pecha_handling import retrieve_base_text
 from api.annotations import _alignment_annotation_mapping
 from exceptions import InvalidRequest
@@ -101,7 +101,7 @@ def _create_aligned_text(
     segmentation = AnnotationModel(id=segmentation_annotation_id, type=AnnotationType.SEGMENTATION)
     segmentation_segments = [SegmentModel(id=generate_id(), span=span["span"]).model_dump() for span in request_model.segmentation]
 
-    storage = Storage()
+    storage = MockStorage()
     storage.store_base_text(expression_id=expression_id, manifestation_id=manifestation_id, base_text=request_model.content)
 
     # Build contributions based on text type
@@ -181,7 +181,7 @@ def _create_aligned_text(
             )
     except Exception as e:
         logger.error("Error creating aligned text: %s", e)
-        Storage().rollback_base_text(expression_id=expression_id, manifestation_id=manifestation_id)
+        MockStorage().rollback_base_text(expression_id=expression_id, manifestation_id=manifestation_id)
         raise e
 
     # Handle bibliography annotations in separate transaction
