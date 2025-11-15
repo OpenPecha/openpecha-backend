@@ -181,3 +181,10 @@ def create_instance(expression_id: str) -> tuple[Response, int]:
     )
 
     return jsonify({"message": "Instance created successfully", "id": manifestation_id}), 201
+
+@texts_bp.route("/title-search/", methods=["GET"], strict_slashes=False)
+def title_search() -> tuple[Response, int]:
+    db = Neo4JDatabase()
+    title = request.args.get("title")
+    response_data = db.title_search(title=title)
+    return jsonify(response_data), 200

@@ -1732,3 +1732,21 @@ class Neo4JDatabase:
         return {
             "texts": expressions
         }
+    
+    def title_search(self, title: str) -> list[dict]:
+        with self.get_session() as session:
+            result = session.execute_read(
+                lambda tx: tx.run(
+                    Queries.expressions["title_search"],
+                    title=title
+                ).data()
+            )
+            result = [
+                {
+                    "text_id": record["expression_id"],
+                    "title": record["title"],
+                    "instance_id": record["manifestation_id"]
+                }
+                for record in result
+            ]
+            return result
