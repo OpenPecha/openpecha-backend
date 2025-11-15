@@ -7,10 +7,8 @@ class AnnotationForm {
         this.pechaDropdown = document.getElementById('pechaDropdown');
         this.parentAnnotation = document.getElementById('parentAnnotation');
         this.annotationTitle = document.getElementById('annotationTitle');
-        this.googleDocsUrl = document.getElementById('googleDocsUrl');
         this.toastContainer = document.getElementById('toastContainer');
         this.pechaLoadingSpinner = document.getElementById('pechaLoadingSpinner');
-        this.formLoadingSpinner = document.getElementById('formLoadingSpinner');
 
         // Existing annotations container elements
         this.existingAnnotationsContainer = document.getElementById('existingAnnotationsContainer');
@@ -21,6 +19,8 @@ class AnnotationForm {
         this.searchContainers = document.querySelectorAll('.select-search-container');
 
         this.metadata = null;
+        this.selectedAnnotation = null;
+
         // Bind methods to maintain 'this' context
         this.handleSubmit = this.handleSubmit.bind(this);
         this.handleAnnotationChange = this.handleAnnotationChange.bind(this);
@@ -28,9 +28,10 @@ class AnnotationForm {
         this.initializeSearchUI = this.initializeSearchUI.bind(this);
         this.toggleLoadingSpinner = this.toggleLoadingSpinner.bind(this);
         this.toggleAnnotations = this.toggleAnnotations.bind(this);
+        this.selectAnnotationForUpdate = this.selectAnnotationForUpdate.bind(this);
 
         // Initialize event listeners
-        this.initialize()
+        this.initialize();
     }
 
     async initialize() {
@@ -44,6 +45,7 @@ class AnnotationForm {
             this.showToast('Failed to initialize. Please refresh the page.', 'error');
         }
     }
+
     setupEventListeners() {
         this.form.addEventListener('submit', this.handleSubmit);
         this.pechaSelect.addEventListener('change', (e) => this.onPechaSelect(e.target.value));
@@ -253,9 +255,6 @@ class AnnotationForm {
             }
             this.parentAnnotation.innerHTML = '<option value="">Select annotation</option>';
             this.parentAnnotation.remove(1)
-            const parentPechaId = this.metadata.commentary_of ?? this.metadata.translation_of;
-            const annotations = await this.getAnnotation(parentPechaId);
-            this.annotations = this.extractAnnotations(annotations);
             this.annotations.forEach(annotation => {
                 const option = document.createElement('option');
                 option.value = annotation.path;
@@ -284,7 +283,7 @@ class AnnotationForm {
             }
 
             const metadata = await response.json();
-            console.log("meta ", metadata)
+            console.log("meta ", metadata);
             return metadata;
         } catch (error) {
             console.error('Error fetching metadata:', error);
@@ -319,9 +318,11 @@ class AnnotationForm {
 
     extractAnnotations(data) {
         return Object.entries(data).map(([id, details]) => ({
+            id: id,
             path: details.path,
             title: details.title,
-            type: details.type || 'no type'
+            type: details.type || 'no type',
+            aligned_to: details.aligned_to || null
         }));
     }
 
@@ -358,16 +359,22 @@ class AnnotationForm {
             annotationItems.forEach((item, index) => {
                 const annotationElem = document.createElement('div');
                 annotationElem.className = 'annotation-item';
+                annotationElem.dataset.id = item.id;
+                annotationElem.dataset.path = item.path;
+                annotationElem.dataset.title = item.title;
+                annotationElem.dataset.type = item.type;
+                if (item.aligned_to) {
+                    annotationElem.dataset.alignedTo = JSON.stringify(item.aligned_to);
+                }
 
-                // Create a container for the title and index
+                // Check if this annotation is currently selected
+                if (this.selectedAnnotation && this.selectedAnnotation.id === item.id) {
+                    annotationElem.classList.add('selected');
+                }
+
+                // Create a container for the title
                 const titleContainer = document.createElement('div');
                 titleContainer.className = 'title-container';
-
-                // Add index badge
-                const indexBadge = document.createElement('span');
-                indexBadge.className = 'index-badge';
-                indexBadge.textContent = index + 1;
-                titleContainer.appendChild(indexBadge);
 
                 // Add title
                 const titleSpan = document.createElement('span');
@@ -380,8 +387,20 @@ class AnnotationForm {
                 typeSpan.className = 'annotation-type';
                 typeSpan.textContent = ` (${item.type})`;
 
+                // Add edit button
+                const editButton = document.createElement('button');
+                editButton.className = 'edit-button';
+                editButton.innerHTML = '<i class="fas fa-edit"></i>';
+                editButton.type = 'button';
+                editButton.onclick = (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    this.selectAnnotationForUpdate(item);
+                };
+
                 annotationElem.appendChild(titleContainer);
                 annotationElem.appendChild(typeSpan);
+                annotationElem.appendChild(editButton);
 
                 this.existingAnnotationsList.appendChild(annotationElem);
             });
@@ -399,6 +418,55 @@ class AnnotationForm {
             this.existingAnnotationsList.classList.remove('collapsed');
             if (toggleBtn) toggleBtn.classList.remove('collapsed');
         }
+    }
+
+    // New method to select an annotation for updating - INSTANT VISUAL FEEDBACK
+    selectAnnotationForUpdate(annotation) {
+        // Remove selection from previously selected annotation INSTANTLY
+        const previouslySelected = this.existingAnnotationsList.querySelector('.annotation-item.selected');
+        if (previouslySelected) {
+            previouslySelected.classList.remove('selected');
+        }
+
+        this.selectedAnnotation = annotation;
+
+        // Add selection to the clicked annotation INSTANTLY
+        const clickedAnnotation = this.existingAnnotationsList.querySelector(`[data-id="${annotation.id}"]`);
+        if (clickedAnnotation) {
+            clickedAnnotation.classList.add('selected');
+        }
+
+        // Enable radio buttons and pre-fill the form with the selected annotation's data
+        this.annotationTypeInputs.forEach(input => {
+            input.disabled = false; // Enable all radio buttons
+            if (input.value === annotation.type) {
+                input.checked = true;
+            }
+        });
+        this.annotationTitle.value = annotation.title;
+
+        // Update the submit button text
+        const btnText = document.querySelector('#submitAnnotationBtn .btn-text');
+        if (btnText) {
+            btnText.textContent = 'Update Annotation';
+        }
+
+        // If it's an alignment annotation with a parent, set the parent annotation
+        if (annotation.aligned_to && annotation.aligned_to.pecha_id) {
+            this.pechaDropdown.value = annotation.aligned_to.pecha_id;
+
+            if (annotation.aligned_to.alignment_id) {
+                this.parentAnnotation.value = annotation.aligned_to.alignment_id;
+            }
+        }
+
+        // Scroll to the form
+        this.form.scrollIntoView({ behavior: 'smooth' });
+
+        // Focus on the title field instead of showing a toast
+        setTimeout(() => {
+            this.annotationTitle.focus();
+        }, 100);
     }
 
     async onPechaSelect(pechaId) {
@@ -431,12 +499,12 @@ class AnnotationForm {
             // Handle commentary/translation relationship annotations
             const isCommentaryOrTranslation = ('translation_of' in this.metadata && this.metadata.translation_of !== null) ||
                 ('commentary_of' in this.metadata && this.metadata.commentary_of !== null);
-            const isAlignment = this.annotationTypeInputs[0].checked;
+            const selectedAnnotationType = document.querySelector('input[name="annotation_type"]:checked');
+            const isAlignment = selectedAnnotationType?.value === 'alignment';
 
             if (isCommentaryOrTranslation && isAlignment) {
                 const parentPechaId = this.metadata.commentary_of ?? this.metadata.translation_of;
                 const annotations = await this.getAnnotation(parentPechaId);
-                console.log("annotations:::", annotations);
                 this.annotations = this.extractAnnotations(annotations);
                 console.log("annotation:", this.annotations);
             }
@@ -454,7 +522,6 @@ class AnnotationForm {
 
     async fetchPechaList(filterBy) {
         let body = { filter: {} };
-
 
         try {
             // Show loading spinner
@@ -543,13 +610,12 @@ class AnnotationForm {
                 data[field.name] = field.value;
             }
         });
-        // const annotationType = document.getElementById('annotation').value;
+
         // Format the data according to the required structure
         const formattedData = {
             pecha_id: data.pecha,
             type: data.annotation_type,
-            title: data.annotation_title,
-            document_id: this.extractGoogleDocsId(data.google_docs_id)
+            title: data.annotation_title
         };
 
         // Handle pecha_aligned_to based on whether it's a root pecha or not
@@ -558,23 +624,26 @@ class AnnotationForm {
             alignment_id: data.parentAnnotation || null
         } : null;
 
+        // If we're updating an existing annotation, include its ID/path
+        if (this.selectedAnnotation) {
+            formattedData.id = this.selectedAnnotation.id;
+            formattedData.path = this.selectedAnnotation.path;
+        }
+
         return formattedData;
     }
 
-    extractGoogleDocsId(url) {
-        // Extract Google Docs ID from URL
-        const match = url.match(/\/d\/([^\/]+)/);
-        return match && match[1] ? match[1] : url;
-    }
-
-    async submitAnnotation(formData) {
-        const response = await fetch(`${this.API_ENDPOINT}/annotation/`, {
-            method: 'POST',
-            body: formData
+    async updateAnnotation(formData) {
+        const response = await fetch(`${this.API_ENDPOINT}/annotation/${formData.id}`, {
+            method: 'PUT',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify(formData)
         });
 
         if (!response.ok) {
-            throw new Error('Failed to add annotation');
+            throw new Error('Failed to update annotation');
         }
 
         return response.json();
@@ -589,30 +658,32 @@ class AnnotationForm {
         if (submitBtn) submitBtn.disabled = true;
         if (btnText) btnText.style.display = 'none';
         if (btnSpinner) btnSpinner.style.display = 'inline-block';
-        console.log("submitBtn:::", submitBtn);
+
         try {
             const data = this.getFormData();
             const isValid = this.validateForm(data);
+
             if (!isValid) {
                 if (submitBtn) submitBtn.disabled = false;
                 if (btnText) btnText.style.display = '';
                 if (btnSpinner) btnSpinner.style.display = 'none';
                 return;
             }
-            // Fetch document and prepare form data concurrently
-            const blob = await downloadDoc(data.document_id).catch(err => {
-                throw new Error(`Download failed: ${err.message}`);
-            });
 
-            const formData = await this.prepareFormData(blob, data);
-            const response = await this.submitAnnotation(formData);
-            console.log("response:::", response);
+            if (!this.selectedAnnotation) {
+                throw new Error('No annotation selected for update');
+            }
 
-            this.showToast('Annotation added successfully!', 'success');
+            const response = await this.updateAnnotation(data);
+            console.log("update response:", response);
+
+            this.showToast('Annotation updated successfully!', 'success');
+
+            // Reset the form and selected annotation
             this.resetForm();
         } catch (error) {
             this.showToast(error.message, 'error');
-            console.error('Error adding annotation:', error);
+            console.error('Error updating annotation:', error);
         } finally {
             if (submitBtn) submitBtn.disabled = false;
             if (btnText) btnText.style.display = '';
@@ -620,134 +691,102 @@ class AnnotationForm {
         }
     }
 
-    // Helper methods to publish
-    async prepareFormData(blob, annotation) {
-        const formData = new FormData();
-        formData.append("document", blob, `document_${annotation.document_id}.docx`);
-        formData.append("annotation", JSON.stringify(annotation));
-        return formData;
+    showToast(message, type = 'info') {
+        const toast = document.createElement('div');
+        toast.className = `toast ${type}`;
+        toast.innerHTML = `${this.getToastIcon(type)} ${message}`;
+        this.toastContainer.appendChild(toast);
+
+        setTimeout(() => {
+            toast.remove();
+        }, 3000);
     }
 
-    showError(field, message) {
-        const formGroup = field.closest('.form-group');
-        const errorElement = formGroup.querySelector('.error-message');
-        formGroup.classList.add('error');
-        if (errorElement) {
-            errorElement.textContent = message;
+    getToastIcon(type) {
+        switch (type) {
+            case 'success':
+                return '<i class="fas fa-check-circle"></i>';
+            case 'error':
+                return '<i class="fas fa-exclamation-circle"></i>';
+            default:
+                return '<i class="fas fa-info-circle"></i>';
         }
     }
 
-    clearError(field) {
-        const formGroup = field.closest('.form-group');
-        const errorElement = formGroup.querySelector('.error-message');
-        formGroup.classList.remove('error');
-        if (errorElement) {
-            errorElement.textContent = '';
-        }
-    }
-
-    clearAllErrors() {
-        this.form.querySelectorAll('.form-group').forEach(group => {
-            group.classList.remove('error');
-            const errorElement = group.querySelector('.error-message');
-            if (errorElement) {
-                errorElement.textContent = '';
-            }
-        });
-        this.form.querySelector('.annotation-type-container')?.classList.remove('error');
+    highlightError(field) {
+        field.classList.add('error');
     }
 
     validateForm(data) {
-        this.clearAllErrors();
-        let isValid = true;
-
-        // Validate Pecha
         if (!data.pecha_id) {
-            this.showError(this.pechaSelect, 'Please select a Pecha');
-            isValid = false;
+            this.highlightError(this.pechaSelect);
+            this.showToast('Pecha is required', 'error');
+            return false;
         }
 
-        // Validate Annotation Type
-        const annotationType = document.querySelector('input[name="annotation_type"]:checked');
-        if (!annotationType) {
-            const container = document.querySelector('.annotation-type-container');
-            container.classList.add('error');
-            document.getElementById('annotationTypeError').textContent = 'Please select an annotation type';
-            isValid = false;
-        }
-
-        // Validate conditional fields for alignment
-        const isCommentaryOrTranslation = (this.metadata.type === 'translation') ||
-            (this.metadata.type === 'commentary');
-        const isAlignment = annotationType?.value === 'alignment';
+        const isCommentaryOrTranslation = ('translation_of' in this.metadata && this.metadata.translation_of !== null) || ('commentary_of' in this.metadata && this.metadata.commentary_of !== null);
+        const selectedAnnotationType = document.querySelector('input[name="annotation_type"]:checked');
+        const isAlignment = selectedAnnotationType?.value === 'alignment';
 
         if (isCommentaryOrTranslation && isAlignment) {
             if (!data.aligned_to.alignment_id) {
-                this.showError(this.parentAnnotation, 'Please select a parent annotation');
-                isValid = false;
+                this.highlightError(this.parentAnnotation);
+                this.showToast('Alignment annotation is required', 'error');
+                return false;
             }
         }
 
-        // Validate Title
         if (!data.title) {
-            this.showError(this.annotationTitle, 'Please enter an annotation title');
-            isValid = false;
-        } else {
-            // Check for duplicate titles
-            const existingItems = this.existingAnnotationsList.querySelectorAll('.annotation-item');
-            for (let i = 0; i < existingItems.length; i++) {
-                const titleElement = existingItems[i].querySelector('.annotation-title');
-                if (titleElement && titleElement.textContent.toLowerCase() === data.title.toLowerCase()) {
-                    this.showError(this.annotationTitle, 'An annotation with this title already exists');
-                    isValid = false;
-                    break;
-                }
+            this.highlightError(this.annotationTitle);
+            this.showToast('Annotation Title is required', 'error');
+            return false;
+        }
+
+        // Check for duplicate annotation titles (excluding the current one being edited)
+        const existingItems = this.existingAnnotationsList.querySelectorAll('.annotation-item');
+        for (let i = 0; i < existingItems.length; i++) {
+            const item = existingItems[i];
+            const titleElement = item.querySelector('.annotation-title');
+
+            // Skip checking the current annotation being edited
+            if (this.selectedAnnotation && item.dataset.id === this.selectedAnnotation.id) {
+                continue;
+            }
+
+            if (titleElement && titleElement.textContent.toLowerCase() === data.title.toLowerCase()) {
+                this.highlightError(this.annotationTitle);
+                this.showToast('An annotation with this title already exists for this pecha. Please use a different title.', 'error');
+                return false;
             }
         }
 
-        // Validate Google Docs URL
-        if (!data.document_id) {
-            this.showError(this.googleDocsUrl, 'Please enter a Google Docs URL');
-            isValid = false;
-        } else if (!data.document_id) {
-            this.showError(this.googleDocsUrl, 'Please enter a valid Google Docs URL');
-            isValid = false;
-        }
-
-        return isValid;
-    }
-
-    showToast(message, type = 'info') {
-        const icons = {
-            success: '<i class="fas fa-check-circle"></i>',
-            error: '<i class="fas fa-exclamation-circle"></i>',
-            info: '<i class="fas fa-info-circle"></i>'
-        };
-
-        const toast = document.createElement('div');
-        toast.className = `toast ${type}`;
-        toast.innerHTML = `${icons[type]} ${message}`;
-        this.toastContainer.appendChild(toast);
-
-        // Remove existing toasts
-        const existingToasts = this.toastContainer.querySelectorAll('.toast');
-        existingToasts.forEach((t, i) => {
-            if (t !== toast) {
-                t.remove();
-            }
-        });
-
-        setTimeout(() => {
-            toast.style.animation = 'slideIn 0.3s ease reverse';
-            setTimeout(() => toast.remove(), 300);
-        }, 5000);
+        return true;
     }
 
     resetForm() {
         this.form.reset();
-        this.toggleConditionalFields('');
-    }
+        this.selectedAnnotation = null;
 
+        // Uncheck all radio buttons and disable them
+        this.annotationTypeInputs.forEach(input => {
+            input.checked = false;
+            input.disabled = true; // Disable radio buttons
+        });
+
+        this.toggleConditionalFields();
+
+        // Reset the submit button text
+        const btnText = document.querySelector('#submitAnnotationBtn .btn-text');
+        if (btnText) {
+            btnText.textContent = 'Update Annotation';
+        }
+
+        // Remove selection from any selected annotation INSTANTLY
+        const selectedAnnotation = this.existingAnnotationsList.querySelector('.annotation-item.selected');
+        if (selectedAnnotation) {
+            selectedAnnotation.classList.remove('selected');
+        }
+    }
 }
 
 // Initialize the form when the DOM is loaded

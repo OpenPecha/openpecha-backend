@@ -1,217 +1,179 @@
-openapi: '3.1.0'
+openapi: 3.0.3
 info:
-  title: OpenPecha API
-  version: '0.1.0'
+  title: OpenPecha API v2
+  version: '2.1.0'
 servers:
+  - url: http://127.0.0.1:5001/pecha-backend-dev/us-central1/api
+    description: Local Development
   - url: https://api-l25bgmwqoa-uc.a.run.app
     description: Development
   - url: https://api-aq25662yyq-uc.a.run.app
     description: Production
 
 paths:
-  /pecha:
-    post:
-      summary: Create a Pecha
-      description: Accepts either a text document (.docx) or BDRC OCR data (zipped) along with associated metadata in JSON format, processes them, and stores the resulting Pecha in the database.
+  /v2/instances/{instance_id}:
+    get:
+      summary: Retrieve instance by instance ID
+      description: Fetch instance content for a given instance ID. Optionally include non-alignment annotations using the 'annotation' query parameter.
       tags:
-        - Pecha
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              required:
-                - metadata
-              oneOf:
-                - required: [text]
-                - required: [data]
-              properties:
-                text:
-                  type: string
-                  format: binary
-                  description: The uploaded text file (must be .docx format). Either this or 'data' must be provided, but not both.
-                data:
-                  type: string
-                  format: binary
-                  description: BDRC OCR files in ZIP format. Either this or 'text' must be provided, but not both.
-                metadata:
-                  type: string
-                  format: json
-                  description: JSON-encoded metadata describing the document. The structure follows [metadata schema](https://pecha-backend.web.app/schema/metadata).
-                annotation_type:
-                  type: string
-                  enum: [citation, sabche]
-                  description: The type of annotation to be created for this Pecha.
+        - Instances
+      parameters:
+        - name: instance_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the instance to retrieve
+        - name: annotation
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: Whether to include annotations (alignment annotations are excluded)
+        - name: content
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: Whether to include content (base text)
       responses:
         "200":
-          description: Successfully published the text document.
+          description: Instance retrieved successfully
           content:
             application/json:
               schema:
                 type: object
                 properties:
-                  message:
+                  content:
                     type: string
-                    examples:
-                      - Text published successfully
-                  id:
-                    type: string
-                    description: The ID of the newly created Pecha.
-                    examples: 
-                      - I857977C3
-                  title:
-                    type: string
-                    description: The title of the newly created Pecha, in the language of the text
-                    examples:
-                      - "Illuminating the Intent"
-        "400":
-          $ref: '#/components/responses/InvalidRequest'
-        "409":
-          $ref: '#/components/responses/ConflictError'
-        "422":
-          $ref: '#/components/responses/ValidationError'
-        "500":
-          $ref: '#/components/responses/ServerError'
-  /pecha/{pecha_id}:
-    get:
-      summary: Retrieve a Pecha OPF File
-      description: Returns the OPF ZIP file for a given Pecha ID.
-      tags:
-        - Pecha
-      parameters:
-        - name: pecha_id
-          in: path
-          required: true
-          schema:
-            type: string
-          description: The ID of the Pecha whose OPF file is requested.
-      responses:
-        "200":
-          description: Successfully retrieved the OPF ZIP file.
-          content:
-            application/zip:
-              schema:
-                type: string
-                format: binary
+                  metadata:
+                    type: object
+                    properties:
+                      id:
+                        type: string
+                      type:
+                        type: string
+                        enum: [diplomatic, critical]
+                      source:
+                        type: string
+                        nullable: true
+                      bdrc:
+                        type: string
+                      wiki:
+                        type: string
+                      colophon:
+                        type: string
+                      incipit_title:
+                        type: object
+                        additionalProperties:
+                          type: string
+                      alt_incipit_titles:
+                        type: array
+                        items:
+                          type: object
+                          additionalProperties:
+                            type: string
+                  annotations:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        annotation_id:
+                          type: string
+                        type:
+                          type: string
+                          enum: [segmentation, version]
               examples:
-                success:
-                  summary: OPF ZIP File Download
-                  description: The OPF ZIP file for a given Pecha ID.
-                  value: (binary content of the ZIP file)
-          headers:
-            Content-Disposition:
-              description: Suggests the filename for download.
-              schema:
-                type: string
-              examples:
-                attachment:
-                  summary: File Attachment Header
-                  description: Indicates the file should be downloaded.
-                  value: "attachment; filename=I857977C3.zip"
+                with_annotations_no_content:
+                  summary: Instance with metadata, annotation without content
+                  value:
+                    metadata:
+                      id: "I12345678"
+                      type: "critical"
+                      source: "source-name"
+                      bdrc: "W123456"
+                      wiki: "Q123456"
+                      colophon: "colophon text"
+                      incipit_title:
+                        en: "English incipit title"
+                        bo: "Tibetan incipit title"
+                      alt_incipit_titles:
+                        - en: "Alt title 1"
+                        - bo: "Alt title 2"
+                    annotations:
+                      - annotation_id: "A12345678"
+                        type: "segmentation"
+                with_content_no_annotations:
+                  summary: Instance with metadata, content without annotations
+                  value:
+                    content: "This is the base text content"
+                    metadata:
+                      id: "I12345678"
+                      type: "critical"
+                      source: "source-name"
+                      bdrc: "W123456"
+                      wiki: "Q123456"
+                      colophon: "colophon text"
+                      incipit_title:
+                        en: "English incipit title"
+                        bo: "Tibetan incipit title"
+                      alt_incipit_titles:
+                        - en: "Alt title 1"
+                        - bo: "Alt title 2"
+                with_content_and_annotations:
+                  summary: Instance with metadata, annotations and content
+                  value:
+                    content: "This is the base text content"
+                    metadata:
+                      id: "I12345678"
+                      type: "critical"
+                      source: "source-name"
+                      bdrc: "W123456"
+                      wiki: "Q123456"
+                      colophon: "colophon text"
+                      incipit_title:
+                        en: "English incipit title"
+                        bo: "Tibetan incipit title"
+                      alt_incipit_titles:
+                        - en: "Alt title 1"
+                        - bo: "Alt title 2"
+                    annotations:
+                      - annotation_id: "A12345678"
+                        type: "segmentation"
         "400":
           $ref: '#/components/responses/InvalidRequest'
         "404":
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/ServerError'
-    delete:
-      summary: Delete a Pecha
-      description: Deletes a Pecha from the database.
-      tags:
-        - Pecha
-      parameters:
-        - name: pecha_id
-          in: path
-          required: true
-          schema:
-            type: string
-          description: The ID of the Pecha to be deleted.
-      responses:
-        "200":
-          description: Pecha deleted successfully.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  id:
-                    type: string
-                    examples:
-                      - I857977C3
-                  message:
-                    type: string
-                    examples:
-                      - Pecha deleted successfully
-        "400":
-          $ref: '#/components/responses/InvalidRequest'
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "500":
-          $ref: '#/components/responses/ServerError'
-  /pecha/{pecha_id}/publish:
-    post:
-      summary: Publish a Pecha to Pecha.org
-      description: The Pecha referenced by the ID in the path will be serialized, and the result uploaded to Pecha.org
-      tags:
-        - Pecha
-      parameters:
-        - name: pecha_id
-          in: path
-          required: true
-          schema:
-            type: string
-          description: The ID of the Pecha to be published.
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                destination_url:
-                  type: string
-                  format: uri
-                  description: The destination URL to publish the Pecha to.
-                  example: "https://staging.openpecha.org"
-                base_language:
-                  type: string
-                  description: The base language of the Pecha.
-                  default: bo
-                annotation_id:
-                  type: string
-                  description: The ID of the annotation to use when serializing the Pecha.
-                  example: A12345678
-                  pattern: '^A[0-9A-F]{8}$'
-      responses:
-        "200":
-          description: Pecha published successfully.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    examples:
-                      - Pecha published successfully
-                  id:
-                    type: string
-                    examples: 
-                    - I857977C3
-        "400":
-          $ref: '#/components/responses/InvalidRequest'
-        "500":
-          $ref: '#/components/responses/ServerError'
-  /languages:
+  /v2/instances/{instance_id}/related:
     get:
-      summary: Retrieve the list of available languages
-      description: Fetches all available languages from DB, returning an array where each item contains a language code and name.
+      summary: Find related instances
+      description: >-
+        Find all manifestations with alignment relationships to the given instance.
+        Works bidirectionally: returns translations/commentaries for root texts, or root texts for translations/commentaries.
+        Optionally filter by relationship type (translation/commentary).
       tags:
-        - Other
+        - Instances
+      parameters:
+        - name: instance_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the instance to find related instances for
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [translation, commentary, root]
+          description: Optional filter to only return instances of a specific relationship type
       responses:
         "200":
-          description: Successfully retrieved the list of languages.
+          description: Related instances retrieved successfully
           content:
             application/json:
               schema:
@@ -219,71 +181,1873 @@ paths:
                 items:
                   type: object
                   properties:
-                    code:
+                    instance_id:
                       type: string
-                      description: The ISO language code.
-                      examples:
-                        - bo
-                    name:
+                      description: The ID of the related manifestation
+                    metadata:
+                      type: object
+                      description: Essential manifestation and expression metadata
+                      properties:
+                        instance_type:
+                          type: string
+                          enum: [diplomatic, critical]
+                          description: Instance type
+                        source:
+                          type: string
+                          description: Source of the manifestation
+                        text_id:
+                          type: string
+                          description: Text ID
+                        title:
+                          type: object
+                          description: Expression title in localized format
+                        alt_titles:
+                          type: array
+                          items:
+                            type: object
+                          description: Alternative titles
+                        language:
+                          type: string
+                          description: Language code
+                        contributions:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              person_id:
+                                type: string
+                                description: Person identifier (for person contributions)
+                              ai_id:
+                                type: string
+                                description: AI identifier (for AI contributions)
+                              role:
+                                type: string
+                                enum: [translator, reviser, author, scholar]
+                                description: Contributor role
+                          description: Contributors list
+                    annotation:
                       type: string
-                      description: The name of the language.
-                      examples:
-                        - Tibetan
+                      description: The alignment annotation ID (from the source manifestation with aligned_to set)
+                    relationship:
+                      type: string
+                      enum: [translation, commentary, root]
+                      description: The type of relationship between the instances
+              examples:
+                translation_example:
+                  summary: Translation of a root text
+                  value:
+                    - instance_id: "I87654321"
+                      metadata:
+                        instance_type: "critical"
+                        source: "source-name"
+                        text_id: "E12345678"
+                        title:
+                          en: "Heart Sutra - English Translation"
+                          bo: "ཤེས་རབ་སྙིང་པོ་དབྱིན་སྐད།"
+                        alt_titles:
+                          - en: "Prajnaparamita Heart Sutra"
+                        language: "en"
+                        contributions:
+                          - person_id: "P12345678"
+                            role: "translator"
+                          - person_id: "P87654321"
+                            role: "reviser"
+                      annotation: "A98765432"
+                      relationship: "translation"
+                    - instance_id: "I87654322"
+                      metadata:
+                        instance_type: "critical"
+                        source: "source-name"
+                        text_id: "E12345679"
+                        title:
+                          zh: "心经 - 中文翻译"
+                        alt_titles: []
+                        language: "zh"
+                        contributions:
+                          - person_id: "P23456789"
+                            role: "translator"
+                      annotation: "A98765433"
+                      relationship: "translation"
+                ai_contribution_example:
+                  summary: AI-generated translation
+                  value:
+                    - instance_id: "I87654323"
+                      metadata:
+                        instance_type: "critical"
+                        source: "source-name"
+
+                        text_id: "E12345680"
+                        title:
+                          en: "AI Generated Translation"
+                        alt_titles: []
+                        language: "en"
+                        contributions:
+                          - ai_id: "gpt-4"
+                            role: "translator"
+                      annotation: "A98765434"
+                      relationship: "translation"
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/ServerError'
-  /metadata/{pecha_id}:
+
+  /v2/instances/{instance_id}/segment-related:
     get:
-      summary: Retrieve metadata by Pecha ID
-      description: Fetch metadata associated with the given Pecha
+      summary: Find related segments or spans for an instance
+      description: >-
+        Exactly one of `segment_id` or (`span_start` and `span_end`) must be provided.
+        - If `segment_id` is provided, returns related segments across manifestations.
+        - If `span_start` and `span_end` are provided, returns manifestations with merged spans overlapping the given range.
+        - If both are provided, `segment_id` takes precedence.
       tags:
-        - Metadata
+        - Instances
       parameters:
-        - name: pecha_id
+        - name: instance_id
           in: path
           required: true
-          description: The Pecha whose metadata is being requested.
           schema:
             type: string
+          description: The ID of the instance to search within (used when querying by span)
+        - name: segment_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Segment ID to find related segments across other manifestations
+        - name: span_start
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+          description: Inclusive start offset when searching by span
+        - name: span_end
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+          description: Exclusive end offset (must be greater than span_start)
+        - name: transform
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+          description: Whether to transfer alignments to segmentation layer. If false (default), returns alignment annotation segments. If true, returns segmentation annotation segments.
+      responses:
+        "200":
+          description: Related items retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                description: List of related manifestations with their segments. Same format for both transfer modes - only segment source differs (alignment vs segmentation annotation).
+                items:
+                  type: object
+                  required: [text, instance, segments]
+                  properties:
+                    text:
+                      type: object
+                      description: Expression (text) metadata
+                      additionalProperties: true
+                    instance:
+                      type: object
+                      description: Manifestation (instance) metadata
+                      additionalProperties: true
+                    segments:
+                      type: array
+                      description: Segments from alignment annotation (transfer=false) or segmentation annotation (transfer=true)
+                      items:
+                        type: object
+                        required: [id, span]
+                        properties:
+                          id:
+                            type: string
+                            description: Segment ID
+                          span:
+                            type: object
+                            required: [start, end]
+                            properties:
+                              start:
+                                type: integer
+                                minimum: 0
+                                description: Inclusive start offset
+                              end:
+                                type: integer
+                                minimum: 1
+                                description: Exclusive end offset
+              examples:
+                untransform:
+                  summary: Related segments without transfer (alignment annotation)
+                  value:
+                    - text:
+                        id: "E123"
+                        type: "translation"
+                        language: "en"
+                        title: { en: "English Translation" }
+                      instance:
+                        id: "I456"
+                        type: "critical"
+                        source: "source-name"
+                      segments:
+                        - id: "SEG789"
+                          span: { start: 50, end: 90 }
+                        - id: "SEG790"
+                          span: { start: 90, end: 120 }
+                transform:
+                  summary: Related segments with transfer (segmentation annotation)
+                  value:
+                    - text:
+                        id: "E123"
+                        type: "translation"
+                        language: "en"
+                        title: { en: "English Translation" }
+                      instance:
+                        id: "I456"
+                        type: "critical"
+                        source: "source-name"
+                      segments:
+                        - id: "SEG_S101"
+                          span: { start: 50, end: 75 }
+                        - id: "SEG_S102"
+                          span: { start: 75, end: 100 }
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              examples:
+                missing_params:
+                  summary: Neither segment_id nor span provided
+                  value:
+                    error: "No segment ID or span provided"
+                segment_mismatch:
+                  summary: Segment does not belong to manifestation
+                  value:
+                    error: "Segment SEG123 does not belong to manifestation M456"
+        "404":
+          description: Not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              examples:
+                no_segments:
+                  summary: No segments found for span
+                  value:
+                    error: "No segments found containing span [0, 100) in instance 'I12345678'"
+        "422":
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              examples:
+                span_minimum:
+                  summary: Invalid span values
+                  value:
+                    error: "Input should be greater than or equal to 0"
+                invalid_span_type:
+                  summary: Invalid span type in SegmentModel
+                  value:
+                    error: "Input should be a valid dictionary or instance of SpanModel"
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+  # /v2/instances/{instance_id}/related:
+  
+  /v2/instances/{instance_id}/segment-content:
+    get:
+      summary: Get text content (unified endpoint)
+      description: |
+        Unified endpoint to retrieve text content from either:
+        1. One or more specific segments using segment_id parameter(s) (within the given instance)
+        2. An instance excerpt using span_start and span_end parameters
+        
+        **Validation constraints:**
+        - If segment_id(s) are provided: cannot use span_start or span_end parameters
+        - If using span approach: must provide span_start and span_end, cannot use segment_id
+        - Must provide either segment_id(s) OR span_start and span_end (mutually exclusive)
+        - Multiple segment IDs can be provided as repeated query parameters OR as a single comma-separated string
+        - Examples: ?segment_id=SEG001&segment_id=SEG002 OR ?segment_id=SEG001,SEG002
+      tags:
+        - Instances
+      parameters:
+        - name: instance_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the instance to retrieve content from
+        - name: segment_id
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: string
+          style: form
+          explode: false
+          description: List of segment IDs to retrieve content for (alternative to span approach). Can provide multiple segment_id parameters OR a single comma-separated string of segment IDs.
+        - name: span_start
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+          description: Start character position of the excerpt (required when using span approach)
+        - name: span_end
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+          description: End character position of the excerpt (required when using span approach)
+      responses:
+        "200":
+          description: Text content retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                description: List of segment content dictionaries
+                items:
+                  type: object
+                  properties:
+                    segment_id:
+                      type: string
+                      nullable: true
+                      description: Segment ID (null for span-based content)
+                    content:
+                      type: string
+                      description: The extracted text content
+                  required:
+                    - segment_id
+                    - content
+              examples:
+                segment_content:
+                  summary: Content retrieved by single segment ID
+                  value:
+                    - segment_id: "SEG001"
+                      content: "This is the text content of the segment."
+                multiple_segments_content:
+                  summary: Content retrieved by multiple segment IDs
+                  value:
+                    - segment_id: "SEG001"
+                      content: "This is the first segment content."
+                    - segment_id: "SEG002"
+                      content: "This is the second segment content."
+                    - segment_id: "SEG003"
+                      content: "This is the third segment content."
+                manifestation_excerpt:
+                  summary: Content retrieved by manifestation span
+                  value:
+                    - segment_id: null
+                      content: "This is the text content from the specified span."
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message
+              examples:
+                missing_parameters:
+                  summary: Neither segment_id nor span parameters provided
+                  value:
+                    error: "Either segment_id OR span_start and span_end is required"
+                conflicting_parameters:
+                  summary: Both segment_id and span parameters provided
+                  value:
+                    error: "Cannot provide both segment_id and span parameters. Use one approach only."
+                segment_with_span:
+                  summary: Segment approach with span parameters
+                  value:
+                    error: "When using segment_id, do not provide span_start or span_end parameters."
+                missing_span:
+                  summary: Missing span parameters for span approach
+                  value:
+                    error: "span_start and span_end parameters are required when using span approach"
+                invalid_span:
+                  summary: Invalid span parameters (handled by SpanModel)
+                  value:
+                    error: "Invalid span parameters: 'start' must be less than 'end'"
+                segment_span_exceeds:
+                  summary: Segment span exceeds text length
+                  value:
+                    error: "segment span end (1000) exceeds base text length (500)"
+                instance_span_exceeds:
+                  summary: Instance span exceeds text length
+                  value:
+                    error: "span end (1000) exceeds base text length (500)"
+        "404":
+          description: Resource not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    description: Error message
+              examples:
+                segment_not_found:
+                  summary: Segment not found
+                  value:
+                    error: "Failed to retrieve segment content: Segment with ID 'SEG123' not found"
+                instance_not_found:
+                  summary: Instance not found
+                  value:
+                    error: "Failed to retrieve instance content: Instance with ID 'INST123' not found"
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+  /v2/texts/{text_id}/instances:
+    get:
+      summary: Get instances for text
+      description: Retrieve all instances associated with a text. Optionally filter by instance type (manifestation type).
+      tags:
+        - Instances
+      parameters:
+        - name: text_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the text
+        - name: instance_type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [diplomatic, critical, all]
+            default: all
+          description: Filter instances by type. Use 'diplomatic' for diplomatic editions, 'critical' for critical editions, or 'all' to retrieve all types (default).
+      responses:
+        "200":
+          description: Instances retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    type:
+                      type: string
+                      enum: [diplomatic, critical]
+                    source:
+                      type: string
+                      nullable: true
+                    bdrc:
+                      type: string
+                    wiki:
+                      type: string
+                    colophon:
+                      type: string
+                    incipit_title:
+                      type: object
+                      additionalProperties:
+                        type: string
+                    alt_incipit_titles:
+                      type: array
+                      items:
+                        type: object
+                        additionalProperties:
+                          type: string
+              examples:
+                success:
+                  summary: List of instances
+                  value:
+                    - alt_incipit_titles: []
+                      bdrc: "W123456"
+                      colophon: "Sample colophon text"
+                      incipit_title:
+                        bo: "དབུ་ཚིག"
+                        en: "Opening words"
+                      type: "diplomatic"
+                      wiki: null
+                    - alt_incipit_titles: []
+                      bdrc: "W123456"
+                      colophon: "Sample colophon text"
+                      incipit_title:
+                        bo: "དབུ་ཚིག"
+                        en: "Opening words"
+                      type: "diplomatic"
+                      wiki: null
+                    - alt_incipit_titles: []
+                      bdrc: "W123456"
+                      colophon: "Sample colophon text"
+                      incipit_title:
+                        bo: "དབུ་ཚིག"
+                        en: "Opening words"
+                      type: "diplomatic"
+                      wiki: null
+                    - alt_incipit_titles: []
+                      bdrc: "W123456"
+                      colophon: "Sample colophon text"
+                      incipit_title:
+                        bo: "དབུ་ཚིག"
+                        en: "Opening words"
+                      type: "diplomatic"
+                      wiki: null
+                    - alt_incipit_titles: []
+                      bdrc: "W123456"
+                      colophon: "Sample colophon text"
+                      incipit_title:
+                        bo: "དབུ་ཚིག"
+                        en: "Opening words"
+                      type: "critical"
+                      wiki: null
+                    - alt_incipit_titles: []
+                      bdrc: "W123456"
+                      colophon: "Sample colophon text"
+                      incipit_title: null
+                      type: "diplomatic"
+                      wiki: null
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+    post:
+      summary: Create a new instance
+      description: Create a new instance with metadata for a specific text
+      tags:
+        - Instances
+      parameters:
+        - name: text_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the text to create an instance for
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - metadata
+                - content
+              properties:
+                metadata:
+                  type: object
+                  required:
+                    - type
+                    - source
+                  properties:
+                    type:
+                      type: string
+                      enum: [diplomatic, critical]
+                      description: Type of manifestation
+                    source:
+                      type: string
+                      nullable: true
+                      description: Source identifier for the manifestation
+                    bdrc:
+                      type: string
+                      description: BDRC identifier (required for diplomatic type)
+                    wiki:
+                      type: string
+                      description: Wiki identifier
+                    colophon:
+                      type: string
+                      description: Colophon text
+                    incipit_title:
+                      type: object
+                      additionalProperties:
+                        type: string
+                      description: Localized incipit title
+                    alt_incipit_titles:
+                      type: array
+                      items:
+                        type: object
+                        additionalProperties:
+                          type: string
+                      description: Alternative localized incipit titles
+                annotation:
+                  type: array
+                  items:
+                    oneOf:
+                      - type: object
+                        required: [span]
+                        properties:
+                          span:
+                            type: object
+                            required: [start, end]
+                            properties:
+                              start:
+                                type: integer
+                                minimum: 0
+                                description: Start character position (inclusive)
+                              end:
+                                type: integer
+                                minimum: 1
+                                description: End character position (exclusive)
+                        description: Segmentation annotation (for CRITICAL manifestations)
+                      - type: object
+                        required: [span, reference]
+                        properties:
+                          span:
+                            type: object
+                            required: [start, end]
+                            properties:
+                              start:
+                                type: integer
+                                minimum: 0
+                                description: Start character position (inclusive)
+                              end:
+                                type: integer
+                                minimum: 1
+                                description: End character position (exclusive)
+                          reference:
+                            type: string
+                            description: Page/folio reference for the span
+                        description: Pagination annotation (for DIPLOMATIC manifestations)
+                      - type: object
+                        required: [span, type]
+                        properties:
+                          span:
+                            type: object
+                            required: [start, end]
+                            properties:
+                              start:
+                                type: integer
+                                minimum: 0
+                                description: Start character position (inclusive)
+                              end:
+                                type: integer
+                                minimum: 1
+                                description: End character position (exclusive)
+                          type:
+                            type: string
+                            enum: [colophon, title, incipit_title, author]
+                            description: Type of bibliography annotation
+                        description: Bibliography annotation
+                  description: Segmentation or pagination or bibliography annotation segments
+                biblography_annotation:
+                  type: array
+                  items:
+                    type: object
+                    required: [span, type]
+                    properties:
+                      span:
+                        type: object
+                        required: [start, end]
+                        properties:
+                          start:
+                            type: integer
+                            minimum: 0
+                            description: Start character position (inclusive)
+                          end:
+                            type: integer
+                            minimum: 1
+                            description: End character position (exclusive)
+                      type:
+                        type: string
+                        enum: [colophon, title, incipit_title, author]
+                        description: Type of bibliography annotation
+                  description: Bibliography annotation segments with bibliography type
+                content:
+                  type: string
+                  description: The text content
+            examples:
+              valid_diplomatic_instance_with_annotation:
+                summary: Valid diplomatic instance creation with annotation
+                value:
+                  metadata:
+                    type: "diplomatic"
+                    source: "source-name"
+                    bdrc: "W123456"
+                    colophon: "Sample colophon text"
+                    incipit_title:
+                      en: "Opening words"
+                      bo: "དབུ་ཚིག"
+                  annotation:
+                    - span:
+                        start: 0
+                        end: 10
+                      reference: "https://example.com/image1.png"
+                    - span:
+                        start: 11
+                        end: 20
+                      reference: "https://example.com/image2.png"
+                  content: "This is the text content to be stored"     
+              valid_critical_instance_with_annotation:
+                summary: Valid critical instance creation with annotation
+                value:
+                  metadata:
+                    type: "critical"
+                    source: "source-name"
+                    colophon: "Sample colophon text"
+                    incipit_title:
+                      en: "Opening words"
+                      bo: "དབུ་ཚིག"
+                  annotation:
+                    - span:
+                        start: 0
+                        end: 10
+                    - span:
+                        start: 10
+                        end: 20
+                  content: "This is the text content to be stored"           
+              valid_critical_instance_without_annotation:
+                summary: Valid critical instance creation without annotation
+                value:
+                  metadata:
+                    type: "critical"
+                    source: "source-name"
+                    colophon: "Sample colophon text"
+                    incipit_title:
+                      en: "Opening words"
+                      bo: "དབུ་ཚིག"
+                  content: "This is the text content to be stored"          
+              valid_diplomatic_instance_without_annotation:
+                summary: Valid diplomatic instance creation without annotation
+                value:
+                  metadata:
+                    type: "diplomatic"
+                    source: "source-name"
+                    bdrc: "W123456"
+                    colophon: "Sample colophon text"
+                    incipit_title:
+                      en: "Opening words"
+                      bo: "དབུ་ཚིག"
+                  content: "This is the text content to be stored"
+              valid_diplomatic_instance_with_bibliography_annotation:
+                summary: Valid diplomatic instance creation with bibliography annotation
+                value:
+                  metadata:
+                    type: "diplomatic"
+                    source: "source-name"
+                    bdrc: "W123456"
+                    colophon: "Sample colophon text"
+                    incipit_title:
+                      en: "Opening words"
+                      bo: "དབུ་ཚིག"
+                  annotation:
+                    - span:
+                        start: 0
+                        end: 10
+                      reference: "ref-001"
+                    - span:
+                        start: 10
+                        end: 20
+                      reference: "ref-002"
+                  biblography_annotation:
+                    - span:
+                        start: 5
+                        end: 15
+                      type: "colophon"
+                    - span:
+                        start: 20
+                        end: 30
+                      type: "title"
+                  content: "This is the text content to be stored"  
+              valid_critical_instance_with_bibliography_annotation:
+                summary: Valid critical instance creation with bibliography annotation
+                value:
+                  metadata:
+                    type: "critical"
+                    source: "source-name"
+                    colophon: "Sample colophon text"
+                    incipit_title:
+                      en: "Opening words"
+                      bo: "དབུ་ཚིག"
+                  annotation:
+                    - span:
+                        start: 0
+                        end: 10
+                    - span:
+                        start: 10
+                        end: 20
+                  biblography_annotation:
+                    - span:
+                        start: 5
+                        end: 15
+                      type: "colophon"
+                    - span:
+                        start: 20
+                        end: 30
+                      type: "title"
+                  content: "This is the text content to be stored"                           
+      responses:
+        "201":
+          description: Instance created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - "Instance created successfully"
+                  id:
+                    type: string
+                    examples:
+                      - "ABC12345678"
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "422":
+          $ref: '#/components/responses/ValidationError'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+  /v2/instances/{instance_id}/translation:
+    post:
+      summary: Create a translation
+      description: Create a translation of an existing instance
+      tags:
+        - Instances
+      parameters:
+        - name: instance_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the original instance to translate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - language
+                - content
+                - title
+                - source
+                - segmentation
+                - copyright
+                - license
+              properties:
+                language:
+                  type: string
+                  enum: [en, bo, zh, sa]
+                  description: Target language code
+                content:
+                  type: string
+                  description: The translated text content
+                title:
+                  type: string
+                  description: Title of the translation
+                source:
+                  type: string
+                  description: Source of the translation
+                alt_titles:
+                  type: array
+                  items:
+                    type: string
+                author:
+                  type: object
+                  properties:
+                    person_id:
+                      type: string
+                    person_bdrc_id:
+                      type: string
+                    ai_id:
+                      type: string
+                  description: Creator of the translation (optional)
+                segmentation:
+                  type: array
+                  items:
+                    type: object
+                  description: Segmentation annotation for translation (required)
+                alignment_annotation:
+                  type: array
+                  items:
+                    type: object
+                  description: Alignment annotation for translation (optional, must be provided together with target_annotation)
+                target_annotation:
+                  type: array
+                  items:
+                    type: object
+                  description: Alignment annotation for original text (optional, must be provided together with alignment_annotation)
+                copyright:
+                  type: string
+                  enum: ["Public domain", "In copyright", "Unknown"]
+                  description: Copyright status of the translation
+                license:
+                  type: string
+                  enum: ["unknown", "CC0", "Public Domain Mark", "CC BY", "CC BY-SA", "CC BY-ND", "CC BY-NC", "CC BY-NC-SA", "CC BY-NC-ND", "under copyright"]
+                  description: License type for the translation
+                bdrc:
+                  type: string
+                  nullable: true
+                  description: BDRC ID for the translation (optional)
+                wiki:
+                  type: string
+                  nullable: true
+                  description: Wiki ID for the translation (optional)
+                biblography_annotation:
+                  type: array
+                  items:
+                    type: object
+                    required: [span, biblography_type]
+                    properties:
+                      span:
+                        type: object
+                        required: [start, end]
+                        properties:
+                          start:
+                            type: integer
+                            minimum: 0
+                            description: Start character position (inclusive)
+                          end:
+                            type: integer
+                            minimum: 1
+                            description: End character position (exclusive)
+                      type:
+                        type: string
+                        enum: [colophon, title, incipit_title, author]
+                        description: Type of bibliography annotation
+            examples:
+              valid_translation_with_alignment_annotation:
+                summary: Valid translation creation request with alignment annotation
+                value:
+                  language: "en"
+                  content: "This is the translated text content"
+                  title: "Translated Title"
+                  source: "Source of the translation"
+                  author:
+                    person_id: "P12345678"
+                  segmentation:
+                    - span:
+                        start: 0
+                        end: 20
+                    - span:
+                        start: 21
+                        end: 40
+                  target_annotation:
+                    - span:
+                        start: 0
+                        end: 20
+                      index: 0
+                    - span:
+                        start: 21
+                        end: 40
+                      index: 1
+                  alignment_annotation:
+                    - span:
+                        start: 0
+                        end: 20
+                      index: 0
+                      alignment_index: [0]
+                    - span:
+                        start: 21
+                        end: 50
+                      index: 1
+                      alignment_index: [1]
+                  copyright: "Public domain"
+                  license: "CC0"
+              valid_translation_without_alignment_annotation:
+                summary: Valid translation creation request without alignment annotation
+                value:
+                  language: "en"
+                  content: "This is the translated text content"
+                  title: "Translated Title"
+                  source: "Source of the translation"
+                  author:
+                    person_id: "P12345678"
+                  segmentation:
+                    - span:
+                        start: 0
+                        end: 20
+                    - span:
+                        start: 21
+                        end: 40
+                  copyright: "Public domain"
+                  license: "CC0"    
+      responses:
+        "201":
+          description: Translation created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - "Text created successfully"
+                  instance_id:
+                    type: string
+                    examples:
+                      - "ABC12345678"
+                  text_id:
+                    type: string
+                    examples:
+                      - "ABC12345678"
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "422":
+          $ref: '#/components/responses/ValidationError'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+  /v2/instances/{instance_id}/commentary:
+    post:
+      summary: Create a commentary
+      description: Create a commentary of an existing instance
+      tags:
+        - Instances
+      parameters:
+        - name: instance_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the original instance to comment on
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - language
+                - content
+                - title
+                - source
+                - segmentation
+                - copyright
+                - license
+                - category_id
+              properties:
+                language:
+                  type: string
+                  enum: [en, bo, zh, sa]
+                  description: Language code for the commentary
+                content:
+                  type: string
+                  description: The commentary text content
+                title:
+                  type: string
+                  description: Title of the commentary
+                source:
+                  type: string
+                  description: Source of the commentary
+                alt_titles:
+                  type: array
+                  items:
+                    type: string
+                author:
+                  type: object
+                  properties:
+                    person_id:
+                      type: string
+                    person_bdrc_id:
+                      type: string
+                segmentation:
+                  type: array
+                  items:
+                    type: object
+                  description: Segmentation annotation for commentary (required)
+                alignment_annotation:
+                  type: array
+                  items:
+                    type: object
+                  description: Alignment annotation for commentary (optional, must be provided together with target_annotation)
+                target_annotation:
+                  type: array
+                  items:
+                    type: object
+                  description: Alignment annotation for original text (optional, must be provided together with alignment_annotation)
+                copyright:
+                  type: string
+                  enum: [Public domain, In copyright, Unknown]
+                  default: public
+                license:
+                  type: string
+                  enum: [CC0, "Public Domain Mark", "CC BY", "CC BY-SA", "CC BY-ND", "CC BY-NC", "CC BY-NC-SA", "CC BY-NC-ND", "under copyright"]
+                  default: public
+                bdrc:
+                  type: string
+                  nullable: true
+                  description: BDRC ID of the commentary (optional)
+                wiki:
+                  type: string
+                  nullable: true
+                  description: Wikipedia ID of the commentary (optional)
+                category_id:
+                  type: string
+                  nullable: true
+                  description: ID of the category this commentary belongs to (optional)
+                biblography_annotation:
+                  type: array
+                  items:
+                    type: object
+                    required: [span, biblography_type]
+                    properties:
+                      span:
+                        type: object
+                        required: [start, end]
+                        properties:
+                          start:
+                            type: integer
+                            minimum: 0
+                            description: Start character position (inclusive)
+                          end:
+                            type: integer
+                            minimum: 1
+                            description: End character position (exclusive)
+                      type:
+                        type: string
+                        enum: [colophon, title, incipit_title, author]
+                        description: Type of bibliography annotation
+            examples:
+              valid_commentary_with_alignment_annotation:
+                summary: Valid commentary creation request with alignment annotation
+                value:
+                  language: "en"
+                  content: "This is the commentary text content"
+                  title: "Commentary Title"
+                  source: "Source of the commentary"
+                  author:
+                    person_id: "P12345678"
+                  segmentation:
+                    - span:
+                        start: 0
+                        end: 20
+                    - span:
+                        start: 21
+                        end: 40
+                  target_annotation:
+                    - span:
+                        start: 0
+                        end: 20
+                      index: 0
+                    - span:
+                        start: 21
+                        end: 40
+                      index: 1
+                    - span:
+                        start: 40
+                        end: 50
+                      index: 2
+                  alignment_annotation:
+                    - span:
+                        start: 0
+                        end: 20
+                      index: 0
+                      alignment_index: [0,1]
+                    - span:
+                        start: 21
+                        end: 50
+                      index: 1
+                      alignment_index: [1,2]
+                  copyright: "Public domain"
+                  license: "CC0"
+                  category_id: "CAT12345678"
+              valid_commentary_without_alignment_annotation:
+                summary: Valid commentary creation request without alignment annotation
+                value:
+                  language: "en"
+                  content: "This is the commentary text content"
+                  title: "Commentary Title"
+                  source: "Source of the commentary"
+                  author:
+                    person_id: "P12345678"
+                  segmentation:
+                    - span:
+                        start: 0
+                        end: 20
+                    - span:
+                        start: 21
+                        end: 40
+                  copyright: "Public domain"
+                  license: "CC0"
+                  category_id: "CAT12345678"
+      responses:
+        "201":
+          description: Commentary created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - "Text created successfully"
+                  instance_id:
+                    type: string
+                    examples:
+                      - "ABC12345678"
+                  text_id:
+                    type: string
+                    examples:
+                      - "ABC12345678"
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "422":
+          $ref: '#/components/responses/ValidationError'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+  /v2/texts:
+    get:
+      summary: Retrieve all texts
+      description: Fetch all texts with optional filtering and pagination
+      tags:
+        - Texts
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Number of results per page
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: Number of results to skip
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [root, commentary, translation, translation_source, none]
+          description: Filter by text type
+        - name: language
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by language code
+        - name: author
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by author name
+      responses:
+        "200":
+          description: Texts retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    type:
+                      type: string
+                      enum: [root, commentary, translation]
+                    title:
+                      type: object
+                      additionalProperties:
+                        type: string
+                    alt_titles:
+                      type: array
+                      items:
+                        type: object
+                        additionalProperties:
+                          type: string
+                    language:
+                      type: string
+                      enum: [en, bo, zh, sa]
+                    contributions:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          person_id:
+                            type: string
+                          person_bdrc_id:
+                            type: string
+                          ai_id:
+                            type: string
+                          role:
+                            type: string
+                            enum: [author, translator, reviser, scholar]
+                    date:
+                      type: string
+                    bdrc:
+                      type: string
+                    wiki:
+                      type: string
+                    target:
+                      type: string
+                    copyright:
+                      type: string
+                      enum: ["Public domain", "In copyright", "Unknown"]
+                    license:
+                      type: string
+                      nullable: true
+              examples:
+                success:
+                  summary: List of texts
+                  value:
+                    - id: "ABC12345678"
+                      type: "root"
+                      title:
+                        en: "Sample Expression"
+                        bo: "དཔེ་མཚོན་ཚིག་སྒྲུབ།"
+                      language: "bo"
+                      contributions:
+                        - person_id: "P12345678"
+                          role: "author"
+                      date: "2024-01-01"
+                      bdrc: "W123456"
+                      copyright: "Public domain"
+                      license: "CC0"
+                    - id: "DEF87654321"
+                      type: "translation"
+                      title:
+                        en: "AI Generated Translation"
+                      language: "en"
+                      contributions:
+                        - ai_id: "gpt-4"
+                          role: "translator"
+                      target: "ABC12345678"
+                      copyright: "Public domain"
+                      license: "CC0"
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+    post:
+      summary: Create text
+      description: Create a new text record
+      tags:
+        - Texts
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - type
+                - title
+                - language
+                - contributions
+                - copyright
+                - license
+                - category_id
+              properties:
+                type:
+                  type: string
+                  enum: [root, commentary, translation]
+                title:
+                  type: object
+                  additionalProperties:
+                    type: string
+                  description: Localized title
+                alt_titles:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties:
+                      type: string
+                  description: Alternative localized titles
+                language:
+                  type: string
+                  enum: [en, bo, zh, sa]
+                contributions:
+                  type: array
+                  items:
+                    oneOf:
+                      - type: object
+                        description: Human contribution with person_id
+                        required:
+                          - person_id
+                          - role
+                        properties:
+                          person_id:
+                            type: string
+                            description: Person ID (must provide either this OR person_bdrc_id, not both)
+                          role:
+                            type: string
+                            enum: [author, translator, reviser, scholar]
+                      - type: object
+                        description: Human contribution with person_bdrc_id
+                        required:
+                          - person_bdrc_id
+                          - role
+                        properties:
+                          person_bdrc_id:
+                            type: string
+                            description: Person BDRC ID (must provide either this OR person_id, not both)
+                          role:
+                            type: string
+                            enum: [author, translator, reviser, scholar]
+                      - type: object
+                        description: AI contribution
+                        required:
+                          - ai_id
+                          - role
+                        properties:
+                          ai_id:
+                            type: string
+                            description: AI model identifier
+                          role:
+                            type: string
+                            enum: [author, translator, reviser, scholar]
+                date:
+                  type: string
+                bdrc:
+                  type: string
+                wiki:
+                  type: string
+                target:
+                  type: string
+                  description: Target metadata ID (required for commentary)
+                category_id:
+                  type: string
+                  nullable: true
+                  description: ID of the category this text belongs to (optional)
+                copyright:
+                  type: string
+                  enum: ["Public domain", "In copyright", "Unknown"]
+                  default: "Public domain"
+                  description: Copyright status
+                license:
+                  type: string
+                  nullable: true
+                  description: License type (optional)
+            examples:
+              root_text:
+                summary: Root text creation
+                value:
+                  type: "root"
+                  title:
+                    en: "Sample Root Text"
+                    bo: "རྩ་བའི་གཞུང་དཔེ།"
+                  language: "bo"
+                  contributions:
+                    - person_id: "P12345678"
+                      role: "author"
+                  date: "2024-01-01"
+                  bdrc: "W123456"
+                  category_id: "CAT12345678"
+                  copyright: "Public domain"
+                  license: "CC0"
+              translation_text:
+                summary: Translation text creation
+                value:
+                  type: "translation"
+                  title:
+                    en: "English Translation"
+                  language: "en"
+                  contributions:
+                    - person_bdrc_id: "P87654321"
+                      role: "translator"
+                  category_id: "CAT12345678"
+                  copyright: "Public domain"
+                  license: "Public Domain Mark"
+              ai_translation_text:
+                summary: AI translation text creation
+                value:
+                  type: "translation"
+                  title:
+                    en: "AI English Translation"
+                  language: "en"
+                  contributions:
+                    - ai_id: "gpt-4"
+                      role: "translator"
+                  target: "T12345678"
+                  category_id: "CAT12345678"
+                  copyright: "In copyright"
+                  license: "CC BY-NC-ND"
+      responses:
+        "200":
+          description: Expression with BDRC ID already exists
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - "Expression with this BDRC ID already exists"
+                  id:
+                    type: string
+                    description: The ID of the existing expression
+                    examples:
+                      - "T87654321"
+        "201":
+          description: Text created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - "Text created successfully"
+                  id:
+                    type: string
+                    description: The ID of the newly created expression
+                    examples:
+                      - "T12345678"
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "422":
+          $ref: '#/components/responses/ValidationError'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+  /v2/texts/{id}:
+    get:
+      summary: Retrieve text by ID or BDRC ID
+      description: Fetch a specific text by its expression ID or BDRC ID
+      tags:
+        - Texts
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID or BDRC ID of the text to retrieve
       responses:
         "200":
           description: Metadata retrieved successfully
           content:
             application/json:
               schema:
-                $ref: "https://pecha-backend.web.app/schema/metadata"
+                type: object
+                properties:
+                  id:
+                    type: string
+                  type:
+                    type: string
+                    enum: [root, commentary, translation]
+                  title:
+                    type: object
+                    additionalProperties:
+                      type: string
+                  alt_titles:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties:
+                        type: string
+                  language:
+                    type: string
+                    enum: [en, bo, zh, sa]
+                  contributions:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        person_id:
+                          type: string
+                        person_bdrc_id:
+                          type: string
+                        ai_id:
+                          type: string
+                        role:
+                          type: string
+                          enum: [author, translator, reviser, scholar]
+                  date:
+                    type: string
+                  bdrc:
+                    type: string
+                  wiki:
+                    type: string
+                  target:
+                    type: string
+                  copyright:
+                    type: string
+                    enum: ["Public domain", "In copyright", "Unknown"]
+                  license:
+                    type: string
+                    nullable: true
+              examples:
+                success:
+                  summary: Single text
+                  value:
+                    id: "T12345678"
+                    type: "root"
+                    title:
+                      en: "Sample Expression"
+                      bo: "དཔེ་མཚོན་ཚིག་སྒྲུབ།"
+                    language: "bo"
+                    contributions:
+                      - person_id: "P12345678"
+                        role: "author"
+                    date: "2024-01-01"
+                    bdrc: "W123456"
+                    copyright: "Public domain"
+                    license: "CC0"
         "400":
           $ref: '#/components/responses/InvalidRequest'
         "404":
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/ServerError'
-    put:
-      summary: Overwrite metadata by ID
-      description: Overwrites metadata for a given Pecha ID in DB. The metadata must be valid.
+  
+  /v2/texts/{texts_id}/group:
+    get:
+      summary: Retrieve texts group by text ID
+      description: Fetch all texts in the same work group as the specified text ID
       tags:
-        - Metadata
+        - Texts
       parameters:
-        - name: pecha_id
+        - name: texts_id
           in: path
           required: true
-          description: The Pecha ID whose metadata is being updated.
           schema:
             type: string
+          description: The ID of the text to retrieve the group for
+      responses:
+        "200":
+          description: Texts group retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  texts:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        type:
+                          type: string
+                          enum: [root, translation, commentary, none]
+                        title:
+                          type: object
+                          additionalProperties:
+                            type: string
+                        alt_titles:
+                          type: array
+                          items:
+                            type: object
+                            additionalProperties:
+                              type: string
+                          nullable: true
+                        language:
+                          type: string
+                        contributions:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              person_id:
+                                type: string
+                                nullable: true
+                              person_bdrc_id:
+                                type: string
+                                nullable: true
+                              ai_id:
+                                type: string
+                                nullable: true
+                              role:
+                                type: string
+                                enum: [author, translator, reviser, scholar]
+                        date:
+                          type: string
+                          nullable: true
+                        bdrc:
+                          type: string
+                          nullable: true
+                        wiki:
+                          type: string
+                          nullable: true
+                        target:
+                          type: string
+                          nullable: true
+                        category_id:
+                          type: string
+                          nullable: true
+                        copyright:
+                          type: string
+                          enum: ["Public domain", "In copyright", "Unknown"]
+                        license:
+                          type: string
+                          nullable: true
+
+              examples:
+                success:
+                  summary: Texts group response
+                  value:
+                    texts:
+                      - id: "T12345679"
+                        type: "translation"
+                        title:
+                          en: "Translation of Sample Text"
+                          bo: "དཔེ་མཚོན་ཚིག་སྒྲུབ་ཀྱི་སྒྱུར་བ།"
+                        language: "en"
+                        contributions:
+                          - person_id: "P87654321"
+                            role: "translator"
+                        target: "T12345678"
+                        category_id: "C12345678"
+                        copyright: "Public domain"
+                        license: "CC0"
+                      - id: "T12345680"
+                        type: "commentary"
+                        title:
+                          bo: "དཔེ་མཚོན་ཚིག་སྒྲུབ་ཀྱི་འགྲེལ་བ།"
+                        language: "bo"
+                        contributions:
+                          - person_id: "P11111111"
+                            role: "author"
+                        target: "T12345678"
+                        copyright: "Public domain"
+                        category_id: "C12345678"
+                        license: "CC0"
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+  /v2/persons:
+    get:
+      summary: Retrieve all persons
+      description: Fetch all persons from the database with optional pagination
+      tags:
+        - Persons
+      parameters:
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Number of results per page
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: Number of results to skip
+      responses:
+        "200":
+          description: Persons retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                    name:
+                      type: object
+                      additionalProperties:
+                        type: string
+                    alt_names:
+                      type: array
+                      items:
+                        type: object
+                        additionalProperties:
+                          type: string
+                    bdrc:
+                      type: string
+                    wiki:
+                      type: string
+              examples:
+                success:
+                  summary: List of persons
+                  value:
+                    - id: "P12345678"
+                      name:
+                        en: "John Doe"
+                        bo: "ཇོན་དོ།"
+                      alt_names:
+                        - en: "J. Doe"
+                          bo: "ཇོན།"
+                      bdrc: "P123456"
+                      wiki: "Q123456"
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+    post:
+      summary: Create a person
+      description: Create a new person record
+      tags:
+        - Persons
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              properties:
-                metadata:
-                  type: object
-                  description: The updated metadata object.
               required:
-                - metadata
+                - name
+              properties:
+                name:
+                  type: object
+                  additionalProperties:
+                    type: string
+                  description: Localized name
+                alt_names:
+                  type: array
+                  items:
+                    type: object
+                    additionalProperties:
+                      type: string
+                  description: Alternative localized names
+                bdrc:
+                  type: string
+                  description: BDRC identifier
+                wiki:
+                  type: string
+                  description: Wikidata identifier
+            examples:
+              valid_person:
+                summary: Valid person creation
+                value:
+                  name:
+                    en: "John Doe"
+                    bo: "ཇོན་དོ།"
+                  alt_names:
+                    - en: "J. Doe"
+                      bo: "ཇོན།"
+                  bdrc: "P123456"
+                  wiki: "Q123456"
       responses:
-        "200":
-          description: Metadata updated successfully
+        "201":
+          description: Person created successfully
           content:
             application/json:
               schema:
@@ -292,11 +2056,1018 @@ paths:
                   message:
                     type: string
                     examples:
-                      - Metadata updated successfully
-                  id:
+                      - "Person created successfully"
+                  _id:
                     type: string
                     examples:
-                      - I62E00D78
+                      - "P12345678"
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "422":
+          $ref: '#/components/responses/ValidationError'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+  /v2/persons/{person_id}:
+    get:
+      summary: Retrieve person by ID
+      description: Fetch a specific person by their ID
+      tags:
+        - Persons
+      parameters:
+        - name: person_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the person to retrieve
+      responses:
+        "200":
+          description: Person retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  id:
+                    type: string
+                  name:
+                    type: object
+                    additionalProperties:
+                      type: string
+                  alt_names:
+                    type: array
+                    items:
+                      type: object
+                      additionalProperties:
+                        type: string
+                  bdrc:
+                    type: string
+                  wiki:
+                    type: string
+              examples:
+                success:
+                  summary: Single person
+                  value:
+                    id: "P12345678"
+                    name:
+                      en: "John Doe"
+                      bo: "ཇོན་དོ།"
+                    alt_names:
+                      - en: "J. Doe"
+                        bo: "ཇོན།"
+                    bdrc: "P123456"
+                    wiki: "Q123456"
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+  /v2/annotations/{annotation_id}:
+    get:
+      summary: Retrieve annotation by ID
+      description: Fetch a specific annotation by its ID including all segments
+      tags:
+        - Annotations
+      parameters:
+        - name: annotation_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the annotation to retrieve
+      responses:
+        "200":
+          description: Annotation retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                description: Annotation data with uniform structure
+                required:
+                  - id
+                  - type
+                  - data
+                properties:
+                  id:
+                    type: string
+                    description: Annotation ID
+                  type:
+                    type: string
+                    enum: [segmentation, pagination, alignment, table_of_contents, bibliography, durchen]
+                    description: Type of annotation
+                  data:
+                    oneOf:
+                      - type: array
+                        description: Segmentation, pagination, or bibliography annotation segments
+                        items:
+                          type: object
+                          required:
+                            - id
+                            - span
+                          properties:
+                            id:
+                              type: string
+                              description: Unique identifier for the segment
+                            span:
+                              type: object
+                              description: Character span of the segment
+                              required:
+                                - start
+                                - end
+                              properties:
+                                start:
+                                  type: integer
+                                  description: Start character position 
+                                end:
+                                  type: integer
+                                  description: End character position
+                            reference:
+                              type: string
+                              nullable: true
+                              description: Image ID this annotation is referring to (pagination only)
+                            bibliography_type:
+                              type: string
+                              nullable: true
+                              description: Type of bibliography annotation (bibliography only)
+                      - type: array
+                        description: Table of contents annotation sections
+                        items:
+                          type: object
+                          required:
+                            - id
+                            - title
+                            - segments
+                          properties:
+                            id:
+                              type: string
+                              description: Unique identifier for the section
+                            title:
+                              type: string
+                              description: Title of the table of contents section
+                            segments:
+                              type: array
+                              description: List of segment IDs that belong to this section
+                              items:
+                                type: string
+                      - type: array
+                        description: Durchen annotation segments with notes
+                        items:
+                          type: object
+                          required:
+                            - id
+                            - span
+                            - note
+                          properties:
+                            id:
+                              type: string
+                              description: Unique identifier for the segment
+                            span:
+                              type: object
+                              description: Character span of the segment
+                              required:
+                                - start
+                                - end
+                              properties:
+                                start:
+                                  type: integer
+                                  description: Start character position
+                                end:
+                                  type: integer
+                                  description: End character position
+                            note:
+                              type: string
+                              description: The durchen note content
+                      - type: object
+                        description: Alignment annotation with source and target segments
+                        required:
+                          - alignment_annotation
+                          - target_annotation
+                        properties:
+                          alignment_annotation:
+                            type: array
+                            description: Source segments with alignment mappings
+                            items:
+                              type: object
+                              required:
+                                - id
+                                - span
+                                - aligned_segments
+                              properties:
+                                id:
+                                  type: string
+                                  description: Unique identifier for the segment
+                                span:
+                                  type: object
+                                  description: Character span of the segment
+                                  required:
+                                    - start
+                                    - end
+                                  properties:
+                                    start:
+                                      type: integer
+                                      description: Start character position 
+                                    end:
+                                      type: integer
+                                      description: End character position
+                                reference:
+                                  type: string
+                                  nullable: true
+                                  description: Image ID this annotation is referring to (pagination only)
+                                bibliography_type:
+                                  type: string
+                                  nullable: true
+                                  description: Type of bibliography annotation (bibliography only)
+                                aligned_segments:
+                                  type: array
+                                  description: List of segment IDs this segment aligns to
+                                  items:
+                                    type: string
+                          target_annotation:
+                            type: array
+                            description: Target segments
+                            items:
+                              type: object
+                              required:
+                                - id
+                                - span
+                              properties:
+                                id:
+                                  type: string
+                                  description: Unique identifier for the segment
+                                span:
+                                  type: object
+                                  description: Character span of the segment
+                                  required:
+                                    - start
+                                    - end
+                                  properties:
+                                    start:
+                                      type: integer
+                                      description: Start character position 
+                                    end:
+                                      type: integer
+                                      description: End character position
+                                
+              examples:
+                segmentation annotation:
+                  summary: Segmentation annotation with segments
+                  value:
+                    id: "ann_seg_123"
+                    type: "segmentation"
+                    data:
+                      - id: "sdlsakdf"
+                        span:
+                          start: 0
+                          end: 20
+                      - id: "akjdlks"
+                        span:
+                          start: 20
+                          end: 45
+                search segmentation annotation:
+                  summary: Search segmentation annotation with segments
+                  value:
+                    id: "ann_search_seg_123"
+                    type: "search_segmentation"
+                    data:
+                      - id: "sdlsakdf"
+                        span:
+                          start: 0
+                          end: 100
+                pagination annotation:
+                  summary: Pagination annotation with segments and reference
+                  value:
+                    id: "ann_pag_456"
+                    type: "pagination"
+                    data:
+                      - id: "laksdfklsjd"
+                        span:
+                          start: 0
+                          end: 25
+                        reference: "IMG001.png"
+                      - id: "aksdfnjksdf"
+                        span:
+                          start: 25
+                          end: 50
+                        reference: "IMG002.png"
+                bibliography annotation:
+                  summary: Bibliography annotation with segments and type
+                  value:
+                    id: "ann_bib_789"
+                    type: "bibliography"
+                    data:
+                      - id: "bib_sec_001"
+                        span:
+                          start: 0
+                          end: 50
+                        bibliography_type: "colophon"
+                      - id: "bib_sec_002"
+                        span:
+                          start: 50
+                          end: 100
+                        bibliography_type: "title"
+                alignment annotation:
+                  summary: Alignment annotation with segments and alignment mappings
+                  value:
+                    id: "ann_align_789"
+                    type: "alignment"
+                    data:
+                      alignment_annotation:
+                        - id: "idx6tTeELJEwEQiIEyqhQ"
+                          span:
+                            start: 0
+                            end: 1
+                          aligned_segments: ["seg_001", "seg_002"]
+                        - id: "NB9oPpSDymL33ZhYYE9xs"
+                          span:
+                            start: 1
+                            end: 2
+                          aligned_segments: ["seg_003", "seg_004"]
+                        - id: "Texrsipn60lEZWQJKFH3y"
+                          span:
+                            start: 2
+                            end: 3
+                          aligned_segments: ["seg_005", "seg_006"]
+                        - id: "Ah5AIixdu5svKBynmUOhg"
+                          span:
+                            start: 3
+                            end: 4
+                          aligned_segments: ["seg_007", "seg_008"]
+                      target_annotation:
+                        - id: "vYnN5yiwBXvA4MJdUtDqz"
+                          span:
+                            start: 0
+                            end: 1
+                        - id: "nDMQBXVRvuKfbRbO96qIM"
+                          span:
+                            start: 1
+                            end: 2
+                        - id: "mqOyBwAGdfNwXMQMef4XF"
+                          span:
+                            start: 2
+                            end: 3
+                        - id: "pMBGOZp4dxOWIEjAAlnWe"
+                          span:
+                            start: 3
+                            end: 4
+                        - id: "AWLRjvyTbTtbMXVysSsr6"
+                          span:
+                            start: 4
+                            end: 5
+                table of contents annotation:
+                  summary: Table of contents annotation with sections
+                  value:
+                    id: "ann_toc_101"
+                    type: "table_of_contents"
+                    data:
+                      - id: "0S0d3z7633mE3TK7IaZWE"
+                        title: "Chapter 1: Introduction"
+                        segments: ["1ZPTJfkyOR28oqFUzb3cF", "Yzkd4ct5icrWYGyI2H3Dn"]
+                      - id: "jqcP8yUpCsv65NSNAlTm9"
+                        title: "Chapter 2: Main Content"
+                        segments: ["CuTHRuW5a6vd5YYWcmTbC"]
+                      - id: "ISmJpRblcnZJmp8BjIlzL"
+                        title: "Chapter 3: Conclusion"
+                        segments: ["pxhHUGHK7cS24Ccr8jCvV", "A1QdkN2gDu6u7ZU3DPZCu"]
+                durchen annotation:
+                  summary: Durchen annotation with segments and notes
+                  value:
+                    id: "ann_durchen_123"
+                    type: "durchen"
+                    data:
+                      - id: "seg_001"
+                        span:
+                          start: 0
+                          end: 50
+                        note: "This is a durchen note explaining some aspect of the text"
+                      - id: "seg_002"
+                        span:
+                          start: 100
+                          end: 150
+                        note: "Another durchen note with additional explanation"
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+  /v2/annotations/{instance_id}/annotation:
+    post:
+      summary: Add annotation to a instance
+      description: >-
+        Adds an annotation to the specified instance. Supports multiple annotation types:
+        
+        - SEGMENTATION: For CRITICAL instances, send segmentation annotations (span only).
+          For DIPLOMATIC instances, send pagination annotations (span + reference).
+        
+        - PAGINATION: Send pagination annotations with span and reference (for DIPLOMATIC manifestations).
+        
+        - BIBLIOGRAPHY: Send bibliography annotations with span and bibliography type.
+        
+        - TABLE_OF_CONTENTS: Send table of contents annotations with sections containing title and segment IDs.
+
+        - DURCHEN: Send durchen annotations with span and note content.
+
+        - SEARCH_SEGMENTATION: Send search segmentation annotations with span.
+
+        - ALIGNMENT: Creates alignment relationships between segments of the source and target manifestations.
+      tags:
+        - Annotations
+      parameters:
+        - name: instance_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the instance to annotate (source instance for ALIGNMENT type)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - type
+              properties:
+                type:
+                  type: string
+                  enum: [segmentation, alignment, pagination, bibliography, table_of_contents, durchen, search_segmentation]
+                  description: Type of annotation to add
+                annotation:
+                  type: array
+                  minItems: 1
+                  description: Array of segmentation, pagination, bibliography, table of contents, or durchen annotations (required for SEGMENTATION, PAGINATION, BIBLIOGRAPHY, TABLE_OF_CONTENTS, or DURCHEN type respectively)
+                  items:
+                    oneOf:
+                      - type: object
+                        required: [span]
+                        properties:
+                          span:
+                            type: object
+                            required: [start, end]
+                            properties:
+                              start:
+                                type: integer
+                                minimum: 0
+                                description: Start character position (inclusive)
+                              end:
+                                type: integer
+                                minimum: 1
+                                description: End character position (exclusive)
+                        description: Segmentation annotation
+                      - type: object
+                        required: [span, reference]
+                        properties:
+                          span:
+                            type: object
+                            required: [start, end]
+                            properties:
+                              start:
+                                type: integer
+                                minimum: 0
+                                description: Start character position (inclusive)
+                              end:
+                                type: integer
+                                minimum: 1
+                                description: End character position (exclusive)
+                          reference:
+                            type: string
+                            description: Page/folio reference for the span
+                        description: Pagination Annotation
+                      - type: object
+                        required: [span, type]
+                        properties:
+                          span:
+                            type: object
+                            required: [start, end]
+                            properties:
+                              start:
+                                type: integer
+                                minimum: 0
+                                description: Start character position (inclusive)
+                              end:
+                                type: integer
+                                minimum: 1
+                                description: End character position (exclusive)
+                          type:
+                            type: string
+                            description: Type of bibliography annotation
+                        description: Bibliography annotation
+                      - type: object
+                        required: [title, segments]
+                        properties:
+                          title:
+                            type: string
+                            description: Title of the table of contents section
+                          segments:
+                            type: array
+                            description: List of segment IDs that belong to this section
+                            items:
+                              type: string
+                        description: Table of contents annotation
+                      - type: object
+                        required: [span, note]
+                        properties:
+                          span:
+                            type: object
+                            required: [start, end]
+                            properties:
+                              start:
+                                type: integer
+                                minimum: 0
+                                description: Start character position (inclusive)
+                              end:
+                                type: integer
+                                minimum: 1
+                                description: End character position (exclusive)
+                          note:
+                            type: string
+                            description: The durchen note content
+                        description: Durchen annotation
+                      - type: object
+                        required: span
+                        properties:
+                          span:
+                            type: object
+                            required: [start, end]
+                            properties:
+                              start:
+                                type: integer
+                                minimum: 0
+                                description: Start character position (inclusive)
+                              end:
+                                type: integer
+                                minimum: 1
+                                description: End character position (exclusive)
+                        description: search segmentation annotation
+                target_manifestation_id:
+                  type: string
+                  description: Target instance ID (required for ALIGNMENT type)
+                target_annotation:
+                  type: array
+                  minItems: 1
+                  description: Array of alignment annotations for target instance (required for ALIGNMENT type)
+                  items:
+                    type: object
+                    required: [span, index]
+                    properties:
+                      span:
+                        type: object
+                        required: [start, end]
+                        properties:
+                          start:
+                            type: integer
+                            minimum: 0
+                            description: Start character position (inclusive)
+                          end:
+                            type: integer
+                            minimum: 1
+                            description: End character position (exclusive)
+                      index:
+                        type: integer
+                        description: Index of the segment in the target annotation
+                alignment_annotation:
+                  type: array
+                  minItems: 1
+                  description: Array of alignment annotations for source instance (required for ALIGNMENT type)
+                  items:
+                    type: object
+                    required: [span, index, alignment_index]
+                    properties:
+                      span:
+                        type: object
+                        required: [start, end]
+                        properties:
+                          start:
+                            type: integer
+                            minimum: 0
+                            description: Start character position (inclusive)
+                          end:
+                            type: integer
+                            minimum: 1
+                            description: End character position (exclusive)
+                      index:
+                        type: integer
+                        description: Index of the segment in the alignment annotation
+                      alignment_index:
+                        type: array
+                        items:
+                          type: integer
+                        description: List of indices in target_annotation that this segment aligns to
+            examples:
+              segmentation:
+                summary: Segmentation (Critical Instance)
+                value:
+                  type: segmentation
+                  annotation:
+                    - span:
+                        start: 0
+                        end: 42
+                    - span:
+                        start: 42
+                        end: 100
+              search_segmentation:
+                summary: Search Segmentation
+                value:
+                  type: search_segmentation
+                  annotation:
+                    - span:
+                        start: 0
+                        end: 100
+              pagination:
+                summary: Pagination (Diplomatic Instance)
+                value:
+                  type: pagination
+                  annotation:
+                    - span:
+                        start: 0
+                        end: 42
+                      reference: "reference-001"
+                    - span:
+                        start: 42
+                        end: 100
+                      reference: "reference-002"
+              bibliography:
+                summary: Bibliography
+                value:
+                  type: bibliography
+                  annotation:
+                    - span:
+                        start: 0
+                        end: 50
+                      type: "colophon"
+                    - span:
+                        start: 50
+                        end: 100
+                      type: "title"
+              table of contents:
+                summary: Table of Contents
+                value:
+                  type: table_of_contents
+                  annotation:
+                    - title: "Chapter 1: Introduction"
+                      segments: ["seg_001", "seg_002", "seg_003"]
+                    - title: "Chapter 2: Main Content"
+                      segments: ["seg_004", "seg_005"]
+                    - title: "Chapter 3: Conclusion"
+                      segments: ["seg_006", "seg_007", "seg_008"]
+              alignment:
+                summary: Alignment
+                value:
+                  type: alignment
+                  target_manifestation_id: "MNF12345678"
+                  target_annotation:
+                    - span:
+                        start: 0
+                        end: 50
+                      index: 0
+                    - span:
+                        start: 50
+                        end: 100
+                      index: 1
+                  alignment_annotation:
+                    - span:
+                        start: 0
+                        end: 30
+                      index: 0
+                      alignment_index: [0]
+                    - span:
+                        start: 30
+                        end: 60
+                      index: 1
+                      alignment_index: [0, 1]
+                    - span:
+                        start: 60
+                        end: 100
+                      index: 2
+                      alignment_index: [1]
+              durchen:
+                summary: Durchen
+                value:
+                  type: durchen
+                  annotation:
+                    - span:
+                        start: 0
+                        end: 50
+                      note: "This is a durchen note explaining some aspect of the text"
+                    - span:
+                        start: 100
+                        end: 150
+                      note: "Another durchen note with additional explanation"
+      responses:
+        "400":
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              examples:
+                body_required:
+                  summary: Missing request body
+                  value:
+                    error: "Request body is required"
+                invalid_annotation_type:
+                  summary: Invalid annotation type
+                  value:
+                    error: "Invalid annotation type. Allowed types are [segmentation, pagination, bibliography, table_of_contents, alignment]"
+                missing_annotation:
+                  summary: Missing annotation data
+                  value:
+                    error: "Segmentation annotation cannot be empty"
+                missing_target_manifestation:
+                  summary: Missing target manifestation ID
+                  value:
+                    error: "Target manifestation id must be provided"
+                missing_alignment_annotations:
+                  summary: Missing alignment annotations
+                  value:
+                    error: "Both target annotation and alignment annotation must be provided"
+        "201":
+          description: Annotation added successfully
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - type: object
+                    required: [message, annotation_id]
+                    properties:
+                      message:
+                        type: string
+                      annotation_id:
+                        type: string
+                    description: Response for SEGMENTATION type
+                  - type: object
+                    required: [message, alignment_annotation_id, target_annotation_id]
+                    properties:
+                      message:
+                        type: string
+                      alignment_annotation_id:
+                        type: string
+                      target_annotation_id:
+                        type: string
+                    description: Response for ALIGNMENT type
+              examples:
+                segmentation:
+                  summary: Segmentation annotation response
+                  value:
+                    message: "Annotation added successfully"
+                    annotation_id: "A12345678"
+                alignment:
+                  summary: Alignment annotation response
+                  value:
+                    message: "Alignment annotation added successfully"
+                    alignment_annotation_id: "A12345678"
+                    target_annotation_id: "A87654321"
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "422":
+          $ref: '#/components/responses/ValidationError'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+  /v2/annotations/{annotation_id}/annotation:
+    put:
+      summary: Update (replace) annotation
+      description: |
+        Replaces ALL segments of an existing annotation. This is a full replacement operation.
+        
+        **For SEGMENTATION/PAGINATION/BIBLIOGRAPHY/TABLE_OF_CONTENTS annotations:**
+        - Deletes all existing segments
+        - Creates new segments from request body
+        - Annotation node is preserved
+        
+        **For ALIGNMENT annotations:**
+        - Deletes all segments from both source and target annotations
+        - Deletes both annotation nodes and their relationship
+        - Must provide both alignment_annotation and target_annotation
+      tags:
+        - Annotations
+      parameters:
+        - name: annotation_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the annotation to update
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - type
+                - data
+              properties:
+                type:
+                  type: string
+                  enum: [segmentation, pagination, bibliography, alignment]
+                  description: Type of annotation being updated
+                data:
+                  type: object
+                  properties:
+                    annotations:
+                      type: array
+                      minItems: 1
+                      description: Segments for segmentation/pagination/bibliography (required for non-alignment types)
+                      items:
+                        oneOf:
+                          - type: object
+                            required: [span]
+                            properties:
+                              span:
+                                type: object
+                                required: [start, end]
+                                properties:
+                                  start:
+                                    type: integer
+                                    minimum: 0
+                                    description: Start character position (inclusive)
+                                  end:
+                                    type: integer
+                                    minimum: 1
+                                    description: End character position (exclusive)
+                            description: Segmentation annotation
+                          - type: object
+                            required: [span, reference]
+                            properties:
+                              span:
+                                type: object
+                                required: [start, end]
+                                properties:
+                                  start:
+                                    type: integer
+                                    minimum: 0
+                                  end:
+                                    type: integer
+                                    minimum: 1
+                              reference:
+                                type: string
+                                description: Page/folio reference
+                            description: Pagination annotation
+                          - type: object
+                            required: [span, type]
+                            properties:
+                              span:
+                                type: object
+                                required: [start, end]
+                                properties:
+                                  start:
+                                    type: integer
+                                    minimum: 0
+                                  end:
+                                    type: integer
+                                    minimum: 1
+                              type:
+                                type: string
+                                enum: [colophon, title, incipit_title, author]
+                                description: Type of bibliography annotation
+                            description: Bibliography annotation
+                    alignment_annotation:
+                      type: array
+                      minItems: 1
+                      description: Source segments (required for alignment type)
+                      items:
+                        type: object
+                        required: [span, index, alignment_index]
+                        properties:
+                          span:
+                            type: object
+                            required: [start, end]
+                            properties:
+                              start:
+                                type: integer
+                                minimum: 0
+                              end:
+                                type: integer
+                                minimum: 1
+                          index:
+                            type: integer
+                            description: Sequential index of this segment
+                          alignment_index:
+                            type: array
+                            items:
+                              type: integer
+                            description: Indices of target segments this aligns to
+                    target_annotation:
+                      type: array
+                      minItems: 1
+                      description: Target segments (required for alignment type)
+                      items:
+                        type: object
+                        required: [span, index]
+                        properties:
+                          span:
+                            type: object
+                            required: [start, end]
+                            properties:
+                              start:
+                                type: integer
+                                minimum: 0
+                              end:
+                                type: integer
+                                minimum: 1
+                          index:
+                            type: integer
+                            description: Sequential index of this segment
+            examples:
+              segmentation:
+                summary: Update segmentation annotation
+                value:
+                  type: segmentation
+                  data:
+                    annotations:
+                      - span:
+                          start: 0
+                          end: 42
+                      - span:
+                          start: 42
+                          end: 100
+              table_of_contents:
+                summary: Update table of contents annotation
+                value:
+                  type: table_of_contents
+                  data:
+                    annotations:
+                      - title:
+                          "Chapter 1: Introduction"
+                        segments: ["seg_001", "seg_002", "seg_003"]
+                      - title:
+                          "Chapter 2: Main Content"
+                        segments: ["seg_004", "seg_005"]
+              pagination:
+                summary: Update pagination annotation
+                value:
+                  type: pagination
+                  data:
+                    annotations:
+                      - span:
+                          start: 0
+                          end: 42
+                        reference: "folio 1a"
+                      - span:
+                          start: 42
+                          end: 100
+                        reference: "folio 1b"
+              bibliography:
+                summary: Update bibliography annotation
+                value:
+                  type: bibliography
+                  data:
+                    annotations:
+                      - span:
+                          start: 0
+                          end: 50
+                        type: "colophon"
+                      - span:
+                          start: 50
+                          end: 100
+                        type: "title"
+              alignment:
+                summary: Update alignment annotation
+                value:
+                  type: alignment
+                  data:
+                    alignment_annotation:
+                      - span:
+                          start: 0
+                          end: 30
+                        index: 0
+                        alignment_index: [0]
+                      - span:
+                          start: 30
+                          end: 60
+                        index: 1
+                        alignment_index: [0, 1]
+                    target_annotation:
+                      - span:
+                          start: 0
+                          end: 50
+                        index: 0
+                      - span:
+                          start: 50
+                          end: 100
+                        index: 1
+      responses:
+        "200":
+          description: Annotation updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - "Annotation updated successfully"
+                  annotation_id:
+                    type: string
         "400":
           $ref: '#/components/responses/InvalidRequest'
         "404":
@@ -305,20 +3076,472 @@ paths:
           $ref: '#/components/responses/ValidationError'
         "500":
           $ref: '#/components/responses/ServerError'
-  /metadata/{pecha_id}/category:
-    put:
-      summary: Set category for a Pecha
-      description: Assigns a category to a Pecha's metadata
-      operationId: setCategory
+
+  /v2/segments/{segment_id}/related:
+    get:
+      summary: Find related texts for a segment
+      description: Find all related texts and instances that are aligned to a specific segment
       tags:
-        - Category
+        - Segments
       parameters:
-        - name: pecha_id
+        - name: segment_id
           in: path
           required: true
           schema:
             type: string
-          description: The ID of the Pecha to update
+          description: The ID of the segment to find related texts for
+      responses:
+        "200":
+          description: Related texts retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  targets:
+                    type: array
+                    description: Texts that this segment points to (outgoing alignments)
+                    items:
+                      type: object
+                      properties:
+                        instance:
+                          type: object
+                          description: Manifestation details
+                          properties:
+                            id:
+                              type: string
+                            type:
+                              type: string
+                              enum: [diplomatic, critical, collated]
+                            source:
+                              type: string
+                            bdrc:
+                              type: string
+                            wiki:
+                              type: string
+                        text:
+                          type: object
+                          description: Expression (text) details
+                          properties:
+                            id:
+                              type: string
+                            type:
+                              type: string
+                              enum: [root, commentary, translation]
+                            title:
+                              type: object
+                              additionalProperties:
+                                type: string
+                            language:
+                              type: string
+                        segments:
+                          type: array
+                          description: List of aligned segments with their IDs and spans
+                          items:
+                            type: object
+                            properties:
+                              id:
+                                type: string
+                                description: Segment ID
+                              span:
+                                type: object
+                                properties:
+                                  start:
+                                    type: integer
+                                    description: Start character position
+                                  end:
+                                    type: integer
+                                    description: End character position
+                  sources:
+                    type: array
+                    description: Texts whose segments point to this segment (incoming alignments)
+                    items:
+                      type: object
+                      properties:
+                        instance:
+                          type: object
+                          description: Manifestation details
+                          properties:
+                            id:
+                              type: string
+                            type:
+                              type: string
+                              enum: [diplomatic, critical, collated]
+                            source:
+                              type: string
+                            bdrc:
+                              type: string
+                            wiki:
+                              type: string
+                        text:
+                          type: object
+                          description: Expression (text) details
+                          properties:
+                            id:
+                              type: string
+                            type:
+                              type: string
+                              enum: [root, commentary, translation]
+                            title:
+                              type: object
+                              additionalProperties:
+                                type: string
+                            language:
+                              type: string
+                        segments:
+                          type: array
+                          description: List of aligned segments with their IDs and spans
+                          items:
+                            type: object
+                            properties:
+                              id:
+                                type: string
+                                description: Segment ID
+                              span:
+                                type: object
+                                properties:
+                                  start:
+                                    type: integer
+                                    description: Start character position
+                                  end:
+                                    type: integer
+                                    description: End character position
+              examples:
+                success:
+                  summary: Related texts with segments
+                  value:
+                    targets:
+                      - instance:
+                          id: "M12345678"
+                          type: "critical"
+                          source: "S12345678"
+                        text:
+                          id: "E12345678"
+                          type: "translation"
+                          title:
+                            en: "Translation of the Text"
+                          language: "en"
+                        segments:
+                          - id: "SEG001"
+                            span:
+                              start: 0
+                              end: 100
+                          - id: "SEG002"
+                            span:
+                              start: 100
+                              end: 200
+                    sources: []
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+  /v2/segments/{segment_id}/content:
+    get:
+      summary: Get segment text content
+      description: Retrieve the base text content for a segment based on its character span
+      tags:
+        - Segments
+      parameters:
+        - name: segment_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the segment to retrieve text content for
+      responses:
+        "200":
+          description: Segment content retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  content:
+                    type: string
+                    description: The text content of the segment
+              examples:
+                success:
+                  summary: Segment text content
+                  value:
+                    content: "This is the text content of the segment."
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+  /v2/segments/search:
+    get:
+      summary: Search segments with segmentation mapping
+      description: >-
+        Search segments by forwarding request to external search API and enriching results
+        with overlapping segmentation annotation segment IDs. For each search result (which contains
+        a search_segmentation segment ID), finds overlapping segments from segmentation annotations
+        and adds them as segmentation_ids.
+      tags:
+        - Segments
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+          description: The search query text
+          example: "བོད་ཀྱི་རིག་གནས།"
+        - name: search_type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [hybrid, bm25, semantic, exact]
+            default: hybrid
+          description: Type of search (hybrid, bm25, semantic, or exact)
+          example: "hybrid"
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 10
+          description: Maximum number of results to return
+          example: 10
+        - name: title
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter results by title
+          example: "Kangyur"
+        - name: return_text
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: true
+          description: Whether to include text content in search results
+          example: true
+      responses:
+        "200":
+          description: Search completed successfully with enriched results
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - query
+                  - search_type
+                  - results
+                  - count
+                properties:
+                  query:
+                    type: string
+                    description: The search query that was used
+                  search_type:
+                    type: string
+                    description: The search type that was used
+                  results:
+                    type: array
+                    description: List of search results with segmentation IDs
+                    items:
+                      type: object
+                      required:
+                        - id
+                        - distance
+                        - entity
+                        - segmentation_ids
+                      properties:
+                        id:
+                          type: string
+                          description: Search segmentation segment ID
+                        distance:
+                          type: number
+                          description: Search distance/score
+                        entity:
+                          type: object
+                          additionalProperties: true
+                          description: Additional entity data from search. Contains 'text' field when return_text=true
+                        segmentation_ids:
+                          type: array
+                          items:
+                            type: string
+                          description: List of overlapping segmentation annotation segment IDs
+                  count:
+                    type: integer
+                    description: Number of results returned
+              examples:
+                success:
+                  summary: Search results with segmentation IDs
+                  value:
+                    query: "བོད་ཀྱི་རིག་གནས།"
+                    search_type: "hybrid"
+                    results:
+                      - id: "SEG_SEARCH_001"
+                        distance: 0.85
+                        entity:
+                          text: "Sample text content"
+                        segmentation_ids:
+                          - "SEG_001"
+                          - "SEG_002"
+                          - "SEG_003"
+                      - id: "SEG_SEARCH_002"
+                        distance: 0.78
+                        entity:
+                          text: "Another text content"
+                        segmentation_ids:
+                          - "SEG_004"
+                          - "SEG_005"
+                    count: 2
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "422":
+          $ref: '#/components/responses/ValidationError'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+  /v2/relations/expressions/{expression_id}:
+    get:
+      summary: Get relations for an expression
+      description: Returns all relationships for a given expression, including direction and related expression IDs.
+      tags:
+        - Relations
+      parameters:
+        - name: expression_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the expression to retrieve relations for
+      responses:
+        "200":
+          description: Relations retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: array
+                  items:
+                    type: object
+                    required: [type, direction, otherId]
+                    properties:
+                      type:
+                        type: string
+                        enum: [TRANSLATION_OF, COMMENTARY_OF]
+                        description: Relationship type
+                      direction:
+                        type: string
+                        enum: [in, out]
+                        description: Direction relative to the expression
+                      otherId:
+                        type: string
+                        description: Related expression ID
+                description: Object where keys are expression IDs and values are arrays of relations
+              examples:
+                success:
+                  summary: Relations for an expression
+                  value:
+                    "13mxFPmsmIqktVTYVV8AL":
+                      - type: "TRANSLATION_OF"
+                        direction: "in"
+                        otherId: "RQKWt16H22fyxodz1Hpu8"
+                      - type: "TRANSLATION_OF"
+                        direction: "in"
+                        otherId: "zRsb99ocU5fM8wurAUfMQ"
+                      - type: "TRANSLATION_OF"
+                        direction: "in"
+                        otherId: "t0CzlMC69QUySNEBzSL4e"
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+  /v2/categories:
+    get:
+      summary: Retrieve categories
+      description: Get categories filtered by application and optional parent, with localized names in the requested language
+      tags:
+        - Categories
+      parameters:
+        - name: application
+          in: query
+          required: true
+          schema:
+            type: string
+          description: Application context for categories
+          example: "webuddhist"
+        - name: parent_id
+          in: query
+          required: false
+          schema:
+            type: string
+            nullable: true
+          description: Parent category ID (null or omitted means root categories)
+        - name: language
+          in: query
+          required: false
+          schema:
+            type: string
+            default: "bo"
+          description: Language code for localized category titles (defaults to "bo")
+      responses:
+        "200":
+          description: Categories retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    id:
+                      type: string
+                      description: Category ID
+                    parent:
+                      type: string
+                      nullable: true
+                      description: Parent category ID if exists
+                    title:
+                      type: string
+                      description: Localized category title in requested language
+                    has_child:
+                      type: boolean
+                      description: Whether this category has child categories
+                      default: false
+              examples:
+                root_categories:
+                  summary: Root categories in English
+                  value:
+                    - id: "CAT12345678"
+                      parent: null
+                      title: "Literature"
+                      has_child: true
+                    - id: "CAT23456789"
+                      parent: null
+                      title: "History"
+                      has_child: false
+                child_categories:
+                  summary: Child categories in Tibetan
+                  value:
+                    - id: "CAT87654321"
+                      parent: "CAT12345678"
+                      title: "སྙན་ངག"
+                      has_child: false
+                    - id: "CAT98765432"
+                      parent: "CAT12345678"
+                      title: "གཏམ་རྒྱུད"
+                      has_child: true
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "500":
+          $ref: '#/components/responses/ServerError'
+    post:
+      summary: Create a new category
+      description: Create a category with localized title and optional parent relationship
+      tags:
+        - Categories
       requestBody:
         required: true
         content:
@@ -326,246 +3549,410 @@ paths:
             schema:
               type: object
               required:
-                - category_id
+                - application
+                - title
               properties:
-                category_id:
+                application:
                   type: string
-                  description: ID of the category to assign
+                  description: Application context for the category
+                title:
+                  type: object
+                  additionalProperties:
+                    type: string
+                  description: Localized category titles
+                parent:
+                  type: string
+                  nullable: true
+                  description: Parent category ID (optional)
             examples:
-              valid:
-                summary: Valid category assignment
+              root_category:
+                summary: Root category without parent
                 value:
-                  category_id: "madhyamaka"
-              empty:
-                summary: Missing category ID
+                  application: "webuddhist"
+                  title:
+                    en: "Literature"
+                    bo: "རྩོམ་རིག"
+                  parent: null
+              child_category:
+                summary: Child category with parent
                 value:
-                  category_id: ""
+                  application: "webuddhist"
+                  title:
+                    en: "Poetry"
+                    bo: "སྙན་ངག"
+                  parent: "CAT12345678"
       responses:
-        '200':
-          description: Category successfully updated
+        "201":
+          description: Category created successfully
           content:
             application/json:
               schema:
                 type: object
-                required:
-                  - message
-                  - id
                 properties:
-                  message:
-                    type: string
                   id:
                     type: string
+                    description: Generated category ID
+                  application:
+                    type: string
+                    description: Application context
+                  title:
+                    type: object
+                    additionalProperties:
+                      type: string
+                    description: Localized titles
+                  parent:
+                    type: string
+                    nullable: true
+                    description: Parent category ID if provided
               examples:
-                success:
-                  summary: Category updated successfully
+                root_category:
+                  summary: Created root category
                   value:
-                    message: "Category updated successfully"
-                    id: "I857977C3"
+                    id: "CAT12345678"
+                    application: "webuddhist"
+                    title:
+                      en: "Literature"
+                      bo: "རྩོམ་རིག"
+                    parent: null
+                child_category:
+                  summary: Created child category
+                  value:
+                    id: "CAT87654321"
+                    application: "webuddhist"
+                    title:
+                      en: "Poetry"
+                      bo: "སྙན་ངག"
+                    parent: "CAT12345678"
         "400":
           $ref: '#/components/responses/InvalidRequest'
-        "404":
-          $ref: '#/components/responses/NotFound'
+        "422":
+          $ref: '#/components/responses/ValidationError'
         "500":
           $ref: '#/components/responses/ServerError'
-  /metadata/{pecha_id}/related:
+
+  /v2/categories/{category_id}/texts:
     get:
-      summary: Get related metadata chain
-      description: |
-        Returns a chain of metadata documents related to the specified pecha.
-        Supports different traversal modes and relationship types.
+      summary: Retrieve texts by category (excluding commentary)
+      description: Fetch texts that belong to a given category with optional filtering and pagination. Commentary texts are excluded.
       tags:
-        - Metadata
+        - Texts
       parameters:
-        - name: pecha_id
+        - name: category_id
           in: path
           required: true
           schema:
             type: string
-            pattern: ^I[A-F0-9]{8}$
-          description: ID of the pecha to get related metadata for
-        - name: traversal
+          description: Category ID
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 100
+            default: 20
+          description: Number of results per page
+        - name: offset
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+          description: Number of results to skip
+        - name: language
           in: query
           required: false
           schema:
             type: string
-            enum: [upward, full_tree]
-            default: full_tree
-          description: |
-            Traversal mode for finding related metadata:
-            * upward - Only traverse up the reference chain
-            * full_tree - Get the complete tree of related metadata
-        - name: relationships
+          description: Filter by expression language code (e.g., "bo", "en")
+        - name: instance_type
           in: query
           required: false
           schema:
             type: string
-            pattern: ^(commentary|version|translation)(,(commentary|version|translation))*$
-          description: |
-            Comma-separated list of relationship types to consider.
-            If not provided, all relationship types are used.
-            Example: "commentary,version"
+            enum: [diplomatic, critical, all]
+            default: all
+          description: Require texts to have at least one instance of the given type
       responses:
         "200":
-          description: List of related metadata found successfully
+          description: Text and instance metadata retrieved successfully
           content:
             application/json:
               schema:
                 type: array
                 items:
                   type: object
-                  required:
-                    - id
-                    - title
                   properties:
-                    id:
-                      type: string
-                      pattern: ^I[A-F0-9]{8}$
-                    title:
-                      type: string
-                    commentary_of:
-                      type: string
-                      pattern: ^I[A-F0-9]{8}$
-                    version_of:
-                      type: string
-                      pattern: ^I[A-F0-9]{8}$
-                    translation_of:
-                      type: string
-                      pattern: ^I[A-F0-9]{8}$
-                examples:
-                  - id: IBA00803F
-                    title: Root Text
-                    version_of: IBA008040
+                    text_metadata:
+                      type: object
+                      properties:
+                        id:
+                          type: string
+                        type:
+                          type: string
+                          enum: [root, commentary, translation]
+                        title:
+                          type: object
+                          additionalProperties:
+                            type: string
+                          description: Localized expression title map (language code to text)
+                        alt_titles:
+                          type: array
+                          items:
+                            type: object
+                            additionalProperties:
+                              type: string
+                        language:
+                          type: string
+                        contributions:
+                          type: array
+                          items:
+                            type: object
+                            properties:
+                              person_id:
+                                type: string
+                              person_bdrc_id:
+                                type: string
+                              ai_id:
+                                type: string
+                              role:
+                                type: string
+                        date:
+                          type: string
+                        bdrc:
+                          type: string
+                        wiki:
+                          type: string
+                        target:
+                          type: string
+                          nullable: true
+                        category_id:
+                          type: string
+                          nullable: true
+                    instance_metadata:
+                      type: array
+                      items:
+                        type: object
+                        properties:
+                          id:
+                            type: string
+                          type:
+                            type: string
+                            enum: [diplomatic, critical]
+                          copyright:
+                            type: string
+                          bdrc:
+                            type: string
+                          wiki:
+                            type: string
+                          colophon:
+                            type: string
+                          incipit_title:
+                            type: object
+                            additionalProperties:
+                              type: string
+                            description: Localized instance title (incipit) map (language code to text)
+                          alt_incipit_titles:
+                            type: array
+                            items:
+                              type: object
+                              additionalProperties:
+                                type: string
         "400":
           $ref: '#/components/responses/InvalidRequest'
-        "404":
-          $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/ServerError'
-  /metadata/filter:
-    post:
-      summary: Filter metadata
-      description: |
-        Filter metadata using **four possible modes**:
-        
-        1. **Single Field Query** - Search by a single metadata field.
-        2. **AND Query** - Return results that match **all** given conditions.  
-        3. **OR Query** - Return results that match **any** given conditions.
-        4. **No Filters** - If the request body is empty, all Pechas are returned.
-        
-        Supports pagination with page and limit parameters.
+
+  /v2/enum:
+    get:
+      summary: List enum entries
+      description: Retrieve enum values by type. Defaults to language if type is not provided.
       tags:
-        - Metadata
+        - Enums
+      parameters:
+        - name: type
+          in: query
+          required: false
+          schema:
+            type: string
+            enum: [language, bibliography, manifestation, role, annotation]
+            default: language
+          description: Enum type to list
+      responses:
+        "200":
+          description: Enums retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  type:
+                    type: string
+                    enum: [language, bibliography, manifestation, role, annotation]
+                  items:
+                    type: array
+                    items:
+                      type: object
+              examples:
+                language:
+                  summary: Language enums
+                  value:
+                    type: language
+                    items:
+                      - code: bo
+                        name: tibetan
+                      - code: en
+                        name: english
+                bibliography:
+                  summary: Bibliography enums
+                  value:
+                    type: bibliography
+                    items:
+                      - name: colophon
+                      - name: title
+                manifestation:
+                  summary: Manifestation enums
+                  value:
+                    type: manifestation
+                    items:
+                      - name: diplomatic
+                      - name: critical
+                role:
+                  summary: Role enums
+                  value:
+                    type: role
+                    items:
+                      - name: author
+                        description: writer of the work
+                      - name: translator
+                        description: translated the work
+                annotation:
+                  summary: Annotation enums
+                  value:
+                    type: annotation
+                    items:
+                      - name: segmentation
+                      - name: pagination
+    post:
+      summary: Create enum entry
+      description: Create a new enum value in Neo4j based on the provided type and value payload. All values are normalized to lowercase before storage.
+      tags:
+        - Enums
       requestBody:
-        required: false
+        required: true
         content:
           application/json:
             schema:
               type: object
+              required: [type, value]
               properties:
-                filter:
-                  $ref: "https://pecha-backend.web.app/schema/filter"
-                page:
-                  type: integer
-                  description: Page number (1-based indexing)
-                  minimum: 1
-                  default: 1
-                  examples: [1]
-                limit:
-                  type: integer
-                  description: Number of results per page
-                  minimum: 1
-                  maximum: 100
-                  default: 20
-                  examples: [20]
-            examples:
-              andFilter:
+                type:
+                  type: string
+                  enum: [language, bibliography, manifestation, role, annotation]
+                  description: Enum type to create
                 value:
-                  page: 1
-                  limit: 50
-                  filter:
-                    and: [
-                      {"field": "language", "operator": "==", "value": "en"},
-                      {"field": "commentary_of", "operator": "!=", "value": null},
-                    ]
+                  oneOf:
+                    - title: LanguageValue
+                      type: object
+                      required: [code, name]
+                      properties:
+                        code:
+                          type: string
+                        name:
+                          type: string
+                    - title: BibliographyValue
+                      type: object
+                      required: [name]
+                      properties:
+                        name:
+                          type: string
+                    - title: ManifestationValue
+                      type: object
+                      required: [name]
+                      properties:
+                        name:
+                          type: string
+                    - title: RoleValue
+                      type: object
+                      required: [description, name]
+                      properties:
+                        description:
+                          type: string
+                        name:
+                          type: string
+                    - title: AnnotationValue
+                      type: object
+                      required: [name]
+                      properties:
+                        name:
+                          type: string
+            examples:
+              language:
+                summary: Create language enum
+                value:
+                  type: language
+                  value:
+                    code: bo
+                    name: Tibetan
+              bibliography:
+                summary: Create bibliography enum
+                value:
+                  type: bibliography
+                  value:
+                    name: colophon
+              manifestation:
+                summary: Create manifestation enum
+                value:
+                  type: manifestation
+                  value:
+                    name: diplomatic
+              role:
+                summary: Create role enum
+                value:
+                  type: role
+                  value:
+                    description: Writer of the work
+                    name: author
+              annotation:
+                summary: Create annotation enum
+                value:
+                  type: annotation
+                  value:
+                    name: segmentation
       responses:
-        "200":
-          description: Successfully retrieved filtered metadata
+        "201":
+          description: Enum created successfully
           content:
             application/json:
               schema:
                 type: object
-                required:
-                  - metadata
-                  - pagination
                 properties:
-                  metadata:
-                    type: array
-                    description: List of metadata objects
-                    items:
-                      $ref: "https://pecha-backend.web.app/schema/metadata"
-                  pagination:
-                    type: object
-                    required:
-                      - page
-                      - limit
-                      - total
-                    properties:
-                      page:
-                        type: integer
-                        description: Current page number
-                        examples: [1]
-                      limit:
-                        type: integer
-                        description: Number of results per page
-                        examples: [20]
-                      total:
-                        type: integer
-                        description: Total number of documents matching the query
-                        examples: [42]
+                  message:
+                    type: string
+              examples:
+                language:
+                  value:
+                    message: Language created successfully
+                bibliography:
+                  value:
+                    message: Bibliography created successfully
+                manifestation:
+                  value:
+                    message: Manifestation created successfully
+                role:
+                  value:
+                    message: Role created successfully
+                annotation:
+                  value:
+                    message: Annotation created successfully
         "400":
           $ref: '#/components/responses/InvalidRequest'
+        "422":
+          $ref: '#/components/responses/ValidationError'
         "500":
           $ref: '#/components/responses/ServerError'
-  /schema/filter:
-    get:
-      summary: Retrieve the Filter Schema
-      description: Returns the full JSON schema definition for filter validation.
-      tags:
-        - Schema
-      responses:
-        "200":
-          description: Successfully retrieved the filter schema.
-          content:
-            application/json:
-              schema:
-                type: object
-                description: The full JSON schema definition.
-        "400":
-          $ref: '#/components/responses/InvalidRequest'
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "500":
-          $ref: '#/components/responses/ServerError'
-  /schema/metadata:
-    get:
-      summary: Retrieve the Metadata Schema
-      description: Returns the full JSON schema definition for metadata validation.
-      tags:
-        - Schema
-      responses:
-        "200":
-          description: Successfully retrieved the metadata schema.
-          content:
-            application/json:
-              schema:
-                type: object
-                description: The full JSON schema definition.
-        "400":
-          $ref: '#/components/responses/InvalidRequest'
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "500":
-          $ref: '#/components/responses/ServerError'
+
   /api/version:
       get:
         summary: Get API version and Git SHA
@@ -591,261 +3978,7 @@ paths:
                             - "b706d2b1a5d0176df374da25c970274b2e0f7770"
             "500":
               $ref: '#/components/responses/ServerError'
-  /text/{pecha_id}:
-    put:
-      summary: Upload a text to update a Pecha
-      description: Uploads a docx file and updates the Pecha. The Pecha is re-parsed.
-      operationId: putText
-      tags:
-        - Pecha
-      parameters:
-        - name: pecha_id
-          in: path
-          required: true
-          schema:
-            type: string
-          description: The ID of the Pecha that is being updated.
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              required:
-                - text
-                - annotation_type
-              properties:
-                text:
-                  type: string
-                  format: binary
-                  description: The updated DOCX file containing the Pecha content.
-                annotation_type:
-                  type: string
-                  enum: [citation, sabche]
-                  description: The type of annotation to be applied to the text.
-            examples:
-              valid_update:
-                summary: Valid text update with annotation type
-                description: A valid DOCX file with annotation type to update a Pecha.
-                value:
-                  text: (binary content of a DOCX file)
-                  annotation_type: citation
-      responses:
-        "201":
-          description: Successfully updated the Pecha.
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    examples:
-                      - Text updated successfully
-                  id:
-                    type: string
-                    examples:
-                      - I857977C3
-        "400":
-          $ref: '#/components/responses/InvalidRequest'
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "500":
-          $ref: '#/components/responses/ServerError'
-  /categories:
-    get:
-      summary: Get category tree
-      description: Returns all categories in a hierarchical tree structure
-      operationId: getCategories
-      tags:
-        - Category
-      responses:
-        '200':
-          description: Category tree retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                required:
-                  - categories
-                properties:
-                  categories:
-                    type: array
-                    items:
-                      type: object
-                      required:
-                        - id
-                        - name
-                      properties:
-                        id:
-                          type: string
-                        name:
-                          type: object
-                          additionalProperties:
-                            type: string
-                        description:
-                          type: object
-                          additionalProperties:
-                            type: string
-                        short_description:
-                          type: object
-                          additionalProperties:
-                            type: string
-                        subcategories:
-                          type: array
-                          items:
-                            type: object
-              examples:
-                success:
-                  summary: Category tree with nested subcategories
-                  value:
-                    categories:
-                      - id: madhyamaka
-                        name:
-                          en: "Madhyamaka"
-                          bo: "དབུ་མ།"
-                        description:
-                          en: "Madhyamaka treatises"
-                          bo: "དབུ་མའི་གཞུང་སྣ་ཚོགས།"
-                        short_description:
-                          en: ""
-                          bo: ""
-                        subcategories:
-                          - id: prasangika
-                            name:
-                              en: "Prasangika"
-                              bo: "ཐལ་འགྱུར་བ།"
-                            description:
-                              en: "Prasangika treatises"
-                              bo: "ཐལ་འགྱུར་པའི་གཞུང་སྣ་ཚོགས།"
-        "400":
-          $ref: '#/components/responses/InvalidRequest'
-        "500":
-          $ref: '#/components/responses/ServerError'
 
-    put:
-      summary: Upload categories
-      description: Upload a YAML file containing category definitions
-      operationId: uploadCategories
-      tags:
-        - Category
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              required:
-                - file
-              properties:
-                file:
-                  type: string
-                  description: YAML file containing category definitions
-      responses:
-        '201':
-          description: Categories uploaded successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                required:
-                  - message
-                  - count
-                properties:
-                  message:
-                    type: string
-                  count:
-                    type: integer
-              examples:
-                success:
-                  summary: Categories uploaded successfully
-                  value:
-                    message: "Categories uploaded successfully"
-                    count: 3
-        "400":
-          $ref: '#/components/responses/InvalidRequest'
-        "500":
-          $ref: '#/components/responses/ServerError'
-  /annotation/{pecha_id}:
-      get:
-        summary: Get annotations for a Pecha
-        description: Returns all annotations associated with the specified pecha ID
-        tags:
-          - Annotation
-        parameters:
-          - name: pecha_id
-            in: path
-            required: true
-            schema:
-              type: string
-              pattern: '^I[0-9A-F]{8}$'
-            description: Pecha ID in the format I followed by 8 hexadecimal characters
-            example: I12345678
-        responses:
-          "200":
-            description: Successful operation
-            content:
-              application/json:
-                schema:
-                  type: array
-                  description: List of annotation objects
-                  items:
-                    $ref: "https://pecha-backend.web.app/schema/annotation"
-          "404":
-            $ref: '#/components/responses/NotFound'
-          "500":
-            $ref: '#/components/responses/ServerError'
-  /annotation:
-    post:
-      summary: Create annotation
-      description: Creates a new annotation for a Pecha with an uploaded document
-      tags:
-        - Annotation
-      requestBody:
-        required: true
-        content:
-          multipart/form-data:
-            schema:
-              type: object
-              required:
-                - document
-                - annotation
-              properties:
-                document:
-                  type: string
-                  format: binary
-                  description: Document file in DOCX format
-                annotation:
-                  type: string
-                  format: json
-                  description: Annotation in JSON format
-      responses:
-        "201":
-          description: Annotation created successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: "Annotation created successfully"
-                  id:
-                    type: string
-                    example: "A12345678"
-                  title:
-                    type: string
-                    example: "Test Annotation"
-        "400":
-          $ref: '#/components/responses/InvalidRequest'
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "409":
-          $ref: '#/components/responses/ConflictError'
-        "422":
-          $ref: '#/components/responses/ValidationError'
-        "500":
-          $ref: '#/components/responses/ServerError'
 components:
   responses:
     InvalidRequest:
@@ -915,21 +4048,6 @@ components:
                   }
                 ]
 
-    ConflictError:
-      description: Conflicting data
-      content:
-        application/json:
-          schema:
-            type: object
-            properties:
-              error:
-                type: string
-                description: Error message
-                examples:
-                  - "There was a conflict with the resource"
-            required:
-              - error
-
     ServerError:
       description: Internal server error
       content:
@@ -944,4 +4062,3 @@ components:
                   - "There was an error on the server"
             required:
               - error
-  

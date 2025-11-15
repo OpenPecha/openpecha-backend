@@ -32,10 +32,11 @@ class UpdateMetadata {
         this.source = document.getElementById("source");
         this.addAltTitleButton = document.getElementById("addAltTitle");
         this.searchContainers = document.querySelectorAll('.select-search-container');
-        this.pechaOptionsContainer = document.getElementById("pechaOptionsContainer");
-        this.pechaSelect = document.getElementById("pecha");
+        this.parentOptionsContainer = document.getElementById("parentOptionsContainer");
+        this.parentSelect = document.getElementById("parent");
+        this.parentLoadingSpinner = document.getElementById("parentLoadingSpinner");
         this.typeRadios = document.querySelectorAll(
-            'input[name="documentType"]'
+            'input[name="type"]'
         );
 
         this.annotationOptionsContainer = document.getElementById("annotationAlignmentContainer");
@@ -45,15 +46,15 @@ class UpdateMetadata {
         this.updatingSpinner = updateButton.querySelector(".spinner")
         this.updating = false;
         this.languageOptions = [];
-        
-        // Initially hide pecha selection and annotation alignment
-        this.pechaOptionsContainer.style.display = "none";
-        
+
+        // Initially hide parent selection
+        this.parentOptionsContainer.style.display = "none";
+
 
     }
 
     setupEventListeners() {
-        this.pechaSelector.addEventListener("change", async() => {
+        this.pechaSelector.addEventListener("change", async () => {
             const pechaId = this.pechaSelector.value;
             if (pechaId) {
                 this.selectedPechaId = pechaId;
@@ -61,7 +62,7 @@ class UpdateMetadata {
                 this.populateMetadata(metadata)
             }
         });
-        
+
         this.sourceUrl.addEventListener("input", this.handleSourceInput.bind(this));
         this.source.addEventListener("input", this.handleSourceInput.bind(this));
         // Add Localization Buttons
@@ -85,13 +86,15 @@ class UpdateMetadata {
         // Type Radio Selection
         this.typeRadios.forEach((radio) => {
             radio.addEventListener("change", () => {
-                if (radio.checked && radio.value) {
-                    // Show pecha selection only when a valid relation type is selected
-                    this.fetchRelatedPechas(radio.value);
+                const selectedType = radio.value;
+
+                if (selectedType !== 'root') {
+                    // Show parent selection for non-root types
+                    this.fetchRelatedPechas(selectedType);
                 } else {
-                    // Hide and reset pecha selection when "None" is selected
-                    this.pechaOptionsContainer.style.display = "none";
-                    this.pechaSelect.innerHTML = '<option value="">Select pecha</option>';
+                    // Hide and reset parent selection when root is selected
+                    this.parentOptionsContainer.style.display = "none";
+                    this.parentSelect.innerHTML = '<option value="">Select parent pecha</option>';
                 }
             });
         });
@@ -175,10 +178,10 @@ class UpdateMetadata {
 
     // Helper method to populate search results
     populateSearchResults(select, resultsContainer, searchTerm) {
-        searchTerm = searchTerm.toLowerCase();
+        searchTerm = searchTerm.trim().toLowerCase();
         resultsContainer.innerHTML = '';
         Array.from(select.options).forEach(option => {
-            if ( (searchTerm === '' || option.text.toLowerCase().includes(searchTerm))) {
+            if ((searchTerm.trim() === '' || option.text.toLowerCase().includes(searchTerm))) {
                 const item = document.createElement('div');
                 item.className = 'search-item';
                 item.textContent = option.text;
@@ -191,7 +194,7 @@ class UpdateMetadata {
                 resultsContainer.appendChild(item);
             }
         });
-        if(resultsContainer.innerHTML === '') {
+        if (resultsContainer.innerHTML === '') {
             resultsContainer.innerHTML = '<div class="search-item" value="">No results found</div>';
         }
     }
@@ -378,7 +381,7 @@ class UpdateMetadata {
         altTitles.appendChild(altTitleGroup);
     }
 
-    async fetchPechaMetadata(pecha_id){
+    async fetchPechaMetadata(pecha_id) {
         try {
             const response = await fetch(`${this.API_ENDPOINT}/metadata/${pecha_id}`, {
                 method: 'GET',
@@ -396,7 +399,7 @@ class UpdateMetadata {
         }
     }
 
-    populateMetadata(metadata){
+    populateMetadata(metadata) {
         // Clear form first
         this.clearForm();
 
@@ -404,20 +407,35 @@ class UpdateMetadata {
         if (metadata.language) {
             this.baseLanguageSelect.value = this.languageOptions.find(lang => lang.code === metadata.language).code;
         }
-        
+
+        // Set type and parent if available
+        if (metadata.type) {
+            const typeRadio = document.querySelector(`input[name="type"][value="${metadata.type}"]`);
+            if (typeRadio) {
+                typeRadio.checked = true;
+
+                // If type is not root, fetch and set parent
+                if (metadata.type !== 'root' && metadata.parent) {
+                    this.fetchRelatedPechas(metadata.type).then(() => {
+                        this.parentSelect.value = metadata.parent;
+                    });
+                }
+            }
+        }
+
         // Populate titles
         if (metadata.title) {
             const titleContainer = document.querySelector('.form-group[data-field="title"] .localizations');
             if (titleContainer) {
                 titleContainer.innerHTML = ''; // Clear existing
                 Object.entries(metadata.title).forEach(([lang, value], index) => {
-                    this.createLocalizationInput(titleContainer, lang, index === 0, lang==='bo'|| lang==='en' || lang ==='lzh', true);
+                    this.createLocalizationInput(titleContainer, lang, index === 0, lang === 'bo' || lang === 'en' || lang === 'lzh', true);
                     const input = titleContainer.querySelector('.input-container:last-child input[type="text"]');
                     if (input) input.value = value;
                 });
             }
         }
-        
+
         // Populate long titles
         if (metadata.long_title) {
             const longTitleContainer = document.querySelector('.form-group[data-field="long_title"] .localizations');
@@ -430,7 +448,7 @@ class UpdateMetadata {
                 });
             }
         }
-        
+
         // Populate authors
         if (metadata.author) {
             const authorContainer = document.querySelector('.form-group[data-field="author"] .localizations');
@@ -443,71 +461,42 @@ class UpdateMetadata {
                 });
             }
         }
-        
+
         // Set source if available
         if (metadata.source) {
             const sourceInput = document.getElementById('source');
             if (sourceInput) sourceInput.value = metadata.source;
         }
-        
+
         // Set source URL if available
         if (metadata.source_url) {
             const sourceUrlInput = document.getElementById('sourceUrl');
             if (sourceUrlInput) sourceUrlInput.value = metadata.source_url;
         }
-        
+
         // Set document ID if available
         if (metadata.document_id) {
             const docUrlInput = document.querySelector('input[placeholder="Google docs URL"]');
             if (docUrlInput) docUrlInput.value = `https://docs.google.com/document/d/${metadata.document_id}/edit`;
         }
-        
-        // Set relation type if exists
-        if (metadata.commentary_of || metadata.translation_of || metadata.version_of) {
-            let relationType = '';
-            let relatedPechaId = '';
-            
-            if (metadata.commentary_of) {
-                relationType = 'commentary_of';
-                relatedPechaId = metadata.commentary_of;
-            } else if (metadata.translation_of) {
-                relationType = 'translation_of';
-                relatedPechaId = metadata.translation_of;
-            } else if (metadata.version_of) {
-                relationType = 'version_of';
-                relatedPechaId = metadata.version_of;
-            }
-            
-            // Set the relation radio button
-            const relationRadio = document.querySelector(`input[name="documentType"][value="${relationType}"]`);
-            if (relationRadio) {
-                relationRadio.checked = true;
-                
-                // Fetch related pechas and set the selected one
-                this.fetchRelatedPechas(relationType).then(() => {
-                    console.log("related pechas fetched", relatedPechaId);
-                    this.pechaSelect.value = relatedPechaId;
-                });
-            }
-        }
-        
+
         // Populate alternate titles if any
         if (metadata.alt_titles && metadata.alt_titles.length > 0) {
             const altTitlesContainer = document.getElementById('alt-titles');
             if (altTitlesContainer) {
                 altTitlesContainer.innerHTML = ''; // Clear existing
-                
+
                 metadata.alt_titles.forEach(altTitle => {
                     // Add a new alt title group
                     this.addAltTitles(metadata.language || 'bo');
-                    
+
                     // Get the last added group
                     const lastGroup = altTitlesContainer.querySelector('.alt-title-group:last-child');
                     if (lastGroup) {
                         const localizationsDiv = lastGroup.querySelector('.localizations');
                         if (localizationsDiv) {
                             localizationsDiv.innerHTML = ''; // Clear default inputs
-                            
+
                             // Add each language version
                             Object.entries(altTitle).forEach(([lang, value], index) => {
                                 this.createLocalizationInput(localizationsDiv, lang, true, index === 0);
@@ -519,7 +508,7 @@ class UpdateMetadata {
                 });
             }
         }
-        
+
         // Set composition date if exists
         if (metadata.composition_date) {
             const dateDisplay = document.getElementById('selectedDate');
@@ -531,7 +520,7 @@ class UpdateMetadata {
                 } else if (metadata.composition_date.standard) {
                     // Standard date format
                     dateDisplay.textContent = metadata.composition_date.standard;
-                    
+
                     // Set era to Standard
                     const eraSelect = document.getElementById('eraSelect');
                     if (eraSelect) eraSelect.value = 'Standard';
@@ -542,20 +531,20 @@ class UpdateMetadata {
                         dateText += ` to ${metadata.composition_date.year_end}`;
                     }
                     dateDisplay.textContent = dateText;
-                    
+
                     // Set era (BCE/CE)
                     const eraSelect = document.getElementById('eraSelect');
                     if (eraSelect) {
                         eraSelect.value = metadata.composition_date.era || 'CE';
                     }
-                    
+
                     // Show historical picker
                     const standardPicker = document.getElementById('standardPicker');
                     const historicalPicker = document.getElementById('historicalPicker');
                     if (standardPicker && historicalPicker) {
                         standardPicker.classList.add('hidden');
                         historicalPicker.classList.remove('hidden');
-                        
+
                         // Set year values
                         const yearStartInput = document.getElementById('historicalYearStart');
                         const yearEndInput = document.getElementById('historicalYearEnd');
@@ -565,12 +554,12 @@ class UpdateMetadata {
                 }
             }
         }
-        
-        
+
+
         this.enableForm();
         this.showToast('Metadata loaded successfully', 'info');
     }
-    
+
     clearTitleFields() {
         // Clear all title input fields
         const titleGroup = document.querySelector('.form-group[data-field="title"]');
@@ -583,24 +572,24 @@ class UpdateMetadata {
             });
         }
     }
-    
+
     async fetchPechaOptions() {
-        let body = {filter: {} };
+        let body = { filter: {} };
         try {
             this.disableForm();
             this.pechaSelectionContainer.style.display = "none";
             this.toggleLoadingSpinner(true, this.pechaSelectionContainer, this.pechaSelectionContainer.parentElement.querySelector('.loading-spinner'));
-            
+
             let allPechas = [];
             let currentPage = 1;
             let hasMorePages = true;
             const limit = 100; // Keep the same limit per request
-            
+
             // Loop until we've fetched all pages
             while (hasMorePages) {
                 body.page = currentPage;
                 body.limit = limit;
-                
+
                 const response = await fetch(`${this.API_ENDPOINT}/metadata/filter/`, {
                     method: 'POST',
                     headers: {
@@ -623,7 +612,7 @@ class UpdateMetadata {
                 const title = pecha.title[pecha.language] ?? pecha.title.bo;
                 const option = new Option(`${pecha.id} - ${title}`, pecha.id);
                 this.pechaSelectionContainer.querySelector('select').add(option.cloneNode(true));
-            }); 
+            });
         } catch (error) {
             this.toggleLoadingSpinner(false, this.pechaSelectionContainer, this.pechaSelectionContainer.parentElement.querySelector(".loading-spinner"));
             console.error("Error loading pecha options:", error);
@@ -633,27 +622,27 @@ class UpdateMetadata {
         }
     }
 
-    async fetchRelatedPechas(filterBy) {
+    async fetchRelatedPechas(type) {
         const filters = {
-            commentary_of: { "field": "commentary_of", "operator": "==", "value": null },
-            translation_of: { "field": "translation_of", "operator": "==", "value": null }
+            commentary: { "field": "type", "operator": "!=", "value": "commentary" },
+            version: { "field": "type", "operator": "!=", "value": "version" },
+            translation: { "field": "type", "operator": "!=", "value": "translation" }
         };
-        const body = { filter: filters[filterBy] || {} };
-        try {
-            this.pechaOptionsContainer.style.display = "none";
+        const body = { filter: filters[type] || {} };
 
-            this.toggleLoadingSpinner(true, this.pechaOptionsContainer, this.pechaOptionsContainer.parentElement.querySelector(".loading-spinner"));
-            
+        try {
+            this.parentOptionsContainer.style.display = "none";
+            this.toggleLoadingSpinner(true, this.parentOptionsContainer, this.parentLoadingSpinner);
+
             let allPechas = [];
             let currentPage = 1;
             let hasMorePages = true;
-            const limit = 100; // Keep the same limit per request
-            
-            // Loop until we've fetched all pages
+            const limit = 100;
+
             while (hasMorePages) {
                 body.page = currentPage;
                 body.limit = limit;
-                
+
                 const response = await fetch(`${this.API_ENDPOINT}/metadata/filter/`, {
                     method: 'POST',
                     headers: {
@@ -662,33 +651,35 @@ class UpdateMetadata {
                     },
                     body: JSON.stringify(body)
                 });
+
                 if (!response.ok) {
                     throw new Error(`Failed to fetch data: ${response.statusText}`);
                 }
+
                 const pechas = await response.json();
                 allPechas = allPechas.concat(pechas.metadata);
                 hasMorePages = pechas.metadata.length === limit;
                 currentPage++;
             }
-            
-            this.toggleLoadingSpinner(false, this.pechaOptionsContainer, this.pechaOptionsContainer.parentElement.querySelector(".loading-spinner"));
-            this.pechaOptionsContainer.style.display = "block";
+
+            this.toggleLoadingSpinner(false, this.parentOptionsContainer, this.parentLoadingSpinner);
+            this.parentOptionsContainer.style.display = "block";
             this.populatePechaDropdown(allPechas);
         } catch (error) {
-            this.toggleLoadingSpinner(false, this.pechaOptionsContainer, this.pechaOptionsContainer.parentElement.querySelector(".loading-spinner"));
+            this.toggleLoadingSpinner(false, this.parentOptionsContainer, this.parentLoadingSpinner);
             console.error("Error loading pecha options:", error);
             this.showToast("Unable to load pecha options. Please try again later.", "error");
         }
     }
 
     populatePechaDropdown(pechas) {
-        while (this.pechaSelect.options.length > 1) {
-            this.pechaSelect.remove(1);
+        while (this.parentSelect.options.length > 1) {
+            this.parentSelect.remove(1);
         }
         pechas.forEach(pecha => {
             const title = pecha.title[pecha.language] ?? pecha.title.bo;
             const option = new Option(`${pecha.id} - ${title}`, pecha.id);
-            this.pechaSelect.add(option.cloneNode(true));
+            this.parentSelect.add(option.cloneNode(true));
         });
     }
 
@@ -713,7 +704,7 @@ class UpdateMetadata {
                 temp += `<option value="${lang.code}">${lang.name}</option>`;
             });
             this.baseLanguageSelect.innerHTML = temp;
-            
+
             return data;
         } catch (error) {
             console.error('Error fetching languages:', error);
@@ -725,10 +716,20 @@ class UpdateMetadata {
 
     collectFormData() {
         const formData = {
-            metadata:{
+            metadata: {
                 language: this.baseLanguageSelect.value,
+                type: document.querySelector('input[name="type"]:checked').value
+            }
+        };
+
+        // Add parent if type is not root
+        if (formData.metadata.type !== 'root') {
+            const parentId = this.parentSelect.value;
+            if (parentId) {
+                formData.metadata.parent = parentId;
             }
         }
+
         // Collect localized fields
         document.querySelectorAll(".form-group[data-field]").forEach(group => {
             const fieldName = group.dataset.field;
@@ -788,14 +789,6 @@ class UpdateMetadata {
         formData.metadata.source_url = this.sourceUrl.value || null;
         formData.metadata.source = this.source.value || null;
 
-        // Collect document type and pecha
-        const selectedType = document.querySelector('input[name="documentType"]:checked');
-        this.selectedPecha = this.pechaOptionsContainer.querySelector('select').value;
-
-        if (selectedType && this.selectedPecha) {
-            formData.metadata[selectedType.value] = this.selectedPecha;
-        }
-
         // Collect Google Docs id 
         formData.metadata.document_id = this.extractDocIdFromLink(document.querySelector('input[placeholder="Google docs URL"]').value);
 
@@ -811,6 +804,32 @@ class UpdateMetadata {
             } catch (error) {
                 return false;
             }
+        }
+
+        // Validate type
+        if (!metadata.type) {
+            const typeGroup = document.querySelector('.form-group:has(input[name="type"])');
+            if (typeGroup) {
+                typeGroup.classList.add('error');
+            }
+            this.showToast("Type is required", "error");
+            return false;
+        } else {
+            const typeGroup = document.querySelector('.form-group:has(input[name="type"])');
+            if (typeGroup) {
+                typeGroup.classList.remove('error');
+            }
+        }
+
+        // Validate parent for non-root types
+        if (metadata.type !== 'root' && !metadata.parent) {
+            this.parentSelect.classList.add('error');
+            this.parentOptionsContainer.classList.add('error');
+            this.showToast("Parent pecha is required for non-root types", "error");
+            return false;
+        } else {
+            this.parentSelect.classList.remove('error');
+            this.parentOptionsContainer.classList.remove('error');
         }
 
         // Check author in English
@@ -835,7 +854,7 @@ class UpdateMetadata {
             } else {
                 this.sourceUrl.closest('.input-wrapper').classList.remove('error');
             }
-        
+
             // Validate Source if provided
             if (metadata.source && typeof metadata.source !== "string") {
                 this.source.closest('.input-wrapper').classList.add('error');
@@ -944,7 +963,7 @@ class UpdateMetadata {
         this.clearErrors();
         const pechaData = this.collectFormData();
         console.log("data", pechaData);
-        if (!this.validateRequiredFields(pechaData)) 
+        if (!this.validateRequiredFields(pechaData))
             return;
         this.toggleUpdateButtonState(true);
 
@@ -995,7 +1014,7 @@ class UpdateMetadata {
     handleSourceInput(event) {
         if (event.target.value) {
             if (event.target === this.sourceUrl) {
-                this.source.value = ""; 
+                this.source.value = "";
             } else {
                 this.sourceUrl.value = "";
             }
@@ -1038,7 +1057,7 @@ class UpdateMetadata {
                 return '<i class="fas fa-info-circle"></i>';
         }
     }
-    
+
     clearForm() {
         const currentLanguage = this.baseLanguageSelect.value;
 
@@ -1072,10 +1091,15 @@ class UpdateMetadata {
             historicalYearInput.value = '';
         }
 
-        // Uncheck all radio buttons
-        this.typeRadios.forEach(radio => {
-            radio.checked = false;
-        });
+        // Reset type to root
+        const rootRadio = document.querySelector('input[name="type"][value="root"]');
+        if (rootRadio) {
+            rootRadio.checked = true;
+        }
+
+        // Hide and reset parent selection
+        this.parentOptionsContainer.style.display = "none";
+        this.parentSelect.innerHTML = '<option value="">Select parent pecha</option>';
 
         // Clear any error states
         this.clearErrors();

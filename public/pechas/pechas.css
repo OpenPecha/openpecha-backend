@@ -117,6 +117,25 @@
     color: var(--text-primary);
 }
 
+.filter-constraint-notice {
+    background-color: #fef3c7;
+    border: 1px solid #fbbf24;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.filter-constraint-notice p {
+    margin: 0;
+    color: #92400e;
+    font-size: 0.875rem;
+    line-height: 1.4;
+}
+
+.filter-constraint-notice strong {
+    color: #78350f;
+}
+
 .filter-section {
     margin-bottom: 1.5rem;
 }
@@ -361,6 +380,50 @@
 @keyframes spin {
     0% { transform: rotate(0deg); }
     100% { transform: rotate(360deg); }
+}
+
+/* End of page indicator */
+.end-page-indicator {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    padding: 20px 0;
+    width: 100%;
+    text-align: center;
+    margin-top: 20px;
+    grid-column: 1 / -1;
+}
+
+.end-page-indicator .loading-spinner {
+    width: 40px;
+    height: 40px;
+    border: 4px solid rgba(0, 0, 0, 0.1);
+    border-radius: 50%;
+    border-top-color: var(--primary-color);
+    animation: spin 1s ease-in-out infinite;
+    margin-bottom: 10px;
+}
+
+.end-page-indicator .loading-text {
+    font-size: 14px;
+    color: #666;
+    margin: 5px 0;
+}
+
+.end-page-indicator.complete .loading-spinner {
+    display: none;
+}
+
+.end-page-indicator.complete .loading-text {
+    color: #666;
+    font-weight: 500;
+}
+
+@keyframes spin {
+    to {
+        transform: rotate(360deg);
+    }
 }
 
 /* Pagination */

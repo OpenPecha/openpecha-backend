@@ -3,7 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="shortcut icon" href="../assets/favicon.ico" type="image/x-icon">
+    <link
+      rel="shortcut icon"
+      href="../assets/favicon.ico"
+      type="image/x-icon"
+    />
     <title>Create Pecha</title>
     <link rel="stylesheet" href="./css/metadata.css" />
     <link rel="stylesheet" href="../toast_style.css" />
@@ -36,74 +40,77 @@
       <div class="container">
         <div class="back-button">
           <a href="/update/">
-              <i class="fa-solid fa-arrow-left"></i>
+            <i class="fa-solid fa-arrow-left"></i>
           </a>
-      </div>
+        </div>
         <div class="pecha-selector-container">
           <label for="pechaSelector">Select Pecha</label>
-        <div id="pechaSelectionContainer" class="select-search-container">
-          <select id="pechaSelector" name="pecha">
-            <option value="">Select pecha</option>
-          </select>
-          <div class="search-overlay">
-            <input
-              type="text"
-              class="search-input"
-              placeholder="Search pechas..."
-            />
-            <div class="search-results"></div>
+          <div id="pechaSelectionContainer" class="select-search-container">
+            <select id="pechaSelector" name="pecha">
+              <option value="">Select pecha</option>
+            </select>
+            <div class="search-overlay">
+              <input
+                type="text"
+                class="search-input"
+                placeholder="Search pechas..."
+              />
+              <div class="search-results"></div>
+            </div>
           </div>
-        </div>
-        <div id="pechaLoadingSpinner" class="loading-spinner">
-          <i class="fas fa-spinner fa-spin"></i> Loading pechas...
-        </div>
+          <div id="pechaLoadingSpinner" class="loading-spinner">
+            <i class="fas fa-spinner fa-spin"></i> Loading pechas...
+          </div>
         </div>
         <div id="formContent" class="form-content">
           <form id="metadataForm">
             <div class="form-group">
-            <div class="base-language">
-              <label for="baseLanguage">Language</label>
-              <select id="baseLanguage">
-              </select>
-              <div id="baseLanguageLoader" class="loading-spinner">
-                <i class="fas fa-spinner fa-spin"></i> Loading languages...
+              <div class="base-language">
+                <label for="baseLanguage">Language</label>
+                <select id="baseLanguage"></select>
+                <div id="baseLanguageLoader" class="loading-spinner">
+                  <i class="fas fa-spinner fa-spin"></i> Loading languages...
+                </div>
               </div>
             </div>
-            </div>
             <div class="form-group">
-              <label>Relation</label>
+              <label>Type</label>
               <div class="radio-group">
                 <label class="radio-option">
-                  <input type="radio" name="documentType" value="commentary_of" />
-                  Commentary of
+                  <input type="radio" name="type" value="root" checked />
+                  Root
                 </label>
                 <label class="radio-option">
-                  <input type="radio" name="documentType" value="translation_of" />
-                  Translation of
+                  <input type="radio" name="type" value="commentary" />
+                  Commentary
                 </label>
                 <label class="radio-option">
-                  <input type="radio" name="documentType" value="" checked />
-                  None
+                  <input type="radio" name="type" value="version" />
+                  Version
+                </label>
+                <label class="radio-option">
+                  <input type="radio" name="type" value="translation" />
+                  Translation
                 </label>
               </div>
 
-                <div id="pechaOptionsContainer" class="select-search-container">
-                  <select id="pecha" name="pecha">
-                    <option value="">Select pecha</option>
-                  </select>
-                  <div class="search-overlay">
-                    <input
-                      type="text"
-                      class="search-input"
-                      placeholder="Search pechas..."
-                    />
-                    <div class="search-results"></div>
-                  </div>
+              <div id="parentOptionsContainer" class="select-search-container">
+                <select id="parent" name="parent">
+                  <option value="">Select parent pecha</option>
+                </select>
+                <div class="search-overlay">
+                  <input
+                    type="text"
+                    class="search-input"
+                    placeholder="Search pechas..."
+                  />
+                  <div class="search-results"></div>
                 </div>
-                <!-- Loading spinner for pecha dropdown -->
-                <div id="pechaLoadingSpinner" class="loading-spinner">
-                  <i class="fas fa-spinner fa-spin"></i> Loading pechas...
-                </div>
+              </div>
+              <!-- Loading spinner for parent dropdown -->
+              <div id="parentLoadingSpinner" class="loading-spinner">
+                <i class="fas fa-spinner fa-spin"></i> Loading pechas...
+              </div>
             </div>
 
             <!-- <div class="form-group">
@@ -134,11 +141,10 @@
                 Add Author
               </button>
             </div>
-            
+
             <div class="form-group" data-field="title">
               <label>Title</label>
-              <div class="localizations">
-              </div>
+              <div class="localizations"></div>
               <button type="button" class="add-localization">
                 <i class="fas fa-plus-circle"></i>
                 Add Title
@@ -154,112 +160,120 @@
               </button>
             </div>
 
-            
-
-            
             <div class="form-group document-id">
               <label>Document</label>
               <div class="input-wrapper">
-                <input type="url" placeholder="Google docs URL" disabled/>
+                <input type="url" placeholder="Google docs URL" disabled />
               </div>
             </div>
-
-            
 
             <div class="form-group source-url">
               <label>Source URL</label>
               <div class="input-wrapper">
-                <input type="url" placeholder="https://example.com" id="sourceUrl"/>
+                <input
+                  type="url"
+                  placeholder="https://example.com"
+                  id="sourceUrl"
+                />
               </div>
             </div>
 
             <div class="form-group source">
               <label>Source</label>
               <div class="input-wrapper">
-                <input type="text" placeholder="Enter source" id="source"/>
+                <input type="text" placeholder="Enter source" id="source" />
               </div>
             </div>
-                <div class="form-group">
-                  <label>Alternate Titles</label>
-                  <div class="alt-titles" id="alt-titles"></div>
-                  <button type="button" class="add-alt-title" id="addAltTitle">
-                    <i class="fas fa-plus-circle"></i>
-                    <!-- <i class="fa-solid fa-plus"></i> -->
-                    Add alternate title
-                  </button>
+            <div class="form-group">
+              <label>Alternate Titles</label>
+              <div class="alt-titles" id="alt-titles"></div>
+              <button type="button" class="add-alt-title" id="addAltTitle">
+                <i class="fas fa-plus-circle"></i>
+                <!-- <i class="fa-solid fa-plus"></i> -->
+                Add alternate title
+              </button>
+            </div>
+
+            <div class="form-group" data-field="presentation">
+              <label>Presentation</label>
+              <div class="localizations"></div>
+              <button type="button" class="add-localization">
+                <i class="fas fa-plus-circle"></i>
+                Add Presentation
+              </button>
+            </div>
+
+            <div class="form-group" data-field="usage_title">
+              <label>Usage Title</label>
+              <div class="localizations"></div>
+              <button type="button" class="add-localization">
+                <i class="fas fa-plus-circle"></i>
+                Add Usage Title
+              </button>
+            </div>
+
+            <!-- // custom date picker -->
+            <div class="form-group">
+              <label>Composition Date</label>
+              <div class="date-display" id="selectedDate">No date selected</div>
+              <div class="date-picker-container" id="datePickerContainer">
+                <div class="era-selector">
+                  <label>Era: </label>
+                  <select id="eraSelect" class="era-select">
+                    <option value="Standard">Standard</option>
+                    <option value="BCE">BCE</option>
+                    <option value="CE">CE</option>
+                  </select>
                 </div>
-                
-                <div class="form-group" data-field="presentation">
-                  <label>Presentation</label>
-                  <div class="localizations"></div>
-                  <button type="button" class="add-localization">
-                    <i class="fas fa-plus-circle"></i>
-                    Add Presentation
-                  </button>
-                </div>
 
-                <div class="form-group" data-field="usage_title">
-                  <label>Usage Title</label>
-                  <div class="localizations"></div>
-                  <button type="button" class="add-localization">
-                    <i class="fas fa-plus-circle"></i>
-                    Add Usage Title
-                  </button>
-                </div>
-
-                <!-- // custom date picker -->
-                <div class="form-group">
-                  <label>Composition Date</label>
-                  <div class="date-display" id="selectedDate">No date selected</div>
-                  <div class="date-picker-container" id="datePickerContainer">
-                    <div class="era-selector">
-                      <label>Era: </label>
-                      <select id="eraSelect" class="era-select">
-                        <option value="Standard">Standard</option>
-                        <option value="BCE">BCE</option>
-                        <option value="CE">CE</option>
-                      </select>
+                <div id="standardPicker">
+                  <div class="calendar-header">
+                    <button type="button" id="prevYear">◄◄</button>
+                    <button type="button" id="prevMonth">◄</button>
+                    <!-- <span id="currentMonth">January 2024</span> -->
+                    <div class="month-year-container">
+                      <span id="currentMonth">January 2024</span>
+                      <input
+                        class="year-select-input"
+                        aria-label="Select Year"
+                        type="number"
+                        min="1"
+                        max="9999"
+                        id="yearInput"
+                      />
                     </div>
+                    <button type="button" id="nextMonth">►</button>
+                    <button type="button" id="nextYear">►►</button>
+                  </div>
 
-                    <div id="standardPicker">
-                      <div class="calendar-header">
-                        <button type="button" id="prevYear">◄◄</button>
-                        <button type="button" id="prevMonth">◄</button>
-                        <!-- <span id="currentMonth">January 2024</span> -->
-                        <div class="month-year-container">
-                          <span id="currentMonth">January 2024</span>
-                          <input class="year-select-input" aria-label="Select Year" type="number" min="1" max="9999" id="yearInput"/>
-                        </div>
-                        <button type="button" id="nextMonth">►</button>
-                        <button type="button" id="nextYear">►►</button>
-                      </div>
-
-                      <div class="calendar-grid" id="calendarGrid">
-                        <!-- Calendar will be generated here -->
-                      </div>
-                    </div>
-
-                    <div id="historicalPicker" class="hidden">
-                      <div class="year-selector">
-                        <label>From: </label>
-                        <input
-                          type="number"
-                          id="historicalYearStart"
-                          class="year-input"
-                          min="1"
-                        />
-                        <label>To: </label>
-                        <input
-                          type="number"
-                          id="historicalYearEnd"
-                          class="year-input"
-                          min="1"
-                        />
-                      </div>
-                      <span class="historical-year-note">* for specific year only first one</span>
-                    </div>
+                  <div class="calendar-grid" id="calendarGrid">
+                    <!-- Calendar will be generated here -->
                   </div>
                 </div>
+
+                <div id="historicalPicker" class="hidden">
+                  <div class="year-selector">
+                    <label>From: </label>
+                    <input
+                      type="number"
+                      id="historicalYearStart"
+                      class="year-input"
+                      min="1"
+                    />
+                    <label>To: </label>
+                    <input
+                      type="number"
+                      id="historicalYearEnd"
+                      class="year-input"
+                      min="1"
+                    />
+                  </div>
+                  <span class="historical-year-note"
+                    >* for specific year only first one</span
+                  >
+                </div>
+              </div>
+            </div>
 
             <button type="button" id="updateButton" class="update-button">
               <span class="update-button-text">Update</span>

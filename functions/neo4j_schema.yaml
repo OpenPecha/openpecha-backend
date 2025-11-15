@@ -1,0 +1,309 @@
+nodes:
+  Work:
+    properties:
+      wiki:
+        type: string
+        required: false
+        unique: true
+      bdrc:
+        type: string
+        required: false
+        unique: true
+      
+  Expression:
+    properties:
+      wiki:
+        type: string
+        required: false
+        unique: true
+      bdrc:
+        type: string
+        required: false
+        unique: true
+    relationships:
+      EXPRESSION_OF:
+        target: Work
+        cardinality: one
+        required: true
+        properties:
+          original:
+            type: boolean
+            required: true
+      TRANSLATION_OF:
+        target: Expression
+        cardinality: one
+        required: false
+      COMMENTARY_OF:
+        target: Expression
+        cardinality: one
+        required: false
+      HAS_LANGUAGE:
+        target: Language
+        cardinality: one
+        required: true
+        properties:
+          bcp47:
+            type: string
+            required: false
+      HAS_CONTRIBUTION:
+        target: Contribution
+        cardinality: many
+        required: false
+      HAS_TITLE:
+        target: Nomen
+        cardinality: one
+        required: true
+
+  Manifestation:
+    properties:
+      id:
+        type: string
+        required: true
+        unique: true
+      colophon:
+        type: string
+        required: false
+      created:
+        type: datetime
+        required: false
+      modified:
+        type: datetime
+        required: false
+      bdrc:
+        type: string
+        required: false
+        unique: true
+      wiki:
+        type: string
+        required: false
+        unique: true
+    relationships:
+      HAS_TYPE:
+        target: ManifestationType
+        cardinality: one
+        required: true
+      HAS_COPYRIGHT:
+        target: CopyrightStatus
+        cardinality: one
+        required: false
+      HAS_INCIPIT_TITLE:
+        target: Nomen
+        cardinality: one
+        required: false
+      MANIFESTATION_OF:
+        target: Expression
+        cardinality: one
+        required: true
+
+  Annotation:
+    properties:
+      id:
+        type: string
+        required: true
+        unique: true
+      aligned_to:
+        type: string
+        required: false
+    relationships:
+      HAS_TYPE:
+        target: AnnotationType
+        cardinality: one
+        required: true
+      ANNOTATION_OF:
+        target: Manifestation
+        cardinality: one
+        required: true
+
+  Segment:
+    properties:
+      id:
+        type: string
+        required: true
+        unique: true
+      span_start:
+        type: integer
+        required: true
+      span_end:
+        type: integer
+        required: true
+    relationships:
+      SEGMENTATION_OF:
+        target: Annotation
+        cardinality: one
+        required: true
+      ALIGNED_TO:
+        target: Segment
+        cardinality: one
+        required: false
+      HAS_REFERENCE:
+        target: Reference
+        cardinality: one
+        required: false
+      HAS_BIBLIOGRAPHY_TYPE:
+        target: BibliographyType
+        cardinality: one
+        required: false
+
+  Reference:
+    properties:
+      id:
+        type: string
+        required: true
+        unique: true
+      name:
+        type: string
+        required: true
+      description:
+        type: string
+        required: false
+    relationships:
+      REFERENCE_OF:
+        target: Segment
+        cardinality: one
+        required: false
+
+  BibliographyType:
+    properties:
+      id:
+        type: string
+        required: true
+        unique: true
+      type:
+        type: string
+        required: true
+    relationships:
+      BIBLIOGRAPHY_TYPE_OF:
+        target: Segment
+        cardinality: one
+        required: false
+
+  Contribution:
+    relationships:
+      BY:
+        target: Person | AI
+        cardinality: one
+        required: true
+      WITH_ROLE:
+        target: RoleType
+        cardinality: one
+        required: true
+
+  AI:
+    properties:
+      id:
+        type: string
+        required: true
+        unique: true
+
+  Person:
+    properties:
+      id:
+        type: string
+        required: true
+        unique: true
+      bdrc:
+        type: string
+        required: false
+        unique: true
+      wiki:
+        type: string
+        required: false
+        unique: true
+    relationships:
+      HAS_NAME:
+        target: Nomen
+        cardinality: one
+        required: true
+
+  Nomen:
+    properties: {}
+    relationships:
+      HAS_LOCALIZATION:
+        target: LocalizedText
+        cardinality: one
+        required: true
+      ALTERNATIVE_OF:
+        target: Nomen
+        cardinality: one
+        required: false
+
+  LocalizedText:
+    properties:
+      text:
+        type: string
+        required: true
+    relationships:
+      HAS_LANGUAGE:
+        target: Language
+        cardinality: one
+        required: true
+        properties:
+          bcp47:
+            type: string
+            required: true
+
+  Language:
+    properties:
+      code:
+        type: string
+        required: true
+        unique: true
+      name:
+        type: string
+        required: true
+  
+  ManifestationType:
+    enum: true
+    properties:
+      name:
+        type: string
+        unique: true
+        allowed_values:
+          - diplomatic
+          - critical
+
+  CopyrightStatus:
+    enum: true
+    properties:
+      info_url:
+        type: string
+        required: false
+      name:
+        type: string
+        unique: true
+        required: true
+        allowed_values:
+          - public
+          - copyrighted
+      description:
+        type: string
+        required: false
+
+  AnnotationType:
+    enum: true
+    properties:
+      name:
+        type: string
+        unique: true
+        allowed_values:
+          - segmentation
+          - alignment
+          - pagination
+          - bibliography
+
+  RoleType:
+    enum: true
+    properties:
+      name:
+        type: string
+        unique: true
+        required: true
+        allowed_values:
+          - reviser
+          - author
+          - translator
+          - scholar
+        description:
+          type: string
+          required: false
+  

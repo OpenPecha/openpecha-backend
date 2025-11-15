@@ -1,12 +1,18 @@
+import logging
+import os
+import traceback
+
 import firebase_admin
-from api.annotation import annotation_bp
+from api.annotations import annotations_bp
 from api.api import api_bp
-from api.category import categories_bp
-from api.languages import languages_bp
-from api.metadata import metadata_bp
-from api.pecha import pecha_bp
+from api.categories import categories_bp
+from api.instances import instances_bp
+from api.persons import persons_bp
 from api.schema import schema_bp
-from api.text import text_bp
+from api.segments import segments_bp
+from api.texts import texts_bp
+from api.enum import enum_bp
+from api.relation import relation_bp
 from exceptions import OpenPechaException
 from firebase_admin import credentials
 from firebase_functions import https_fn, options
@@ -22,31 +28,59 @@ def _init_firebase():
         cred = credentials.ApplicationDefault()
         firebase_admin.initialize_app(cred)
 
-    logging_client = cloud_logging.Client()
-    logging_client.setup_logging()
+    if os.getenv("FUNCTIONS_EMULATOR") != "true":
+        logging_client = cloud_logging.Client()
+        logging_client.setup_logging()
+    else:
+        logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(name)s - %(message)s")
 
 
 def create_app(testing=False):
     app = Flask(__name__)
     app.config["TESTING"] = testing
     app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
+    app.json.ensure_ascii = False
+    app.json.sort_keys = False  # Preserve dictionary insertion order
 
-    app.register_blueprint(pecha_bp, url_prefix="/pecha")
-    app.register_blueprint(metadata_bp, url_prefix="/metadata")
-    app.register_blueprint(languages_bp, url_prefix="/languages")
-    app.register_blueprint(schema_bp, url_prefix="/schema")
+    app.register_blueprint(texts_bp, url_prefix="/v2/texts")
     app.register_blueprint(api_bp, url_prefix="/api")
-    app.register_blueprint(text_bp, url_prefix="/text")
-    app.register_blueprint(categories_bp, url_prefix="/categories")
-    app.register_blueprint(annotation_bp, url_prefix="/annotation")
+    app.register_blueprint(instances_bp, url_prefix="/v2/instances")
+    app.register_blueprint(persons_bp, url_prefix="/v2/persons")
+    app.register_blueprint(segments_bp, url_prefix="/v2/segments")
+    app.register_blueprint(schema_bp, url_prefix="/v2/schema")
+    app.register_blueprint(annotations_bp, url_prefix="/v2/annotations")
+    app.register_blueprint(categories_bp, url_prefix="/v2/categories")
+    app.register_blueprint(enum_bp, url_prefix="/v2/enum")
+    app.register_blueprint(relation_bp, url_prefix="/v2/relations")
+
+    @app.route("/__/health")
+    def health_check():
+        """Health check endpoint for Firebase Functions."""
+        return jsonify({"status": "healthy"}), 200
+
+    @app.after_request
+    def add_no_cache_headers(response):
+        """Add no-cache headers to all responses."""
+        response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+        response.headers["Pragma"] = "no-cache"
+        response.headers["Expires"] = "0"
+        return response
 
     @app.errorhandler(Exception)
     def handle_exception(e):
-        app.logger.error("Error: %s", e)
+        # Log the full traceback for ALL exceptions
+        app.logger.error("Exception occurred:")
+        app.logger.error("Exception type: %s", type(e).__name__)
+        app.logger.error("Exception message: %s", str(e))
+        app.logger.error("Full traceback:\n%s", traceback.format_exc())
+
         if isinstance(e, ValidationError):
-            # for some reason if ctx is in the error dict, it will break the response, we need to remove it
-            errors = [{k: v for k, v in err.items() if k != "ctx"} for err in e.errors()]
-            return jsonify({"error": "Validation error", "details": errors}), 422
+            # Return only the first message from Pydantic validation errors
+            errs = e.errors()
+            first_msg = (errs[0].get("msg") if errs else None) or str(e) or "Invalid input"
+            return jsonify({"error": first_msg}), 422
+        if isinstance(e, NotImplementedError):
+            return jsonify({"error": str(e)}), 501
         if isinstance(e, OpenPechaException):
             return jsonify(e.to_dict()), e.status_code
 
@@ -56,7 +90,7 @@ def create_app(testing=False):
     def log_response(response):
         try:
             request_body = request.get_json() if request.is_json else request.get_data(as_text=True)
-        except Exception:
+        except Exception:  # pylint: disable=broad-exception-caught
             request_body = "<unknown>"
 
         if response.is_json:
@@ -84,8 +118,11 @@ def create_app(testing=False):
         cors_methods=["GET", "POST", "OPTIONS", "PUT"],
     ),
     max_instances=1,
+    timeout_sec=540,  # Maximum timeout: 540 seconds (9 minutes)
     secrets=[
         "PECHA_API_KEY",
+        "NEO4J_URI",
+        "NEO4J_PASSWORD",
     ],
     memory=options.MemoryOption.MB_512,
 )

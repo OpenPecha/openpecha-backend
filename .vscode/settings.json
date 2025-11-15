@@ -4,12 +4,14 @@
         "--disable=missing-function-docstring",
         "--disable=missing-module-docstring",
         "--disable=broad-exception-caught",
-        "--disable=too-few-public-methods",
         "--max-line-length=120",
     ],
     "mypy-type-checker.args": [
         "--disable-error-code=import-untyped",
-        "--check-untyped-defs",
+        "--disallow-untyped-defs",
+        "--disallow-any-unimported",
+        "--no-implicit-optionals",
+        "--warn-return-any"
     ],
     "black-formatter.args": [
         "--line-length",
@@ -24,8 +26,8 @@
     },
     "flake8.args": [
         "--exclude=tests",
-        "--ignore=E501,W503",
-        "--max-line-length=120"
+        "--max-line-length=120",
+        "--extend-ignore=E203"
     ],
     "flake8.ignorePatterns": [
         "**/tests/*.py"
@@ -35,7 +37,7 @@
         "**/.git": true,
         "**/venv": true,
         "**/.firebase": true,
-        "**/.pytest_cache": true
+        "**/.pytest_cache": true,
     },
     "bandit.ignorePatterns": [
         "**/tests/*.py"

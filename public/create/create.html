@@ -3,7 +3,11 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <link rel="shortcut icon" href="../assets/favicon.ico" type="image/x-icon">
+    <link
+      rel="shortcut icon"
+      href="../assets/favicon.ico"
+      type="image/x-icon"
+    />
     <title>Create Pecha</title>
     <link rel="stylesheet" href="./style.css" />
     <link rel="stylesheet" href="../toast_style.css" />
@@ -38,7 +42,10 @@
           <i class="fas fa-times"></i>
         </div>
         <div class="popup-text">
-          <span id="pechaIdText">I2A0B8B81 - དབུ་མ་འཇུག་པ་ལས་སེམས་བསྐྱེད་དྲུག་པ། ཤོ་ལོ་ཀ ༡ ནས་ ༦༤</span>
+          <span id="pechaIdText"
+            >I2A0B8B81 - དབུ་མ་འཇུག་པ་ལས་སེམས་བསྐྱེད་དྲུག་པ། ཤོ་ལོ་ཀ ༡ ནས་
+            ༦༤</span
+          >
           <button type="button" id="copyPechaId">
             <i class="fas fa-copy"></i>
           </button>
@@ -49,8 +56,7 @@
       <div class="container">
         <div class="base-language">
           <label for="baseLanguage">Language of Text:</label>
-          <select id="baseLanguage">
-          </select>
+          <select id="baseLanguage"></select>
           <div id="baseLanguageLoader" class="loading-spinner">
             <i class="fas fa-spinner fa-spin"></i> Loading languages...
           </div>
@@ -59,56 +65,63 @@
         <div id="formContent" class="form-content">
           <form id="metadataForm">
             <div class="form-group">
-              <label>Relation</label>
+              <label>Type</label>
               <div class="radio-group">
                 <label class="radio-option">
-                  <input type="radio" name="documentType" value="commentary_of" />
-                  Commentary of
+                  <input type="radio" name="type" value="root" checked />
+                  Root
                 </label>
                 <label class="radio-option">
-                  <input type="radio" name="documentType" value="translation_of" />
-                  Translation of
+                  <input type="radio" name="type" value="commentary" />
+                  Commentary
                 </label>
                 <label class="radio-option">
-                  <input type="radio" name="documentType" value="" checked />
-                  None
+                  <input type="radio" name="type" value="version" />
+                  Version
+                </label>
+                <label class="radio-option">
+                  <input type="radio" name="type" value="translation" />
+                  Translation
                 </label>
               </div>
 
-                <div id="pechaOptionsContainer" class="select-search-container">
-                  <select id="pecha" name="pecha">
-                    <option value="">Select pecha</option>
-                  </select>
-                  <div class="search-overlay">
-                    <input
-                      type="text"
-                      class="search-input"
-                      placeholder="Search pechas..."
-                    />
-                    <div class="search-results"></div>
-                  </div>
+              <div id="parentOptionsContainer" class="select-search-container">
+                <select id="parent" name="parent">
+                  <option value="">Select parent pecha</option>
+                </select>
+                <div class="search-overlay">
+                  <input
+                    type="text"
+                    class="search-input"
+                    placeholder="Search pechas..."
+                  />
+                  <div class="search-results"></div>
                 </div>
-                <!-- Loading spinner for pecha dropdown -->
-                <div id="pechaLoadingSpinner" class="loading-spinner">
-                  <i class="fas fa-spinner fa-spin"></i> Loading pechas...
-                </div>
+              </div>
+              <!-- Loading spinner for parent dropdown -->
+              <div id="parentLoadingSpinner" class="loading-spinner">
+                <i class="fas fa-spinner fa-spin"></i> Loading pechas...
+              </div>
             </div>
 
             <div class="form-group">
-              <label>Annotation</label>
-                <div id="annotationAlignmentContainer" class="select-search-container">
-                  <select id="annotationAlignment" name="annotationAlignment">
-                    <option value="">Select annotation</option>
-                  </select>
-                  <div class="search-overlay">
-                    <input
-                      type="text"
-                      class="search-input"
-                      placeholder="Search annotations..."
-                    />
-                    <div class="search-results"></div>
-                  </div>
+              <label class="annotation-label">Annotation</label>
+              <div
+                id="annotationAlignmentContainer"
+                class="select-search-container"
+              >
+                <select id="annotationAlignment" name="annotationAlignment">
+                  <option value="">Select annotation</option>
+                </select>
+                <div class="search-overlay">
+                  <input
+                    type="text"
+                    class="search-input"
+                    placeholder="Search annotations..."
+                  />
+                  <div class="search-results"></div>
                 </div>
+              </div>
               <div id="annotationLoadingSpinner" class="loading-spinner">
                 <i class="fas fa-spinner fa-spin"></i> Loading annotations...
               </div>
@@ -122,11 +135,10 @@
                 Add Author
               </button>
             </div>
-            
+
             <div class="form-group" data-field="title">
               <label>Title</label>
-              <div class="localizations">
-              </div>
+              <div class="localizations"></div>
               <button type="button" class="add-localization">
                 <i class="fas fa-plus-circle"></i>
                 Add Title
@@ -142,9 +154,6 @@
               </button>
             </div>
 
-            
-
-            
             <div class="form-group document-id">
               <label>Document</label>
               <div class="input-wrapper">
@@ -152,29 +161,38 @@
               </div>
             </div>
 
-            
-
             <div class="form-group source-url">
               <label>Source URL</label>
               <div class="input-wrapper">
-                <input type="url" placeholder="https://example.com" id="sourceUrl"/>
+                <input
+                  type="url"
+                  placeholder="https://example.com"
+                  id="sourceUrl"
+                />
               </div>
             </div>
 
             <div class="form-group source">
               <label>Source</label>
               <div class="input-wrapper">
-                <input type="text" placeholder="Enter source" id="source"/>
+                <input type="text" placeholder="Enter source" id="source" />
               </div>
             </div>
 
             <!-- Additional Fields Section (Collapsible) -->
             <div class="form-group additional-fields-header">
-              <button type="button" class="collapsible-header" id="additionalFieldsToggle">
+              <button
+                type="button"
+                class="collapsible-header"
+                id="additionalFieldsToggle"
+              >
                 <span>Additional Fields</span>
                 <i class="fas fa-chevron-down"></i>
               </button>
-              <div class="additional-fields-content" id="additionalFieldsContent">
+              <div
+                class="additional-fields-content"
+                id="additionalFieldsContent"
+              >
                 <div class="form-group">
                   <label>Alternate Titles</label>
                   <div class="alt-titles" id="alt-titles"></div>
@@ -184,7 +202,7 @@
                     Add alternate title
                   </button>
                 </div>
-                
+
                 <div class="form-group" data-field="presentation">
                   <label>Presentation</label>
                   <div class="localizations"></div>
@@ -206,7 +224,9 @@
                 <!-- // custom date picker -->
                 <div class="form-group">
                   <label>Composition Date</label>
-                  <div class="date-display" id="selectedDate">No date selected</div>
+                  <div class="date-display" id="selectedDate">
+                    No date selected
+                  </div>
                   <div class="date-picker-container" id="datePickerContainer">
                     <div class="era-selector">
                       <label>Era: </label>
@@ -224,7 +244,14 @@
                         <!-- <span id="currentMonth">January 2024</span> -->
                         <div class="month-year-container">
                           <span id="currentMonth">January 2024</span>
-                          <input class="year-select-input" aria-label="Select Year" type="number" min="1" max="9999" id="yearInput"/>
+                          <input
+                            class="year-select-input"
+                            aria-label="Select Year"
+                            type="number"
+                            min="1"
+                            max="9999"
+                            id="yearInput"
+                          />
                         </div>
                         <button type="button" id="nextMonth">►</button>
                         <button type="button" id="nextYear">►►</button>
@@ -252,7 +279,9 @@
                           min="1"
                         />
                       </div>
-                      <span class="historical-year-note">* for specific year only first one</span>
+                      <span class="historical-year-note"
+                        >* for specific year only first one</span
+                      >
                     </div>
                   </div>
                 </div>

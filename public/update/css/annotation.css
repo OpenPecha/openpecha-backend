@@ -39,15 +39,12 @@ body {
 
 .form-container {
     max-width: 800px;
-    min-width: 700px;
+    min-width:700px;
     margin: 2rem auto;
     padding: 2rem;
     background: var(--white);
     border-radius: 8px;
     box-shadow: var(--box-shadow);
-    /* Set minimum height to prevent resizing */
-    min-height: 700px;
-    position: relative;
 }
 
 .form-container h1 {
@@ -59,7 +56,6 @@ body {
 
 .form-group {
     margin-bottom: 1.5rem;
-    transition: transform 0.3s ease, opacity 0.3s ease;
 }
 
 /* Enhance select elements styling */
@@ -167,38 +163,8 @@ body {
 }
 
 .conditional-field {
-    position: absolute;
-    width: calc(100% - 4rem); /* Account for form container padding */
-    opacity: 0;
-    visibility: hidden;
-    transform: translateY(-20px);
-    transition: opacity 0.3s ease, visibility 0.3s ease, transform 0.3s ease;
-    pointer-events: none;
-}
-
-.conditional-field[style*="display: block"] {
-    position: relative;
-    opacity: 1;
-    visibility: visible;
-    transform: translateY(0);
-    pointer-events: auto;
-    margin-bottom: 1.5rem;
-}
-
-/* Adjust spacing for non-conditional fields */
-#titleField, #urlField {
-    margin-top: auto;
-}
-
-/* Container for the submit button */
-.submit-button-container {
-    margin-top: auto;
-    width: 100%;
-}
-
-/* Ensure form groups maintain consistent spacing */
-.form-group:not(.conditional-field) {
-    margin-bottom: 1.5rem;
+    display: none;
+    animation: fadeIn 0.3s ease;
 }
 
 .submit-button {
@@ -351,52 +317,104 @@ body {
   overflow: hidden;
 }
 
+/* Adjust annotation item layout */
 .annotation-item {
-  padding: 10px 14px;
-  margin-bottom: 10px;
-  background-color: #fff;
-  border-left: 3px solid #4a90e2;
-  border-radius: 4px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  transition: transform 0.2s, box-shadow 0.2s;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 10px 14px;
+    margin-bottom: 10px;
+    background-color: #fff;
+    border-left: 3px solid #4a90e2;
+    border-radius: 4px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: transform 0.2s, box-shadow 0.2s, background-color 0.2s, border-color 0.2s;
 }
 
-.annotation-item:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 3px 6px rgba(0, 0, 0, 0.15);
-}
-
-.title-container {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-}
-
-.index-badge {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 22px;
-  height: 22px;
-  background-color: #4a90e2;
-  color: white;
-  border-radius: 50%;
-  font-size: 12px;
-  font-weight: bold;
+.annotation-item .title-container {
+    flex: 1;
+    margin-right: 10px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
 }
 
 .annotation-item .annotation-title {
-  font-weight: 500;
-  color: #333;
+    font-weight: 500;
+    color: #333;
 }
 
 .annotation-item .annotation-type {
-  font-size: 12px;
-  color: #666;
-  font-style: italic;
+    margin-right: 10px;
+    white-space: nowrap;
+    font-size: 12px;
+    color: #666;
+    font-style: italic;
+}
+
+.annotation-item:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+/* Selected annotation styling */
+.annotation-item.selected {
+    background-color: #e3f2fd;
+    border-left-color: #2196f3;
+    box-shadow: 0 2px 8px rgba(33, 150, 243, 0.2);
+}
+
+.annotation-item.selected .annotation-title {
+    color: #1976d2;
+    font-weight: 600;
+}
+
+.annotation-item.selected .annotation-type {
+    color: #1976d2;
+}
+
+.annotation-item.selected .edit-button {
+    background-color: #1976d2;
+}
+
+.annotation-item.selected .edit-button:hover {
+    background-color: #1565c0;
+}
+
+/* Edit button styling */
+.edit-button {
+    background-color: #4A90E2;
+    color: white;
+    border: none;
+    border-radius: 4px;
+    padding: 6px 12px;
+    font-size: 14px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    margin-left: 10px;
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.edit-button i {
+    margin-right: 5px;
+    font-size: 12px;
+}
+
+.edit-button:hover {
+    background-color: #357ABD;
+    transform: translateY(-1px);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+
+.edit-button:active {
+    transform: translateY(0);
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.1);
 }
 
 .no-annotations {
@@ -527,7 +545,6 @@ body {
     background-color: rgba(33, 150, 243, 0.05);
 }
 
-
 /* Selected state */
 .annotation-type-option input[type="radio"]:checked + .option-content {
     border-color: var(--focus-color);
@@ -544,101 +561,25 @@ body {
     box-shadow: 0 0 0 3px var(--focus-shadow);
 }
 
-/* Validation and Error Styles */
-.form-group.error input,
-.form-group.error select,
-.form-group.error .option-content {
-    border-color: var(--color-error);
-    background-color: var(--error-bg);
+/* Disabled state */
+.annotation-type-option input[type="radio"]:disabled + .option-content {
+    opacity: 0.6;
+    cursor: not-allowed;
+    background-color: var(--light-gray);
+    border-color: var(--medium-gray);
 }
 
-.form-group.error label {
-    color: var(--color-error);
+.annotation-type-option input[type="radio"]:disabled + .option-content i,
+.annotation-type-option input[type="radio"]:disabled + .option-content span {
+    color: var(--placeholder-color);
 }
 
-.error-message {
-    display: none;
-    color: var(--color-error);
-    font-size: 0.875rem;
-    margin-top: 0.5rem;
-    padding-left: 0.5rem;
-    border-left: 2px solid var(--color-error);
-    animation: slideDown 0.3s ease;
-}
-
-.form-group.error .error-message {
-    display: block;
-}
-
-/* Required field indicator */
-.required-field::after {
-    content: "*";
-    color: var(--color-error);
-    margin-left: 4px;
-}
-
-/* Toast Styles Update */
-.toast {
-    position: fixed;
-    bottom: 24px;
-    right: 24px;
-    padding: 16px 24px;
-    border-radius: 8px;
-    font-size: 0.9rem;
-    font-weight: 500;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
-    z-index: 1000;
-    animation: slideIn 0.3s ease;
-    max-width: 400px;
-    line-height: 1.4;
-}
-
-.toast.error {
-    background-color: #FEE2E2;
-    color: #DC2626;
-    border: 1px solid #FCA5A5;
-}
-
-.toast.success {
-    background-color: #DCFCE7;
-    color: #16A34A;
-    border: 1px solid #86EFAC;
-}
-
-.toast.info {
-    background-color: #DBEAFE;
-    color: #2563EB;
-    border: 1px solid #93C5FD;
-}
-
-.toast i {
-    font-size: 1.25rem;
-}
-
-/* Animations */
-@keyframes slideIn {
-    from {
-        transform: translateX(100%);
-        opacity: 0;
-    }
-    to {
-        transform: translateX(0);
-        opacity: 1;
-    }
-}
-
-@keyframes slideDown {
-    from {
-        transform: translateY(-10px);
-        opacity: 0;
-    }
-    to {
-        transform: translateY(0);
-        opacity: 1;
-    }
+/* Disabled hover state - no hover effects */
+.annotation-type-option input[type="radio"]:disabled ~ .option-content:hover,
+.annotation-type-option input[type="radio"]:disabled + .option-content:hover {
+    border-color: var(--medium-gray);
+    background-color: var(--light-gray);
+    transform: none;
 }
 
 /* Validation highlight for annotation type */
@@ -648,3 +589,9 @@ body {
     background-color: var(--error-bg);
     border: 1px solid var(--color-error);
 }
+
+/*
+Edit
+button
+styling
+*/

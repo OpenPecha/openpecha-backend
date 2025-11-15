@@ -3,15 +3,17 @@ from unittest.mock import patch
 
 import pytest
 from main import create_app
-from mockfirestore.collection import CollectionReference
-from mockfirestore.query import Query
 
 
 class MockStorageBucket:
-    _storage: dict[str, bytes] = {}  # class-level dict to persist files by path
+    def __init__(self):
+        self._storage = {}  # class-level dict to persist files by path
 
     def blob(self, path: str):
         return MockBlob(path, self._storage)
+
+    def store_pecha_opf(self, pecha):
+        pass
 
     def get_blob(self, path: str):
         # Mimics GCS get_blob, returns None if not found
@@ -24,6 +26,7 @@ class MockBlob:
     def __init__(self, path: str, storage: dict):
         self.path = path
         self._storage = storage
+        self.cache_control = None
 
     def upload_from_string(self, data):
         if isinstance(data, str):
@@ -34,6 +37,10 @@ class MockBlob:
     def upload_from_filename(self, filename):
         with open(filename, "rb") as f:
             self._storage[self.path] = f.read()
+        return None
+
+    def upload_from_file(self, file_obj):
+        self._storage[self.path] = file_obj.read()
         return None
 
     def download_as_string(self):
@@ -52,9 +59,23 @@ class MockBlob:
     def exists(self):
         return self.path in self._storage
 
+    def delete(self):
+        if self.path in self._storage:
+            del self._storage[self.path]
+
+    def reload(self):
+        pass
+
+    def make_public(self):
+        pass
+
     @property
     def name(self):
         return self.path
+
+    @property
+    def public_url(self):
+        return f"https://mock-storage.example.com/{self.path}"
 
 
 class MockStorage:
@@ -68,41 +89,6 @@ def mock_storage():
 
     with patch("firebase_admin.storage.bucket", return_value=mock_storage_bucket):
         yield mock_storage_bucket
-
-
-@pytest.fixture(autouse=True)
-def patch_mockfirestore():
-    """
-    This fixture patches the MockFirestore classes with the count() method.
-    The autouse=True ensures it runs for all tests automatically.
-    """
-
-    # Create a mock aggregation query that mimics Firestore count() functionality
-    class MockAggregationQuery:
-        def __init__(self, parent):
-            self.parent = parent
-
-        def get(self):
-            # Count documents in the collection or query result
-            docs = list(self.parent.stream())
-            count = len(docs)
-
-            # The real Firestore returns a structure that's accessed like:
-            # result[0][0].value
-            # So we need to match this exact structure
-            class AggregationResult:
-                def __init__(self, count):
-                    self.value = count
-
-            return [(AggregationResult(count),)]
-
-    # Define the count methods
-    def count_method(self):
-        return MockAggregationQuery(self)
-
-    # Patch the classes
-    CollectionReference.count = count_method
-    Query.count = count_method
 
 
 @pytest.fixture(autouse=True)
