@@ -24,6 +24,7 @@ from api.annotations import _alignment_annotation_mapping
 from exceptions import InvalidRequest
 from api.relation import _get_relation_for_an_expression
 from neo4j_database_validator import Neo4JDatabaseValidator
+from api.relation import _get_expression_relations
 
 instances_bp = Blueprint("instances", __name__)
 
@@ -400,6 +401,15 @@ def get_related_instances(manifestation_id: str) -> tuple[Response, int]:
         return jsonify({"error": str(e)}), 500
 
     return jsonify(related_instances), 200
+
+@instances_bp.route("<string:manifestation_id>/related-all", methods=["GET"], strict_slashes=False)
+def get_all_related_instances(manifestation_id: str) -> tuple[Response, int]:
+
+    expression_relations = _get_expression_relations(expression_id=manifestation_id)
+    
+    
+
+    return jsonify(expression_relations), 200
 
 
 @instances_bp.route("/<string:manifestation_id>/segment-content", methods=["POST"], strict_slashes=False)

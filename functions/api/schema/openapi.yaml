@@ -1944,6 +1944,69 @@ paths:
         "500":
           $ref: '#/components/responses/ServerError'
 
+  /v2/texts/{text_id}/related-by-work:
+    get:
+      summary: Get texts grouped by work ID
+      description: >-
+        Returns texts grouped by their work_id for all related texts.
+        This allows you to easily identify which texts belong to the same work.
+        
+        Takes a text ID directly and finds all related texts
+        (translations, commentaries, roots, etc.), then returns them grouped by work_id
+        with their relationship type.
+      tags:
+        - Texts
+      parameters:
+        - name: text_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The text ID
+      responses:
+        "200":
+          description: Texts grouped by work retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+                  properties:
+                    relation:
+                      type: string
+                      nullable: true
+                      enum: [translation, commentary, root, sibling_root, sibling_commentary]
+                      description: The relation type for texts in this work group
+                    text_ids:
+                      type: array
+                      items:
+                        type: string
+                      description: List of text IDs in this work group
+                description: Dictionary with work_id as key and object containing relation type and text IDs as value
+                example:
+                  "W001":
+                    relation: "translation"
+                    text_ids: ["T001", "T002", "T004"]
+                  "W002":
+                    relation: "commentary"
+                    text_ids: ["T003"]
+                  "W003":
+                    relation: null
+                    text_ids: ["T005"]
+        "404":
+          description: Text not found or has no relations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Text with ID T123 not found"
+        "500":
+          $ref: '#/components/responses/ServerError'
+
   /v2/persons:
     get:
       summary: Retrieve all persons
