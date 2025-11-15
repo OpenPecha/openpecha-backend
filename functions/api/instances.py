@@ -46,7 +46,7 @@ def get_instance(manifestation_id: str):
     logger.info("Retrieving base text from storage")
     base_text = None
     if content_param:
-        base_text = Storage().retrieve_base_text(expression_id = expression_id, manifestation_id = manifestation_id)
+        base_text = retrieve_base_text(expression_id = expression_id, manifestation_id = manifestation_id)
 
     metadata = {
         "id": manifestation.id,
