@@ -3,7 +3,7 @@ import logging
 import requests
 from exceptions import InvalidRequest, DataNotFound
 from flask import Blueprint, Response, jsonify, request
-from models import SearchRequestModel, SearchResponseModel, SearchResultModel
+from models import SearchFilterModel, SearchRequestModel, SearchResponseModel, SearchResultModel
 from neo4j_database import Neo4JDatabase
 from pecha_handling import retrieve_pecha
 
@@ -61,25 +61,46 @@ def get_segment_content(segment_id: str) -> tuple[Response, int]:
     return jsonify({"content": base_text[segment.span[0] : segment.span[1]]}), 200
 
 
-@segments_bp.route("/search", methods=["POST"], strict_slashes=False)
+@segments_bp.route("/search", methods=["GET"], strict_slashes=False)
 def search_segments() -> tuple[Response, int]:
     """
     Search segments by forwarding request to external search API and enriching results
     with overlapping segmentation annotation segment IDs.
     """
-    # Parse and validate request body
-    data = request.get_json(force=True, silent=True)
-    if not data:
-        raise InvalidRequest("Request body is required")
+    # Get query parameters
+    query = request.args.get("query")
+    if not query:
+        raise InvalidRequest("query parameter is required")
     
-    search_request = SearchRequestModel.model_validate(data)
+    search_type = request.args.get("search_type", "hybrid")
+    limit = request.args.get("limit", 10, type=int)
+    title_filter = request.args.get("title")
     
-    # Forward request to external search API
+    # Build search request model
+    filter_obj = SearchFilterModel(title=title_filter) if title_filter else None
+    search_request = SearchRequestModel(
+        query=query,
+        search_type=search_type,
+        limit=limit,
+        filter=filter_obj
+    )
+    
+    # Forward request to external search API using GET
     try:
         logger.info(f"Forwarding search request to {SEARCH_API_URL}/search")
-        response = requests.post(
+        
+        # Build query parameters
+        params = {
+            "query": search_request.query,
+            "search_type": search_request.search_type,
+            "limit": search_request.limit
+        }
+        if search_request.filter and search_request.filter.title:
+            params["title"] = search_request.filter.title
+        
+        response = requests.get(
             f"{SEARCH_API_URL}/search",
-            json=search_request.model_dump(),
+            params=params,
             timeout=60
         )
         response.raise_for_status()
