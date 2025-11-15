@@ -181,3 +181,40 @@ def search_segments() -> tuple[Response, int]:
     )
     
     return jsonify(enriched_response.model_dump()), 200
+
+
+@segments_bp.route("/batch-overlapping", methods=["POST"], strict_slashes=False)
+def get_batch_overlapping_segments() -> tuple[Response, int]:
+    """
+    Get overlapping segments for multiple segment IDs in batch.
+    
+    Request body: {"segment_ids": ["SEG001", "SEG002", ...]}
+    
+    Returns list of dictionaries with segment_id and overlapping_segments.
+    """
+    # Get JSON body
+    data = request.get_json(force=True, silent=True)
+    if not data:
+        return jsonify({"error": "Request body is required"}), 400
+    
+    segment_ids = data.get("segment_ids", [])
+    
+    if not isinstance(segment_ids, list):
+        return jsonify({"error": "segment_ids must be a list"}), 400
+    
+    if not segment_ids:
+        return jsonify({"error": "segment_ids cannot be empty"}), 400
+    
+    # Get overlapping segments in batch
+    db = Neo4JDatabase()
+    overlapping_map = db._get_overlapping_segments_batch(segment_ids)
+    
+    # Build response - include all requested segments even if no overlaps
+    result = []
+    for segment_id in segment_ids:
+        result.append({
+            "segment_id": segment_id,
+            "overlapping_segments": overlapping_map.get(segment_id, [])
+        })
+    
+    return jsonify(result), 200

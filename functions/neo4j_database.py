@@ -1546,6 +1546,27 @@ class Neo4JDatabase:
                 for record in result
             ]
 
+    def _get_overlapping_segments_batch(self, segment_ids: list[str]) -> dict[str, list[dict]]:
+        """
+        Get overlapping segments for multiple segment IDs in a single batch query.
+        Returns a dict mapping segment_id to list of overlapping segments.
+        """
+        if not segment_ids:
+            return {}
+        
+        with self.get_session() as session:
+            result = session.execute_read(
+                lambda tx: tx.run(
+                    Queries.segments["get_overlapping_segments_batch"],
+                    segment_ids=segment_ids
+                ).data()
+            )
+            
+            # Convert to dict format
+            return {
+                record["input_segment_id"]: record["overlapping_segments"]
+                for record in result
+            }
 
     def _get_aligned_segments(self, alignment_1_id: str, start:int, end:int) -> list[dict]:
         with self.get_session() as session:

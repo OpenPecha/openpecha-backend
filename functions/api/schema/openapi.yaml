@@ -3410,6 +3410,85 @@ paths:
         "500":
           $ref: '#/components/responses/ServerError'
 
+  /v2/segments/batch-overlapping:
+    post:
+      summary: Get overlapping segments in batch
+      description: |
+        Get overlapping segments for multiple segment IDs in a single batch request.
+        Returns overlapping segments from the segmentation annotation of the same manifestation.
+      tags:
+        - Segments
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                segment_ids:
+                  type: array
+                  items:
+                    type: string
+                  description: List of segment IDs to get overlapping segments for
+                  example: ["SEG001", "SEG002", "SEG003"]
+              required:
+                - segment_ids
+      responses:
+        "200":
+          description: Overlapping segments retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    segment_id:
+                      type: string
+                      description: The input segment ID
+                    overlapping_segments:
+                      type: array
+                      items:
+                        type: string
+                      description: List of overlapping segment IDs
+              examples:
+                success:
+                  summary: Overlapping segments for multiple IDs
+                  value:
+                    - segment_id: "SEG001"
+                      overlapping_segments:
+                        - "SEG_OVERLAP_001"
+                        - "SEG_OVERLAP_002"
+                    - segment_id: "SEG002"
+                      overlapping_segments:
+                        - "SEG_OVERLAP_003"
+                    - segment_id: "SEG003"
+                      overlapping_segments: []
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              examples:
+                missing_body:
+                  summary: Missing request body
+                  value:
+                    error: "Request body is required"
+                invalid_type:
+                  summary: Invalid segment_ids type
+                  value:
+                    error: "segment_ids must be a list"
+                empty_list:
+                  summary: Empty segment_ids
+                  value:
+                    error: "segment_ids cannot be empty"
+        "500":
+          $ref: '#/components/responses/ServerError'
+
   /v2/relations/expressions/{expression_id}:
     get:
       summary: Get relations for an expression
