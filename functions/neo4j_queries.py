@@ -244,8 +244,8 @@ MATCH (e:Expression {id: $expression_id})
 MATCH (p:Person) WHERE (($person_id IS NOT NULL AND p.id = $person_id)
                         OR ($person_bdrc_id IS NOT NULL AND p.bdrc = $person_bdrc_id))
 MATCH (rt:RoleType {name: $role_name})
-CREATE (e)-[:HAS_CONTRIBUTION]->(c:Contribution)-[:BY]->(p),
-       (c)-[:WITH_ROLE]->(rt)
+MERGE (e)-[:HAS_CONTRIBUTION]->(c:Contribution)-[:BY]->(p)
+MERGE (c)-[:WITH_ROLE]->(rt)
 RETURN elementId(c) as contribution_element_id
 """,
     "create_ai_contribution": """
