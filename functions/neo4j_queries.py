@@ -760,6 +760,19 @@ RETURN s.id as segment_id,
        s.span_start as span_start,
        s.span_end as span_end
 ORDER BY s.span_start
+""",
+    "get_overlapping_segments_batch": """
+UNWIND $segment_ids AS input_segment_id
+MATCH (input_seg:Segment {id: input_segment_id})
+      -[:SEGMENTATION_OF]->(input_ann:Annotation)
+      -[:ANNOTATION_OF]->(m:Manifestation)
+MATCH (seg_ann:Annotation)-[:HAS_TYPE]->(:AnnotationType {name: 'segmentation'})
+MATCH (seg_ann)-[:ANNOTATION_OF]->(m)
+MATCH (seg:Segment)-[:SEGMENTATION_OF]->(seg_ann)
+WHERE seg.span_start < input_seg.span_end 
+  AND seg.span_end > input_seg.span_start
+RETURN input_segment_id, 
+       collect(seg.id) as overlapping_segments
 """
 }
 
