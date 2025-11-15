@@ -3315,6 +3315,14 @@ paths:
             type: string
           description: Filter results by title
           example: "Kangyur"
+        - name: return_text
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: true
+          description: Whether to include text content in search results
+          example: true
       responses:
         "200":
           description: Search completed successfully with enriched results
@@ -3354,7 +3362,7 @@ paths:
                         entity:
                           type: object
                           additionalProperties: true
-                          description: Additional entity data from search
+                          description: Additional entity data from search. Contains 'text' field when return_text=true
                         segmentation_ids:
                           type: array
                           items:
