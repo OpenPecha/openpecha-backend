@@ -18,7 +18,7 @@ from models import (
     SegmentModel,
 )
 from neo4j_database import Neo4JDatabase
-from storage import MockStorage
+from storage import Storage
 from pecha_handling import retrieve_base_text
 from api.annotations import _alignment_annotation_mapping
 from exceptions import InvalidRequest
@@ -46,7 +46,7 @@ def get_instance(manifestation_id: str):
     logger.info("Retrieving base text from storage")
     base_text = None
     if content_param:
-        base_text = retrieve_base_text(expression_id = expression_id, manifestation_id = manifestation_id)
+        base_text = Storage().retrieve_base_text(expression_id = expression_id, manifestation_id = manifestation_id)
 
     metadata = {
         "id": manifestation.id,
@@ -101,7 +101,7 @@ def _create_aligned_text(
     segmentation = AnnotationModel(id=segmentation_annotation_id, type=AnnotationType.SEGMENTATION)
     segmentation_segments = [SegmentModel(id=generate_id(), span=span["span"]).model_dump() for span in request_model.segmentation]
 
-    storage = MockStorage()
+    storage = Storage()
     storage.store_base_text(expression_id=expression_id, manifestation_id=manifestation_id, base_text=request_model.content)
 
     # Build contributions based on text type
@@ -181,7 +181,7 @@ def _create_aligned_text(
             )
     except Exception as e:
         logger.error("Error creating aligned text: %s", e)
-        MockStorage().rollback_base_text(expression_id=expression_id, manifestation_id=manifestation_id)
+        Storage().rollback_base_text(expression_id=expression_id, manifestation_id=manifestation_id)
         raise e
 
     # Handle bibliography annotations in separate transaction
@@ -402,37 +402,35 @@ def get_related_instances(manifestation_id: str) -> tuple[Response, int]:
     return jsonify(related_instances), 200
 
 
-@instances_bp.route("/<string:manifestation_id>/segment-content", methods=["GET"], strict_slashes=False)
+@instances_bp.route("/<string:manifestation_id>/segment-content", methods=["POST"], strict_slashes=False)
 def get_instance_segment_content(manifestation_id: str) -> tuple[Response, int]:
     """
     Unified endpoint to get text content from either:
-    1. A segment (using segment_id parameter) within the given instance
-    2. An instance excerpt (using span_start and span_end parameters)
+    1. Multiple segments (using segment_ids in request body)
+    2. An instance excerpt (using span_start and span_end)
     
     Validation constraints:
-    - If segment_id is provided: cannot use span_start or span_end parameters
-    - If using span approach: must provide span_start and span_end, cannot use segment_id
-    - Must provide either segment_id OR span_start and span_end (mutually exclusive)
+    - If segment_ids is provided: cannot use span_start or span_end parameters
+    - If using span approach: must provide span_start and span_end, cannot use segment_ids
+    - Must provide either segment_ids OR span_start and span_end (mutually exclusive)
     """
     
-    # Get all parameters
-    segment_ids_raw = request.args.getlist("segment_id")
-    span_start = request.args.get("span_start")
-    span_end = request.args.get("span_end")
+    # Get JSON body
+    data = request.get_json(force=True, silent=True)
+    if not data:
+        return jsonify({"error": "Request body is required"}), 400
     
-    # Handle both comma-separated string and multiple parameters
-    segment_ids = []
-    for segment_id_list in segment_ids_raw:
-        # Split by comma if it's a comma-separated string
-        if ',' in segment_id_list:
-            segment_ids.extend([seg_id.strip() for seg_id in segment_id_list.split(',') if seg_id.strip()])
-        else:
-            segment_ids.append(segment_id_list.strip())
+    # Extract parameters from JSON
+    segment_ids = data.get("segment_ids", [])
+    span_start = data.get("span_start")
+    span_end = data.get("span_end")
+    
+    # Ensure segment_ids is a list
+    if not isinstance(segment_ids, list):
+        return jsonify({"error": "segment_ids must be a list"}), 400
     
     # Remove empty strings and duplicates while preserving order
-    seen = set()
-    segment_ids = [seg_id for seg_id in segment_ids if seg_id and seg_id not in seen]
-    seen.update(segment_ids)
+    segment_ids = list(dict.fromkeys([sid for sid in segment_ids if sid]))
     
     # Validate parameter combinations
     is_valid, error_msg = _validate_request_parameters(segment_ids, span_start, span_end)
@@ -454,15 +452,6 @@ def get_instance_segment_content(manifestation_id: str) -> tuple[Response, int]:
         missing_segments = [seg_id for seg_id in segment_ids if seg_id not in segments_map]
         if missing_segments:
             return jsonify({"error": f"Segments not found: {', '.join(missing_segments)}"}), 404
-        
-        # Verify all segments belong to the same manifestation
-        manifestation_ids = {seg["manifestation_id"] for seg in segments_data}
-        if len(manifestation_ids) > 1:
-            return jsonify({"error": f"Segments belong to different manifestations: {manifestation_ids}"}), 400
-        
-        # Verify all segments belong to the provided manifestation_id
-        if manifestation_id not in manifestation_ids:
-            return jsonify({"error": f"Segments do not belong to manifestation {manifestation_id}"}), 400
         
         # Get expression_id (should be the same for all segments from same manifestation)
         expression_id = segments_data[0]["expression_id"]
@@ -498,7 +487,7 @@ def get_instance_segment_content(manifestation_id: str) -> tuple[Response, int]:
         return jsonify(result), 200
     
     # Handle span approach
-    if span_start and span_end:
+    if span_start is not None and span_end is not None:
         is_valid, error_msg, span = _validate_span_parameters(span_start, span_end)
         if not is_valid:
             return jsonify({"error": error_msg}), 400
@@ -519,17 +508,11 @@ def get_instance_segment_content(manifestation_id: str) -> tuple[Response, int]:
 
 def _validate_request_parameters(segment_ids: list[str], span_start: str, span_end: str) -> tuple[bool, str]:
     """Validate parameter combinations and return (is_valid, error_message)."""
-    if segment_ids and (span_start or span_end):
-        return False, "Cannot provide both segment_id and span parameters. Use one approach only."
+    if segment_ids and (span_start is not None or span_end is not None):
+        return False, "Cannot provide both segment_ids and span parameters. Use one approach only."
     
-    if span_start and not span_end:
-        return False, "span_end parameter is required when using span_start"
-    
-    if span_end and not span_start:
-        return False, "span_start parameter is required when using span_end"
-    
-    if not segment_ids and not span_start and not span_end:
-        return False, "Either segment_id OR span_start and span_end is required"
+    if not segment_ids and span_start is None and span_end is None:
+        return False, "Either segment_ids OR span_start and span_end is required"
     
     return True, ""
 
@@ -544,28 +527,13 @@ def _validate_span_parameters(span_start: str, span_end: str) -> tuple[bool, str
         return False, f"Invalid span parameters: {str(e)}", None
 
 
-def _get_segment_content(segment_id: str) -> tuple[bool, str, str]:
-    """Get content for a specific segment. Return (success, error_message, content)."""
-    try:
-        db = Neo4JDatabase()
-        segment, manifestation_id, expression_id = db._get_segment(segment_id)
-        base_text = retrieve_base_text(expression_id=expression_id, manifestation_id=manifestation_id)
-        
-        # Validate segment span bounds
-        if segment.span.end > len(base_text):
-            return False, f"segment span end ({segment.span.end}) exceeds base text length ({len(base_text)})", ""
-        
-        content = base_text[segment.span.start : segment.span.end]
-        return True, "", content
-    except Exception as e:
-        return False, f"Failed to retrieve segment content: {str(e)}", ""
-
-
 def _get_instance_content(instance_id: str, span: SpanModel) -> tuple[bool, str, str]:
     """Get content for an instance span. Return (success, error_message, content)."""
     try:
         db = Neo4JDatabase()
-        _, expression_id = db.get_manifestation(instance_id)
+        expression_id = db.get_expression_id_by_manifestation_id(instance_id)
+        if not expression_id:
+            return False, f"Expression ID not found for manifestation {instance_id}", ""
         base_text = retrieve_base_text(expression_id=expression_id, manifestation_id=instance_id)
         
         if span.end > len(base_text):

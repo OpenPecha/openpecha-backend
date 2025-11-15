@@ -470,19 +470,17 @@ paths:
   # /v2/instances/{instance_id}/related:
   
   /v2/instances/{instance_id}/segment-content:
-    get:
-      summary: Get text content (unified endpoint)
+    post:
+      summary: Get text content from segments or span
       description: |
-        Unified endpoint to retrieve text content from either:
-        1. One or more specific segments using segment_id parameter(s) (within the given instance)
-        2. An instance excerpt using span_start and span_end parameters
+        Unified endpoint to get text content from either:
+        1. Multiple segments (using segment_ids in request body)
+        2. An instance excerpt (using span_start and span_end)
         
         **Validation constraints:**
-        - If segment_id(s) are provided: cannot use span_start or span_end parameters
-        - If using span approach: must provide span_start and span_end, cannot use segment_id
-        - Must provide either segment_id(s) OR span_start and span_end (mutually exclusive)
-        - Multiple segment IDs can be provided as repeated query parameters OR as a single comma-separated string
-        - Examples: ?segment_id=SEG001&segment_id=SEG002 OR ?segment_id=SEG001,SEG002
+        - If segment_ids is provided: cannot use span_start or span_end parameters
+        - If using span approach: must provide span_start and span_end, cannot use segment_ids
+        - Must provide either segment_ids OR span_start and span_end (mutually exclusive)
       tags:
         - Instances
       parameters:
@@ -492,30 +490,37 @@ paths:
           schema:
             type: string
           description: The ID of the instance to retrieve content from
-        - name: segment_id
-          in: query
-          required: false
-          schema:
-            type: array
-            items:
-              type: string
-          style: form
-          explode: false
-          description: List of segment IDs to retrieve content for (alternative to span approach). Can provide multiple segment_id parameters OR a single comma-separated string of segment IDs.
-        - name: span_start
-          in: query
-          required: false
-          schema:
-            type: integer
-            minimum: 0
-          description: Start character position of the excerpt (required when using span approach)
-        - name: span_end
-          in: query
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-          description: End character position of the excerpt (required when using span approach)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                segment_ids:
+                  type: array
+                  items:
+                    type: string
+                  description: List of segment IDs to retrieve content for (alternative to span)
+                  example: ["SEG001", "SEG002", "SEG003"]
+                span_start:
+                  type: integer
+                  minimum: 0
+                  description: Start position for span-based excerpt (alternative to segment_ids)
+                span_end:
+                  type: integer
+                  minimum: 1
+                  description: End position for span-based excerpt (alternative to segment_ids)
+            examples:
+              multiple_segments:
+                summary: Fetch content for multiple segments
+                value:
+                  segment_ids: ["SEG001", "SEG002", "SEG003"]
+              span_excerpt:
+                summary: Fetch content by span range
+                value:
+                  span_start: 0
+                  span_end: 100
       responses:
         "200":
           description: Text content retrieved successfully
@@ -569,17 +574,21 @@ paths:
                     description: Error message
               examples:
                 missing_parameters:
-                  summary: Neither segment_id nor span parameters provided
+                  summary: Neither segment_ids nor span parameters provided
                   value:
-                    error: "Either segment_id OR span_start and span_end is required"
+                    error: "Either segment_ids OR span_start and span_end is required"
                 conflicting_parameters:
-                  summary: Both segment_id and span parameters provided
+                  summary: Both segment_ids and span parameters provided
                   value:
-                    error: "Cannot provide both segment_id and span parameters. Use one approach only."
-                segment_with_span:
-                  summary: Segment approach with span parameters
+                    error: "Cannot provide both segment_ids and span parameters. Use one approach only."
+                invalid_segment_ids_type:
+                  summary: segment_ids is not a list
                   value:
-                    error: "When using segment_id, do not provide span_start or span_end parameters."
+                    error: "segment_ids must be a list"
+                missing_body:
+                  summary: Request body is missing
+                  value:
+                    error: "Request body is required"
                 missing_span:
                   summary: Missing span parameters for span approach
                   value:
