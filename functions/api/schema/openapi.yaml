@@ -2007,6 +2007,52 @@ paths:
         "500":
           $ref: '#/components/responses/ServerError'
 
+  /v2/texts/title-search:
+    get:
+      summary: Search texts by title
+      description: Search for texts by matching title or alternative titles. Returns expressions that have matching titles along with their critical manifestations.
+      tags:
+        - Texts
+      parameters:
+        - name: title
+          in: query
+          required: true
+          schema:
+            type: string
+          description: The title search term to match (case-sensitive substring match)
+          example: "བསྟན་འགྱུར།"
+      responses:
+        "200":
+          description: Search completed successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    text_id:
+                      type: string
+                      description: The expression ID of the matched text
+                    title:
+                      type: string
+                      description: The matched title text
+                    instance_id:
+                      type: string
+                      description: The manifestation ID of the critical edition
+              examples:
+                success:
+                  summary: Title search results
+                  value:
+                    - text_id: "T12345678"
+                      title: "བསྟན་འགྱུར།"
+                      instance_id: "M12345678"
+                    - text_id: "T87654321"
+                      title: "བསྟན་འགྱུར་དཔེ་བསྡུར་མ།"
+                      instance_id: "M87654321"
+        "500":
+          $ref: '#/components/responses/ServerError'
+
   /v2/persons:
     get:
       summary: Retrieve all persons
@@ -3470,6 +3516,85 @@ paths:
           $ref: '#/components/responses/InvalidRequest'
         "422":
           $ref: '#/components/responses/ValidationError'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+  /v2/segments/batch-overlapping:
+    post:
+      summary: Get overlapping segments in batch
+      description: |
+        Get overlapping segments for multiple segment IDs in a single batch request.
+        Returns overlapping segments from the segmentation annotation of the same manifestation.
+      tags:
+        - Segments
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                segment_ids:
+                  type: array
+                  items:
+                    type: string
+                  description: List of segment IDs to get overlapping segments for
+                  example: ["SEG001", "SEG002", "SEG003"]
+              required:
+                - segment_ids
+      responses:
+        "200":
+          description: Overlapping segments retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    segment_id:
+                      type: string
+                      description: The input segment ID
+                    overlapping_segments:
+                      type: array
+                      items:
+                        type: string
+                      description: List of overlapping segment IDs
+              examples:
+                success:
+                  summary: Overlapping segments for multiple IDs
+                  value:
+                    - segment_id: "SEG001"
+                      overlapping_segments:
+                        - "SEG_OVERLAP_001"
+                        - "SEG_OVERLAP_002"
+                    - segment_id: "SEG002"
+                      overlapping_segments:
+                        - "SEG_OVERLAP_003"
+                    - segment_id: "SEG003"
+                      overlapping_segments: []
+        "400":
+          description: Bad request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              examples:
+                missing_body:
+                  summary: Missing request body
+                  value:
+                    error: "Request body is required"
+                invalid_type:
+                  summary: Invalid segment_ids type
+                  value:
+                    error: "segment_ids must be a list"
+                empty_list:
+                  summary: Empty segment_ids
+                  value:
+                    error: "segment_ids cannot be empty"
         "500":
           $ref: '#/components/responses/ServerError'
 

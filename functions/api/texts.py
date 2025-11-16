@@ -134,13 +134,25 @@ def create_instance(expression_id: str) -> tuple[Response, int]:
 
     instance_request = InstanceRequestModel.model_validate(data)
 
+    db = Neo4JDatabase()
+    
     # Validate critical manifestation constraint
     if instance_request.metadata.type == ManifestationType.CRITICAL:
-        db = Neo4JDatabase()
         with db.get_session() as session:
             if Neo4JDatabaseValidator().has_manifestation_of_type_for_expression_id(session=session, expression_id=expression_id, type=ManifestationType.CRITICAL):
                 raise InvalidRequest("Critical manifestation already present for this expression")
 
+    # Validate and prepare bibliography annotation
+    bibliography_annotation = None
+    bibliography_segments = None
+    if instance_request.biblography_annotation:
+        bibliography_annotation_id = generate_id()
+        bibliography_annotation = AnnotationModel(id=bibliography_annotation_id, type=AnnotationType.BIBLIOGRAPHY)
+        bibliography_types = [seg.type for seg in instance_request.biblography_annotation]
+        with db.get_session() as session:
+            Neo4JDatabaseValidator().validate_bibliography_type_exists(session=session, bibliography_types=bibliography_types)
+        bibliography_segments = [seg.model_dump() for seg in instance_request.biblography_annotation]
+        
     manifestation_id = generate_id()
     storage = MockStorage()
     
@@ -150,41 +162,24 @@ def create_instance(expression_id: str) -> tuple[Response, int]:
         base_text=instance_request.content
     )
 
-    db = Neo4JDatabase()
-
-    # Create manifestation with optional segmentation/pagination annotation
+    # Prepare segmentation annotation
+    annotation = None
+    annotation_segments = None
     if instance_request.annotation:
         annotation_id = generate_id()
         annotation = AnnotationModel(id=annotation_id, type=AnnotationType.SEGMENTATION)
-        db.create_manifestation(
-            manifestation=instance_request.metadata,
-            annotation=annotation,
-            annotation_segments=[seg.model_dump() for seg in instance_request.annotation],
-            expression_id=expression_id,
-            manifestation_id=manifestation_id,
-        )
-    else:
-        db.create_manifestation(
-            manifestation=instance_request.metadata,
-            expression_id=expression_id,
-            annotation=None,
-            annotation_segments=None,
-            manifestation_id=manifestation_id,
-        )
+        annotation_segments = [seg.model_dump() for seg in instance_request.annotation]
 
-    # Handle bibliography annotations in separate transaction
-    if instance_request.biblography_annotation:
-        bibliography_annotation_id = generate_id()
-        bibliography_annotation = AnnotationModel(id=bibliography_annotation_id, type=AnnotationType.BIBLIOGRAPHY)
-        bibliography_types = [seg.type for seg in instance_request.biblography_annotation]
-        with db.get_session() as session:
-            Neo4JDatabaseValidator().validate_bibliography_type_exists(session=session, bibliography_types=bibliography_types)
-        bibliography_segments = [seg.model_dump() for seg in instance_request.biblography_annotation]
-        db.add_annotation_to_manifestation(
-            manifestation_id=manifestation_id,
-            annotation=bibliography_annotation,
-            annotation_segments=bibliography_segments,
-        )
+    # Create manifestation with both annotations in a single transaction
+    db.create_manifestation(
+        manifestation=instance_request.metadata,
+        annotation=annotation,
+        annotation_segments=annotation_segments,
+        expression_id=expression_id,
+        manifestation_id=manifestation_id,
+        bibliography_annotation=bibliography_annotation,
+        bibliography_segments=bibliography_segments,
+    )
 
     return jsonify({"message": "Instance created successfully", "id": manifestation_id}), 201
 
@@ -225,3 +220,11 @@ def get_related_by_work(expression_id: str) -> tuple[Response, int]:
         grouped_by_work[work_id]["expression_ids"].append(expr_id)
     
     return jsonify(grouped_by_work), 200
+
+
+@texts_bp.route("/title-search/", methods=["GET"], strict_slashes=False)
+def title_search() -> tuple[Response, int]:
+    db = Neo4JDatabase()
+    title = request.args.get("title")
+    response_data = db.title_search(title=title)
+    return jsonify(response_data), 200

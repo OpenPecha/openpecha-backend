@@ -239,13 +239,22 @@ CREATE (e)-[:EXPRESSION_OF {{original: $original}}]->(w),
 {Queries.create_copyright_and_license('e')}
 RETURN e.id as expression_id
 """,
-    "create_contribution": """
+        "_old_create_contribution": """
 MATCH (e:Expression {id: $expression_id})
 MATCH (p:Person) WHERE (($person_id IS NOT NULL AND p.id = $person_id)
                         OR ($person_bdrc_id IS NOT NULL AND p.bdrc = $person_bdrc_id))
 MATCH (rt:RoleType {name: $role_name})
 CREATE (e)-[:HAS_CONTRIBUTION]->(c:Contribution)-[:BY]->(p),
        (c)-[:WITH_ROLE]->(rt)
+RETURN elementId(c) as contribution_element_id
+""",
+    "create_contribution": """
+MATCH (e:Expression {id: $expression_id})
+MATCH (p:Person) WHERE (($person_id IS NOT NULL AND p.id = $person_id)
+                        OR ($person_bdrc_id IS NOT NULL AND p.bdrc = $person_bdrc_id))
+MATCH (rt:RoleType {name: $role_name})
+MERGE (e)-[:HAS_CONTRIBUTION]->(c:Contribution)-[:BY]->(p)
+MERGE (c)-[:WITH_ROLE]->(rt)
 RETURN elementId(c) as contribution_element_id
 """,
     "create_ai_contribution": """
@@ -294,6 +303,14 @@ RETURN {Queries.expression_fragment('e')} AS expression
 MATCH (e:Expression)-[:EXPRESSION_OF]->(w:Work)
 WHERE e.id IN $expression_ids
 RETURN e.id as expression_id, w.id as work_id
+""",
+    "title_search": f"""
+MATCH (lt:LocalizedText)<-[:HAS_LOCALIZATION]-(n:Nomen)
+MATCH (e:Expression)-[:HAS_TITLE]->(titleNomen:Nomen)
+WHERE lt.text CONTAINS $title
+  AND (n = titleNomen OR (n)-[:ALTERNATIVE_OF]->(titleNomen))
+MATCH (e)<-[:MANIFESTATION_OF]-(m:Manifestation)-[:HAS_TYPE]->(mt: ManifestationType {{name: 'critical'}})
+RETURN DISTINCT e.id as expression_id, lt.text as title, m.id as manifestation_id
 """
 }
 
@@ -765,6 +782,19 @@ RETURN s.id as segment_id,
        s.span_start as span_start,
        s.span_end as span_end
 ORDER BY s.span_start
+""",
+    "get_overlapping_segments_batch": """
+UNWIND $segment_ids AS input_segment_id
+MATCH (input_seg:Segment {id: input_segment_id})
+      -[:SEGMENTATION_OF]->(input_ann:Annotation)
+      -[:ANNOTATION_OF]->(m:Manifestation)
+MATCH (seg_ann:Annotation)-[:HAS_TYPE]->(:AnnotationType {name: 'segmentation'})
+MATCH (seg_ann)-[:ANNOTATION_OF]->(m)
+MATCH (seg:Segment)-[:SEGMENTATION_OF]->(seg_ann)
+WHERE seg.span_start < input_seg.span_end 
+  AND seg.span_end > input_seg.span_start
+RETURN input_segment_id, 
+       collect(seg.id) as overlapping_segments
 """
 }
 
