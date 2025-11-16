@@ -14,6 +14,7 @@ from models import (
 from neo4j_database import Neo4JDatabase
 from storage import MockStorage
 from neo4j_database_validator import Neo4JDatabaseValidator
+from api.relation import _get_expression_relations
 
 texts_bp = Blueprint("texts", __name__)
 
@@ -181,6 +182,45 @@ def create_instance(expression_id: str) -> tuple[Response, int]:
     )
 
     return jsonify({"message": "Instance created successfully", "id": manifestation_id}), 201
+
+
+@texts_bp.route("/<string:expression_id>/related-by-work", methods=["GET"], strict_slashes=False)
+def get_related_by_work(expression_id: str) -> tuple[Response, int]:
+    """
+    Get work_id mapping for all related expressions.
+    
+    Returns a dictionary with work_id as key and list of expression_ids as values:
+    { "work_id_1": ["expr_id_1", "expr_id_2"], "work_id_2": ["expr_id_3"] }
+    """
+    logger.info("Getting work mapping for related expressions of expression ID: %s", expression_id)
+    
+    db = Neo4JDatabase()
+    
+    # Convert manifestation_id to expression_id
+    expression_relations = _get_expression_relations(expression_id=expression_id)
+    
+    # Extract all expression_ids (keys from the relations dictionary)
+    expression_ids = list(expression_relations.keys())
+    
+    # Get work_id mapping for all expressions (expression_id -> work_id)
+    work_mapping = db.get_work_ids_by_expression_ids(expression_ids)
+    
+    # Transform to work_id -> [expression_ids]
+    grouped_by_work = {}
+    for expr_id, work_id in work_mapping.items():
+        if expression_relations.get(expr_id) is None:
+            continue
+        if work_id not in grouped_by_work:
+            grouped_by_work[work_id] = {
+                "relation": None,
+                "expression_ids": []
+            }
+        if grouped_by_work[work_id].get("relation", None) is None and expression_relations.get(expr_id) is not None:
+            grouped_by_work[work_id]["relation"] = expression_relations.get(expr_id).lower()
+        grouped_by_work[work_id]["expression_ids"].append(expr_id)
+    
+    return jsonify(grouped_by_work), 200
+
 
 @texts_bp.route("/title-search/", methods=["GET"], strict_slashes=False)
 def title_search() -> tuple[Response, int]:
