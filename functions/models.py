@@ -125,7 +125,7 @@ class AnnotationModel(OpenPechaModel):
 
 class SpanModel(OpenPechaModel):
     start: int = Field(..., ge=0, description="Start character position (inclusive)")
-    end: int = Field(..., ge=1, description="End character position (exclusive)")
+    end: int = Field(..., ge=0, description="End character position (exclusive)")
 
     @model_validator(mode="after")
     def validate_span_range(self):
