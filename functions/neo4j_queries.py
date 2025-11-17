@@ -271,7 +271,7 @@ MATCH (target:Expression {{id: $target_id}})-[:EXPRESSION_OF]->(w:Work)
 WITH target, w, e
 MATCH (n:Nomen) WHERE elementId(n) = $title_nomen_element_id
 MATCH (l:Language {{code: $language_code}})
-CREATE (e)-[:EXPRESSION_OF {{original: false}}]->(w),
+MERGE (e)-[:EXPRESSION_OF {{original: false}}]->(w),
        (e)-[:TRANSLATION_OF]->(target),
        (e)-[:HAS_LANGUAGE {{bcp47: $bcp47_tag}}]->(l),
        (e)-[:HAS_TITLE]->(n)
