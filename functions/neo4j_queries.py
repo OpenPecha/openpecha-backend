@@ -579,10 +579,17 @@ MATCH (m:Manifestation {id: $manifestation_id})<-[:ANNOTATION_OF]-(a:Annotation)
 RETURN count(a) > 0 as exists
 """,
     "check_alignment_relationship_exists": """
-MATCH (source_m:Manifestation {id: $source_manifestation_id})<-[:ANNOTATION_OF]-(source_ann:Annotation)-[:HAS_TYPE]->(:AnnotationType {name: 'alignment'})
-OPTIONAL MATCH (source_ann)-[:ALIGNED_TO]->(target_ann:Annotation)-[:ANNOTATION_OF]->(target_m:Manifestation {id: $target_manifestation_id})
-OPTIONAL MATCH (target_m)<-[:ANNOTATION_OF]-(target_ann2:Annotation)-[:HAS_TYPE]->(:AnnotationType {name: 'alignment'})<-[:ALIGNED_TO]-(source_ann2:Annotation)-[:ANNOTATION_OF]->(source_m)
-WITH source_ann, target_ann, source_ann2, target_ann2
+MATCH (source_m:Manifestation {id: $source_manifestation_id})
+MATCH (target_m:Manifestation {id: $target_manifestation_id})
+
+// Check if source has alignment annotation pointing to target
+OPTIONAL MATCH (source_m)<-[:ANNOTATION_OF]-(source_ann:Annotation)-[:HAS_TYPE]->(:AnnotationType {name: 'alignment'})
+OPTIONAL MATCH (source_ann)-[:ALIGNED_TO]->(target_ann:Annotation)-[:ANNOTATION_OF]->(target_m)
+
+// Check if target has alignment annotation pointing to source
+OPTIONAL MATCH (target_m)<-[:ANNOTATION_OF]-(target_ann2:Annotation)-[:HAS_TYPE]->(:AnnotationType {name: 'alignment'})
+OPTIONAL MATCH (target_ann2)-[:ALIGNED_TO]->(source_ann2:Annotation)-[:ANNOTATION_OF]->(source_m)
+
 RETURN (target_ann IS NOT NULL OR source_ann2 IS NOT NULL) as exists
 """
 }

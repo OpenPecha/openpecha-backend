@@ -102,11 +102,7 @@ def add_annotation(manifestation_id: str) -> tuple[Response, int]:
 
     logger.info("Getting manifestation and expression id from Neo4J Database")
     db = Neo4JDatabase()
-    manifestation, expression_id = db.get_manifestation(manifestation_id=manifestation_id)
- 
-    # Check if annotation of the same type already exists in Neo4j database
-    logger.info(f"Checking if annotation of type '{request_model.type.value}' already exists for manifestation '{manifestation_id}'")
-    
+
     # For ALIGNMENT annotations, check both source and target manifestations
     if request_model.type == AnnotationType.ALIGNMENT:
         if request_model.target_manifestation_id is None:
@@ -116,6 +112,13 @@ def add_annotation(manifestation_id: str) -> tuple[Response, int]:
         _check_alignement_annotation_type_exists(db, manifestation_id, request_model.target_manifestation_id, request_model.type)
     else:
         _check_annotation_type_exists(db, manifestation_id, request_model.type)
+    
+
+    manifestation, expression_id = db.get_manifestation(manifestation_id=manifestation_id)
+ 
+    # Check if annotation of the same type already exists in Neo4j database
+    logger.info(f"Checking if annotation of type '{request_model.type.value}' already exists for manifestation '{manifestation_id}'")
+    
     
     response = None
     if request_model.type == AnnotationType.SEGMENTATION or request_model.type == AnnotationType.PAGINATION:
