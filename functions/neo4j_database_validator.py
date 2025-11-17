@@ -227,6 +227,22 @@ class Neo4JDatabaseValidator:
         if record and record["count"] > 0:
             raise DataValidationError(f"Manifestation type with name '{name}' already exists")
 
+    def validate_role_exists(self, tx, role_name: str):
+        """
+        Validate that a role exists in the database before using it.
+        Raises DataNotFound if the role doesn't exist.
+        """
+        query = """
+        MATCH (rt:RoleType {name: $name})
+        RETURN count(rt) as count
+        """
+        result = tx.run(query, name=role_name)
+        record = result.single()
+        
+        if not record or record["count"] == 0:
+            from exceptions import DataNotFound
+            raise DataNotFound(f"Role '{role_name}' not found in database")
+
     def validate_role_enum_exists(self, session, description: str, name: str):
         query = """
         MATCH (rt:RoleType)
