@@ -148,9 +148,9 @@ END
         """
         return f"""
 MATCH (copyright:Copyright {{status: $copyright}})
-CREATE ({expression_label})-[:HAS_COPYRIGHT]->(copyright)
-MERGE (license:License {{name: $license}})
-CREATE ({expression_label})-[:HAS_LICENSE]->(license)
+MATCH (license:License {{name: $license}})
+MERGE ({expression_label})-[:HAS_COPYRIGHT]->(copyright)
+MERGE ({expression_label})-[:HAS_LICENSE]->(license)
 """
 
 
@@ -271,10 +271,10 @@ MATCH (target:Expression {{id: $target_id}})-[:EXPRESSION_OF]->(w:Work)
 WITH target, w, e
 MATCH (n:Nomen) WHERE elementId(n) = $title_nomen_element_id
 MATCH (l:Language {{code: $language_code}})
-MERGE (e)-[:EXPRESSION_OF {{original: false}}]->(w),
-       (e)-[:TRANSLATION_OF]->(target),
-       (e)-[:HAS_LANGUAGE {{bcp47: $bcp47_tag}}]->(l),
-       (e)-[:HAS_TITLE]->(n)
+MERGE (e)-[:EXPRESSION_OF {{original: false}}]->(w)
+MERGE (e)-[:TRANSLATION_OF]->(target)
+MERGE (e)-[:HAS_LANGUAGE {{bcp47: $bcp47_tag}}]->(l)
+MERGE (e)-[:HAS_TITLE]->(n)
 {Queries.create_copyright_and_license('e')}
 RETURN e.id as expression_id
 """,
