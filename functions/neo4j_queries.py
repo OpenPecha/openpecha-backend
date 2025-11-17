@@ -879,6 +879,18 @@ OPTIONAL MATCH (child:Category)-[:HAS_PARENT]->(c)
 WITH c, parent, lt, COUNT(DISTINCT child) AS child_count
 RETURN c.id AS id, parent.id AS parent, lt.text AS title, child_count > 0 AS has_child
 """,
+    "find_existing_category": """
+MATCH (c:Category {application: $application})
+WHERE 
+    CASE 
+        WHEN $parent_id IS NULL THEN NOT (c)-[:HAS_PARENT]->(:Category)
+        ELSE EXISTS((c)-[:HAS_PARENT]->(:Category {id: $parent_id}))
+    END
+MATCH (c)-[:HAS_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)-[:HAS_LANGUAGE]->(l:Language)
+WHERE l.code = $language AND toLower(lt.text) = toLower($title_text)
+RETURN c.id AS category_id
+LIMIT 1
+""",
 }
 
 Queries.works = {
