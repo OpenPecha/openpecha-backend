@@ -205,6 +205,21 @@ class ExpressionModelBase(OpenPechaModel):
                 raise ValueError(f"Contribution at index {i}: Invalid contribution type")
         
         return self
+
+    @model_validator(mode="after")
+    def validate_title_language(self):
+        # Check that title has at least one entry
+        if not self.title.root or len(self.title.root) == 0:
+            raise ValueError("Title must contain at least one language entry")
+        
+        # Check that title has an entry matching the language field
+        if self.language not in self.title.root:
+            raise ValueError(
+                f"Title must include an entry for the expression's language '{self.language}'. "
+                f"Available title languages: {list(self.title.root.keys())}"
+            )
+        
+        return self
   
 class ExpressionModelInput(ExpressionModelBase):
     pass
