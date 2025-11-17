@@ -2,6 +2,7 @@ import logging
 
 from flask import Blueprint, Response, jsonify, request
 from neo4j_database import Neo4JDatabase
+from neo4j_database_validator import Neo4JDatabaseValidator
 from exceptions import InvalidRequest
 
 categories_bp = Blueprint("categories", __name__)
@@ -70,8 +71,18 @@ def create_category() -> tuple[Response, int]:
     
     request_model = CategoryRequestModel.model_validate(data)
     
+    # Validate that category doesn't already exist
+    db = Neo4JDatabase()
+    with db.get_session() as session:
+        Neo4JDatabaseValidator().validate_category_not_exists(
+            session=session,
+            application=request_model.application,
+            title=request_model.title.root,
+            parent_id=request_model.parent
+        )
+    
     logger.info("Creating category in Neo4J Database")
-    category_id = Neo4JDatabase().create_category(
+    category_id = db.create_category(
         application=request_model.application,
         title=request_model.title.root,
         parent_id=request_model.parent

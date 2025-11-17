@@ -250,3 +250,28 @@ class Neo4JDatabaseValidator:
         
         if record and record["count"] > 0:
             raise DataValidationError(f"Annotation type with name '{name}' already exists")
+
+    def validate_category_not_exists(self, session, application: str, title: dict[str, str], parent_id: str | None = None):
+        """
+        Validate that a category with the same application, title, and parent doesn't already exist.
+        Raises DataValidationError if the category exists.
+        """
+        from neo4j_queries import Queries
+        
+        # Check each language in the title
+        for language, title_text in title.items():
+            result = session.run(
+                Queries.categories["find_existing_category"],
+                application=application,
+                parent_id=parent_id,
+                language=language,
+                title_text=title_text
+            )
+            record = result.single()
+            
+            if record:
+                raise DataValidationError(
+                    f"Category already exists with id: {record['category_id']}. "
+                    f"A category with application '{application}', title '{title_text}' in language '{language}', "
+                    f"and parent_id '{parent_id}' already exists."
+                )
