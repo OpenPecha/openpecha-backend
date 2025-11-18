@@ -233,9 +233,9 @@ CREATE (w:Work {{id: $work_id}})
 WITH w, e
 MATCH (n:Nomen) WHERE elementId(n) = $title_nomen_element_id
 MATCH (l:Language {{code: $language_code}})
-CREATE (e)-[:EXPRESSION_OF {{original: $original}}]->(w),
-       (e)-[:HAS_LANGUAGE {{bcp47: $bcp47_tag}}]->(l),
-       (e)-[:HAS_TITLE]->(n)
+MERGE (e)-[:EXPRESSION_OF {{original: $original}}]->(w)
+MERGE (e)-[:HAS_LANGUAGE {{bcp47: $bcp47_tag}}]->(l)
+MERGE (e)-[:HAS_TITLE]->(n)
 {Queries.create_copyright_and_license('e')}
 RETURN e.id as expression_id
 """,
@@ -950,3 +950,4 @@ RETURN at.name AS name
 ORDER BY name ASC
 """,
 }
+
