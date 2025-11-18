@@ -538,7 +538,7 @@ class EnumType(str, Enum):
 
 class EnumRequestModel(OpenPechaModel):
     type: EnumType
-    value: dict[str, NonEmptyStr]
+    values: list[dict[str, NonEmptyStr]]
 
 class SearchFilterModel(OpenPechaModel):
     title: str | None = None
