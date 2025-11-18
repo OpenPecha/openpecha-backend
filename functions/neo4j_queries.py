@@ -285,10 +285,10 @@ CREATE (commentary_work:Work {{id: $work_id}})
 WITH target, commentary_work, e
 MATCH (n:Nomen) WHERE elementId(n) = $title_nomen_element_id
 MATCH (l:Language {{code: $language_code}})
-CREATE (e)-[:COMMENTARY_OF]->(target),
-       (e)-[:EXPRESSION_OF {{original: true}}]->(commentary_work),
-       (e)-[:HAS_LANGUAGE {{bcp47: $bcp47_tag}}]->(l),
-       (e)-[:HAS_TITLE]->(n)
+MERGE (e)-[:COMMENTARY_OF]->(target)
+MERGE (e)-[:EXPRESSION_OF {{original: true}}]->(commentary_work)
+MERGE (e)-[:HAS_LANGUAGE {{bcp47: $bcp47_tag}}]->(l)
+MERGE (e)-[:HAS_TITLE]->(n)
 {Queries.create_copyright_and_license('e')}
 RETURN e.id as expression_id
 """,
