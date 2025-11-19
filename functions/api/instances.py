@@ -243,20 +243,22 @@ def _create_aligned_text(
     storage.store_base_text(expression_id=expression_id, manifestation_id=manifestation_id, base_text=request_model.content)
 
     # Build contributions based on text type
-    creator = request_model.author
-    role = ContributorRole.TRANSLATOR if text_type == TextType.TRANSLATION else ContributorRole.AUTHOR
+    contributions = None
+    if request_model.author:
+        creator = request_model.author
+        role = ContributorRole.TRANSLATOR if text_type == TextType.TRANSLATION else ContributorRole.AUTHOR
 
-    contributions = [
-        (
-            ContributionModel(
-                person_id=creator.person_id,
-                person_bdrc_id=creator.person_bdrc_id,
-                role=role,
+        contributions = [
+            (
+                ContributionModel(
+                    person_id=creator.person_id,
+                    person_bdrc_id=creator.person_bdrc_id,
+                    role=role,
+                )
+                if (creator.person_id or creator.person_bdrc_id)
+                else AIContributionModel(ai_id=creator.ai_id, role=role)
             )
-            if (creator.person_id or creator.person_bdrc_id)
-            else AIContributionModel(ai_id=creator.ai_id, role=role)
-        )
-    ]
+        ]
 
     expression = ExpressionModelInput(
         type=text_type,
