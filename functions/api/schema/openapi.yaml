@@ -7,7 +7,7 @@ servers:
     description: Local Development
   - url: https://api-l25bgmwqoa-uc.a.run.app
     description: Development
-  - url: https://api-XXXXX-uc.a.run.app
+  - url: https://api-kwgjscy6gq-uc.a.run.app
     description: Test
   - url: https://api-aq25662yyq-uc.a.run.app
     description: Production

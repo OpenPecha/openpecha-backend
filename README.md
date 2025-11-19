@@ -85,6 +85,51 @@ The website will be available at:
 https://pecha-backend.web.app
 ```
 
+## Branch Deployment Workflow
+
+Each environment runs code from its dedicated branch:
+- **Dev**: `dev` branch → pecha-backend-dev project
+- **Test**: `test` branch → pecha-backend-test-3a4d0 project
+- **Prod**: `main` branch → pecha-backend project
+
+### Important: Always verify which branch you're on before deploying
+```bash
+git branch --show-current
+```
+
+### How to Deploy Different Branches
+
+**Deploy to Dev Environment:**
+```bash
+git checkout dev
+firebase deploy --only functions --project dev
+```
+
+**Deploy to Test Environment:**
+```bash
+git checkout test
+firebase deploy --only functions --project test
+```
+
+**Deploy to Production:**
+```bash
+git checkout main
+firebase deploy --only functions --project prod
+```
+
+### Environment Configuration
+
+Each environment automatically uses:
+- **Different Neo4j databases** (configured via Firebase secrets)
+- **Different storage buckets** (auto-detected by project ID)
+- **Different code versions** (from their respective git branches)
+
+## API Endpoints
+
+- **Dev**: https://api-l25bgmwqoa-uc.a.run.app
+- **Test**: https://api-kwgjscy6gq-uc.a.run.app
+- **Prod**: https://api-aq25662yyq-uc.a.run.app
+
 ## Documentation
 Available at: https://pecha-backend.web.app/api
 
