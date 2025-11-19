@@ -53,6 +53,14 @@ Once your functions are working locally, deploy them to Firebase:
 ```
 firebase deploy --only functions
 ```
+### Test
+```
+# Switch to test branch first
+git checkout test
+
+# Deploy to test project
+firebase deploy --only functions --project test
+```
 ### Production
 ```
 firebase deploy --only functions --project prod
