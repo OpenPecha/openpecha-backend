@@ -122,8 +122,8 @@ NEO4J_DEV_USERNAME=neo4j
 NEO4J_DEV_DATABASE=neo4j
 
 # Test Neo4j Database
-NEO4J_TEST_URI=neo4j+s://e01bee52.databases.neo4j.io
-NEO4J_TEST_PASSWORD=your-test-password
+NEO4J_TEST_URI=neo4j+s://7d1b2e55.databases.neo4j.io
+NEO4J_TEST_PASSWORD=s3MdyYbT61Ho17EWCsdi2_YOsMvCLudCOg4xvt5IJ-o
 NEO4J_TEST_USERNAME=neo4j
 NEO4J_TEST_DATABASE=neo4j
 
