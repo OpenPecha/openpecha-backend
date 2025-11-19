@@ -2,6 +2,7 @@ from collections import OrderedDict
 import os
 import logging
 import queue as queue_module
+from environment import get_neo4j_credentials
 from exceptions import DataNotFound
 from identifier import generate_id
 from models import (
@@ -39,11 +40,14 @@ logger = logging.getLogger(__name__)
 class Neo4JDatabase:
     def __init__(self, neo4j_uri: str = None, neo4j_auth: tuple = None) -> None:
         if neo4j_uri and neo4j_auth:
+            # Allow manual override for testing
             self.__driver = GraphDatabase.driver(neo4j_uri, auth=neo4j_auth)
         else:
+            # Automatically get credentials for current environment
+            creds = get_neo4j_credentials()
             self.__driver = GraphDatabase.driver(
-                os.environ.get("NEO4J_URI"),
-                auth=("neo4j", os.environ.get("NEO4J_PASSWORD")),
+                creds['uri'],
+                auth=(creds['username'], creds['password']),
             )
         self.__driver.verify_connectivity()
         self.__validator = Neo4JDatabaseValidator()
