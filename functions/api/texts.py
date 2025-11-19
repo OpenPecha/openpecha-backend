@@ -3,6 +3,7 @@ import logging
 from exceptions import InvalidRequest, DataNotFound
 from flask import Blueprint, Response, jsonify, request
 from identifier import generate_id
+from api.instances import _trigger_search_segmenter
 from models import (
     AnnotationModel, 
     AnnotationType, 
@@ -180,6 +181,9 @@ def create_instance(expression_id: str) -> tuple[Response, int]:
         bibliography_annotation=bibliography_annotation,
         bibliography_segments=bibliography_segments,
     )
+
+    # Trigger search segmenter API asynchronously
+    _trigger_search_segmenter(manifestation_id)
 
     return jsonify({"message": "Instance created successfully", "id": manifestation_id}), 201
 
