@@ -65,5 +65,9 @@ def get_neo4j_credentials() -> dict:
     if not credentials['uri'] or not credentials['password']:
         raise ValueError(f"Missing Neo4j credentials for environment: {env}")
     
+    # Log credentials (mask password for security)
+    masked_password = credentials['password'][:4] + "****" if credentials['password'] else "None"
+    logger.info(f"Neo4j credentials: URI={credentials['uri']}, Password={masked_password}, Username={credentials['username']}")
+    
     return credentials
 
