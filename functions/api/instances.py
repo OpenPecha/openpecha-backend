@@ -1,4 +1,6 @@
 import logging
+import threading
+import requests
 
 from flask import Blueprint, Response, jsonify, request
 from identifier import generate_id
@@ -29,6 +31,28 @@ from api.relation import _get_expression_relations
 instances_bp = Blueprint("instances", __name__)
 
 logger = logging.getLogger(__name__)
+
+
+def _trigger_search_segmenter(manifestation_id: str) -> None:
+    """
+    Triggers the search segmenter API asynchronously (fire-and-forget).
+    
+    Args:
+        manifestation_id: The ID of the manifestation to process
+    """
+    def _make_request():
+        url = "https://sqs-search-segmenter-api.onrender.com/jobs/create"
+        payload = {"manifestation_id": manifestation_id}
+        response = requests.post(url, json=payload, timeout=10)
+        logger.info(
+            "Search segmenter API called for manifestation %s. Status: %s",
+            manifestation_id,
+            response.status_code
+        )
+    
+    # Start the request in a background thread
+    thread = threading.Thread(target=_make_request, daemon=True)
+    thread.start()
 
 
 @instances_bp.route("/<string:manifestation_id>", methods=["GET"], strict_slashes=False)
@@ -243,20 +267,22 @@ def _create_aligned_text(
     storage.store_base_text(expression_id=expression_id, manifestation_id=manifestation_id, base_text=request_model.content)
 
     # Build contributions based on text type
-    creator = request_model.author
-    role = ContributorRole.TRANSLATOR if text_type == TextType.TRANSLATION else ContributorRole.AUTHOR
+    contributions = None
+    if request_model.author:
+        creator = request_model.author
+        role = ContributorRole.TRANSLATOR if text_type == TextType.TRANSLATION else ContributorRole.AUTHOR
 
-    contributions = [
-        (
-            ContributionModel(
-                person_id=creator.person_id,
-                person_bdrc_id=creator.person_bdrc_id,
-                role=role,
+        contributions = [
+            (
+                ContributionModel(
+                    person_id=creator.person_id,
+                    person_bdrc_id=creator.person_bdrc_id,
+                    role=role,
+                )
+                if (creator.person_id or creator.person_bdrc_id)
+                else AIContributionModel(ai_id=creator.ai_id, role=role)
             )
-            if (creator.person_id or creator.person_bdrc_id)
-            else AIContributionModel(ai_id=creator.ai_id, role=role)
-        )
-    ]
+        ]
 
     expression = ExpressionModelInput(
         type=text_type,
@@ -325,6 +351,9 @@ def _create_aligned_text(
         logger.error("Error creating aligned text: %s", e)
         MockStorage().rollback_base_text(expression_id=expression_id, manifestation_id=manifestation_id)
         raise e
+
+    # Trigger search segmenter API asynchronously
+    _trigger_search_segmenter(manifestation_id)
 
     return (
         jsonify(

@@ -33,6 +33,9 @@ const getApiEndpoint = async () => {
             } else if (projectId === 'pecha-backend-dev') {
                 console.log("Using development environment based on project ID");
                 return config.DEV_API;
+            } else if (projectId === 'pecha-backend-test-3a4d0') {
+                console.log("Using test environment based on project ID");
+                return config.TEST_API;
             }
         } else {
             throw new Error("Failed to fetch Firebase init file");

@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - dev
+      - test
 
 jobs:
   deploy:
@@ -38,6 +39,8 @@ jobs:
             TARGET_PROJECT="prod"
           elif [ "$BRANCH" = "dev" ]; then
             TARGET_PROJECT="dev"
+          elif [ "$BRANCH" = "test" ]; then
+            TARGET_PROJECT="test"
           else
             echo "Unsupported branch: $BRANCH"
             exit 1

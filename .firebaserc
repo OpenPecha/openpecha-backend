@@ -2,7 +2,8 @@
   "projects": {
     "default": "pecha-backend-dev",
     "prod": "pecha-backend",
-    "dev": "pecha-backend-dev"
+    "dev": "pecha-backend-dev",
+    "test": "pecha-backend-test-3a4d0"
   },
   "targets": {},
   "etags": {}

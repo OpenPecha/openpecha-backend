@@ -7,6 +7,8 @@ servers:
     description: Local Development
   - url: https://api-l25bgmwqoa-uc.a.run.app
     description: Development
+  - url: https://api-kwgjscy6gq-uc.a.run.app
+    description: Test
   - url: https://api-aq25662yyq-uc.a.run.app
     description: Production
 
@@ -1564,7 +1566,6 @@ paths:
                 - type
                 - title
                 - language
-                - contributions
                 - copyright
                 - license
                 - category_id

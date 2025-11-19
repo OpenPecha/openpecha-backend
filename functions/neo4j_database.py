@@ -2,6 +2,7 @@ from collections import OrderedDict
 import os
 import logging
 import queue as queue_module
+from environment import get_neo4j_credentials
 from exceptions import DataNotFound
 from identifier import generate_id
 from models import (
@@ -39,11 +40,14 @@ logger = logging.getLogger(__name__)
 class Neo4JDatabase:
     def __init__(self, neo4j_uri: str = None, neo4j_auth: tuple = None) -> None:
         if neo4j_uri and neo4j_auth:
+            # Allow manual override for testing
             self.__driver = GraphDatabase.driver(neo4j_uri, auth=neo4j_auth)
         else:
+            # Automatically get credentials for current environment
+            creds = get_neo4j_credentials()
             self.__driver = GraphDatabase.driver(
-                os.environ.get("NEO4J_URI"),
-                auth=("neo4j", os.environ.get("NEO4J_PASSWORD")),
+                creds['uri'],
+                auth=(creds['username'], creds['password']),
             )
         self.__driver.verify_connectivity()
         self.__validator = Neo4JDatabaseValidator()
@@ -425,11 +429,12 @@ class Neo4JDatabase:
                 # Build the response object with essential metadata only
                 # Format contributions to only include person_id (not person_bdrc_id)
                 formatted_contributions = []
-                for contrib in expression.contributions:
-                    contrib_dict = contrib.model_dump()
-                    # Remove person_bdrc_id if it exists
-                    contrib_dict.pop('person_bdrc_id', None)
-                    formatted_contributions.append(contrib_dict)
+                if expression.contributions:
+                    for contrib in expression.contributions:
+                        contrib_dict = contrib.model_dump()
+                        # Remove person_bdrc_id if it exists
+                        contrib_dict.pop('person_bdrc_id', None)
+                        formatted_contributions.append(contrib_dict)
                 
                 instance = {
                     "instance_id": manifestation.id,
@@ -1111,42 +1116,43 @@ class Neo4JDatabase:
         if expression.category_id:
             tx.run(Queries.works["link_to_category"], work_id=work_id, category_id=expression.category_id)
 
-        for contribution in expression.contributions:
-            # Validate that the role exists in the database
-            self.__validator.validate_role_exists(tx, contribution.role.value)
-            
-            if isinstance(contribution, ContributionModel):
-                result = tx.run(
-                    Queries.expressions["create_contribution"],
-                    expression_id=expression_id,
-                    person_id=contribution.person_id,
-                    person_bdrc_id=contribution.person_bdrc_id,
-                    role_name=contribution.role.value,
-                )
-
-                if not result.single():
-                    raise DataNotFound(
-                        f"Person (id: {contribution.person_id} bdrc_id: {contribution.person_bdrc_id}) not found"
+        if expression.contributions:
+            for contribution in expression.contributions:
+                # Validate that the role exists in the database
+                self.__validator.validate_role_exists(tx, contribution.role.value)
+                
+                if isinstance(contribution, ContributionModel):
+                    result = tx.run(
+                        Queries.expressions["create_contribution"],
+                        expression_id=expression_id,
+                        person_id=contribution.person_id,
+                        person_bdrc_id=contribution.person_bdrc_id,
+                        role_name=contribution.role.value,
                     )
-            elif isinstance(contribution, AIContributionModel):
-                ai_result = tx.run(
-                    Queries.ai["find_or_create"],
-                    ai_id=contribution.ai_id,
-                )
-                record = ai_result.single()
-                if not record:
-                    raise DataNotFound("Failed to find or create AI node")
 
-                result = tx.run(
-                    Queries.expressions["create_ai_contribution"],
-                    expression_id=expression_id,
-                    ai_element_id=record["ai_element_id"],
-                    role_name=contribution.role.value,
-                )
-                if not result.single():
-                    raise DataNotFound("AI contribution creation failed")
-            else:
-                raise ValueError(f"Unknown contribution type: {type(contribution)}")
+                    if not result.single():
+                        raise DataNotFound(
+                            f"Person (id: {contribution.person_id} bdrc_id: {contribution.person_bdrc_id}) not found"
+                        )
+                elif isinstance(contribution, AIContributionModel):
+                    ai_result = tx.run(
+                        Queries.ai["find_or_create"],
+                        ai_id=contribution.ai_id,
+                    )
+                    record = ai_result.single()
+                    if not record:
+                        raise DataNotFound("Failed to find or create AI node")
+
+                    result = tx.run(
+                        Queries.expressions["create_ai_contribution"],
+                        expression_id=expression_id,
+                        ai_element_id=record["ai_element_id"],
+                        role_name=contribution.role.value,
+                    )
+                    if not result.single():
+                        raise DataNotFound("AI contribution creation failed")
+                else:
+                    raise ValueError(f"Unknown contribution type: {type(contribution)}")
 
         return expression_id
 
