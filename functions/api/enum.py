@@ -34,112 +34,146 @@ def create_enum() -> tuple[Response, int]:
     
     request_model = EnumRequestModel.model_validate(data)
 
+    if not request_model.values or len(request_model.values) == 0:
+        raise InvalidRequest("At least one value must be provided")
+
     db = Neo4JDatabase()
+    created_count = 0
+    failed_items = []
 
     with db.get_session() as session:
 
         if request_model.type == EnumType.LANGUAGE:
 
-            if request_model.value["code"] is None or request_model.value["name"] is None:
-                raise InvalidRequest("'code' and 'name' are required for language")
-            
-            Neo4JDatabaseValidator().validate_language_enum_exists(
-                session = session, 
-                code = request_model.value["code"], 
-                name = request_model.value["name"]
-            )
+            for idx, value in enumerate(request_model.values):
+                try:
+                    if value.get("code") is None or value.get("name") is None:
+                        failed_items.append({"index": idx, "value": value, "error": "'code' and 'name' are required for language"})
+                        continue
+                    
+                    Neo4JDatabaseValidator().validate_language_enum_exists(
+                        session = session, 
+                        code = value["code"], 
+                        name = value["name"]
+                    )
 
-            logger.info("Creating language enum")
-            db.create_language_enum(
-                code=request_model.value["code"],
-                name=request_model.value["name"]
-            )
-            logger.info("Language enum created successfully")
+                    logger.info(f"Creating language enum: {value['code']} - {value['name']}")
+                    db.create_language_enum(
+                        code=value["code"],
+                        name=value["name"]
+                    )
+                    created_count += 1
+                except Exception as e:
+                    logger.error(f"Failed to create language enum at index {idx}: {str(e)}")
+                    failed_items.append({"index": idx, "value": value, "error": str(e)})
 
-            response = {
-                "message": "Language created successfully"
-            }
+            message = f"{created_count} language(s) created successfully"
 
         elif request_model.type == EnumType.BIBLIOGRAPHY:
 
-            if request_model.value["name"] is None:
-                raise InvalidRequest("'name' is required for bibliography")
+            for idx, value in enumerate(request_model.values):
+                try:
+                    if value.get("name") is None:
+                        failed_items.append({"index": idx, "value": value, "error": "'name' is required for bibliography"})
+                        continue
 
-            Neo4JDatabaseValidator().validate_bibliography_enum_exists(
-                session=session, 
-                name=request_model.value["name"]
-            )
+                    Neo4JDatabaseValidator().validate_bibliography_enum_exists(
+                        session=session, 
+                        name=value["name"]
+                    )
 
-            logger.info("Creating bibliography enum")
-            db.create_bibliography_enum(
-                name=request_model.value["name"]
-            )
-            logger.info("Bibliography enum created successfully")
+                    logger.info(f"Creating bibliography enum: {value['name']}")
+                    db.create_bibliography_enum(
+                        name=value["name"]
+                    )
+                    created_count += 1
+                except Exception as e:
+                    logger.error(f"Failed to create bibliography enum at index {idx}: {str(e)}")
+                    failed_items.append({"index": idx, "value": value, "error": str(e)})
 
-            response = {
-                "message": "Bibliography created successfully"
-            }
+            message = f"{created_count} bibliography/bibliographies created successfully"
 
         elif request_model.type == EnumType.MANIFESTATION:
 
-            if request_model.value["name"] is None:
-                raise InvalidRequest("'name' is required for manifestation")
+            for idx, value in enumerate(request_model.values):
+                try:
+                    if value.get("name") is None:
+                        failed_items.append({"index": idx, "value": value, "error": "'name' is required for manifestation"})
+                        continue
 
-            Neo4JDatabaseValidator().validate_manifestation_enum_exists(
-                session=session, 
-                name=request_model.value["name"]
-            )
+                    Neo4JDatabaseValidator().validate_manifestation_enum_exists(
+                        session=session, 
+                        name=value["name"]
+                    )
 
-            logger.info("Creating manifestation enum")
-            db.create_manifestation_enum(
-                name=request_model.value["name"]
-            )
-            logger.info("Manifestation enum created successfully")
+                    logger.info(f"Creating manifestation enum: {value['name']}")
+                    db.create_manifestation_enum(
+                        name=value["name"]
+                    )
+                    created_count += 1
+                except Exception as e:
+                    logger.error(f"Failed to create manifestation enum at index {idx}: {str(e)}")
+                    failed_items.append({"index": idx, "value": value, "error": str(e)})
 
-            response = {
-                "message": "Manifestation created successfully"
-            }
+            message = f"{created_count} manifestation(s) created successfully"
     
         elif request_model.type == EnumType.ROLE:
 
-            if request_model.value["description"] is None or request_model.value["name"] is None:
-                raise InvalidRequest("'description' and 'name' are required for role")
+            for idx, value in enumerate(request_model.values):
+                try:
+                    if value.get("description") is None or value.get("name") is None:
+                        failed_items.append({"index": idx, "value": value, "error": "'description' and 'name' are required for role"})
+                        continue
 
-            Neo4JDatabaseValidator().validate_role_enum_exists(
-                session=session, 
-                description=request_model.value["description"],
-                name=request_model.value["name"]
-            )
+                    Neo4JDatabaseValidator().validate_role_enum_exists(
+                        session=session, 
+                        description=value["description"],
+                        name=value["name"]
+                    )
 
-            logger.info("Creating role enum")
-            db.create_role_enum(
-                description=request_model.value["description"],
-                name=request_model.value["name"]
-            )
-            logger.info("Role enum created successfully")
+                    logger.info(f"Creating role enum: {value['name']}")
+                    db.create_role_enum(
+                        description=value["description"],
+                        name=value["name"]
+                    )
+                    created_count += 1
+                except Exception as e:
+                    logger.error(f"Failed to create role enum at index {idx}: {str(e)}")
+                    failed_items.append({"index": idx, "value": value, "error": str(e)})
 
-            response = {
-                "message": "Role created successfully"
-            }
+            message = f"{created_count} role(s) created successfully"
         
         elif request_model.type == EnumType.ANNOTATION:
 
-            if request_model.value["name"] is None:
-                raise InvalidRequest("'name' is required for annotation")
+            for idx, value in enumerate(request_model.values):
+                try:
+                    if value.get("name") is None:
+                        failed_items.append({"index": idx, "value": value, "error": "'name' is required for annotation"})
+                        continue
 
-            Neo4JDatabaseValidator().validate_annotation_enum_exists(
-                session=session,
-                name=request_model.value["name"]
-            )
+                    Neo4JDatabaseValidator().validate_annotation_enum_exists(
+                        session=session,
+                        name=value["name"]
+                    )
 
-            logger.info("Creating annotation enum")
-            db.create_annotation_enum(
-                name=request_model.value["name"]
-            )
-            logger.info("Annotation enum created successfully")
+                    logger.info(f"Creating annotation enum: {value['name']}")
+                    db.create_annotation_enum(
+                        name=value["name"]
+                    )
+                    created_count += 1
+                except Exception as e:
+                    logger.error(f"Failed to create annotation enum at index {idx}: {str(e)}")
+                    failed_items.append({"index": idx, "value": value, "error": str(e)})
 
-            response = {
-                "message": "Annotation created successfully"
-            }
+            message = f"{created_count} annotation(s) created successfully"
+
+    response = {
+        "message": message,
+        "created_count": created_count,
+        "failed_count": len(failed_items)
+    }
+    
+    if failed_items:
+        response["failed_items"] = failed_items
 
     return jsonify(response), 201

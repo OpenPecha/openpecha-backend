@@ -1,4 +1,6 @@
 import logging
+import threading
+import requests
 
 from flask import Blueprint, Response, jsonify, request
 from identifier import generate_id
@@ -24,10 +26,33 @@ from api.annotations import _alignment_annotation_mapping
 from exceptions import InvalidRequest
 from api.relation import _get_relation_for_an_expression
 from neo4j_database_validator import Neo4JDatabaseValidator
+from api.relation import _get_expression_relations
 
 instances_bp = Blueprint("instances", __name__)
 
 logger = logging.getLogger(__name__)
+
+
+def _trigger_search_segmenter(manifestation_id: str) -> None:
+    """
+    Triggers the search segmenter API asynchronously (fire-and-forget).
+    
+    Args:
+        manifestation_id: The ID of the manifestation to process
+    """
+    def _make_request():
+        url = "https://sqs-search-segmenter-api.onrender.com/jobs/create"
+        payload = {"manifestation_id": manifestation_id}
+        response = requests.post(url, json=payload, timeout=10)
+        logger.info(
+            "Search segmenter API called for manifestation %s. Status: %s",
+            manifestation_id,
+            response.status_code
+        )
+    
+    # Start the request in a background thread
+    thread = threading.Thread(target=_make_request, daemon=True)
+    thread.start()
 
 
 @instances_bp.route("/<string:manifestation_id>", methods=["GET"], strict_slashes=False)
@@ -242,20 +267,22 @@ def _create_aligned_text(
     storage.store_base_text(expression_id=expression_id, manifestation_id=manifestation_id, base_text=request_model.content)
 
     # Build contributions based on text type
-    creator = request_model.author
-    role = ContributorRole.TRANSLATOR if text_type == TextType.TRANSLATION else ContributorRole.AUTHOR
+    contributions = None
+    if request_model.author:
+        creator = request_model.author
+        role = ContributorRole.TRANSLATOR if text_type == TextType.TRANSLATION else ContributorRole.AUTHOR
 
-    contributions = [
-        (
-            ContributionModel(
-                person_id=creator.person_id,
-                person_bdrc_id=creator.person_bdrc_id,
-                role=role,
+        contributions = [
+            (
+                ContributionModel(
+                    person_id=creator.person_id,
+                    person_bdrc_id=creator.person_bdrc_id,
+                    role=role,
+                )
+                if (creator.person_id or creator.person_bdrc_id)
+                else AIContributionModel(ai_id=creator.ai_id, role=role)
             )
-            if (creator.person_id or creator.person_bdrc_id)
-            else AIContributionModel(ai_id=creator.ai_id, role=role)
-        )
-    ]
+        ]
 
     expression = ExpressionModelInput(
         type=text_type,
@@ -324,6 +351,9 @@ def _create_aligned_text(
         logger.error("Error creating aligned text: %s", e)
         MockStorage().rollback_base_text(expression_id=expression_id, manifestation_id=manifestation_id)
         raise e
+
+    # Trigger search segmenter API asynchronously
+    _trigger_search_segmenter(manifestation_id)
 
     return (
         jsonify(
@@ -527,6 +557,15 @@ def get_related_instances(manifestation_id: str) -> tuple[Response, int]:
 
     return jsonify(related_instances), 200
 
+@instances_bp.route("<string:manifestation_id>/related-all", methods=["GET"], strict_slashes=False)
+def get_all_related_instances(manifestation_id: str) -> tuple[Response, int]:
+
+    expression_relations = _get_expression_relations(expression_id=manifestation_id)
+    
+    
+
+    return jsonify(expression_relations), 200
+
 
 @instances_bp.route("/<string:manifestation_id>/segment-content", methods=["POST"], strict_slashes=False)
 def get_instance_segment_content(manifestation_id: str) -> tuple[Response, int]:
@@ -563,45 +602,26 @@ def get_instance_segment_content(manifestation_id: str) -> tuple[Response, int]:
     if not is_valid:
         return jsonify({"error": error_msg}), 400
 
+    db = Neo4JDatabase()
+
+    expression_id = db.get_expression_id_by_manifestation_id(manifestation_id)
+
+    base_text = retrieve_base_text(expression_id=expression_id, manifestation_id=manifestation_id)
+    result = []
     
     # Handle segment approach
     if segment_ids:
-        db = Neo4JDatabase()
         
         # Get all segments in batch using Cypher query
         segments_data = db._get_segments_batch(segment_ids)
         
-        # Create a lookup map for quick access
-        segments_map = {seg["segment_id"]: seg for seg in segments_data}
-        
-        # Verify all requested segments were found
-        missing_segments = [seg_id for seg_id in segment_ids if seg_id not in segments_map]
-        if missing_segments:
-            return jsonify({"error": f"Segments not found: {', '.join(missing_segments)}"}), 404
-        
-        # Get expression_id (should be the same for all segments from same manifestation)
-        expression_id = segments_data[0]["expression_id"]
-        
-        # Load base text once
-        base_text = retrieve_base_text(expression_id=expression_id, manifestation_id=manifestation_id)
-        
-        # Extract content for each segment using their spans
-        result = []
+
         errors = []
         
-        for segment_id in segment_ids:
-            seg_data = segments_map[segment_id]
-            span_start = seg_data["span_start"]
-            span_end = seg_data["span_end"]
-            
-            # Validate segment span bounds
-            if span_end > len(base_text):
-                errors.append(f"Segment {segment_id} span end ({span_end}) exceeds base text length ({len(base_text)})")
-                continue
-            
-            content = base_text[span_start : span_end]
+        for segment in segments_data:
+            content = base_text[segment["span_start"] : segment["span_end"]]
             result.append({
-                "segment_id": segment_id,
+                "segment_id": segment["segment_id"],
                 "content": content
             })
         
@@ -614,23 +634,14 @@ def get_instance_segment_content(manifestation_id: str) -> tuple[Response, int]:
     
     # Handle span approach
     if span_start is not None and span_end is not None:
-        is_valid, error_msg, span = _validate_span_parameters(span_start, span_end)
-        if not is_valid:
-            return jsonify({"error": error_msg}), 400
-        
-        success, error_msg, content = _get_instance_content(manifestation_id, span)
-        if success:
-            # Return span content as list with null segment_id
-            result = [{
-                "segment_id": None,
-                "content": content
-            }]
-            return jsonify(result), 200
-        return jsonify({"error": error_msg}), 404
+        span = SpanModel(start=int(span_start), end=int(span_end))
+        content = base_text[span.start : span.end]
+        result.append({
+            "segment_id": None,
+            "content": content
+        })
+        return jsonify(result), 200
     
-    # This should never be reached due to validation
-    return jsonify({"error": "Invalid request"}), 400
-
 
 def _validate_request_parameters(segment_ids: list[str], span_start: str, span_end: str) -> tuple[bool, str]:
     """Validate parameter combinations and return (is_valid, error_message)."""
@@ -641,31 +652,3 @@ def _validate_request_parameters(segment_ids: list[str], span_start: str, span_e
         return False, "Either segment_ids OR span_start and span_end is required"
     
     return True, ""
-
-
-def _validate_span_parameters(span_start: str, span_end: str) -> tuple[bool, str, SpanModel]:
-    """Validate and parse span parameters. Return (is_valid, error_message, span_model)."""
-    try:
-        span = SpanModel(start=int(span_start), end=int(span_end))
-        return True, "", span
-    except ValueError as e:
-        # SpanModel validation will handle: start >= end, start < 0, invalid integers
-        return False, f"Invalid span parameters: {str(e)}", None
-
-
-def _get_instance_content(instance_id: str, span: SpanModel) -> tuple[bool, str, str]:
-    """Get content for an instance span. Return (success, error_message, content)."""
-    try:
-        db = Neo4JDatabase()
-        expression_id = db.get_expression_id_by_manifestation_id(instance_id)
-        if not expression_id:
-            return False, f"Expression ID not found for manifestation {instance_id}", ""
-        base_text = retrieve_base_text(expression_id=expression_id, manifestation_id=instance_id)
-        
-        if span.end > len(base_text):
-            return False, f"span end ({span.end}) exceeds base text length ({len(base_text)})", ""
-        
-        content = base_text[span.start : span.end]
-        return True, "", content
-    except Exception as e:
-        return False, f"Failed to retrieve instance content: {str(e)}", ""

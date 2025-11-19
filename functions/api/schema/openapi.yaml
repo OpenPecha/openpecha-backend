@@ -7,6 +7,8 @@ servers:
     description: Local Development
   - url: https://api-l25bgmwqoa-uc.a.run.app
     description: Development
+  - url: https://api-kwgjscy6gq-uc.a.run.app
+    description: Test
   - url: https://api-aq25662yyq-uc.a.run.app
     description: Production
 
@@ -1564,7 +1566,6 @@ paths:
                 - type
                 - title
                 - language
-                - contributions
                 - copyright
                 - license
                 - category_id
@@ -1941,6 +1942,115 @@ paths:
           $ref: '#/components/responses/InvalidRequest'
         "404":
           $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+  /v2/texts/{text_id}/related-by-work:
+    get:
+      summary: Get texts grouped by work ID
+      description: >-
+        Returns texts grouped by their work_id for all related texts.
+        This allows you to easily identify which texts belong to the same work.
+        
+        Takes a text ID directly and finds all related texts
+        (translations, commentaries, roots, etc.), then returns them grouped by work_id
+        with their relationship type.
+      tags:
+        - Texts
+      parameters:
+        - name: text_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The text ID
+      responses:
+        "200":
+          description: Texts grouped by work retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties:
+                  type: object
+                  properties:
+                    relation:
+                      type: string
+                      nullable: true
+                      enum: [translation, commentary, root, sibling_root, sibling_commentary]
+                      description: The relation type for texts in this work group
+                    text_ids:
+                      type: array
+                      items:
+                        type: string
+                      description: List of text IDs in this work group
+                description: Dictionary with work_id as key and object containing relation type and text IDs as value
+                example:
+                  "W001":
+                    relation: "translation"
+                    text_ids: ["T001", "T002", "T004"]
+                  "W002":
+                    relation: "commentary"
+                    text_ids: ["T003"]
+                  "W003":
+                    relation: null
+                    text_ids: ["T005"]
+        "404":
+          description: Text not found or has no relations
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Text with ID T123 not found"
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+  /v2/texts/title-search:
+    get:
+      summary: Search texts by title
+      description: Search for texts by matching title or alternative titles. Returns expressions that have matching titles along with their critical manifestations.
+      tags:
+        - Texts
+      parameters:
+        - name: title
+          in: query
+          required: true
+          schema:
+            type: string
+          description: The title search term to match (case-sensitive substring match)
+          example: "བསྟན་འགྱུར།"
+      responses:
+        "200":
+          description: Search completed successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    text_id:
+                      type: string
+                      description: The expression ID of the matched text
+                    title:
+                      type: string
+                      description: The matched title text
+                    instance_id:
+                      type: string
+                      description: The manifestation ID of the critical edition
+              examples:
+                success:
+                  summary: Title search results
+                  value:
+                    - text_id: "T12345678"
+                      title: "བསྟན་འགྱུར།"
+                      instance_id: "M12345678"
+                    - text_id: "T87654321"
+                      title: "བསྟན་འགྱུར་དཔེ་བསྡུར་མ།"
+                      instance_id: "M87654321"
         "500":
           $ref: '#/components/responses/ServerError'
 
@@ -3923,8 +4033,8 @@ paths:
                       - name: segmentation
                       - name: pagination
     post:
-      summary: Create enum entry
-      description: Create a new enum value in Neo4j based on the provided type and value payload. All values are normalized to lowercase before storage.
+      summary: Create enum entries
+      description: Create one or more enum values in Neo4j based on the provided type and values payload. All values are normalized to lowercase before storage. Supports batch creation with error handling for individual items.
       tags:
         - Enums
       requestBody:
@@ -3933,107 +4043,154 @@ paths:
           application/json:
             schema:
               type: object
-              required: [type, value]
+              required: [type, values]
               properties:
                 type:
                   type: string
                   enum: [language, bibliography, manifestation, role, annotation]
                   description: Enum type to create
-                value:
-                  oneOf:
-                    - title: LanguageValue
-                      type: object
-                      required: [code, name]
-                      properties:
-                        code:
-                          type: string
-                        name:
-                          type: string
-                    - title: BibliographyValue
-                      type: object
-                      required: [name]
-                      properties:
-                        name:
-                          type: string
-                    - title: ManifestationValue
-                      type: object
-                      required: [name]
-                      properties:
-                        name:
-                          type: string
-                    - title: RoleValue
-                      type: object
-                      required: [description, name]
-                      properties:
-                        description:
-                          type: string
-                        name:
-                          type: string
-                    - title: AnnotationValue
-                      type: object
-                      required: [name]
-                      properties:
-                        name:
-                          type: string
+                values:
+                  type: array
+                  minItems: 1
+                  description: Array of enum values to create
+                  items:
+                    oneOf:
+                      - title: LanguageValue
+                        type: object
+                        required: [code, name]
+                        properties:
+                          code:
+                            type: string
+                          name:
+                            type: string
+                      - title: BibliographyValue
+                        type: object
+                        required: [name]
+                        properties:
+                          name:
+                            type: string
+                      - title: ManifestationValue
+                        type: object
+                        required: [name]
+                        properties:
+                          name:
+                            type: string
+                      - title: RoleValue
+                        type: object
+                        required: [description, name]
+                        properties:
+                          description:
+                            type: string
+                          name:
+                            type: string
+                      - title: AnnotationValue
+                        type: object
+                        required: [name]
+                        properties:
+                          name:
+                            type: string
             examples:
-              language:
-                summary: Create language enum
+              language_single:
+                summary: Create single language enum
                 value:
                   type: language
-                  value:
-                    code: bo
-                    name: Tibetan
+                  values:
+                    - code: bo
+                      name: Tibetan
+              language_multiple:
+                summary: Create multiple language enums
+                value:
+                  type: language
+                  values:
+                    - code: bo
+                      name: Tibetan
+                    - code: en
+                      name: English
+                    - code: zh
+                      name: Chinese
               bibliography:
-                summary: Create bibliography enum
+                summary: Create multiple bibliography enums
                 value:
                   type: bibliography
-                  value:
-                    name: colophon
+                  values:
+                    - name: colophon
+                    - name: preface
+                    - name: introduction
               manifestation:
-                summary: Create manifestation enum
+                summary: Create multiple manifestation enums
                 value:
                   type: manifestation
-                  value:
-                    name: diplomatic
+                  values:
+                    - name: diplomatic
+                    - name: critical
               role:
-                summary: Create role enum
+                summary: Create multiple role enums
                 value:
                   type: role
-                  value:
-                    description: Writer of the work
-                    name: author
+                  values:
+                    - description: Writer of the work
+                      name: author
+                    - description: Translator of the work
+                      name: translator
               annotation:
-                summary: Create annotation enum
+                summary: Create multiple annotation enums
                 value:
                   type: annotation
-                  value:
-                    name: segmentation
+                  values:
+                    - name: segmentation
+                    - name: pagination
       responses:
         "201":
-          description: Enum created successfully
+          description: Enum entries created successfully (or partially created with errors)
           content:
             application/json:
               schema:
                 type: object
+                required: [message, created_count, failed_count]
                 properties:
                   message:
                     type: string
+                    description: Summary message of the operation
+                  created_count:
+                    type: integer
+                    description: Number of successfully created enum entries
+                  failed_count:
+                    type: integer
+                    description: Number of failed enum entries
+                  failed_items:
+                    type: array
+                    description: Details of failed items (only present if failed_count > 0)
+                    items:
+                      type: object
+                      properties:
+                        index:
+                          type: integer
+                          description: Index of the failed item in the values array
+                        value:
+                          type: object
+                          description: The value that failed to be created
+                        error:
+                          type: string
+                          description: Error message explaining the failure
               examples:
-                language:
+                all_success:
+                  summary: All items created successfully
                   value:
-                    message: Language created successfully
-                bibliography:
+                    message: "3 language(s) created successfully"
+                    created_count: 3
+                    failed_count: 0
+                partial_success:
+                  summary: Partial success with some failures
                   value:
-                    message: Bibliography created successfully
-                manifestation:
-                  value:
-                    message: Manifestation created successfully
-                role:
-                  value:
-                    message: Role created successfully
-                annotation:
-                  value:
-                    message: Annotation created successfully
+                    message: "2 language(s) created successfully"
+                    created_count: 2
+                    failed_count: 1
+                    failed_items:
+                      - index: 1
+                        value:
+                          code: en
+                          name: English
+                        error: "Language enum already exists"
         "400":
           $ref: '#/components/responses/InvalidRequest'
         "422":

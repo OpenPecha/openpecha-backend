@@ -125,7 +125,7 @@ class AnnotationModel(OpenPechaModel):
 
 class SpanModel(OpenPechaModel):
     start: int = Field(..., ge=0, description="Start character position (inclusive)")
-    end: int = Field(..., ge=1, description="End character position (exclusive)")
+    end: int = Field(..., ge=0, description="End character position (exclusive)")
 
     @model_validator(mode="after")
     def validate_span_range(self):
@@ -146,7 +146,7 @@ class ExpressionModelBase(OpenPechaModel):
     bdrc: str | None = None
     wiki: str | None = None
     type: TextType
-    contributions: list[ContributionModel | AIContributionModel]
+    contributions: list[ContributionModel | AIContributionModel] | None = None
     date: NonEmptyStr | None = None
     title: LocalizedString
     alt_titles: list[LocalizedString] | None = None
@@ -188,21 +188,35 @@ class ExpressionModelBase(OpenPechaModel):
 
     @model_validator(mode="after")
     def validate_contributions(self):
-        if not self.contributions:
-            raise ValueError("At least one contribution must be provided")
+        # Allow None or empty contributions
+        if self.contributions:
+            for i, contribution in enumerate(self.contributions):
+                if isinstance(contribution, ContributionModel):
+                    # Validate human contributions
+                    if contribution.person_id is None and contribution.person_bdrc_id is None:
+                        raise ValueError(f"Contribution at index {i}: person_id or person_bdrc_id must be provided")
+                    if contribution.person_id is not None and contribution.person_bdrc_id is not None:
+                        raise ValueError(f"Contribution at index {i}: person_id and person_bdrc_id cannot both be provided")
+                elif isinstance(contribution, AIContributionModel):
+                    # AI contributions are validated by their required fields in the model
+                    pass
+                else:
+                    raise ValueError(f"Contribution at index {i}: Invalid contribution type")
         
-        for i, contribution in enumerate(self.contributions):
-            if isinstance(contribution, ContributionModel):
-                # Validate human contributions
-                if contribution.person_id is None and contribution.person_bdrc_id is None:
-                    raise ValueError(f"Contribution at index {i}: person_id or person_bdrc_id must be provided")
-                if contribution.person_id is not None and contribution.person_bdrc_id is not None:
-                    raise ValueError(f"Contribution at index {i}: person_id and person_bdrc_id cannot both be provided")
-            elif isinstance(contribution, AIContributionModel):
-                # AI contributions are validated by their required fields in the model
-                pass
-            else:
-                raise ValueError(f"Contribution at index {i}: Invalid contribution type")
+        return self
+
+    @model_validator(mode="after")
+    def validate_title_language(self):
+        # Check that title has at least one entry
+        if not self.title.root or len(self.title.root) == 0:
+            raise ValueError("Title must contain at least one language entry")
+        
+        # Check that title has an entry matching the language field
+        if self.language not in self.title.root:
+            raise ValueError(
+                f"Title must include an entry for the expression's language '{self.language}'. "
+                f"Available title languages: {list(self.title.root.keys())}"
+            )
         
         return self
   
@@ -214,7 +228,7 @@ class ExpressionModelOutputBase(OpenPechaModel):
     bdrc: str | None = None
     wiki: str | None = None
     type: TextType
-    contributions: list[ContributionModel | AIContributionModel]
+    contributions: list[ContributionModel | AIContributionModel] | None = None
     date: NonEmptyStr | None = None
     title: LocalizedString
     alt_titles: list[LocalizedString] | None = None
@@ -523,7 +537,7 @@ class EnumType(str, Enum):
 
 class EnumRequestModel(OpenPechaModel):
     type: EnumType
-    value: dict[str, NonEmptyStr]
+    values: list[dict[str, NonEmptyStr]]
 
 class SearchFilterModel(OpenPechaModel):
     title: str | None = None
