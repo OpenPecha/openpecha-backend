@@ -170,6 +170,12 @@ Queries.expressions = {
     WITH e
     WHERE ($type IS NULL OR {Queries.get_expression_type('e')} = $type)
     AND ($language IS NULL OR [(e)-[:HAS_LANGUAGE]->(l:Language) | l.code][0] = $language)
+    AND ($title IS NULL OR EXISTS {{
+        MATCH (e)-[:HAS_TITLE]->(titleNomen:Nomen)
+        MATCH (n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
+        WHERE (n = titleNomen OR (n)-[:ALTERNATIVE_OF]->(titleNomen))
+        AND toLower(lt.text) CONTAINS toLower($title)
+    }})
 
     OFFSET $offset
     LIMIT $limit
@@ -303,14 +309,6 @@ RETURN {Queries.expression_fragment('e')} AS expression
 MATCH (e:Expression)-[:EXPRESSION_OF]->(w:Work)
 WHERE e.id IN $expression_ids
 RETURN e.id as expression_id, w.id as work_id
-""",
-    "title_search": """
-MATCH (lt:LocalizedText)<-[:HAS_LOCALIZATION]-(n:Nomen)
-MATCH (e:Expression)-[:HAS_TITLE]->(titleNomen:Nomen)
-WHERE lt.text CONTAINS $title
-  AND (n = titleNomen OR (n)-[:ALTERNATIVE_OF]->(titleNomen))
-MATCH (e)<-[:MANIFESTATION_OF]-(m:Manifestation)-[:HAS_TYPE]->(mt: ManifestationType {{name: 'critical'}})
-RETURN DISTINCT e.id as expression_id, lt.text as title, m.id as manifestation_id
 """,
 }
 
