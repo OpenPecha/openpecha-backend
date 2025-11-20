@@ -1,7 +1,7 @@
 import logging
 
-from models import ExpressionModelInput, TextType, ManifestationType
-from exceptions import InvalidRequest
+from exceptions import DataNotFound, InvalidRequest
+from models import ExpressionModelInput, ManifestationType, TextType
 from neo4j_queries import Queries
 
 logger = logging.getLogger(__name__)
@@ -104,7 +104,9 @@ class Neo4JDatabaseValidator:
                 "Cannot create manifestation for non-existent expression."
             )
 
-    def has_manifestation_of_type_for_expression_id(self, session, expression_id: str, type: ManifestationType) -> bool:
+    def has_manifestation_of_type_for_expression_id(
+        self, session, expression_id: str, manifestation_type: ManifestationType
+    ) -> bool:
 
         query = """
         MATCH (e:Expression {id: $expression_id})
@@ -113,7 +115,7 @@ class Neo4JDatabaseValidator:
         RETURN count(m) AS count
         """
 
-        result = session.run(query, expression_id=expression_id, type=type.value)
+        result = session.run(query, expression_id=expression_id, type=manifestation_type.value)
         record = result.single()
 
         return bool(record and record.get("count", 0) > 0)
@@ -136,7 +138,9 @@ class Neo4JDatabaseValidator:
         ).single()
 
         if not record or not record["exists"]:
-            raise InvalidRequest(f"Language '{language_code}' is not present in Neo4j. Available languages: {', '.join(record['codes'])}")
+            raise InvalidRequest(
+                f"Language '{language_code}' is not present in Neo4j. Available languages: {', '.join(record['codes'])}"
+            )
 
     def validate_bibliography_type_exists(self, session, bibliography_types: list[str]) -> None:
         """Validate that all given bibliography type names exist. Raises InvalidRequest listing missing and available."""
@@ -174,23 +178,22 @@ class Neo4JDatabaseValidator:
 
     def validate_category_exists(self, session, category_id: str) -> None:
         """Validate that a category with the given ID exists.
-        
+
         Raises DataValidationError if the category does not exist.
         """
         query = """
         MATCH (c:Category {id: $category_id})
         RETURN count(c) as count
         """
-        
+
         result = session.run(query, category_id=category_id)
         record = result.single()
-        
+
         if not record or record["count"] == 0:
             raise DataValidationError(
-                f"Category with ID '{category_id}' does not exist. "
-                "Please provide a valid category_id."
+                f"Category with ID '{category_id}' does not exist. " "Please provide a valid category_id."
             )
-        
+
     def validate_language_enum_exists(self, session, code: str, name: str):
         query = """
         MATCH (l:Language)
@@ -199,7 +202,7 @@ class Neo4JDatabaseValidator:
         """
         result = session.run(query, code=code, name=name)
         record = result.single()
-        
+
         if record and record["count"] > 0:
             raise DataValidationError(f"Language with code '{code}' or name '{name}' already exists")
 
@@ -211,7 +214,7 @@ class Neo4JDatabaseValidator:
         """
         result = session.run(query, name=name)
         record = result.single()
-        
+
         if record and record["count"] > 0:
             raise DataValidationError(f"Bibliography type with name '{name}' already exists")
 
@@ -223,7 +226,7 @@ class Neo4JDatabaseValidator:
         """
         result = session.run(query, name=name)
         record = result.single()
-        
+
         if record and record["count"] > 0:
             raise DataValidationError(f"Manifestation type with name '{name}' already exists")
 
@@ -236,7 +239,7 @@ class Neo4JDatabaseValidator:
         """
         result = session.run(query, description=description, name=name)
         record = result.single()
-        
+
         if record and record["count"] > 0:
             raise DataValidationError(f"Role type with name '{name}' already exists")
 
@@ -248,11 +251,13 @@ class Neo4JDatabaseValidator:
         """
         result = session.run(query, name=name)
         record = result.single()
-        
+
         if record and record["count"] > 0:
             raise DataValidationError(f"Annotation type with name '{name}' already exists")
 
-    def validate_category_not_exists(self, session, application: str, title: dict[str, str], parent_id: str | None = None):
+    def validate_category_not_exists(
+        self, session, application: str, title: dict[str, str], parent_id: str | None = None
+    ):
         """
         Validate that a category with the same application, title, and parent doesn't already exist.
         Raises DataValidationError if the category exists.
@@ -265,10 +270,10 @@ class Neo4JDatabaseValidator:
                 application=application,
                 parent_id=parent_id,
                 language=language,
-                title_text=title_text
+                title_text=title_text,
             )
             record = result.single()
-            
+
             if record:
                 raise DataValidationError(
                     f"Category already exists with id: {record['category_id']}. "

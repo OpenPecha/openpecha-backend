@@ -139,7 +139,7 @@ END
         """
         Matches existing Copyright node by status and links it to the expression.
         Also matches existing License node by name and links it.
-        
+
         Returns Cypher fragment that:
         1. Matches Copyright node by status value
         2. Links Expression to Copyright
@@ -239,7 +239,7 @@ MERGE (e)-[:HAS_TITLE]->(n)
 {Queries.create_copyright_and_license('e')}
 RETURN e.id as expression_id
 """,
-        "_old_create_contribution": """
+    "_old_create_contribution": """
 MATCH (e:Expression {id: $expression_id})
 MATCH (p:Person) WHERE (($person_id IS NOT NULL AND p.id = $person_id)
                         OR ($person_bdrc_id IS NOT NULL AND p.bdrc = $person_bdrc_id))
@@ -304,14 +304,14 @@ MATCH (e:Expression)-[:EXPRESSION_OF]->(w:Work)
 WHERE e.id IN $expression_ids
 RETURN e.id as expression_id, w.id as work_id
 """,
-    "title_search": f"""
+    "title_search": """
 MATCH (lt:LocalizedText)<-[:HAS_LOCALIZATION]-(n:Nomen)
 MATCH (e:Expression)-[:HAS_TITLE]->(titleNomen:Nomen)
 WHERE lt.text CONTAINS $title
   AND (n = titleNomen OR (n)-[:ALTERNATIVE_OF]->(titleNomen))
 MATCH (e)<-[:MANIFESTATION_OF]-(m:Manifestation)-[:HAS_TYPE]->(mt: ManifestationType {{name: 'critical'}})
 RETURN DISTINCT e.id as expression_id, lt.text as title, m.id as manifestation_id
-"""
+""",
 }
 
 Queries.persons = {
@@ -357,13 +357,13 @@ Queries.manifestations = {
     MATCH (m)-[:MANIFESTATION_OF]->(e:Expression)
     WHERE $manifestation_type IS NULL OR [(m)-[:HAS_TYPE]->(mt:ManifestationType) | mt.name][0] = $manifestation_type
 
-    RETURN {Queries.manifestation_fragment('m')} AS manifestation, e.id AS expression_id 
+    RETURN {Queries.manifestation_fragment('m')} AS manifestation, e.id AS expression_id
 """,
-    "fetch_by_annotation_id": f"""
+    "fetch_by_annotation_id": """
     MATCH (a:Annotation {{id: $annotation_id}})-[:ANNOTATION_OF]->(m:Manifestation)
     RETURN m.id AS manifestation_id
 """,
-    "fetch_by_annotation": f"""
+    "fetch_by_annotation": """
     MATCH (a:Annotation {{id: $annotation_id}})-[:ANNOTATION_OF]->(m:Manifestation)
     MATCH (m)-[:MANIFESTATION_OF]->(e:Expression)
 
@@ -396,46 +396,46 @@ RETURN m.id AS manifestation_id
     MATCH (m:Manifestation {{id: $manifestation_id}})
           <-[:ANNOTATION_OF]-(ann:Annotation)
           -[:HAS_TYPE]->(at:AnnotationType {{name: 'alignment'}})
-    
+
     // Case 1: This annotation has aligned_to (manifestation is translation/commentary)
     // Follow the aligned_to relationship to find the target manifestation
     OPTIONAL MATCH (ann)-[:ALIGNED_TO]->(target_ann:Annotation)
                   -[:ANNOTATION_OF]->(related_m1:Manifestation)
                   -[:MANIFESTATION_OF]->(related_e1:Expression)
-    
+
     // Case 2: Other annotations point to this one (manifestation is root)
     // Find source annotations that have aligned_to pointing to this annotation
     OPTIONAL MATCH (source_ann:Annotation)-[:ALIGNED_TO]->(ann)
     OPTIONAL MATCH (source_ann)-[:ANNOTATION_OF]->(related_m2:Manifestation)
                               -[:MANIFESTATION_OF]->(related_e2:Expression)
-    
+
     // Combine both cases
     WITH COALESCE(related_m1, related_m2) as related_m,
          COALESCE(related_e1, related_e2) as related_e,
          related_m1, related_m2,
          ann, source_ann
     WHERE related_m IS NOT NULL
-    
+
     RETURN DISTINCT {{
         manifestation: {Queries.manifestation_fragment('related_m')},
         expression: {Queries.expression_fragment('related_e')},
-        alignment_annotation_id: CASE 
-            WHEN related_m1 IS NOT NULL THEN ann.id 
-            ELSE source_ann.id 
+        alignment_annotation_id: CASE
+            WHEN related_m1 IS NOT NULL THEN ann.id
+            ELSE source_ann.id
         END
     }} as related_instance
 """,
     "find_expression_related_instances": f"""
     // First, find the expression for the given manifestation
     MATCH (m:Manifestation {{id: $manifestation_id}})-[:MANIFESTATION_OF]->(e:Expression)
-    
+
     // Find any expression-level relationships (both to and from)
     MATCH (e)-[:TRANSLATION_OF|:COMMENTARY_OF]-(related_e:Expression)
     MATCH (related_e)<-[:MANIFESTATION_OF]-(related_m:Manifestation)
-    
+
     // Exclude the original manifestation
     WHERE related_m.id <> $manifestation_id
-    
+
     RETURN DISTINCT {{
         manifestation: {Queries.manifestation_fragment('related_m')},
         expression: {Queries.expression_fragment('related_e')},
@@ -490,12 +490,11 @@ RETURN target_ann.id as aligned_to_id
 MATCH (a:Annotation {id: $annotation_id})
 OPTIONAL MATCH (a)-[:ALIGNED_TO]->(target:Annotation)
 OPTIONAL MATCH (source:Annotation)-[:ALIGNED_TO]->(a)
-WITH a, 
+WITH a,
      CASE WHEN target IS NOT NULL THEN a.id ELSE source.id END as source_id,
      CASE WHEN target IS NOT NULL THEN target.id ELSE a.id END as target_id
 RETURN source_id, target_id
 """,
-
     "delete_alignment_annotations": """
 MATCH (source:Annotation {id: $source_annotation_id})
 MATCH (target:Annotation {id: $target_annotation_id})
@@ -575,7 +574,8 @@ WITH collect(DISTINCT {
 RETURN segments
 """,
     "check_annotation_type_exists": """
-MATCH (m:Manifestation {id: $manifestation_id})<-[:ANNOTATION_OF]-(a:Annotation)-[:HAS_TYPE]->(at:AnnotationType {name: $annotation_type})
+MATCH (m:Manifestation {id: $manifestation_id})<-[:ANNOTATION_OF]-(a:Annotation)
+      -[:HAS_TYPE]->(at:AnnotationType {name: $annotation_type})
 RETURN count(a) > 0 as exists
 """,
     "check_alignment_relationship_exists": """
@@ -591,7 +591,7 @@ OPTIONAL MATCH (target_m)<-[:ANNOTATION_OF]-(target_ann2:Annotation)-[:HAS_TYPE]
 OPTIONAL MATCH (target_ann2)-[:ALIGNED_TO]->(source_ann2:Annotation)-[:ANNOTATION_OF]->(source_m)
 
 RETURN (target_ann IS NOT NULL OR source_ann2 IS NOT NULL) as exists
-"""
+""",
 }
 
 Queries.sections = {
@@ -708,19 +708,22 @@ RETURN seg.id as segment_id,
 ORDER BY seg.id
 """,
     "find_related_alignment_only": """
-MATCH (source_manif:Manifestation {id: $manifestation_id})<-[:ANNOTATION_OF]-(align_annot:Annotation)-[:HAS_TYPE]->(at:AnnotationType {name: 'alignment'})
+MATCH (source_manif:Manifestation {id: $manifestation_id})
+      <-[:ANNOTATION_OF]-(align_annot:Annotation)
+      -[:HAS_TYPE]->(at:AnnotationType {name: 'alignment'})
 MATCH (align_annot)<-[:SEGMENTATION_OF]-(source_seg:Segment)
 WHERE source_seg.span_start < $span_end AND source_seg.span_end > $span_start
 
 // Follow bidirectional ALIGNED_TO relationships
 MATCH (source_seg)-[:ALIGNED_TO]-(target_seg:Segment)
-MATCH (target_seg)-[:SEGMENTATION_OF]->(target_align_annot:Annotation)-[:HAS_TYPE]->(tat:AnnotationType {name: 'alignment'})
+MATCH (target_seg)-[:SEGMENTATION_OF]->(target_align_annot:Annotation)
+      -[:HAS_TYPE]->(tat:AnnotationType {name: 'alignment'})
 MATCH (target_align_annot)-[:ANNOTATION_OF]->(target_manif:Manifestation)
 MATCH (target_manif)-[:MANIFESTATION_OF]->(target_expr:Expression)
 
 WITH target_manif, target_expr, COLLECT(DISTINCT target_seg) as target_segments
 
-RETURN 
+RETURN
     target_manif.id as manifestation_id,
     target_expr.id as expression_id,
     [seg IN target_segments | {
@@ -731,34 +734,39 @@ RETURN
 """,
     "find_related_with_transfer": """
 // Step 1: Find overlapping segments in source segmentation annotation
-MATCH (source_manif:Manifestation {id: $manifestation_id})<-[:ANNOTATION_OF]-(source_seg_annot:Annotation)-[:HAS_TYPE]->(sat:AnnotationType {name: 'segmentation'})
+MATCH (source_manif:Manifestation {id: $manifestation_id})
+      <-[:ANNOTATION_OF]-(source_seg_annot:Annotation)
+      -[:HAS_TYPE]->(sat:AnnotationType {name: 'segmentation'})
 MATCH (source_seg_annot)<-[:SEGMENTATION_OF]-(source_seg_seg:Segment)
 WHERE source_seg_seg.span_start < $span_end AND source_seg_seg.span_end > $span_start
 
-WITH source_manif, 
+WITH source_manif,
      MIN(source_seg_seg.span_start) as expanded_start,
      MAX(source_seg_seg.span_end) as expanded_end
 
 // Step 2: Find ALL alignment annotations in source manifestation
-MATCH (source_manif)<-[:ANNOTATION_OF]-(source_align_annot:Annotation)-[:HAS_TYPE]->(aat:AnnotationType {name: 'alignment'})
+MATCH (source_manif)<-[:ANNOTATION_OF]-(source_align_annot:Annotation)
+      -[:HAS_TYPE]->(aat:AnnotationType {name: 'alignment'})
 MATCH (source_align_annot)<-[:SEGMENTATION_OF]-(source_align_seg:Segment)
 WHERE source_align_seg.span_start < expanded_end AND source_align_seg.span_end > expanded_start
 
 // Step 3: Follow ALIGNED_TO to target alignment segments
 MATCH (source_align_seg)-[:ALIGNED_TO]-(target_align_seg:Segment)
-MATCH (target_align_seg)-[:SEGMENTATION_OF]->(target_align_annot:Annotation)-[:HAS_TYPE]->(taat:AnnotationType {name: 'alignment'})
+MATCH (target_align_seg)-[:SEGMENTATION_OF]->(target_align_annot:Annotation)
+      -[:HAS_TYPE]->(taat:AnnotationType {name: 'alignment'})
 MATCH (target_align_annot)-[:ANNOTATION_OF]->(target_manif:Manifestation)
 MATCH (target_manif)-[:MANIFESTATION_OF]->(target_expr:Expression)
 
 // Step 4: Find overlapping segments in target segmentation annotation
-MATCH (target_manif)<-[:ANNOTATION_OF]-(target_seg_annot:Annotation)-[:HAS_TYPE]->(tsat:AnnotationType {name: 'segmentation'})
+MATCH (target_manif)<-[:ANNOTATION_OF]-(target_seg_annot:Annotation)
+      -[:HAS_TYPE]->(tsat:AnnotationType {name: 'segmentation'})
 MATCH (target_seg_annot)<-[:SEGMENTATION_OF]-(target_seg_seg:Segment)
 WHERE target_seg_seg.span_start < target_align_seg.span_end AND target_seg_seg.span_end > target_align_seg.span_start
 
 // Step 5: Collect and group by target manifestation
 WITH target_manif, target_expr, COLLECT(DISTINCT target_seg_seg) as target_segments
 
-RETURN 
+RETURN
     target_manif.id as manifestation_id,
     target_expr.id as expression_id,
     [seg IN target_segments | {
@@ -777,7 +785,8 @@ RETURN DISTINCT s2.id as segment_id,
 ORDER BY s2.span_start
 """,
     "get_overlapping_segments": """
-MATCH (m:Manifestation {id: $manifestation_id})<-[:ANNOTATION_OF]-(ann:Annotation)-[:HAS_TYPE]->(:AnnotationType {name: 'segmentation'})
+MATCH (m:Manifestation {id: $manifestation_id})<-[:ANNOTATION_OF]-(ann:Annotation)
+      -[:HAS_TYPE]->(:AnnotationType {name: 'segmentation'})
 MATCH (ann)<-[:SEGMENTATION_OF]-(s:Segment)
 WHERE s.span_start < $span_end AND s.span_end > $span_start
 RETURN s.id as segment_id,
@@ -793,11 +802,10 @@ MATCH (input_seg:Segment {id: input_segment_id})
 MATCH (seg_ann:Annotation)-[:HAS_TYPE]->(:AnnotationType {name: 'segmentation'})
 MATCH (seg_ann)-[:ANNOTATION_OF]->(m)
 MATCH (seg:Segment)-[:SEGMENTATION_OF]->(seg_ann)
-WHERE seg.span_start < input_seg.span_end 
-  AND seg.span_end > input_seg.span_start
-RETURN input_segment_id, 
+WHERE seg.span_start < input_seg.span_end AND seg.span_end > input_seg.span_start
+RETURN input_segment_id,
        collect(seg.id) as overlapping_segments
-"""
+""",
 }
 
 Queries.references = {
@@ -820,7 +828,7 @@ UNWIND $segment_references AS sr
 MATCH (s:Segment {id: sr.segment_id})
 MATCH (r:Reference {id: sr.reference_id})
 CREATE (s)-[:HAS_REFERENCE]->(r)
-"""
+""",
 }
 
 Queries.durchen_notes = {
@@ -870,21 +878,22 @@ RETURN c.id AS category_id
 """,
     "get_categories": """
 MATCH (c:Category {application: $application})
-WHERE 
-    CASE 
+WHERE
+    CASE
         WHEN $parent_id IS NULL THEN NOT (c)-[:HAS_PARENT]->(:Category)
         ELSE EXISTS((c)-[:HAS_PARENT]->(:Category {id: $parent_id}))
     END
 OPTIONAL MATCH (c)-[:HAS_PARENT]->(parent:Category)
-OPTIONAL MATCH (c)-[:HAS_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)-[:HAS_LANGUAGE]->(l:Language {code: $language})
+OPTIONAL MATCH (c)-[:HAS_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
+               -[:HAS_LANGUAGE]->(l:Language {code: $language})
 OPTIONAL MATCH (child:Category)-[:HAS_PARENT]->(c)
 WITH c, parent, lt, COUNT(DISTINCT child) AS child_count
 RETURN c.id AS id, parent.id AS parent, lt.text AS title, child_count > 0 AS has_child
 """,
     "find_existing_category": """
 MATCH (c:Category {application: $application})
-WHERE 
-    CASE 
+WHERE
+    CASE
         WHEN $parent_id IS NULL THEN NOT (c)-[:HAS_PARENT]->(:Category)
         ELSE EXISTS((c)-[:HAS_PARENT]->(:Category {id: $parent_id}))
     END
@@ -950,4 +959,3 @@ RETURN at.name AS name
 ORDER BY name ASC
 """,
 }
-

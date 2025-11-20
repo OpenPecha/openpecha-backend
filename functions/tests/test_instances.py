@@ -203,7 +203,7 @@ class TestInstancesV2Endpoints:
         assert "annotations" in data
         assert data["base"] == "Sample Tibetan text content"
 
-    def test_get_text_not_found(self, client):
+    def test_get_text_not_found(self, client, test_database):
         """Test instance retrieval with non-existent manifestation ID"""
         response = client.get("/v2/instances/non-existent-id/")
 
@@ -334,7 +334,7 @@ class TestInstancesV2Endpoints:
         assert "error" in response_data
         assert response_data["error"] == "Request body is required"
 
-    def test_create_translation_manifestation_not_found(self, client):
+    def test_create_translation_manifestation_not_found(self, client, test_database):
         """Test translation creation with non-existent manifestation"""
         translation_data = {
             "language": "en",
