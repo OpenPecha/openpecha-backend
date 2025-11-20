@@ -72,15 +72,16 @@ def create_category() -> tuple[Response, int]:
     request_model = CategoryRequestModel.model_validate(data)
     
     # Validate that category doesn't already exist
-    db = Neo4JDatabase()
-    with db.get_session() as session:
-        Neo4JDatabaseValidator().validate_category_not_exists(
-            session=session,
-            application=request_model.application,
-            title=request_model.title.root,
-            parent_id=request_model.parent
-        )
     
+    # with db.get_session() as session:
+    #     Neo4JDatabaseValidator().validate_category_not_exists(
+    #         session=session,
+    #         application=request_model.application,
+    #         title=request_model.title.root,
+    #         parent_id=request_model.parent
+    #     )
+    
+    db = Neo4JDatabase()
     logger.info("Creating category in Neo4J Database")
     category_id = db.create_category(
         application=request_model.application,
