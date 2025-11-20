@@ -64,7 +64,7 @@ class Neo4JDatabase:
             self.__driver.close()
 
     def get_expression(self, expression_id: str) -> ExpressionModelOutput:
-        with self.__driver.session() as session:
+        with self.get_session() as session:
             result = session.run(Queries.expressions["fetch_by_id"], id=expression_id)
 
             if (record := result.single()) is None:
@@ -73,7 +73,7 @@ class Neo4JDatabase:
             return self._process_expression_data(record.data()["expression"])
 
     def get_expression_by_bdrc(self, bdrc_id: str) -> ExpressionModelOutput:
-        with self.__driver.session() as session:
+        with self.get_session() as session:
             result = session.run(Queries.expressions["fetch_by_bdrc"], bdrc_id=bdrc_id)
 
             if (record := result.single()) is None:
@@ -82,12 +82,12 @@ class Neo4JDatabase:
             return self._process_expression_data(record.data()["expression"])
 
     def get_all_expression_relations(self) -> dict:
-        with self.__driver.session() as session:
+        with self.get_session() as session:
             result = session.run(Queries.expressions["fetch_all_relations"])
             return {r["id"]: r["relations"] for r in result}
 
     def get_expression_relations(self, expression_id: str) -> dict:
-        with self.__driver.session() as session:
+        with self.get_session() as session:
             record = session.run(Queries.expressions["fetch_relations_by_id"], id=expression_id).single()
             if record is None:
                 raise DataNotFound(f"Expression with ID '{expression_id}' not found")
@@ -150,7 +150,7 @@ class Neo4JDatabase:
         )
 
     def get_manifestations_by_expression(self, expression_id: str) -> list[ManifestationModelOutput]:
-        with self.__driver.session() as session:
+        with self.get_session() as session:
             rows = session.execute_read(
                 lambda tx: [
                     r.data()
@@ -167,7 +167,7 @@ class Neo4JDatabase:
     def get_manifestations_of_an_expression(
         self, expression_id: str, manifestation_type: str | None = None
     ) -> list[ManifestationModelBase]:
-        with self.__driver.session() as session:
+        with self.get_session() as session:
             rows = session.execute_read(
                 lambda tx: [
                     r.data()
@@ -196,7 +196,7 @@ class Neo4JDatabase:
         )
 
     def get_manifestation(self, manifestation_id: str) -> tuple[ManifestationModelOutput, str]:
-        with self.__driver.session() as session:
+        with self.get_session() as session:
             record = session.execute_read(
                 lambda tx: tx.run(
                     Queries.manifestations["fetch"],
@@ -211,7 +211,7 @@ class Neo4JDatabase:
             return self._process_manifestation_data(d["manifestation"]), d["expression_id"]
 
     def get_expression_id_by_manifestation_id(self, manifestation_id: str) -> str:
-        with self.__driver.session() as session:
+        with self.get_session() as session:
             record = session.execute_read(
                 lambda tx: tx.run(
                     Queries.manifestations["fetch_expression_id_by_manifestation_id"], manifestation_id=manifestation_id
@@ -223,7 +223,7 @@ class Neo4JDatabase:
             return d["expression_id"]
 
     def get_manifestation_by_annotation(self, annotation_id: str) -> tuple[ManifestationModelOutput, str] | None:
-        with self.__driver.session() as session:
+        with self.get_session() as session:
             record = session.execute_read(
                 lambda tx: tx.run(Queries.manifestations["fetch_by_annotation"], annotation_id=annotation_id).single()
             )
@@ -233,7 +233,7 @@ class Neo4JDatabase:
             return self._process_manifestation_data(d["manifestation"]), d["expression_id"]
 
     def get_manifestation_id_by_annotation_id(self, annotation_id: str) -> str:
-        with self.__driver.session() as session:
+        with self.get_session() as session:
             record = session.execute_read(
                 lambda tx: tx.run(
                     Queries.manifestations["fetch_by_annotation_id"], annotation_id=annotation_id
@@ -256,7 +256,7 @@ class Neo4JDatabase:
         Returns:
             List of segment dictionaries, each containing: id, span (with start and end)
         """
-        with self.__driver.session() as session:
+        with self.get_session() as session:
             result = session.execute_read(
                 lambda tx: tx.run(
                     Queries.annotations["get_segmentation_annotation_by_manifestation"],
@@ -285,7 +285,7 @@ class Neo4JDatabase:
         if not manifestation_ids:
             return {}
 
-        with self.__driver.session() as session:
+        with self.get_session() as session:
             result = session.execute_read(
                 lambda tx: list(
                     tx.run(
@@ -309,7 +309,7 @@ class Neo4JDatabase:
         if not expression_ids:
             return {}
 
-        with self.__driver.session() as session:
+        with self.get_session() as session:
             result = session.execute_read(
                 lambda tx: list(
                     tx.run(Queries.expressions["get_work_ids_by_expression_ids"], expression_ids=expression_ids)
@@ -330,7 +330,7 @@ class Neo4JDatabase:
         if not manifestation_ids:
             return {}
 
-        with self.__driver.session() as session:
+        with self.get_session() as session:
             result = session.execute_read(
                 lambda tx: list(
                     tx.run(
@@ -354,7 +354,7 @@ class Neo4JDatabase:
         if not expression_ids:
             return {}
 
-        with self.__driver.session() as session:
+        with self.get_session() as session:
             result = session.execute_read(
                 lambda tx: list(
                     tx.run(Queries.expressions["get_expressions_metadata_by_ids"], expression_ids=expression_ids)
@@ -373,7 +373,7 @@ class Neo4JDatabase:
         Returns:
             List of dictionaries containing instance metadata, expression details, and alignment annotation IDs
         """
-        with self.__driver.session() as session:
+        with self.get_session() as session:
             # Step 1: Find instances related through alignment annotations
             alignment_result = session.execute_read(
                 lambda tx: list(
@@ -464,7 +464,7 @@ class Neo4JDatabase:
             return related_instances
 
     def find_segments_by_span(self, manifestation_id: str, span: SpanModel) -> list[SegmentModel]:
-        with self.__driver.session() as session:
+        with self.get_session() as session:
             result = session.execute_read(
                 lambda tx: list(
                     tx.run(
@@ -492,7 +492,7 @@ class Neo4JDatabase:
         manifestation_id -> list of SegmentModelOutput instances.
         """
 
-        with self.__driver.session() as session:
+        with self.get_session() as session:
             targets_result = session.execute_read(
                 lambda tx: list(tx.run(Queries.segments["find_aligned_segments_outgoing"], segment_id=segment_id))
             )
@@ -519,7 +519,7 @@ class Neo4JDatabase:
             }
 
     def _get_segment(self, segment_id: str) -> tuple[SegmentModel, str, str]:
-        with self.__driver.session() as session:
+        with self.get_session() as session:
             record = session.execute_read(
                 lambda tx: tx.run(Queries.segments["get_by_id"], segment_id=segment_id).single()
             )
@@ -539,14 +539,14 @@ class Neo4JDatabase:
         if not segment_ids:
             return []
 
-        with self.__driver.session() as session:
+        with self.get_session() as session:
             records = session.execute_read(
                 lambda tx: tx.run(Queries.segments["get_batch_by_ids"], segment_ids=segment_ids).data()
             )
             return records
 
     def get_segment(self, segment_id: str) -> tuple[SegmentModel, str, str]:
-        with self.__driver.session() as session:
+        with self.get_session() as session:
             record = session.execute_read(
                 lambda tx: tx.run(Queries.segments["get_by_id"], segment_id=segment_id).single()
             )
@@ -569,7 +569,7 @@ class Neo4JDatabase:
             span_end,
         )
 
-        with self.__driver.session() as session:
+        with self.get_session() as session:
             result = session.execute_read(
                 lambda tx: list(
                     tx.run(
@@ -625,7 +625,7 @@ class Neo4JDatabase:
             span_end,
         )
 
-        with self.__driver.session() as session:
+        with self.get_session() as session:
             result = session.execute_read(
                 lambda tx: list(
                     tx.run(
@@ -678,7 +678,7 @@ class Neo4JDatabase:
             "limit": limit,
         }
 
-        with self.__driver.session() as session:
+        with self.get_session() as session:
             result = session.run(Queries.persons["fetch_all"], params)
             return [
                 person_model
@@ -687,7 +687,7 @@ class Neo4JDatabase:
             ]
 
     def get_person(self, person_id: str) -> PersonModelOutput:
-        with self.__driver.session() as session:
+        with self.get_session() as session:
             result = session.run(Queries.persons["fetch_by_id"], id=person_id)
             record = result.single()
             if not record:
@@ -715,11 +715,11 @@ class Neo4JDatabase:
 
             return person_id
 
-        with self.__driver.session() as session:
+        with self.get_session() as session:
             return session.execute_write(create_transaction)
 
     def create_expression(self, expression: ExpressionModelInput) -> str:
-        with self.__driver.session() as session:
+        with self.get_session() as session:
             return session.execute_write(lambda tx: self._execute_create_expression(tx, expression))
 
 
@@ -756,7 +756,7 @@ class Neo4JDatabase:
                 if bibliography_segments and len(bibliography_segments) > 0:
                     self._link_segment_and_bibliography_type(tx, bibliography_segments)
 
-        with self.__driver.session() as session:
+        with self.get_session() as session:
             return session.execute_write(transaction_function)
 
     def add_annotation_to_manifestation(
@@ -774,7 +774,7 @@ class Neo4JDatabase:
                     self._create_durchen_note(tx, annotation_segments)
             return annotation_id
 
-        with self.__driver.session() as session:
+        with self.get_session() as session:
             return session.execute_write(transaction_function)
 
     def add_alignment_annotation_to_manifestation(
@@ -796,7 +796,7 @@ class Neo4JDatabase:
 
             tx.run(Queries.segments["create_alignments_batch"], alignments=alignments)
 
-        with self.__driver.session() as session:
+        with self.get_session() as session:
             return session.execute_write(transaction_function)
 
     # def create_aligned_manifestation(
@@ -832,7 +832,7 @@ class Neo4JDatabase:
 
     #         tx.run(Queries.segments["create_alignments_batch"], alignments=alignments)
 
-    #     with self.__driver.session() as session:
+    #     with self.get_session() as session:
     #         return session.execute_write(transaction_function)
 
     def create_aligned_manifestation(
@@ -877,7 +877,7 @@ class Neo4JDatabase:
                 if bibliography_segments and len(bibliography_segments) > 0:
                     self._link_segment_and_bibliography_type(tx, bibliography_segments)
 
-        with self.__driver.session() as session:
+        with self.get_session() as session:
             return session.execute_write(transaction_function)
 
     def _create_nomens(self, tx, primary_text: dict[str, str], alternative_texts: list[dict[str, str]] = None) -> str:
@@ -932,7 +932,7 @@ class Neo4JDatabase:
             "title": filters.get("title"),
         }
 
-        with self.__driver.session() as session:
+        with self.get_session() as session:
             # Validate language filter against Neo4j if provided
             if params.get("language"):
                 self.__validator.validate_language_code_exists(session, params["language"])
@@ -1010,7 +1010,7 @@ class Neo4JDatabase:
             "instance_type": instance_type,
         }
 
-        with self.__driver.session() as session:
+        with self.get_session() as session:
             # Validate language filter against Neo4j if provided
             if language:
                 self.__validator.validate_language_code_exists(session, language)
@@ -1221,7 +1221,7 @@ class Neo4JDatabase:
             self._create_sections(tx, annotation_id, annotation_segments)
             return annotation_id
 
-        with self.__driver.session() as session:
+        with self.get_session() as session:
             return session.execute_write(transaction_function)
 
     def _create_segments(self, tx, annotation_id: str, segments: list[dict] = None) -> None:
@@ -1395,7 +1395,7 @@ class Neo4JDatabase:
         Returns:
             The annotation type string or None if not found
         """
-        with self.__driver.session() as session:
+        with self.get_session() as session:
             result = session.execute_read(
                 lambda tx: tx.run(Queries.annotations["get_annotation_type"], annotation_id=annotation_id).single()
             )
@@ -1414,7 +1414,7 @@ class Neo4JDatabase:
         Returns:
             True if an annotation of the specified type exists, False otherwise
         """
-        with self.__driver.session() as session:
+        with self.get_session() as session:
             result = session.execute_read(
                 lambda tx: tx.run(
                     Queries.annotations["check_annotation_type_exists"],
@@ -1437,7 +1437,7 @@ class Neo4JDatabase:
         Returns:
             True if an alignment relationship exists between the manifestations, False otherwise
         """
-        with self.__driver.session() as session:
+        with self.get_session() as session:
             result = session.execute_read(
                 lambda tx: tx.run(
                     Queries.annotations["check_alignment_relationship_exists"],
@@ -1455,7 +1455,7 @@ class Neo4JDatabase:
         Returns:
             (source_annotation_id, target_annotation_id) or None if not found
         """
-        with self.__driver.session() as session:
+        with self.get_session() as session:
             result = session.execute_read(
                 lambda tx: tx.run(Queries.annotations["get_alignment_pair"], annotation_id=annotation_id).single()
             )
@@ -1467,7 +1467,7 @@ class Neo4JDatabase:
         """
         Delete alignment annotation including all segments and relationships.
         """
-        with self.__driver.session() as session:
+        with self.get_session() as session:
             session.execute_write(
                 lambda tx: tx.run(
                     Queries.segments["delete_alignment_segments"],
