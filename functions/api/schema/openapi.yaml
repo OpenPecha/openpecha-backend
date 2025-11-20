@@ -1054,6 +1054,7 @@ paths:
                 - segmentation
                 - copyright
                 - license
+                - author
               properties:
                 language:
                   type: string
@@ -1247,6 +1248,7 @@ paths:
                 - copyright
                 - license
                 - category_id
+                - author
               properties:
                 language:
                   type: string
@@ -1575,6 +1577,7 @@ paths:
                 - copyright
                 - license
                 - category_id
+                - contributions
               properties:
                 type:
                   type: string

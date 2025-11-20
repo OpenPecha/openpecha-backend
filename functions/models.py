@@ -247,6 +247,8 @@ class ExpressionModelOutputBase(OpenPechaModel):
         return self
 
 
+
+
 class ExpressionModelOutput(ExpressionModelOutputBase):
     id: str
 
@@ -331,7 +333,7 @@ class AlignedTextRequestModel(OpenPechaModel):
     title: NonEmptyStr
     source: NonEmptyStr
     alt_titles: list[NonEmptyStr] | None = None
-    author: CreatorRequestModel | None = None
+    author: CreatorRequestModel 
     target_annotation: list[dict] | None = None
     alignment_annotation: list[dict] | None = None
     segmentation: list[dict]
