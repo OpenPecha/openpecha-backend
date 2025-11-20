@@ -1513,7 +1513,7 @@ class Neo4JDatabase:
             record = result.single()
             return record["category_id"]
 
-    def get_categories(self, application: str, parent_id: str | None = None, language: str = "bo") -> list[dict]:
+    def get_categories(self, application: str, language: str, parent_id: str | None = None) -> list[dict]:
         """Get categories filtered by application and optional parent, with localized names."""
         with self.get_session() as session:
             result = session.run(
