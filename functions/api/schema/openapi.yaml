@@ -1,4 +1,4 @@
-openapi: 3.0.3
+openapi: 3.1.0
 info:
   title: OpenPecha API v2
   version: '2.1.0'
@@ -2707,7 +2707,7 @@ paths:
                             description: The durchen note content
                         description: Durchen annotation
                       - type: object
-                        required: span
+                        required: [span]
                         properties:
                           span:
                             type: object

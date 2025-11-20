@@ -16,7 +16,7 @@ class Storage:
         # Write base_text to temp file for streaming upload
         temp_dir = Path(tempfile.gettempdir())
         temp_file = temp_dir / f"{expression_id}_{manifestation_id}.txt"
-        
+
         try:
             temp_file.write_text(base_text, encoding="utf-8")
             
@@ -24,7 +24,7 @@ class Storage:
             blob.upload_from_filename(str(temp_file))
             logger.info("Uploaded base text to storage: %s", blob.public_url)
             blob.make_public()
-            
+
             return blob.public_url
         finally:
             # Clean up temp file
