@@ -448,7 +448,7 @@ class AddAnnotationRequestModel(OpenPechaModel):
             validator()
         else:
             raise ValueError(
-                "Invalid annotation type. Allowed types are [SEGMENTATION, ALIGNMENT, PAGINATION, BIBLIOGRAPHY, TABLE_OF_CONTENTS, DURCHEN]"
+                f"Invalid annotation type. Allowed types are [{', '.join(t.name for t in AnnotationType)}]"
             )
         return self
 
