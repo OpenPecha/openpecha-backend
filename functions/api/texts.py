@@ -9,7 +9,6 @@ from models import AnnotationModel, AnnotationType, ExpressionModelInput, Instan
 from neo4j_database import Neo4JDatabase
 from storage import Storage
 from neo4j_database_validator import Neo4JDatabaseValidator
-from storage import MockStorage
 
 texts_bp = Blueprint("texts", __name__)
 

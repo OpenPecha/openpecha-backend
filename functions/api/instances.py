@@ -28,8 +28,6 @@ from api.annotations import _alignment_annotation_mapping
 from exceptions import InvalidRequest
 from api.relation import _get_relation_for_an_expression
 from neo4j_database_validator import Neo4JDatabaseValidator
-from pecha_handling import retrieve_base_text
-from storage import MockStorage
 
 instances_bp = Blueprint("instances", __name__)
 
