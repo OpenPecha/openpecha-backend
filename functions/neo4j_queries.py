@@ -358,11 +358,11 @@ Queries.manifestations = {
     RETURN {Queries.manifestation_fragment('m')} AS manifestation, e.id AS expression_id
 """,
     "fetch_by_annotation_id": """
-    MATCH (a:Annotation {{id: $annotation_id}})-[:ANNOTATION_OF]->(m:Manifestation)
+    MATCH (a:Annotation {id: $annotation_id})-[:ANNOTATION_OF]->(m:Manifestation)
     RETURN m.id AS manifestation_id
 """,
     "fetch_by_annotation": """
-    MATCH (a:Annotation {{id: $annotation_id}})-[:ANNOTATION_OF]->(m:Manifestation)
+    MATCH (a:Annotation {id: $annotation_id})-[:ANNOTATION_OF]->(m:Manifestation)
     MATCH (m)-[:MANIFESTATION_OF]->(e:Expression)
 
     RETURN {Queries.manifestation_fragment('m')} AS manifestation, e.id AS expression_id
