@@ -1,6 +1,6 @@
 {
   "projects": {
-    "default": "pecha-backend-dev",
+    "default": "pecha-backend-test-3a4d0",
     "prod": "pecha-backend",
     "dev": "pecha-backend-dev",
     "test": "pecha-backend-test-3a4d0"
