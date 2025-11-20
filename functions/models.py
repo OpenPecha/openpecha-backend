@@ -151,6 +151,8 @@ class ExpressionModelBase(OpenPechaModel):
     copyright: CopyrightStatus
     license: LicenseType
 
+
+class ExpressionModelInput(ExpressionModelBase):
     @model_validator(mode="after")
     def validate_target_field(self):
         if self.type == TextType.ROOT and self.target is not None:
@@ -164,37 +166,21 @@ class ExpressionModelBase(OpenPechaModel):
         return self
 
     @model_validator(mode="after")
-    def validate_copyright_and_license(self):
-        # Validate copyright enum
-        if not isinstance(self.copyright, CopyrightStatus):
-            valid_copyrights = [status.value for status in CopyrightStatus]
-            raise ValueError(f"Invalid copyright value. Must be one of: {valid_copyrights}")
-
-        # Validate license enum
-        if not isinstance(self.license, LicenseType):
-            valid_licenses = [license.value for license in LicenseType]
-            raise ValueError(f"Invalid license value. Must be one of: {valid_licenses}")
-
-        return self
-
-    @model_validator(mode="after")
     def validate_contributions(self):
-        # Allow None or empty contributions
-        if self.contributions:
-            for i, contribution in enumerate(self.contributions):
-                if isinstance(contribution, ContributionModel):
-                    # Validate human contributions
-                    if contribution.person_id is None and contribution.person_bdrc_id is None:
-                        raise ValueError(f"Contribution at index {i}: person_id or person_bdrc_id must be provided")
-                    if contribution.person_id is not None and contribution.person_bdrc_id is not None:
-                        raise ValueError(
-                            f"Contribution at index {i}: person_id and person_bdrc_id cannot both be provided"
-                        )
-                elif isinstance(contribution, AIContributionModel):
-                    # AI contributions are validated by their required fields in the model
-                    pass
-                else:
-                    raise ValueError(f"Contribution at index {i}: Invalid contribution type")
+        for i, contribution in enumerate(self.contributions):
+            if isinstance(contribution, ContributionModel):
+                # Validate human contributions
+                if contribution.person_id is None and contribution.person_bdrc_id is None:
+                    raise ValueError(f"Contribution at index {i}: person_id or person_bdrc_id must be provided")
+                if contribution.person_id is not None and contribution.person_bdrc_id is not None:
+                    raise ValueError(
+                        f"Contribution at index {i}: person_id and person_bdrc_id cannot both be provided"
+                    )
+            elif isinstance(contribution, AIContributionModel):
+                # AI contributions are validated by their required fields in the model
+                pass
+            else:
+                raise ValueError(f"Contribution at index {i}: Invalid contribution type")
 
         return self
 
@@ -208,10 +194,6 @@ class ExpressionModelBase(OpenPechaModel):
             )
 
         return self
-
-
-class ExpressionModelInput(ExpressionModelBase):
-    pass
 
 
 class ExpressionModelOutput(ExpressionModelBase):
@@ -383,17 +365,14 @@ class InstanceRequestModel(OpenPechaModel):
 
 class AddAnnotationRequestModel(OpenPechaModel):
     type: AnnotationType
-    annotation: (
-        list[
-            SegmentationAnnotationModel
-            | SearchSegmentationAnnotationModel
-            | PaginationAnnotationModel
-            | BibliographyAnnotationModel
-            | TableOfContentsAnnotationModel
-            | DurchenAnnotationModel
-        ]
-        | None
-    ) = None
+    annotation: list[
+        SegmentationAnnotationModel
+        | SearchSegmentationAnnotationModel
+        | PaginationAnnotationModel
+        | BibliographyAnnotationModel
+        | TableOfContentsAnnotationModel
+        | DurchenAnnotationModel
+    ] = Field(default_factory=list)
     target_manifestation_id: str | None = None
     target_annotation: list[AlignmentAnnotationModel] | None = None
     alignment_annotation: list[AlignmentAnnotationModel] | None = None
@@ -420,7 +399,7 @@ class AddAnnotationRequestModel(OpenPechaModel):
         return self
 
     def _validate_segmentation(self):
-        if self.annotation is None or len(self.annotation) == 0:
+        if not self.annotation:
             raise ValueError("Segmentation annotation cannot be empty")
         if self.target_annotation is not None or self.alignment_annotation is not None:
             raise ValueError(
@@ -430,7 +409,7 @@ class AddAnnotationRequestModel(OpenPechaModel):
             raise ValueError("Invalid segmentation annotation")
 
     def _validate_pagination(self):
-        if self.annotation is None or len(self.annotation) == 0:
+        if not self.annotation:
             raise ValueError("Pagination annotation cannot be empty")
         if self.target_annotation is not None or self.alignment_annotation is not None:
             raise ValueError("Cannot provide both pagination annotation and alignment annotation or target_annotation")
@@ -444,7 +423,7 @@ class AddAnnotationRequestModel(OpenPechaModel):
             raise ValueError("Target annotation must be provided and cannot be empty")
         if self.alignment_annotation is None or len(self.alignment_annotation) == 0:
             raise ValueError("Alignment annotation must be provided and cannot be empty")
-        if self.annotation is not None:
+        if self.annotation:
             raise ValueError("Cannot provide both annotation and alignment annotation or target_annotation")
         if not all(
             isinstance(ann, AlignmentAnnotationModel) for ann in self.target_annotation + self.alignment_annotation
@@ -452,19 +431,19 @@ class AddAnnotationRequestModel(OpenPechaModel):
             raise ValueError("Invalid target annotation or alignment annotation")
 
     def _validate_bibliography(self):
-        if self.annotation is None or len(self.annotation) == 0:
+        if not self.annotation:
             raise ValueError("Biblography annotation cannot be empty")
         if not all(isinstance(ann, BibliographyAnnotationModel) for ann in self.annotation):
             raise ValueError("Invalid annotation")
 
     def _validate_table_of_contents(self):
-        if self.annotation is None or len(self.annotation) == 0:
+        if not self.annotation:
             raise ValueError("Table of contents annotation cannot be empty")
         if not all(isinstance(ann, TableOfContentsAnnotationModel) for ann in self.annotation):
             raise ValueError("Invalid annotation")
 
     def _validate_durchen(self):
-        if self.annotation is None or len(self.annotation) == 0:
+        if not self.annotation:
             raise ValueError("Durchen annotation cannot be empty")
         if not all(isinstance(ann, DurchenAnnotationModel) for ann in self.annotation):
             raise ValueError("Invalid annotation")
