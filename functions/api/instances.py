@@ -144,7 +144,7 @@ def _create_aligned_text(
     storage.store_base_text(expression_id=expression_id, manifestation_id=manifestation_id, base_text=request_model.content)
 
     # Build contributions based on text type
-    contributions = None
+    contributions = []
     if request_model.author:
         creator = request_model.author
         role = ContributorRole.TRANSLATOR if text_type == TextType.TRANSLATION else ContributorRole.AUTHOR
