@@ -85,53 +85,9 @@ The website will be available at:
 https://pecha-backend.web.app
 ```
 
-## Testing Different Environments Locally
-
-To test against different Neo4j databases locally, edit `functions/.env` and change the `ENVIRONMENT` variable:
-
-```bash
-# Test against dev database
-ENVIRONMENT=dev
-
-# Test against test database  
-ENVIRONMENT=test
-
-# Test against prod database
-ENVIRONMENT=prod
-```
-
 Then restart the emulator:
 ```bash
 firebase emulators:start --only functions
-```
-
-**Note:** Deployed environments automatically detect which database to use based on the Firebase project ID. The `.env` file is only used for local development.
-
-### Environment Variables in `.env`
-
-Your `functions/.env` file should contain credentials for all environments:
-
-```bash
-# Local environment selector
-ENVIRONMENT=dev
-
-# Development Neo4j Database
-NEO4J_DEV_URI=neo4j+s://your-dev-instance.databases.neo4j.io
-NEO4J_DEV_PASSWORD=your-dev-password
-NEO4J_DEV_USERNAME=neo4j
-NEO4J_DEV_DATABASE=neo4j
-
-# Test Neo4j Database
-NEO4J_TEST_URI=neo4j+s://your-test-instance.databases.neo4j.io
-NEO4J_TEST_PASSWORD=your-test-password
-NEO4J_TEST_USERNAME=neo4j
-NEO4J_TEST_DATABASE=neo4j
-
-# Production Neo4j Database
-NEO4J_PROD_URI=neo4j+s://your-prod-instance.databases.neo4j.io
-NEO4J_PROD_PASSWORD=your-prod-password
-NEO4J_PROD_USERNAME=neo4j
-NEO4J_PROD_DATABASE=neo4j
 ```
 
 ## Branch Deployment Workflow
@@ -172,12 +128,6 @@ Each environment automatically uses:
 - **Different Neo4j databases** (configured via Firebase secrets)
 - **Different storage buckets** (auto-detected by project ID)
 - **Different code versions** (from their respective git branches)
-
-## API Endpoints
-
-- **Dev**: https://api-l25bgmwqoa-uc.a.run.app
-- **Test**: https://api-kwgjscy6gq-uc.a.run.app
-- **Prod**: https://api-aq25662yyq-uc.a.run.app
 
 ## Documentation
 Available at: https://pecha-backend.web.app/api
