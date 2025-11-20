@@ -3,7 +3,7 @@ import threading
 
 import requests
 from api.annotations import _alignment_annotation_mapping
-from api.relation import _get_expression_relations, _get_relation_for_an_expression
+from api.relation import _get_relation_for_an_expression
 from exceptions import InvalidRequest
 from flask import Blueprint, Response, jsonify, request
 from identifier import generate_id
@@ -26,10 +26,7 @@ from neo4j_database import Neo4JDatabase
 from storage import Storage
 from api.annotations import _alignment_annotation_mapping
 from exceptions import InvalidRequest
-from api.relation import _get_relation_for_an_expression
 from neo4j_database_validator import Neo4JDatabaseValidator
-from pecha_handling import retrieve_base_text
-from storage import MockStorage
 
 instances_bp = Blueprint("instances", __name__)
 
@@ -435,14 +432,6 @@ def get_related_instances(manifestation_id: str) -> tuple[Response, int]:
         return jsonify({"error": str(e)}), 500
 
     return jsonify(related_instances), 200
-
-
-@instances_bp.route("<string:manifestation_id>/related-all", methods=["GET"], strict_slashes=False)
-def get_all_related_instances(manifestation_id: str) -> tuple[Response, int]:
-
-    expression_relations = _get_expression_relations(expression_id=manifestation_id)
-
-    return jsonify(expression_relations), 200
 
 
 @instances_bp.route("/<string:manifestation_id>/segment-content", methods=["POST"], strict_slashes=False)
