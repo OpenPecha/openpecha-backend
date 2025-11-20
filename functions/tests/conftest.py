@@ -5,15 +5,12 @@ import pytest
 from main import create_app
 
 
-class MockStorageBucket:
+class StorageBucket:
     def __init__(self):
         self._storage = {}  # class-level dict to persist files by path
 
     def blob(self, path: str):
         return MockBlob(path, self._storage)
-
-    def store_pecha_opf(self, pecha):
-        pass
 
     def get_blob(self, path: str):
         # Mimics GCS get_blob, returns None if not found
@@ -78,17 +75,24 @@ class MockBlob:
         return f"https://mock-storage.example.com/{self.path}"
 
 
-class MockStorage:
+class Storage:
     def bucket(self):
-        return MockStorageBucket()
+        return StorageBucket()
 
 
 @pytest.fixture(autouse=True)
 def mock_storage():
-    mock_storage_bucket = MockStorageBucket()
+    mock_storage_bucket = StorageBucket()
 
     with patch("firebase_admin.storage.bucket", return_value=mock_storage_bucket):
         yield mock_storage_bucket
+
+
+@pytest.fixture(autouse=True)
+def mock_search_segmenter():
+    """Mock the external search segmenter API call to prevent network requests during tests"""
+    with patch("api.instances._trigger_search_segmenter"):
+        yield
 
 
 @pytest.fixture(autouse=True)

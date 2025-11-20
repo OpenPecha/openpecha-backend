@@ -5,7 +5,6 @@ from exceptions import DataNotFound, InvalidRequest
 from flask import Blueprint, Response, jsonify, request
 from models import SearchFilterModel, SearchRequestModel, SearchResponseModel, SearchResultModel
 from neo4j_database import Neo4JDatabase
-from pecha_handling import retrieve_pecha
 
 segments_bp = Blueprint("segments", __name__)
 
@@ -49,16 +48,16 @@ def get_related_texts_by_segment(segment_id: str) -> tuple[Response, int]:
     return jsonify({"targets": build_related_texts(targets_map), "sources": build_related_texts(sources_map)}), 200
 
 
-@segments_bp.route("/<string:segment_id>/content", methods=["GET"], strict_slashes=False)
-def get_segment_content(segment_id: str) -> tuple[Response, int]:
-    db = Neo4JDatabase()
+# @segments_bp.route("/<string:segment_id>/content", methods=["GET"], strict_slashes=False)
+# def get_segment_content(segment_id: str) -> tuple[Response, int]:
+#     db = Neo4JDatabase()
 
-    segment, _, expression_id = db.get_segment(segment_id)
+#     segment, _, expression_id = db.get_segment(segment_id)
 
-    pecha = retrieve_pecha(expression_id)
-    base_text = next(iter(pecha.bases.values()))
+#     pecha = Storage().retrieve_pecha(expression_id)
+#     base_text = next(iter(pecha.bases.values()))
 
-    return jsonify({"content": base_text[segment.span[0] : segment.span[1]]}), 200
+#     return jsonify({"content": base_text[segment.span[0] : segment.span[1]]}), 200
 
 
 @segments_bp.route("/search", methods=["GET"], strict_slashes=False)

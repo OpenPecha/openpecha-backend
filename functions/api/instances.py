@@ -3,7 +3,7 @@ import threading
 
 import requests
 from api.annotations import _alignment_annotation_mapping
-from api.relation import _get_expression_relations, _get_relation_for_an_expression
+from api.relation import _get_relation_for_an_expression
 from exceptions import InvalidRequest
 from flask import Blueprint, Response, jsonify, request
 from identifier import generate_id
@@ -23,9 +23,10 @@ from models import (
     TextType,
 )
 from neo4j_database import Neo4JDatabase
+from storage import Storage
+from api.annotations import _alignment_annotation_mapping
+from exceptions import InvalidRequest
 from neo4j_database_validator import Neo4JDatabaseValidator
-from pecha_handling import retrieve_base_text
-from storage import MockStorage
 
 instances_bp = Blueprint("instances", __name__)
 
@@ -68,7 +69,7 @@ def get_instance(manifestation_id: str):
     logger.info("Retrieving base text from storage")
     base_text = None
     if content_param:
-        base_text = retrieve_base_text(expression_id=expression_id, manifestation_id=manifestation_id)
+        base_text = Storage().retrieve_base_text(expression_id = expression_id, manifestation_id = manifestation_id)
 
     metadata = {
         "id": manifestation.id,
@@ -108,131 +109,6 @@ def get_instance(manifestation_id: str):
     return jsonify(json), 200
 
 
-# def _create_aligned_text(
-#     request_model: AlignedTextRequestModel, text_type: TextType, target_manifestation_id: str
-# ) -> tuple[Response, int]:
-
-#     db = Neo4JDatabase()
-
-#     if request_model.biblography_annotation:
-#         bibliography_annotation_id = generate_id()
-#         bibliography_annotation = AnnotationModel(id=bibliography_annotation_id, type=AnnotationType.BIBLIOGRAPHY)
-#         bibliography_types = [seg.type for seg in request_model.biblography_annotation]
-#         with db.get_session() as session:
-#             Neo4JDatabaseValidator().validate_bibliography_type_exists(session=session, bibliography_types=bibliography_types)
-
-#     expression_id = generate_id()
-#     segmentation_annotation_id = generate_id()
-
-#     manifestation_id = generate_id()
-#     _, target_expression_id = db.get_manifestation(target_manifestation_id)
-
-#     segmentation = AnnotationModel(id=segmentation_annotation_id, type=AnnotationType.SEGMENTATION)
-#     segmentation_segments = [SegmentModel(id=generate_id(), span=span["span"]).model_dump() for span in request_model.segmentation]
-
-#     storage = MockStorage()
-#     storage.store_base_text(expression_id=expression_id, manifestation_id=manifestation_id, base_text=request_model.content)
-
-#     # Build contributions based on text type
-#     creator = request_model.author
-#     role = ContributorRole.TRANSLATOR if text_type == TextType.TRANSLATION else ContributorRole.AUTHOR
-
-#     contributions = [
-#         (
-#             ContributionModel(
-#                 person_id=creator.person_id,
-#                 person_bdrc_id=creator.person_bdrc_id,
-#                 role=role,
-#             )
-#             if (creator.person_id or creator.person_bdrc_id)
-#             else AIContributionModel(ai_id=creator.ai_id, role=role)
-#         )
-#     ]
-
-#     expression = ExpressionModelInput(
-#         type=text_type,
-#         title=LocalizedString({request_model.language: request_model.title}),
-#         alt_titles=(
-#             [LocalizedString({request_model.language: alt_title}) for alt_title in request_model.alt_titles]
-#             if request_model.alt_titles
-#             else None
-#         ),
-#         language=request_model.language,
-#         contributions=contributions,
-#         target=target_expression_id,
-#         category_id=request_model.category_id,
-#         copyright=request_model.copyright,
-#         license=request_model.license,
-#         bdrc=request_model.bdrc,
-#         wiki=request_model.wiki,
-#     )
-
-#     manifestation = ManifestationModelInput(type=ManifestationType.CRITICAL, source=request_model.source)
-
-#     aligned = request_model.alignment_annotation is not None
-
-#     try:
-#         if aligned:
-#             alignment_annotation_id = generate_id()
-#             target_annotation_id = generate_id()
-
-#             target_annotation = AnnotationModel(id=target_annotation_id, type=AnnotationType.ALIGNMENT)
-#             alignment_annotation = AnnotationModel(
-#                 id=alignment_annotation_id,
-#                 type=AnnotationType.ALIGNMENT,
-#                 aligned_to=target_annotation_id
-#             )
-
-#             alignment_segments_with_ids, target_segments_with_ids, alignments = _alignment_annotation_mapping(request_model.target_annotation, request_model.alignment_annotation)
-
-#             db.create_aligned_manifestation(
-#                 expression=expression,
-#                 expression_id=expression_id,
-#                 manifestation_id=manifestation_id,
-#                 manifestation=manifestation,
-#                 target_manifestation_id=target_manifestation_id,
-#                 segmentation=segmentation,
-#                 segmentation_segments=segmentation_segments,
-#                 alignment_annotation=alignment_annotation,
-#                 alignment_segments=alignment_segments_with_ids,
-#                 target_annotation=target_annotation,
-#                 target_segments=target_segments_with_ids,
-#                 alignments=alignments,
-#             )
-#         else:
-#             db.create_manifestation(
-#                 expression=expression,
-#                 expression_id=expression_id,
-#                 manifestation=manifestation,
-#                 manifestation_id=manifestation_id,
-#                 annotation=segmentation,
-#                 annotation_segments=segmentation_segments,
-#             )
-#     except Exception as e:
-#         logger.error("Error creating aligned text: %s", e)
-#         MockStorage().rollback_base_text(expression_id=expression_id, manifestation_id=manifestation_id)
-#         raise e
-
-#     # Handle bibliography annotations in separate transaction
-#     if request_model.biblography_annotation:
-#         bibliography_segments = [seg.model_dump() for seg in request_model.biblography_annotation]
-#         db.add_annotation_to_manifestation(
-#             manifestation_id=manifestation_id,
-#             annotation=bibliography_annotation,
-#             annotation_segments=bibliography_segments,
-#         )
-
-#     return (
-#         jsonify(
-#             {
-#                 "message": "Text created successfully",
-#                 "instance_id": manifestation_id,
-#                 "text_id": expression_id,
-#             }
-#         ),
-#         201,
-#     )
-
 
 def _create_aligned_text(
     request_model: AlignedTextRequestModel, text_type: TextType, target_manifestation_id: str
@@ -264,10 +140,8 @@ def _create_aligned_text(
         SegmentModel(id=generate_id(), span=span["span"]).model_dump() for span in request_model.segmentation
     ]
 
-    storage = MockStorage()
-    storage.store_base_text(
-        expression_id=expression_id, manifestation_id=manifestation_id, base_text=request_model.content
-    )
+    storage = Storage()
+    storage.store_base_text(expression_id=expression_id, manifestation_id=manifestation_id, base_text=request_model.content)
 
     # Build contributions based on text type
     contributions = None
@@ -286,6 +160,7 @@ def _create_aligned_text(
                 else AIContributionModel(ai_id=creator.ai_id, role=role)
             )
         ]
+   
 
     expression = ExpressionModelInput(
         type=text_type,
@@ -352,7 +227,7 @@ def _create_aligned_text(
             )
     except Exception as e:
         logger.error("Error creating aligned text: %s", e)
-        MockStorage().rollback_base_text(expression_id=expression_id, manifestation_id=manifestation_id)
+        Storage().rollback_base_text(expression_id=expression_id, manifestation_id=manifestation_id)
         raise e
 
     # Trigger search segmenter API asynchronously
@@ -560,14 +435,6 @@ def get_related_instances(manifestation_id: str) -> tuple[Response, int]:
     return jsonify(related_instances), 200
 
 
-@instances_bp.route("<string:manifestation_id>/related-all", methods=["GET"], strict_slashes=False)
-def get_all_related_instances(manifestation_id: str) -> tuple[Response, int]:
-
-    expression_relations = _get_expression_relations(expression_id=manifestation_id)
-
-    return jsonify(expression_relations), 200
-
-
 @instances_bp.route("/<string:manifestation_id>/segment-content", methods=["POST"], strict_slashes=False)
 def get_instance_segment_content(manifestation_id: str) -> tuple[Response, int]:
     """
@@ -607,7 +474,7 @@ def get_instance_segment_content(manifestation_id: str) -> tuple[Response, int]:
 
     expression_id = db.get_expression_id_by_manifestation_id(manifestation_id)
 
-    base_text = retrieve_base_text(expression_id=expression_id, manifestation_id=manifestation_id)
+    base_text = Storage().retrieve_base_text(expression_id=expression_id, manifestation_id=manifestation_id)
     result = []
 
     # Handle segment approach

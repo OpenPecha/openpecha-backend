@@ -118,7 +118,7 @@ class AnnotationModel(OpenPechaModel):
 
 class SpanModel(OpenPechaModel):
     start: int = Field(..., ge=0, description="Start character position (inclusive)")
-    end: int = Field(..., ge=0, description="End character position (exclusive)")
+    end: int = Field(..., ge=1, description="End character position (exclusive)")
 
     @model_validator(mode="after")
     def validate_span_range(self):
@@ -141,7 +141,7 @@ class ExpressionModelBase(OpenPechaModel):
     bdrc: str | None = None
     wiki: str | None = None
     type: TextType
-    contributions: list[ContributionModel | AIContributionModel] | None = None
+    contributions: list[ContributionModel | AIContributionModel] 
     date: NonEmptyStr | None = None
     title: LocalizedString
     alt_titles: list[LocalizedString] | None = None
@@ -222,7 +222,7 @@ class ExpressionModelOutputBase(OpenPechaModel):
     bdrc: str | None = None
     wiki: str | None = None
     type: TextType
-    contributions: list[ContributionModel | AIContributionModel] | None = None
+    contributions: list[ContributionModel | AIContributionModel] = []
     date: NonEmptyStr | None = None
     title: LocalizedString
     alt_titles: list[LocalizedString] | None = None
@@ -245,6 +245,8 @@ class ExpressionModelOutputBase(OpenPechaModel):
             raise ValueError(f"Invalid license value. Must be one of: {valid_licenses}")
 
         return self
+
+
 
 
 class ExpressionModelOutput(ExpressionModelOutputBase):

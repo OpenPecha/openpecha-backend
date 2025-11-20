@@ -1,9 +1,15 @@
+from models import (
+    CategoryRequestModel,
+    CategoryResponseModel,
+    CategoryListItemModel
+)
 import logging
 
 from exceptions import InvalidRequest
 from flask import Blueprint, Response, jsonify, request
 from models import CategoryRequestModel, CategoryResponseModel
 from neo4j_database import Neo4JDatabase
+from exceptions import InvalidRequest
 from neo4j_database_validator import Neo4JDatabaseValidator
 
 categories_bp = Blueprint("categories", __name__)
@@ -20,12 +26,10 @@ def get_categories() -> tuple[Response, int]:
         - application (required): Application context for categories
         - parent_id (optional): Parent category ID (null means root categories)
         - language (optional): Language code for localized titles (default: "bo")
-
     Returns:
         JSON response with list of categories and HTTP status code 200
     """
     logger.info("Getting categories")
-
     # Get query parameters
     application = request.args.get("application")
     parent_id = request.args.get("parent_id")
@@ -64,16 +68,7 @@ def create_category() -> tuple[Response, int]:
 
     request_model = CategoryRequestModel.model_validate(data)
 
-    # Validate that category doesn't already exist
     db = Neo4JDatabase()
-    with db.get_session() as session:
-        Neo4JDatabaseValidator().validate_category_not_exists(
-            session=session,
-            application=request_model.application,
-            title=request_model.title.root,
-            parent_id=request_model.parent,
-        )
-
     logger.info("Creating category in Neo4J Database")
     category_id = db.create_category(
         application=request_model.application, title=request_model.title.root, parent_id=request_model.parent
