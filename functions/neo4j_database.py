@@ -24,6 +24,7 @@ from models import (
     TableOfContentsAnnotationModel,
     TextType,
 )
+import os
 from neo4j import GraphDatabase
 from neo4j_database_validator import Neo4JDatabaseValidator
 from neo4j_queries import Queries
@@ -720,31 +721,6 @@ class Neo4JDatabase:
         with self.__driver.session() as session:
             return session.execute_write(lambda tx: self._execute_create_expression(tx, expression))
 
-    # def create_manifestation(
-    #     self,
-    #     manifestation: ManifestationModelInput,
-    #     expression_id: str,
-    #     manifestation_id: str,
-    #     annotation: AnnotationModel = None,
-    #     annotation_segments: list[dict] = None,
-    #     expression: ExpressionModelInput = None
-    # ) -> str:
-    #     def transaction_function(tx):
-    #         if expression:
-    #             self._execute_create_expression(tx, expression, expression_id)
-
-    #         self._execute_create_manifestation(tx, manifestation, expression_id, manifestation_id)
-    #         if annotation:
-    #             self._execute_add_annotation(tx, manifestation_id, annotation)
-    #             self._create_segments(tx, annotation.id, annotation_segments)
-    #             if annotation_segments and len(annotation_segments) > 0:
-    #                 if annotation_segments[0].get("reference", None) is not None:
-    #                     self._create_and_link_references(tx, annotation_segments)
-    #                 if annotation_segments[0].get("type", None) is not None:
-    #                     self._link_segment_and_bibliography_type(tx, annotation_segments)
-
-    #     with self.__driver.session() as session:
-    #         return session.execute_write(transaction_function)
 
     def create_manifestation(
         self,
@@ -952,6 +928,7 @@ class Neo4JDatabase:
             "limit": limit,
             "type": filters.get("type"),
             "language": filters.get("language"),
+            "title": filters.get("title"),
         }
 
         with self.__driver.session() as session:
@@ -1714,16 +1691,3 @@ class Neo4JDatabase:
         print(result)
         expressions = [self._process_expression_data(record["expression"]) for record in result]
         return {"texts": expressions}
-
-    def title_search(self, title: str) -> list[dict]:
-        with self.get_session() as session:
-            result = session.execute_read(lambda tx: tx.run(Queries.expressions["title_search"], title=title).data())
-            result = [
-                {
-                    "text_id": record["expression_id"],
-                    "title": record["title"],
-                    "instance_id": record["manifestation_id"],
-                }
-                for record in result
-            ]
-            return result

@@ -9,7 +9,6 @@ from models import AnnotationModel, AnnotationType, ExpressionModelInput, Instan
 from neo4j_database import Neo4JDatabase
 from storage import Storage
 from neo4j_database_validator import Neo4JDatabaseValidator
-from storage import MockStorage
 
 texts_bp = Blueprint("texts", __name__)
 
@@ -33,6 +32,8 @@ def get_all_texts() -> tuple[Response, int]:
         filters["language"] = language_filter
     if author_filter := request.args.get("author"):
         filters["author"] = author_filter
+    if title_filter := request.args.get("title"):
+        filters["title"] = title_filter
 
     db = Neo4JDatabase()
     result = db.get_all_expressions(offset=offset, limit=limit, filters=filters)
@@ -215,11 +216,3 @@ def get_related_by_work(expression_id: str) -> tuple[Response, int]:
         grouped_by_work[work_id]["expression_ids"].append(expr_id)
 
     return jsonify(grouped_by_work), 200
-
-
-@texts_bp.route("/title-search/", methods=["GET"], strict_slashes=False)
-def title_search() -> tuple[Response, int]:
-    db = Neo4JDatabase()
-    title = request.args.get("title")
-    response_data = db.title_search(title=title)
-    return jsonify(response_data), 200
