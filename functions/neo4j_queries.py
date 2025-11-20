@@ -304,7 +304,7 @@ MATCH (e:Expression)-[:EXPRESSION_OF]->(w:Work)
 WHERE e.id IN $expression_ids
 RETURN e.id as expression_id, w.id as work_id
 """,
-    "title_search": f"""
+    "title_search": """
 MATCH (lt:LocalizedText)<-[:HAS_LOCALIZATION]-(n:Nomen)
 MATCH (e:Expression)-[:HAS_TITLE]->(titleNomen:Nomen)
 WHERE lt.text CONTAINS $title
@@ -359,11 +359,11 @@ Queries.manifestations = {
 
     RETURN {Queries.manifestation_fragment('m')} AS manifestation, e.id AS expression_id
 """,
-    "fetch_by_annotation_id": f"""
+    "fetch_by_annotation_id": """
     MATCH (a:Annotation {{id: $annotation_id}})-[:ANNOTATION_OF]->(m:Manifestation)
     RETURN m.id AS manifestation_id
 """,
-    "fetch_by_annotation": f"""
+    "fetch_by_annotation": """
     MATCH (a:Annotation {{id: $annotation_id}})-[:ANNOTATION_OF]->(m:Manifestation)
     MATCH (m)-[:MANIFESTATION_OF]->(e:Expression)
 

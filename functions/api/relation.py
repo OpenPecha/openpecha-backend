@@ -73,7 +73,7 @@ def _get_expression_relations(expression_id: str):
             continue
         # Mark as explored BEFORE processing neighbors
         explored_expression.add(current_id)
-        logger.info(f"Exploring expression: {current_id}")
+        logger.info("Exploring expression: %s", current_id)
 
         # Process all relations for current node
         for relation in expression_relations[current_id]:

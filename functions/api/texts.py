@@ -132,7 +132,7 @@ def create_instance(expression_id: str) -> tuple[Response, int]:
     if instance_request.metadata.type == ManifestationType.CRITICAL:
         with db.get_session() as session:
             if Neo4JDatabaseValidator().has_manifestation_of_type_for_expression_id(
-                session=session, expression_id=expression_id, type=ManifestationType.CRITICAL
+                session=session, expression_id=expression_id, manifestation_type=ManifestationType.CRITICAL
             ):
                 raise InvalidRequest("Critical manifestation already present for this expression")
 

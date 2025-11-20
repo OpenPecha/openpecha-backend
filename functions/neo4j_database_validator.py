@@ -1,6 +1,6 @@
 import logging
 
-from exceptions import InvalidRequest
+from exceptions import DataNotFound, InvalidRequest
 from models import ExpressionModelInput, ManifestationType, TextType
 from neo4j_queries import Queries
 
@@ -104,7 +104,9 @@ class Neo4JDatabaseValidator:
                 "Cannot create manifestation for non-existent expression."
             )
 
-    def has_manifestation_of_type_for_expression_id(self, session, expression_id: str, type: ManifestationType) -> bool:
+    def has_manifestation_of_type_for_expression_id(
+        self, session, expression_id: str, manifestation_type: ManifestationType
+    ) -> bool:
 
         query = """
         MATCH (e:Expression {id: $expression_id})
@@ -113,7 +115,7 @@ class Neo4JDatabaseValidator:
         RETURN count(m) AS count
         """
 
-        result = session.run(query, expression_id=expression_id, type=type.value)
+        result = session.run(query, expression_id=expression_id, type=manifestation_type.value)
         record = result.single()
 
         return bool(record and record.get("count", 0) > 0)
@@ -241,8 +243,6 @@ class Neo4JDatabaseValidator:
         record = result.single()
 
         if not record or record["count"] == 0:
-            from exceptions import DataNotFound
-
             raise DataNotFound(f"Role '{role_name}' not found in database")
 
     def validate_role_enum_exists(self, session, description: str, name: str):
