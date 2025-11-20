@@ -143,7 +143,7 @@ class Neo4JDatabaseValidator:
             )
 
     def validate_bibliography_type_exists(self, session, bibliography_types: list[str]) -> None:
-        """Validate that all given bibliography type names exist. Raises InvalidRequest listing missing and available."""
+        """Validate that all given bibliography type names exist."""
         query = """
         MATCH (bt:BibliographyType)
         WITH collect(bt.name) AS names

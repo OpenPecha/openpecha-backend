@@ -6,6 +6,7 @@ from models import (
     AIContributionModel,
     AnnotationModel,
     AnnotationType,
+    CategoryListItemModel,
     ContributionModel,
     CopyrightStatus,
     EnumType,
@@ -1509,7 +1510,7 @@ class Neo4JDatabase:
             record = result.single()
             return record["category_id"]
 
-    def get_categories(self, application: str, parent_id: str | None = None, language: str = "bo") -> list[dict]:
+    def get_categories(self, application: str, language: str, parent_id: str | None = None) -> list[CategoryListItemModel]:
         """Get categories filtered by application and optional parent, with localized names."""
         with self.get_session() as session:
             result = session.run(
@@ -1521,12 +1522,12 @@ class Neo4JDatabase:
                 # Only include categories that have a title in the requested language
                 if data.get("title") is not None:
                     categories.append(
-                        {
-                            "id": data["id"],
-                            "parent": data.get("parent"),
-                            "title": data["title"],
-                            "has_child": data.get("has_child", False),
-                        }
+                        CategoryListItemModel(
+                            id=data["id"],
+                            parent=data.get("parent"),
+                            title=data["title"],
+                            has_child=data.get("has_child", False),
+                        )
                     )
             return categories
 
