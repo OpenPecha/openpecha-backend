@@ -141,7 +141,7 @@ class ExpressionModelBase(OpenPechaModel):
     bdrc: str | None = None
     wiki: str | None = None
     type: TextType
-    contributions: list[ContributionModel | AIContributionModel] = []
+    contributions: list[ContributionModel | AIContributionModel] 
     date: NonEmptyStr | None = None
     title: LocalizedString
     alt_titles: list[LocalizedString] | None = None
