@@ -142,7 +142,7 @@ def search_segments() -> tuple[Response, int]:
 
         except DataNotFound:
             # If segment not found, add result without segmentation_ids
-            logger.warning(f"Segment {segment_id} not found, skipping segmentation mapping")
+            logger.warning("Segment %s not found, skipping segmentation mapping", segment_id)
             enriched_result = SearchResultModel(
                 id=result_item.get("id", ""),
                 distance=result_item.get("distance", 0.0),
@@ -152,7 +152,7 @@ def search_segments() -> tuple[Response, int]:
             enriched_results.append(enriched_result)
         except Exception as e:
             # Log error but continue processing other results
-            logger.error(f"Error processing segment {segment_id}: {str(e)}")
+            logger.error("Error processing segment %s: %s", segment_id, str(e))
             enriched_result = SearchResultModel(
                 id=result_item.get("id", ""),
                 distance=result_item.get("distance", 0.0),

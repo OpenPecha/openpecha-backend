@@ -1192,7 +1192,7 @@ class Neo4JDatabase:
             raise DataNotFound(f"Expression '{expression_id}' not found")
 
     def _execute_add_annotation(self, tx, manifestation_id: str, annotation: AnnotationModel) -> str:
-        logger.info(f"Aligned_to_id: {annotation.aligned_to}")
+        logger.info("Aligned_to_id: %s", annotation.aligned_to)
         tx.run(
             Queries.annotations["create"],
             manifestation_id=manifestation_id,
@@ -1218,9 +1218,9 @@ class Neo4JDatabase:
                     sec["id"] = generate_id()
                 sections_with_ids.append(sec)
 
-            logger.info(f"Creating {len(sections_with_ids)} sections for annotation {annotation_id}")
+            logger.info("Creating %d sections for annotation %s", len(sections_with_ids), annotation_id)
             for sec in sections_with_ids:
-                logger.info(f"Section: {sec['id']}, title: {sec['title']}, segments: {len(sec['segments'])}")
+                logger.info("Section: %s, title: %s, segments: %d", sec['id'], sec['title'], len(sec['segments']))
 
             tx.run(
                 Queries.sections["create_batch"],
@@ -1397,7 +1397,7 @@ class Neo4JDatabase:
                 source_segment_id=source_segment_id,
                 target_annotation_id=target_annotation_id,
             )
-            logger.info(f"Alignment indices: {result}")
+            logger.info("Alignment indices: %s", result)
             return [record["index"] for record in result]
 
     def get_annotation_type(self, annotation_id: str) -> str | None:

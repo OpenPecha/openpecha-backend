@@ -574,7 +574,8 @@ WITH collect(DISTINCT {
 RETURN segments
 """,
     "check_annotation_type_exists": """
-MATCH (m:Manifestation {id: $manifestation_id})<-[:ANNOTATION_OF]-(a:Annotation)-[:HAS_TYPE]->(at:AnnotationType {name: $annotation_type})
+MATCH (m:Manifestation {id: $manifestation_id})<-[:ANNOTATION_OF]-(a:Annotation)
+      -[:HAS_TYPE]->(at:AnnotationType {name: $annotation_type})
 RETURN count(a) > 0 as exists
 """,
     "check_alignment_relationship_exists": """
@@ -707,13 +708,16 @@ RETURN seg.id as segment_id,
 ORDER BY seg.id
 """,
     "find_related_alignment_only": """
-MATCH (source_manif:Manifestation {id: $manifestation_id})<-[:ANNOTATION_OF]-(align_annot:Annotation)-[:HAS_TYPE]->(at:AnnotationType {name: 'alignment'})
+MATCH (source_manif:Manifestation {id: $manifestation_id})
+      <-[:ANNOTATION_OF]-(align_annot:Annotation)
+      -[:HAS_TYPE]->(at:AnnotationType {name: 'alignment'})
 MATCH (align_annot)<-[:SEGMENTATION_OF]-(source_seg:Segment)
 WHERE source_seg.span_start < $span_end AND source_seg.span_end > $span_start
 
 // Follow bidirectional ALIGNED_TO relationships
 MATCH (source_seg)-[:ALIGNED_TO]-(target_seg:Segment)
-MATCH (target_seg)-[:SEGMENTATION_OF]->(target_align_annot:Annotation)-[:HAS_TYPE]->(tat:AnnotationType {name: 'alignment'})
+MATCH (target_seg)-[:SEGMENTATION_OF]->(target_align_annot:Annotation)
+      -[:HAS_TYPE]->(tat:AnnotationType {name: 'alignment'})
 MATCH (target_align_annot)-[:ANNOTATION_OF]->(target_manif:Manifestation)
 MATCH (target_manif)-[:MANIFESTATION_OF]->(target_expr:Expression)
 
@@ -730,7 +734,9 @@ RETURN
 """,
     "find_related_with_transfer": """
 // Step 1: Find overlapping segments in source segmentation annotation
-MATCH (source_manif:Manifestation {id: $manifestation_id})<-[:ANNOTATION_OF]-(source_seg_annot:Annotation)-[:HAS_TYPE]->(sat:AnnotationType {name: 'segmentation'})
+MATCH (source_manif:Manifestation {id: $manifestation_id})
+      <-[:ANNOTATION_OF]-(source_seg_annot:Annotation)
+      -[:HAS_TYPE]->(sat:AnnotationType {name: 'segmentation'})
 MATCH (source_seg_annot)<-[:SEGMENTATION_OF]-(source_seg_seg:Segment)
 WHERE source_seg_seg.span_start < $span_end AND source_seg_seg.span_end > $span_start
 
@@ -739,18 +745,21 @@ WITH source_manif,
      MAX(source_seg_seg.span_end) as expanded_end
 
 // Step 2: Find ALL alignment annotations in source manifestation
-MATCH (source_manif)<-[:ANNOTATION_OF]-(source_align_annot:Annotation)-[:HAS_TYPE]->(aat:AnnotationType {name: 'alignment'})
+MATCH (source_manif)<-[:ANNOTATION_OF]-(source_align_annot:Annotation)
+      -[:HAS_TYPE]->(aat:AnnotationType {name: 'alignment'})
 MATCH (source_align_annot)<-[:SEGMENTATION_OF]-(source_align_seg:Segment)
 WHERE source_align_seg.span_start < expanded_end AND source_align_seg.span_end > expanded_start
 
 // Step 3: Follow ALIGNED_TO to target alignment segments
 MATCH (source_align_seg)-[:ALIGNED_TO]-(target_align_seg:Segment)
-MATCH (target_align_seg)-[:SEGMENTATION_OF]->(target_align_annot:Annotation)-[:HAS_TYPE]->(taat:AnnotationType {name: 'alignment'})
+MATCH (target_align_seg)-[:SEGMENTATION_OF]->(target_align_annot:Annotation)
+      -[:HAS_TYPE]->(taat:AnnotationType {name: 'alignment'})
 MATCH (target_align_annot)-[:ANNOTATION_OF]->(target_manif:Manifestation)
 MATCH (target_manif)-[:MANIFESTATION_OF]->(target_expr:Expression)
 
 // Step 4: Find overlapping segments in target segmentation annotation
-MATCH (target_manif)<-[:ANNOTATION_OF]-(target_seg_annot:Annotation)-[:HAS_TYPE]->(tsat:AnnotationType {name: 'segmentation'})
+MATCH (target_manif)<-[:ANNOTATION_OF]-(target_seg_annot:Annotation)
+      -[:HAS_TYPE]->(tsat:AnnotationType {name: 'segmentation'})
 MATCH (target_seg_annot)<-[:SEGMENTATION_OF]-(target_seg_seg:Segment)
 WHERE target_seg_seg.span_start < target_align_seg.span_end AND target_seg_seg.span_end > target_align_seg.span_start
 
@@ -776,7 +785,8 @@ RETURN DISTINCT s2.id as segment_id,
 ORDER BY s2.span_start
 """,
     "get_overlapping_segments": """
-MATCH (m:Manifestation {id: $manifestation_id})<-[:ANNOTATION_OF]-(ann:Annotation)-[:HAS_TYPE]->(:AnnotationType {name: 'segmentation'})
+MATCH (m:Manifestation {id: $manifestation_id})<-[:ANNOTATION_OF]-(ann:Annotation)
+      -[:HAS_TYPE]->(:AnnotationType {name: 'segmentation'})
 MATCH (ann)<-[:SEGMENTATION_OF]-(s:Segment)
 WHERE s.span_start < $span_end AND s.span_end > $span_start
 RETURN s.id as segment_id,
@@ -874,7 +884,8 @@ WHERE
         ELSE EXISTS((c)-[:HAS_PARENT]->(:Category {id: $parent_id}))
     END
 OPTIONAL MATCH (c)-[:HAS_PARENT]->(parent:Category)
-OPTIONAL MATCH (c)-[:HAS_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)-[:HAS_LANGUAGE]->(l:Language {code: $language})
+OPTIONAL MATCH (c)-[:HAS_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
+               -[:HAS_LANGUAGE]->(l:Language {code: $language})
 OPTIONAL MATCH (child:Category)-[:HAS_PARENT]->(c)
 WITH c, parent, lt, COUNT(DISTINCT child) AS child_count
 RETURN c.id AS id, parent.id AS parent, lt.text AS title, child_count > 0 AS has_child
