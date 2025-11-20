@@ -2,7 +2,6 @@ from collections import OrderedDict
 import os
 import logging
 import queue as queue_module
-from environment import get_neo4j_credentials
 from exceptions import DataNotFound
 from identifier import generate_id
 from models import (
@@ -43,11 +42,13 @@ class Neo4JDatabase:
             # Allow manual override for testing
             self.__driver = GraphDatabase.driver(neo4j_uri, auth=neo4j_auth)
         else:
-            # Automatically get credentials for current environment
-            creds = get_neo4j_credentials()
+            # Use environment variables (Firebase secrets or local .env)
             self.__driver = GraphDatabase.driver(
-                creds['uri'],
-                auth=(creds['username'], creds['password']),
+                os.environ.get("NEO4J_URI"),
+                auth=(
+                    os.environ.get("NEO4J_USERNAME", "neo4j"),
+                    os.environ.get("NEO4J_PASSWORD")
+                ),
             )
         self.__driver.verify_connectivity()
         self.__validator = Neo4JDatabaseValidator()
