@@ -83,7 +83,7 @@ def search_segments() -> tuple[Response, int]:
 
     # Forward request to external search API using GET
     try:
-        logger.info(f"Forwarding search request to {SEARCH_API_URL}/search")
+        logger.info("Forwarding search request to %s/search", SEARCH_API_URL)
 
         # Build query parameters
         params = {
@@ -99,8 +99,8 @@ def search_segments() -> tuple[Response, int]:
         response.raise_for_status()
         search_response_data = response.json()
     except requests.exceptions.RequestException as e:
-        logger.error(f"Error calling search API: {str(e)}")
-        raise InvalidRequest(f"Failed to call search API: {str(e)}")
+        logger.error("Error calling search API: %s", str(e))
+        raise InvalidRequest(f"Failed to call search API: {str(e)}") from e
 
     # Process results to add segmentation_ids
     db = Neo4JDatabase()

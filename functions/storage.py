@@ -13,7 +13,7 @@ logger = logging.getLogger(__name__)
 class Storage:
     def __init__(self) -> None:
         self.bucket = storage.bucket()
-        logger.info(f"Storage initialized with bucket: {self.bucket.name}")
+        logger.info("Storage initialized with bucket: %s", self.bucket.name)
 
     def store_pecha(self, pecha: Pecha) -> str:
         path = Path(tempfile.gettempdir()) / pecha.id

@@ -63,9 +63,9 @@ def get_texts(expression_id: str) -> tuple[Response, int]:
         try:
             expression = db.get_expression_by_bdrc(bdrc_id=expression_id)
             return jsonify(expression.model_dump()), 200
-        except DataNotFound:
+        except DataNotFound as exc:
             # If both fail, return not found
-            raise DataNotFound(f"Text with ID or BDRC ID '{expression_id}' not found")
+            raise DataNotFound(f"Text with ID or BDRC ID '{expression_id}' not found") from exc
 
 
 @texts_bp.route("", methods=["POST"], strict_slashes=False)

@@ -113,7 +113,7 @@ def test_expression_data():
 class TestGetAllTextsV2:
     """Tests for GET /v2/texts/ endpoint (get all texts)"""
 
-    def test_get_all_metadata_empty_database(self, client, test_database):
+    def test_get_all_metadata_empty_database(self, client):
         """Test getting all texts from empty database"""
         response = client.get("/v2/texts/")
 

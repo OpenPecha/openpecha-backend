@@ -387,7 +387,7 @@ def get_segments_relation_by_manifestation(manifestation_id: str):
         end = int(segment["span"]["end"])
 
         logger.info(
-            f"Getting related segments for segment id: {segment["id"]} with span_start: {start}, span_end: {end}"
+            "Getting related segments for segment id: %s with span_start: %s, span_end: %s", segment["id"], start, end
         )
 
         related_segments = db._get_related_segments(
@@ -395,13 +395,16 @@ def get_segments_relation_by_manifestation(manifestation_id: str):
         )
 
         logger.info(
-            f"Fetched related segments for segment id: {segment["id"]} with span_start: {start}, span_end: {end}"
+            "Fetched related segments for segment id: %s with span_start: %s, span_end: %s", segment["id"], start, end
         )
         logger.info("Appending to response list")
         response["segments_relations"].append({"segment_id": segment["id"], "related_segments": related_segments})
 
         logger.info(
-            f"Completed searching segment related for segment id: {segment["id"]} with span_start: {start}, span_end: {end}"
+            "Completed searching segment related for segment id: %s with span_start: %s, span_end: %s",
+            segment["id"],
+            start,
+            end,
         )
 
     return jsonify(response), 200
