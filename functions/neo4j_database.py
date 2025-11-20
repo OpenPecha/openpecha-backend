@@ -1128,7 +1128,6 @@ class Neo4JDatabase:
             for contribution in expression.contributions:
                 # Validate that the role exists in the database
                 self.__validator.validate_role_exists(tx, contribution.role.value)
-
                 if isinstance(contribution, ContributionModel):
                     result = tx.run(
                         Queries.expressions["create_contribution"],
@@ -1140,7 +1139,9 @@ class Neo4JDatabase:
 
                     if not result.single():
                         raise DataNotFound(
-                            f"Person (id: {contribution.person_id} bdrc_id: {contribution.person_bdrc_id}) not found"
+                            f"Person or Role not found. "
+                            f"Person: id={contribution.person_id}, bdrc_id={contribution.person_bdrc_id}; "
+                            f"Role: {contribution.role.value}"
                         )
                 elif isinstance(contribution, AIContributionModel):
                     ai_result = tx.run(
@@ -1158,7 +1159,10 @@ class Neo4JDatabase:
                         role_name=contribution.role.value,
                     )
                     if not result.single():
-                        raise DataNotFound("AI contribution creation failed")
+                        raise DataNotFound(
+                            f"AI contribution creation failed. "
+                            f"AI: {contribution.ai_id}; Role: {contribution.role.value}"
+                        )
                 else:
                     raise ValueError(f"Unknown contribution type: {type(contribution)}")
 
@@ -1251,7 +1255,6 @@ class Neo4JDatabase:
                 if "id" not in seg or seg["id"] is None:
                     seg["id"] = generate_id()
                 segments_with_ids.append(seg)
-
             tx.run(
                 Queries.segments["create_batch"],
                 annotation_id=annotation_id,
@@ -1261,11 +1264,13 @@ class Neo4JDatabase:
     def _create_and_link_references(self, tx, segments: list[dict]) -> None:
         """Create reference nodes and link them to segments."""
         segment_references = []
-
         for seg in segments:
             if "reference" in seg and seg["reference"]:
                 reference_id = self._create_reference(tx, seg["reference"])
-                segment_references.append({"segment_id": seg["id"], "reference_id": reference_id})
+                segment_references.append({
+                    "segment_id": seg["id"],
+                    "reference_id": reference_id
+                })
 
         # Link references to segments if any
         if segment_references:
@@ -1310,7 +1315,11 @@ class Neo4JDatabase:
             annotation_type = annotation_record["annotation_type"]
 
             # Initialize uniform response structure
-            response = {"id": annotation_id, "type": annotation_type, "data": None}
+            response = {
+                "id": annotation_id,
+                "type": annotation_type,
+                "data": None
+            }
 
             # Get aligned annotation ID if it exists
             aligned_to_id = None
@@ -1353,13 +1362,14 @@ class Neo4JDatabase:
             result = session.run(Queries.annotations["get_durchen_annotation"], annotation_id=annotation_id)
             durchen_annotation = []
             for record in result:
-                durchen_annotation.append(
-                    {
-                        "id": record["id"],
-                        "span": {"start": record["span_start"], "end": record["span_end"]},
-                        "note": record["note"],
-                    }
-                )
+                durchen_annotation.append({
+                    "id": record["id"],
+                    "span": {
+                        "start": record["span_start"],
+                        "end": record["span_end"]
+                    },
+                    "note": record["note"]
+                })
             return durchen_annotation
 
     def _get_annotation_sections(self, annotation_id: str) -> list[dict]:
@@ -1497,12 +1507,21 @@ class Neo4JDatabase:
 
     def create_category(self, application: str, title: dict[str, str], parent_id: str | None = None) -> str:
         """Create a category with localized title and optional parent relationship."""
-        category_id = generate_id()
-
-        # Convert title dict to list of localized_texts for the query
-        localized_texts = [{"language": lang, "text": text} for lang, text in title.items()]
 
         with self.get_session() as session:
+            self.__validator.validate_category_not_exists(
+                session=session,
+                application=application,
+                title=title,
+                parent_id=parent_id
+            )
+
+            category_id = generate_id()
+            # Convert title dict to list of localized_texts for the query
+            localized_texts = [
+                {"language": lang, "text": text}
+                for lang, text in title.items()
+            ]    
             result = session.run(
                 Queries.categories["create"],
                 category_id=category_id,
@@ -1538,7 +1557,7 @@ class Neo4JDatabase:
         with self.get_session() as session:
             session.run(Queries.segments["delete_all_segments_by_annotation_id"], annotation_id=annotation_id)
             session.run(Queries.annotations["delete"], annotation_id=annotation_id)
-
+   
     def delete_table_of_content_annotation(self, annotation_id: str) -> None:
         with self.get_session() as session:
             session.run(Queries.sections["delete_sections"], annotation_id=annotation_id)
@@ -1624,7 +1643,6 @@ class Neo4JDatabase:
             result = session.execute_read(
                 lambda tx: tx.run(Queries.segments["get_overlapping_segments_batch"], segment_ids=segment_ids).data()
             )
-
             # Convert to dict format
             return {record["input_segment_id"]: record["overlapping_segments"] for record in result}
 
@@ -1647,60 +1665,58 @@ class Neo4JDatabase:
             ]
 
     def _get_related_segments(self, manifestation_id: str, start: int, end: int, transform: bool = False) -> list[dict]:
-
-        global transformed_related_segments, untransformed_related_segments, traversed_alignment_pairs
-        transformed_related_segments = []
-        untransformed_related_segments = []
-        traversed_alignment_pairs = []
+        transformed_related_segments, untransformed_related_segments, traversed_alignment_pairs = [], [], []
         visited_manifestations = set()  # Track visited manifestations to prevent infinite loops
-
         queue = queue_module.Queue()
         queue.put({"manifestation_id": manifestation_id, "span_start": start, "span_end": end})
         visited_manifestations.add(manifestation_id)  # Mark initial manifestation as visited
-
         while not queue.empty():
             item = queue.get()  # get() removes and returns the item (like pop())
             manifestation_1_id = item["manifestation_id"]
             span_start = item["span_start"]
             span_end = item["span_end"]
             alignment_list = self._get_alignment_pairs_by_manifestation(manifestation_1_id)
-
             for alignment in alignment_list:
                 if (alignment["alignment_1_id"], alignment["alignment_2_id"]) not in traversed_alignment_pairs:
                     segments_list = self._get_aligned_segments(alignment["alignment_1_id"], span_start, span_end)
-
                     # Skip if no segments found
                     if not segments_list:
                         continue
-
                     overall_start = min(segments_list, key=lambda x: x["span"]["start"])["span"]["start"]
                     overall_end = max(segments_list, key=lambda x: x["span"]["end"])["span"]["end"]
                     manifestation_2_id = self.get_manifestation_id_by_annotation_id(alignment["alignment_2_id"])
-
                     # Skip if manifestation already visited (prevents infinite loops)
                     if manifestation_2_id in visited_manifestations:
                         continue
-
                     visited_manifestations.add(manifestation_2_id)
-
                     if transform:
                         transformed_segments = self._get_overlapping_segments(
-                            manifestation_2_id, overall_start, overall_end
+                            manifestation_id=manifestation_2_id,
+                            start=overall_start,
+                            end=overall_end
                         )
-                        print(transformed_segments)
                         transformed_related_segments.append(
-                            {"manifestation_id": manifestation_2_id, "segments": transformed_segments}
+                            {
+                                "manifestation_id": manifestation_2_id,
+                                "segments": transformed_segments
+                            }
                         )
                     else:
                         untransformed_related_segments.append(
-                            {"manifestation_id": manifestation_2_id, "segments": segments_list}
+                            {
+                                "manifestation_id": manifestation_2_id,
+                                "segments": segments_list
+                            }
                         )
                     traversed_alignment_pairs.append((alignment["alignment_1_id"], alignment["alignment_2_id"]))
                     traversed_alignment_pairs.append((alignment["alignment_2_id"], alignment["alignment_1_id"]))
                     queue.put(
-                        {"manifestation_id": manifestation_2_id, "span_start": overall_start, "span_end": overall_end}
+                        {
+                            "manifestation_id": manifestation_2_id,
+                            "span_start": overall_start,
+                            "span_end": overall_end
+                        }
                     )
-
         if transform:
             return transformed_related_segments
         else:
@@ -1711,9 +1727,10 @@ class Neo4JDatabase:
             result = session.execute_read(
                 lambda tx: tx.run(Queries.expressions["get_texts_group"], expression_id=texts_id).data()
             )
-        print(result)
         expressions = [self._process_expression_data(record["expression"]) for record in result]
-        return {"texts": expressions}
+        return {
+            "texts": expressions
+        }
 
     def title_search(self, title: str) -> list[dict]:
         with self.get_session() as session:
