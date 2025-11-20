@@ -23,10 +23,8 @@ from models import (
     TextType,
 )
 from neo4j_database import Neo4JDatabase
-from storage import Storage
-from api.annotations import _alignment_annotation_mapping
-from exceptions import InvalidRequest
 from neo4j_database_validator import Neo4JDatabaseValidator
+from storage import Storage
 
 instances_bp = Blueprint("instances", __name__)
 
@@ -69,7 +67,7 @@ def get_instance(manifestation_id: str):
     logger.info("Retrieving base text from storage")
     base_text = None
     if content_param:
-        base_text = Storage().retrieve_base_text(expression_id = expression_id, manifestation_id = manifestation_id)
+        base_text = Storage().retrieve_base_text(expression_id=expression_id, manifestation_id=manifestation_id)
 
     metadata = {
         "id": manifestation.id,
@@ -96,18 +94,13 @@ def get_instance(manifestation_id: str):
                     }
                 )
 
-    json = {
-        "content": base_text,
-        "metadata": metadata,
-        "annotations": annotations,
-    }
-    if not content_param:
-        json.pop("content")
-    if not annotation_param:
-        json.pop("annotations")
+    json = {"metadata": metadata}
+    if content_param:
+        json["content"] = base_text
+    if annotation_param:
+        json["annotations"] = annotations
 
     return jsonify(json), 200
-
 
 
 def _create_aligned_text(
@@ -141,7 +134,9 @@ def _create_aligned_text(
     ]
 
     storage = Storage()
-    storage.store_base_text(expression_id=expression_id, manifestation_id=manifestation_id, base_text=request_model.content)
+    storage.store_base_text(
+        expression_id=expression_id, manifestation_id=manifestation_id, base_text=request_model.content
+    )
 
     # Build contributions based on text type
     contributions = []
@@ -160,7 +155,6 @@ def _create_aligned_text(
                 else AIContributionModel(ai_id=creator.ai_id, role=role)
             )
         ]
-   
 
     expression = ExpressionModelInput(
         type=text_type,

@@ -141,7 +141,7 @@ class ExpressionModelBase(OpenPechaModel):
     bdrc: str | None = None
     wiki: str | None = None
     type: TextType
-    contributions: list[ContributionModel | AIContributionModel] 
+    contributions: list[ContributionModel | AIContributionModel] = []
     date: NonEmptyStr | None = None
     title: LocalizedString
     alt_titles: list[LocalizedString] | None = None
@@ -200,10 +200,6 @@ class ExpressionModelBase(OpenPechaModel):
 
     @model_validator(mode="after")
     def validate_title_language(self):
-        # Check that title has at least one entry
-        if not self.title.root or len(self.title.root) == 0:
-            raise ValueError("Title must contain at least one language entry")
-
         # Check that title has an entry matching the language field
         if self.language not in self.title.root:
             raise ValueError(
@@ -218,38 +214,7 @@ class ExpressionModelInput(ExpressionModelBase):
     pass
 
 
-class ExpressionModelOutputBase(OpenPechaModel):
-    bdrc: str | None = None
-    wiki: str | None = None
-    type: TextType
-    contributions: list[ContributionModel | AIContributionModel] = []
-    date: NonEmptyStr | None = None
-    title: LocalizedString
-    alt_titles: list[LocalizedString] | None = None
-    language: NonEmptyStr
-    target: str | None = None
-    category_id: str | None = None
-    copyright: CopyrightStatus
-    license: LicenseType
-
-    @model_validator(mode="after")
-    def validate_copyright_and_license(self):
-        # Validate copyright enum
-        if not isinstance(self.copyright, CopyrightStatus):
-            valid_copyrights = [status.value for status in CopyrightStatus]
-            raise ValueError(f"Invalid copyright value. Must be one of: {valid_copyrights}")
-
-        # Validate license enum
-        if not isinstance(self.license, LicenseType):
-            valid_licenses = [license.value for license in LicenseType]
-            raise ValueError(f"Invalid license value. Must be one of: {valid_licenses}")
-
-        return self
-
-
-
-
-class ExpressionModelOutput(ExpressionModelOutputBase):
+class ExpressionModelOutput(ExpressionModelBase):
     id: str
 
 
