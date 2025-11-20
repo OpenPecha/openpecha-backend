@@ -299,7 +299,7 @@ class TestGetAllTextsV2:
         assert data[0]["type"] == "root"
         assert data[0]["language"] == "en"
 
-    def test_get_all_metadata_invalid_limit(self, client):
+    def test_get_all_metadata_invalid_limit(self, client, test_database):
         """Test invalid limit parameters"""
 
         # Test limit too low
@@ -320,7 +320,7 @@ class TestGetAllTextsV2:
         data = json.loads(response.data)
         assert "Limit must be between 1 and 100" in data["error"]
 
-    def test_get_all_metadata_invalid_offset(self, client):
+    def test_get_all_metadata_invalid_offset(self, client, test_database):
         """Test invalid offset parameters"""
 
         # Test negative offset
@@ -439,7 +439,7 @@ class TestGetSingleTextV2:
         assert data["language"] == "bo"
         assert data["contributions"][0]["role"] == "translator"
 
-    def test_get_single_metadata_not_found(self, client):
+    def test_get_single_metadata_not_found(self, client, test_database):
         """Test retrieving non-existent expression"""
 
         response = client.get("/v2/texts/nonexistent_id")
@@ -531,6 +531,8 @@ class TestPostTextV2:
             "language": "en",
             "target": "some_target_id",
             "contributions": [],
+            "copyright": "Public domain",
+            "license": "CC0",
         }
 
         response = client.post("/v2/texts", data=json.dumps(expression_data), content_type="application/json")
@@ -538,7 +540,7 @@ class TestPostTextV2:
         assert response.status_code == 422  # Proper validation error status
         data = json.loads(response.data)
         assert "error" in data
-        assert "target must be None" in data["details"][0]["msg"]
+        assert "target must be None" in data["error"]
 
     def test_create_commentary_without_target_fails(self, client):
         """Test that COMMENTARY expression without target fails validation"""
@@ -547,6 +549,8 @@ class TestPostTextV2:
             "title": {"en": "Test Commentary"},
             "language": "en",
             "contributions": [],
+            "copyright": "Public domain",
+            "license": "CC0",
         }
 
         response = client.post("/v2/texts", data=json.dumps(expression_data), content_type="application/json")
@@ -554,7 +558,7 @@ class TestPostTextV2:
         assert response.status_code == 422  # Proper validation error status
         data = json.loads(response.data)
         assert "error" in data
-        assert "target must be provided" in data["details"][0]["msg"]
+        assert "target must be provided" in data["error"]
 
     def test_create_translation_without_target_fails(self, client):
         """Test that TRANSLATION expression without target fails validation"""
@@ -563,6 +567,8 @@ class TestPostTextV2:
             "title": {"en": "Test Translation"},
             "language": "en",
             "contributions": [],
+            "copyright": "Public domain",
+            "license": "CC0",
         }
 
         response = client.post("/v2/texts", data=json.dumps(expression_data), content_type="application/json")
@@ -570,7 +576,7 @@ class TestPostTextV2:
         assert response.status_code == 422  # Proper validation error status
         data = json.loads(response.data)
         assert "error" in data
-        assert "target must be provided" in data["details"][0]["msg"]
+        assert "target must be provided" in data["error"]
 
     def test_create_standalone_commentary_with_na_target_not_implemented(self, client, test_database, test_person_data):
         """Test that standalone COMMENTARY with target='N/A' returns Not Implemented error"""
