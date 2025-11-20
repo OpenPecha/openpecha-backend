@@ -6,7 +6,7 @@ const getApiEndpoint = async () => {
         
         if (isLocalhost) {
             console.log("Detected localhost environment - using emulator endpoint");
-            const emulatorEndpoint = "http://127.0.0.1:5001/pecha-backend-dev/us-central1/api";
+            const emulatorEndpoint = "http://127.0.0.1:5001/pecha-backend-test-3a4d0/us-central1/api";
             return emulatorEndpoint;
         }
 
