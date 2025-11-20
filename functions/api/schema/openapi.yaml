@@ -1462,6 +1462,12 @@ paths:
           schema:
             type: string
           description: Filter by author name
+        - name: title
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by title (case-insensitive substring match). Matches both primary and alternative titles.
       responses:
         "200":
           description: Texts retrieved successfully
@@ -2005,52 +2011,6 @@ paths:
                   error:
                     type: string
                     example: "Text with ID T123 not found"
-        "500":
-          $ref: '#/components/responses/ServerError'
-
-  /v2/texts/title-search:
-    get:
-      summary: Search texts by title
-      description: Search for texts by matching title or alternative titles. Returns expressions that have matching titles along with their critical manifestations.
-      tags:
-        - Texts
-      parameters:
-        - name: title
-          in: query
-          required: true
-          schema:
-            type: string
-          description: The title search term to match (case-sensitive substring match)
-          example: "བསྟན་འགྱུར།"
-      responses:
-        "200":
-          description: Search completed successfully
-          content:
-            application/json:
-              schema:
-                type: array
-                items:
-                  type: object
-                  properties:
-                    text_id:
-                      type: string
-                      description: The expression ID of the matched text
-                    title:
-                      type: string
-                      description: The matched title text
-                    instance_id:
-                      type: string
-                      description: The manifestation ID of the critical edition
-              examples:
-                success:
-                  summary: Title search results
-                  value:
-                    - text_id: "T12345678"
-                      title: "བསྟན་འགྱུར།"
-                      instance_id: "M12345678"
-                    - text_id: "T87654321"
-                      title: "བསྟན་འགྱུར་དཔེ་བསྡུར་མ།"
-                      instance_id: "M87654321"
         "500":
           $ref: '#/components/responses/ServerError'
 
