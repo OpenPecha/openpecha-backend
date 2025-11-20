@@ -160,6 +160,7 @@ def _create_aligned_text(
                 else AIContributionModel(ai_id=creator.ai_id, role=role)
             )
         ]
+   
 
     expression = ExpressionModelInput(
         type=text_type,
