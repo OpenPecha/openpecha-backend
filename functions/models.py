@@ -141,7 +141,7 @@ class ExpressionModelBase(OpenPechaModel):
     bdrc: str | None = None
     wiki: str | None = None
     type: TextType
-    contributions: list[ContributionModel | AIContributionModel] = []
+    contributions: list[ContributionModel | AIContributionModel]
     date: NonEmptyStr | None = None
     title: LocalizedString
     alt_titles: list[LocalizedString] | None = None
@@ -151,8 +151,6 @@ class ExpressionModelBase(OpenPechaModel):
     copyright: CopyrightStatus
     license: LicenseType
 
-
-class ExpressionModelInput(ExpressionModelBase):
     @model_validator(mode="after")
     def validate_target_field(self):
         if self.type == TextType.ROOT and self.target is not None:
@@ -166,25 +164,6 @@ class ExpressionModelInput(ExpressionModelBase):
         return self
 
     @model_validator(mode="after")
-    def validate_contributions(self):
-        for i, contribution in enumerate(self.contributions):
-            if isinstance(contribution, ContributionModel):
-                # Validate human contributions
-                if contribution.person_id is None and contribution.person_bdrc_id is None:
-                    raise ValueError(f"Contribution at index {i}: person_id or person_bdrc_id must be provided")
-                if contribution.person_id is not None and contribution.person_bdrc_id is not None:
-                    raise ValueError(
-                        f"Contribution at index {i}: person_id and person_bdrc_id cannot both be provided"
-                    )
-            elif isinstance(contribution, AIContributionModel):
-                # AI contributions are validated by their required fields in the model
-                pass
-            else:
-                raise ValueError(f"Contribution at index {i}: Invalid contribution type")
-
-        return self
-
-    @model_validator(mode="after")
     def validate_title_language(self):
         # Check that title has an entry matching the language field
         if self.language not in self.title.root:
@@ -192,6 +171,34 @@ class ExpressionModelInput(ExpressionModelBase):
                 f"Title must include an entry for the expression's language '{self.language}'. "
                 f"Available title languages: {list(self.title.root.keys())}"
             )
+
+        return self
+
+    @model_validator(mode="after")
+    def validate_contributions(self):
+        for i, contribution in enumerate(self.contributions):
+            if isinstance(contribution, ContributionModel):
+                if contribution.person_id is None and contribution.person_bdrc_id is None:
+                    raise ValueError(f"Contribution at index {i}: person_id or person_bdrc_id must be provided")
+            elif isinstance(contribution, AIContributionModel):
+                pass
+            else:
+                raise ValueError(f"Contribution at index {i}: Invalid contribution type")
+
+        return self
+
+
+class ExpressionModelInput(ExpressionModelBase):
+
+    @model_validator(mode="after")
+    def validate_contribution_exclusivity(self):
+        for i, contribution in enumerate(self.contributions):
+            if (
+                isinstance(contribution, ContributionModel)
+                and contribution.person_id is not None
+                and contribution.person_bdrc_id is not None
+            ):
+                raise ValueError(f"Contribution at index {i}: person_id and person_bdrc_id cannot both be provided")
 
         return self
 
@@ -232,7 +239,7 @@ class ManifestationModelInput(ManifestationModelBase):
 
 class ManifestationModelOutput(ManifestationModelBase):
     id: str
-    annotations: list[AnnotationModel] = Field(default_factory=list)
+    annotations: list[AnnotationModel] = []
     alignment_sources: list[str] | None = None
     alignment_targets: list[str] | None = None
 
