@@ -149,7 +149,7 @@ class ExpressionModelBase(OpenPechaModel):
     bdrc: str | None = None
     wiki: str | None = None
     type: TextType
-    contributions: list[ContributionModelInput | AIContributionModel]
+    contributions: list[ContributionModel | AIContributionModel]
     date: NonEmptyStr | None = None
     title: LocalizedString
     alt_titles: list[LocalizedString] | None = None
@@ -197,6 +197,7 @@ class ExpressionModelBase(OpenPechaModel):
 
 
 class ExpressionModelInput(ExpressionModelBase):
+    contributions: list[ContributionModelInput | AIContributionModel]
 
     @model_validator(mode="after")
     def validate_contribution_exclusivity(self):
@@ -213,6 +214,7 @@ class ExpressionModelInput(ExpressionModelBase):
 
 class ExpressionModelOutput(ExpressionModelBase):
     id: str
+    contributions: list[ContributionModelOutput | AIContributionModel]
 
 
 class ManifestationModelBase(OpenPechaModel):
