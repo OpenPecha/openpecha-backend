@@ -450,10 +450,6 @@ MATCH (m:Manifestation)
 WHERE m.id IN $manifestation_ids
 RETURN m.id as manifestation_id, {Queries.manifestation_fragment('m')} as metadata
 """,
-    "fetch_expression_id_by_manifestation_id": """
-MATCH (m:Manifestation {id: $manifestation_id})-[:MANIFESTATION_OF]->(e:Expression)
-RETURN e.id as expression_id
-""",
 }
 
 Queries.annotations = {

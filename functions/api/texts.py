@@ -7,8 +7,8 @@ from flask import Blueprint, Response, jsonify, request
 from identifier import generate_id
 from models import AnnotationModel, AnnotationType, ExpressionModelInput, InstanceRequestModel, ManifestationType
 from neo4j_database import Neo4JDatabase
-from storage import Storage
 from neo4j_database_validator import Neo4JDatabaseValidator
+from storage import Storage
 
 texts_bp = Blueprint("texts", __name__)
 
@@ -153,7 +153,7 @@ def create_instance(expression_id: str) -> tuple[Response, int]:
 
     manifestation_id = generate_id()
     storage = Storage()
-    
+
     storage.store_base_text(
         expression_id=expression_id, manifestation_id=manifestation_id, base_text=instance_request.content
     )

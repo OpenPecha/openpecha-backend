@@ -95,9 +95,7 @@ def add_annotation(manifestation_id: str) -> tuple[Response, int]:
             raise InvalidRequest("Target manifestation id must be provided for alignment annotation")
 
         # Check source manifestation
-        _check_alignement_annotation_type_exists(
-            db, manifestation_id, request_model.target_manifestation_id, request_model.type
-        )
+        _check_alignment_annotation_type_exists(db, manifestation_id, request_model.target_manifestation_id)
     else:
         _check_annotation_type_exists(db, manifestation_id, request_model.type)
 
@@ -134,8 +132,8 @@ def add_annotation(manifestation_id: str) -> tuple[Response, int]:
     return jsonify(response), 201
 
 
-def _check_alignement_annotation_type_exists(
-    db: Neo4JDatabase, manifestation_id: str, target_manifestation_id: str, annotation_type: AnnotationType
+def _check_alignment_annotation_type_exists(
+    db: Neo4JDatabase, manifestation_id: str, target_manifestation_id: str
 ) -> None:
     """
     Check if an alignment annotation already exists between the source and target manifestations.
@@ -149,7 +147,6 @@ def _check_alignement_annotation_type_exists(
         db: The Neo4JDatabase instance
         manifestation_id: The ID of the source manifestation
         target_manifestation_id: The ID of the target manifestation
-        annotation_type: The type of annotation we're trying to add (should be ALIGNMENT)
 
     Raises:
         InvalidRequest: If an alignment relationship already exists between the manifestations
@@ -158,7 +155,8 @@ def _check_alignement_annotation_type_exists(
     # Check if an alignment relationship already exists between these two manifestations
     if db.has_alignment_relationship(manifestation_id, target_manifestation_id):
         raise InvalidRequest(
-            f"Cannot add annotation: alignment relationship already exists between manifestation '{manifestation_id}' and target manifestation '{target_manifestation_id}'"
+            f"Cannot add annotation: alignment relationship already exists between "
+            f"manifestation '{manifestation_id}' and target manifestation '{target_manifestation_id}'"
         )
 
 
@@ -177,7 +175,8 @@ def _check_annotation_type_exists(db: Neo4JDatabase, manifestation_id: str, anno
     """
     if db.has_annotation_type(manifestation_id, annotation_type.value):
         raise InvalidRequest(
-            f"Cannot add annotation: annotation of type '{annotation_type.value}' already exists for manifestation '{manifestation_id}'"
+            f"Cannot add annotation: annotation of type '{annotation_type.value}' "
+            f"already exists for manifestation '{manifestation_id}'"
         )
 
 

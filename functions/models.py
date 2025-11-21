@@ -148,8 +148,8 @@ class ExpressionModelBase(OpenPechaModel):
     language: NonEmptyStr
     target: str | None = None
     category_id: str | None = None
-    copyright: CopyrightStatus
-    license: LicenseType
+    copyright: CopyrightStatus = CopyrightStatus.PUBLIC_DOMAIN
+    license: LicenseType = LicenseType.PUBLIC_DOMAIN_MARK
 
     @model_validator(mode="after")
     def validate_target_field(self):

@@ -1,16 +1,9 @@
-from models import (
-    CategoryRequestModel,
-    CategoryResponseModel,
-    CategoryListItemModel
-)
 import logging
 
 from exceptions import InvalidRequest
 from flask import Blueprint, Response, jsonify, request
 from models import CategoryRequestModel, CategoryResponseModel
 from neo4j_database import Neo4JDatabase
-from exceptions import InvalidRequest
-from neo4j_database_validator import Neo4JDatabaseValidator
 
 categories_bp = Blueprint("categories", __name__)
 

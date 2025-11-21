@@ -1,6 +1,6 @@
 import logging
 
-from exceptions import DataNotFound, InvalidRequest
+from exceptions import InvalidRequest
 from models import ExpressionModelInput, ManifestationType, TextType
 from neo4j_queries import Queries
 
@@ -173,7 +173,8 @@ class Neo4JDatabaseValidator:
         missing = [c for c in (record["missing"] or []) if c]
         if missing:
             raise InvalidRequest(
-                f"Languages {', '.join(missing)} are not present in Neo4j. Available languages: {', '.join(record['codes'])}"
+                f"Languages {', '.join(missing)} are not present in Neo4j. "
+                f"Available languages: {', '.join(record['codes'])}"
             )
 
     def validate_category_exists(self, session, category_id: str) -> None:
@@ -230,7 +231,6 @@ class Neo4JDatabaseValidator:
         if record and record["count"] > 0:
             raise DataValidationError(f"Manifestation type with name '{name}' already exists")
 
-
     def validate_role_enum_exists(self, session, description: str, name: str):
         query = """
         MATCH (rt:RoleType)
@@ -262,7 +262,7 @@ class Neo4JDatabaseValidator:
         Validate that a category with the same application, title, and parent doesn't already exist.
         Raises DataValidationError if the category exists.
         """
-        
+
         # Check each language in the title
         for language, title_text in title.items():
             result = session.run(

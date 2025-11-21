@@ -19,7 +19,7 @@ class Storage:
 
         try:
             temp_file.write_text(base_text, encoding="utf-8")
-            
+
             blob = self._blob(Storage._base_text_path(expression_id, manifestation_id))
             blob.upload_from_filename(str(temp_file))
             logger.info("Uploaded base text to storage: %s", blob.public_url)
@@ -97,7 +97,6 @@ class Storage:
     def _file_exists(self, storage_path: str) -> bool:
         return self.bucket.blob(storage_path).exists()
 
-    
     def retrieve_base_text(self, expression_id: str, manifestation_id: str) -> str:
         """Fetch base text content from Firebase Storage.
 
