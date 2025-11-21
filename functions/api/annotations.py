@@ -246,11 +246,11 @@ def _update_alignment_annotation(db: Neo4JDatabase, annotation_id: str, data: di
 
     target_annotation_id = generate_id()
     source_annotation_id = generate_id()
+    target_annotation=AnnotationModel(id=target_annotation_id, type=AnnotationType.ALIGNMENT)
+    source_annotation=AnnotationModel(id=source_annotation_id, type=AnnotationType.ALIGNMENT, aligned_to=target_annotation_id)
     db.add_alignment_annotation_to_manifestation(
-        target_annotation=AnnotationModel(id=target_annotation_id, type=AnnotationType.ALIGNMENT),
-        source_annotation=AnnotationModel(
-            id=source_annotation_id, type=AnnotationType.ALIGNMENT, aligned_to=target_annotation_id
-        ),
+        target_annotation=target_annotation,
+        alignment_annotation=source_annotation,
         target_manifestation_id=target_manifestation_id,
         source_manifestation_id=source_manifestation_id,
         target_segments=target_segments_with_ids,
