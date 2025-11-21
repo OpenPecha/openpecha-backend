@@ -99,36 +99,37 @@ END
     @staticmethod
     def expression_fragment(label):
         return f"""
-{{
-    id: {label}.id,
-    bdrc: {label}.bdrc,
-    wiki: {label}.wiki,
-    type: {Queries.get_expression_type(label)},
-    target: COALESCE(
-        [({label})-[:TRANSLATION_OF]->(ef_target:Expression) | ef_target.id][0],
-        [({label})-[:COMMENTARY_OF]->(ef_target:Expression) | ef_target.id][0]
-    ),
-    contributors: (
-        [({label})-[:HAS_CONTRIBUTION]->(ef_contrib:Contribution)-[:BY]->(ef_person:Person) | {{
-            person_id: ef_person.id,
-            person_bdrc_id: ef_person.bdrc,
-            role: [(ef_contrib)-[:WITH_ROLE]->(ef_role:RoleType) | ef_role.name][0]
-        }}]
-        +
-        [({label})-[:HAS_CONTRIBUTION]->(ef_contrib:Contribution)-[:BY]->(ef_ai:AI) | {{
-            ai_id: ef_ai.id,
-            role: [(ef_contrib)-[:WITH_ROLE]->(ef_role:RoleType) | ef_role.name][0]
-        }}]
-    ),
-    date: {label}.date,
-    title: [{Queries.primary_nomen(label, 'HAS_TITLE')}],
-    alt_titles: [{Queries.alternative_nomen(label, 'HAS_TITLE')}],
-    language: [({label})-[:HAS_LANGUAGE]->(ef_lang:Language) | ef_lang.code][0],
-    category_id: [({label})-[:EXPRESSION_OF]->(ef_work:Work)-[:BELONGS_TO]->(ef_cat:Category) | ef_cat.id][0],
-    copyright: [({label})-[:HAS_COPYRIGHT]->(ef_copyright:Copyright) | ef_copyright.name][0],
-    license: [({label})-[:HAS_LICENSE]->(ef_license:License) | ef_license.name][0]
-}}
-"""
+        {{
+            id: {label}.id,
+            bdrc: {label}.bdrc,
+            wiki: {label}.wiki,
+            type: {Queries.get_expression_type(label)},
+            target: COALESCE(
+                [({label})-[:TRANSLATION_OF]->(ef_target:Expression) | ef_target.id][0],
+                [({label})-[:COMMENTARY_OF]->(ef_target:Expression) | ef_target.id][0]
+            ),
+            contributors: (
+                [({label})-[:HAS_CONTRIBUTION]->(ef_contrib:Contribution)-[:BY]->(ef_person:Person) | {{
+                    person_id: ef_person.id,
+                    person_bdrc_id: ef_person.bdrc,
+                    role: [(ef_contrib)-[:WITH_ROLE]->(ef_role:RoleType) | ef_role.name][0],
+                    person_name: [{Queries.primary_nomen('ef_person', 'HAS_NAME')}]
+                }}]
+                +
+                [({label})-[:HAS_CONTRIBUTION]->(ef_contrib:Contribution)-[:BY]->(ef_ai:AI) | {{
+                    ai_id: ef_ai.id,
+                    role: [(ef_contrib)-[:WITH_ROLE]->(ef_role:RoleType) | ef_role.name][0]
+                }}]
+            ),
+            date: {label}.date,
+            title: [{Queries.primary_nomen(label, 'HAS_TITLE')}],
+            alt_titles: [{Queries.alternative_nomen(label, 'HAS_TITLE')}],
+            language: [({label})-[:HAS_LANGUAGE]->(ef_lang:Language) | ef_lang.code][0],
+            category_id: [({label})-[:EXPRESSION_OF]->(ef_work:Work)-[:BELONGS_TO]->(ef_cat:Category) | ef_cat.id][0],
+            copyright: [({label})-[:HAS_COPYRIGHT]->(ef_copyright:Copyright) | ef_copyright.name][0],
+            license: [({label})-[:HAS_LICENSE]->(ef_license:License) | ef_license.name][0]
+        }}
+        """
 
     @staticmethod
     def create_expression_base(label):
