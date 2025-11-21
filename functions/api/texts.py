@@ -2,6 +2,7 @@ import logging
 
 from api.instances import _trigger_search_segmenter
 from api.relation import _get_expression_relations
+from database import Database
 from exceptions import DataNotFound, InvalidRequest
 from flask import Blueprint, Response, jsonify, request
 from identifier import generate_id
@@ -112,10 +113,8 @@ def get_instances(expression_id: str) -> tuple[Response, int]:
     if instance_type not in allowed_types:
         raise InvalidRequest(f"instance_type must be one of: {', '.join(allowed_types)}")
 
-    db = Neo4JDatabase()
-    manifestations = db.get_manifestations_of_an_expression(
-        expression_id=expression_id, manifestation_type=instance_type
-    )
+    db = Database()
+    manifestations = db.manifestation.get_by_expression(expression_id=expression_id, manifestation_type=instance_type)
     response_data = [manifestation.model_dump() for manifestation in manifestations]
     return jsonify(response_data), 200
 

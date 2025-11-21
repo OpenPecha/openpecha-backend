@@ -149,40 +149,6 @@ class Neo4JDatabase:
             license=LicenseType(expression_data.get("license") or LicenseType.PUBLIC_DOMAIN_MARK.value),
         )
 
-    # ManifestationDatabase
-    def get_manifestations_by_expression(self, expression_id: str) -> list[ManifestationModelOutput]:
-        with self.get_session() as session:
-            rows = session.execute_read(
-                lambda tx: [
-                    r.data()
-                    for r in tx.run(
-                        Queries.manifestations["fetch"],
-                        expression_id=expression_id,
-                        manifestation_id=None,
-                        manifestation_type=None,
-                    )
-                ]
-            )
-            return [self._process_manifestation_data(row["manifestation"]) for row in rows]
-
-    # ManifestationDatabase
-    def get_manifestations_of_an_expression(
-        self, expression_id: str, manifestation_type: str | None = None
-    ) -> list[ManifestationModelBase]:
-        with self.get_session() as session:
-            rows = session.execute_read(
-                lambda tx: [
-                    r.data()
-                    for r in tx.run(
-                        Queries.manifestations["fetch"],
-                        expression_id=expression_id,
-                        manifestation_id=None,
-                        manifestation_type=manifestation_type if manifestation_type != "all" else None,
-                    )
-                ]
-            )
-            return [self.process_manifestation_metadata(row["manifestation"]) for row in rows]
-
     def process_manifestation_metadata(self, manifestation_data: dict) -> ManifestationModelBase:
         return ManifestationModelBase(
             id=manifestation_data.get("id"),
@@ -950,6 +916,7 @@ class Neo4JDatabase:
 
             return out
 
+    # ExpressionDatabase
     def _execute_create_expression(self, tx, expression: ExpressionModelInput, expression_id: str | None = None) -> str:
         # TODO: move the validation based on language to the database validator
         expression_id = expression_id or generate_id()
@@ -1044,6 +1011,7 @@ class Neo4JDatabase:
 
         return expression_id
 
+    # ManifestationDatabase
     def _execute_create_manifestation(
         self, tx, manifestation: ManifestationModelInput, expression_id: str, manifestation_id: str
     ) -> str:
@@ -1071,6 +1039,7 @@ class Neo4JDatabase:
         if not result.single():
             raise DataNotFound(f"Expression '{expression_id}' not found")
 
+    # AnnotationDatabase
     def _execute_add_annotation(self, tx, manifestation_id: str, annotation: AnnotationModel) -> str:
         logger.info("Aligned_to_id: %s", annotation.aligned_to)
         tx.run(
@@ -1122,6 +1091,7 @@ class Neo4JDatabase:
         with self.get_session() as session:
             return session.execute_write(transaction_function)
 
+    # SegmentDatabase
     def _create_segments(self, tx, annotation_id: str, segments: list[dict] = None) -> None:
         if segments:
             # Generate IDs for segments that don't have them
@@ -1137,6 +1107,7 @@ class Neo4JDatabase:
                 segments=segments_with_ids,
             )
 
+    # SegmentDatabase
     def _create_and_link_references(self, tx, segments: list[dict]) -> None:
         """Create reference nodes and link them to segments."""
         segment_references = []
@@ -1152,6 +1123,7 @@ class Neo4JDatabase:
                 segment_references=segment_references,
             )
 
+    # SegmentDatabase
     def _create_reference(self, tx, reference_name: str) -> str:
         """Create a single reference node and return its ID."""
         reference_id = generate_id()
@@ -1162,6 +1134,7 @@ class Neo4JDatabase:
         )
         return reference_id
 
+    # SegmentDatabase
     def _link_segment_and_bibliography_type(self, tx, segment_and_type_name: list[dict]) -> None:
         """Create bibliography type nodes and link them to segments."""
 
@@ -1171,6 +1144,7 @@ class Neo4JDatabase:
     def _create_durchen_note(self, tx, segments: list[dict]) -> None:
         tx.run(Queries.durchen_notes["create"], segments=segments)
 
+    # AnnotationDatabase
     def get_annotation(self, annotation_id: str) -> dict:
         """Get all segments for an annotation. Returns uniform structure with all possible keys."""
         with self.get_session() as session:
@@ -1219,6 +1193,7 @@ class Neo4JDatabase:
 
             return response
 
+    # AnnotationDatabase
     def _get_durchen_annotation(self, annotation_id: str) -> list[dict]:
         """Helper method to get durchen annotation for a specific annotation."""
         with self.get_session() as session:
@@ -1234,6 +1209,7 @@ class Neo4JDatabase:
                 )
             return durchen_annotation
 
+    # AnnotationDatabase
     def _get_annotation_sections(self, annotation_id: str) -> list[dict]:
         """Helper method to get sections for a specific annotation."""
         with self.get_session() as session:
@@ -1244,6 +1220,7 @@ class Neo4JDatabase:
                 sections.append(section)
         return sections
 
+    # AnnotationDatabase
     def _get_annotation_segments(self, annotation_id: str) -> list[dict]:
         """Helper method to get segments for a specific annotation."""
         with self.get_session() as session:
