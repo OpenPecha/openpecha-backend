@@ -101,8 +101,15 @@ class AIContributionModel(OpenPechaModel):
 class ContributionModel(OpenPechaModel):
     person_id: str | None = None
     person_bdrc_id: str | None = None
-    person_name: LocalizedString | None = None
     role: ContributorRole
+
+
+class ContributionModelInput(ContributionModel):
+    pass
+
+
+class ContributionModelOutput(ContributionModel):
+    person_name: LocalizedString
 
 
 class AnnotationModel(OpenPechaModel):
@@ -142,7 +149,7 @@ class ExpressionModelBase(OpenPechaModel):
     bdrc: str | None = None
     wiki: str | None = None
     type: TextType
-    contributions: list[ContributionModel | AIContributionModel]
+    contributions: list[ContributionModelInput | AIContributionModel]
     date: NonEmptyStr | None = None
     title: LocalizedString
     alt_titles: list[LocalizedString] | None = None

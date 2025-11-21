@@ -24,6 +24,7 @@ from models import (
     SpanModel,
     TableOfContentsAnnotationModel,
     TextType,
+    ContributionModelOutput,
 )
 import os
 from neo4j import GraphDatabase
@@ -722,7 +723,6 @@ class Neo4JDatabase:
         with self.get_session() as session:
             return session.execute_write(lambda tx: self._execute_create_expression(tx, expression))
 
-
     def create_manifestation(
         self,
         manifestation: ManifestationModelInput,
@@ -979,8 +979,8 @@ class Neo4JDatabase:
 
         return person
 
-    def _build_contributions(self, items: list[dict] | None) -> list[ContributionModel | AIContributionModel]:
-        out: list[ContributionModel | AIContributionModel] = []
+    def _build_contributions(self, items: list[dict] | None) -> list[ContributionModelOutput | AIContributionModel]:
+        out: list[ContributionModelOutput | AIContributionModel] = []
         for c in items or []:
             if c.get("ai_id"):
                 out.append(AIContributionModel(ai_id=c["ai_id"], role=c["role"]))
@@ -992,7 +992,7 @@ class Neo4JDatabase:
                         person_name = LocalizedString(person_name_dict)
                 
                 out.append(
-                    ContributionModel(
+                    ContributionModelOutput(
                         person_id=c.get("person_id"),
                         person_bdrc_id=c.get("person_bdrc_id"),
                         role=c["role"],
