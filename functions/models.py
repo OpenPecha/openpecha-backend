@@ -101,6 +101,7 @@ class AIContributionModel(OpenPechaModel):
 class ContributionModel(OpenPechaModel):
     person_id: str | None = None
     person_bdrc_id: str | None = None
+    person_name: LocalizedString | None = None
     role: ContributorRole
 
 
