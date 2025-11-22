@@ -4,7 +4,7 @@ import threading
 import requests
 from api.annotations import _alignment_annotation_mapping
 from api.relation import _get_relation_for_an_expression
-from exceptions import InvalidRequest
+from exceptions import DataNotFound, InvalidRequest
 from flask import Blueprint, Response, jsonify, request
 from identifier import generate_id
 from models import (
@@ -15,6 +15,7 @@ from models import (
     ContributionModel,
     ContributorRole,
     ExpressionModelInput,
+    InstanceRequestModel,
     LocalizedString,
     ManifestationModelInput,
     ManifestationType,
@@ -48,6 +49,23 @@ def _trigger_search_segmenter(manifestation_id: str) -> None:
         )
 
     # Start the request in a background thread
+    thread = threading.Thread(target=_make_request, daemon=True)
+    thread.start()
+
+
+def _trigger_delete_search_segments(segment_ids: list[str]) -> None:
+    """
+    Triggers the delete search segments API asynchronously (fire-and-forget).
+    """
+
+    def _make_request():
+        url = "https://sqs-delete-search-segments-api.onrender.com/jobs/delete"
+        payload = {"segment_ids": segment_ids}
+        response = requests.post(url, json=payload, timeout=10)
+        logger.info(
+            "Delete search segments API called for segment_ids %s. Status: %s", segment_ids, response.status_code
+        )
+
     thread = threading.Thread(target=_make_request, daemon=True)
     thread.start()
 
@@ -101,6 +119,81 @@ def get_instance(manifestation_id: str):
         json["annotations"] = annotations
 
     return jsonify(json), 200
+
+
+@instances_bp.route("/<string:manifestation_id>", methods=["PUT"], strict_slashes=False)
+def update_instance(manifestation_id: str):
+    """Update a manifestation by ID."""
+    logger.info("Updating manifestation with ID: %s", manifestation_id)
+
+    data = request.get_json(force=True, silent=True)
+    if not data:
+        return jsonify({"error": "Request body is required"}), 400
+
+    try:
+        # Validate request using InstanceRequestModel
+        request_model = InstanceRequestModel.model_validate(data)
+
+        db = Neo4JDatabase()
+        storage = Storage()
+
+        # Get expression_id for this manifestation
+        _, expression_id = db.get_expression_id_by_manifestation_id(manifestation_id=manifestation_id)
+
+        # Prepare annotation if provided
+        annotation = None
+        annotation_segments = None
+        if request_model.annotation:
+            annotation_id = generate_id()
+            annotation_type = (
+                AnnotationType.SEGMENTATION
+                if request_model.metadata.type == ManifestationType.CRITICAL
+                else AnnotationType.PAGINATION
+            )
+            annotation = AnnotationModel(id=annotation_id, type=annotation_type)
+            annotation_segments = [seg.model_dump() for seg in request_model.annotation]
+
+        # Prepare bibliography annotation if provided
+        bibliography_annotation = None
+        bibliography_segments = None
+        if request_model.biblography_annotation:
+            bibliography_annotation_id = generate_id()
+            bibliography_annotation = AnnotationModel(id=bibliography_annotation_id, type=AnnotationType.BIBLIOGRAPHY)
+            bibliography_types = [seg.type for seg in request_model.biblography_annotation]
+            with db.get_session() as session:
+                Neo4JDatabaseValidator().validate_bibliography_type_exists(
+                    session=session, bibliography_types=bibliography_types
+                )
+            bibliography_segments = [seg.model_dump() for seg in request_model.biblography_annotation]
+
+        # Update manifestation in database
+        segment_ids = db.update_manifestation(
+            manifestation_id=manifestation_id,
+            manifestation=request_model.metadata,
+            annotation=annotation,
+            annotation_segments=annotation_segments,
+            bibliography_annotation=bibliography_annotation,
+            bibliography_segments=bibliography_segments,
+        )
+
+        # Update base text in storage
+        storage.store_base_text(
+            expression_id=expression_id,
+            manifestation_id=manifestation_id,
+            base_text=request_model.content,
+        )
+
+        _trigger_delete_search_segments(segment_ids)
+        # Trigger search segmenter API asynchronously
+        _trigger_search_segmenter(manifestation_id)
+
+        return jsonify({"message": "Manifestation updated successfully", "id": manifestation_id}), 200
+
+    except DataNotFound as e:
+        return jsonify({"error": str(e)}), 404
+    except Exception as e:
+        logger.error("Error updating manifestation: %s", e)
+        return jsonify({"error": str(e)}), 500
 
 
 def _create_aligned_text(
