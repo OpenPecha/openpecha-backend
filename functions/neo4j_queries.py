@@ -470,8 +470,11 @@ RETURN m.id as manifestation_id, {Queries.manifestation_fragment('m')} as metada
     // 3. Detach manifestation type relationship
     OPTIONAL MATCH (m)-[type_rel:HAS_TYPE]->(:ManifestationType)
 
+    // 4. Detach source relationship
+    OPTIONAL MATCH (m)-[source_rel:HAS_SOURCE]->(:Source)
+
     // First delete only the explicit relationships we want gone but keep the other nodes
-    DELETE type_rel
+    DELETE type_rel, source_rel
 
     // Then delete nodes and automatically remove all their remaining relationships
     DETACH DELETE
