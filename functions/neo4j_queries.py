@@ -491,7 +491,7 @@ RETURN m.id as manifestation_id, {Queries.manifestation_fragment('m')} as metada
     WITH m
     OPTIONAL MATCH (it:Nomen) WHERE elementId(it) = $incipit_element_id
     OPTIONAL MATCH (mt:ManifestationType {name: $type})
-    OPTIONAL MATCH (s:Source {name: $source})
+    MERGE (s:Source {name: $source})
 
     FOREACH (_ IN CASE WHEN it IS NOT NULL THEN [1] ELSE [] END |
         CREATE (m)-[:HAS_INCIPIT_TITLE]->(it)
@@ -500,7 +500,6 @@ RETURN m.id as manifestation_id, {Queries.manifestation_fragment('m')} as metada
         CREATE (m)-[:HAS_TYPE]->(mt)
     )
     FOREACH (_ IN CASE WHEN s IS NOT NULL THEN [1] ELSE [] END |
-        MERGE (s:Source {name: $source})
         CREATE (m)-[:HAS_SOURCE]->(s)
     )
 """,
