@@ -150,6 +150,210 @@ paths:
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/ServerError'
+    put:
+      summary: Update an existing instance
+      description: >-
+        Update an existing instance (manifestation) with new metadata, content, and annotations.
+        This operation replaces all existing annotations and content for the manifestation.
+        All old annotations (segmentation, pagination, bibliography, etc.) will be deleted and replaced with the new ones provided.
+      tags:
+        - Instances
+      parameters:
+        - name: instance_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the instance to update
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - metadata
+                - content
+              properties:
+                metadata:
+                  type: object
+                  required:
+                    - type
+                    - source
+                  properties:
+                    type:
+                      type: string
+                      enum: [diplomatic, critical]
+                      description: Type of manifestation
+                    source:
+                      type: string
+                      nullable: true
+                      description: Source identifier for the manifestation
+                    bdrc:
+                      type: string
+                      description: BDRC identifier
+                    wiki:
+                      type: string
+                      description: Wiki identifier
+                    colophon:
+                      type: string
+                      description: Colophon text
+                    incipit_title:
+                      type: object
+                      additionalProperties:
+                        type: string
+                      description: Localized incipit title
+                    alt_incipit_titles:
+                      type: array
+                      items:
+                        type: object
+                        additionalProperties:
+                          type: string
+                      description: Alternative localized incipit titles
+                annotation:
+                  type: array
+                  items:
+                    oneOf:
+                      - type: object
+                        required: [span]
+                        properties:
+                          span:
+                            type: object
+                            required: [start, end]
+                            properties:
+                              start:
+                                type: integer
+                                minimum: 0
+                                description: Start character position (inclusive)
+                              end:
+                                type: integer
+                                minimum: 1
+                                description: End character position (exclusive)
+                        description: Segmentation annotation (for CRITICAL manifestations)
+                      - type: object
+                        required: [span, reference]
+                        properties:
+                          span:
+                            type: object
+                            required: [start, end]
+                            properties:
+                              start:
+                                type: integer
+                                minimum: 0
+                                description: Start character position (inclusive)
+                              end:
+                                type: integer
+                                minimum: 1
+                                description: End character position (exclusive)
+                          reference:
+                            type: string
+                            description: Page/folio reference for the span
+                        description: Pagination annotation (for DIPLOMATIC manifestations)
+                  description: Segmentation or pagination annotation segments
+                biblography_annotation:
+                  type: array
+                  items:
+                    type: object
+                    required: [span, type]
+                    properties:
+                      span:
+                        type: object
+                        required: [start, end]
+                        properties:
+                          start:
+                            type: integer
+                            minimum: 0
+                            description: Start character position (inclusive)
+                          end:
+                            type: integer
+                            minimum: 1
+                            description: End character position (exclusive)
+                      type:
+                        type: string
+                        enum: [colophon, title, incipit_title, author]
+                        description: Type of bibliography annotation
+                  description: Bibliography annotation segments with bibliography type
+                content:
+                  type: string
+                  description: The updated text content
+            examples:
+              update_critical_instance:
+                summary: Update a critical instance with new segmentation
+                value:
+                  metadata:
+                    type: "critical"
+                    source: "updated-source"
+                    colophon: "Updated colophon text"
+                    incipit_title:
+                      en: "Updated Opening words"
+                      bo: "དབུ་ཚིག་གསར་བ།"
+                  annotation:
+                    - span:
+                        start: 0
+                        end: 15
+                    - span:
+                        start: 15
+                        end: 30
+                  content: "This is the updated text content"
+              update_diplomatic_instance:
+                summary: Update a diplomatic instance with pagination
+                value:
+                  metadata:
+                    type: "diplomatic"
+                    source: "updated-source"
+                    bdrc: "W123456"
+                    colophon: "Updated colophon"
+                  annotation:
+                    - span:
+                        start: 0
+                        end: 10
+                      reference: "https://example.com/updated-image1.png"
+                    - span:
+                        start: 10
+                        end: 20
+                      reference: "https://example.com/updated-image2.png"
+                  content: "Updated text content for diplomatic instance"
+              update_with_bibliography:
+                summary: Update instance with bibliography annotation
+                value:
+                  metadata:
+                    type: "critical"
+                    source: "source-name"
+                  annotation:
+                    - span:
+                        start: 0
+                        end: 50
+                  biblography_annotation:
+                    - span:
+                        start: 0
+                        end: 20
+                      type: "title"
+                    - span:
+                        start: 21
+                        end: 35
+                      type: "author"
+                  content: "Updated content with bibliography information"
+      responses:
+        "200":
+          description: Instance updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Manifestation updated successfully"
+                  id:
+                    type: string
+                    description: The ID of the updated manifestation
+                    example: "I12345678"
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/ServerError'
   /v2/instances/{instance_id}/related:
     get:
       summary: Find related instances

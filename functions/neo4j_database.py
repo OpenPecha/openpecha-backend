@@ -214,7 +214,133 @@ class Neo4JDatabase:
             d = record.data()
             return self._process_manifestation_data(d["manifestation"]), d["expression_id"]
 
-    # ExppressionDatabase
+    def update_manifestation(
+        self,
+        manifestation_id: str,
+        manifestation: ManifestationModelInput,
+        annotation: AnnotationModel = None,
+        annotation_segments: list[dict] = None,
+        bibliography_annotation: AnnotationModel = None,
+        bibliography_segments: list[dict] = None,
+    ) -> list[str]:
+        """
+        Update a manifestation by cleaning up old related nodes and creating new ones.
+
+        This method:
+        1. Validates manifestation exists
+        2. Deletes all annotations and retrieves segment IDs
+        3. Cleans up old contributions, incipit titles, and type relationships
+        4. Updates manifestation properties
+        5. Creates new annotations and segments as provided
+
+        Args:
+            manifestation_id: ID of the manifestation to update
+            manifestation: New manifestation metadata
+            annotation: New annotation (typically segmentation)
+            annotation_segments: Segments for the new annotation
+            bibliography_annotation: New bibliography annotation
+            bibliography_segments: Segments for bibliography annotation
+        """
+        # 1. First delete all annotations and get segment IDs (if needed for future use)
+        def transaction_function(tx):
+            # 2. Clean up old related nodes (contributions, incipit titles, type relationships)
+            # Note: Annotations are already deleted above
+
+            record = tx.run(
+                Queries.manifestations["get_annotation_segment_ids"],
+                manifestation_id=manifestation_id,
+            ).single()
+
+            if record:
+                search_seg_ids = [
+                    sid for sid in (record["search_segmentation_ids"] or []) if sid is not None
+                ]
+                seg_ids = [
+                    sid for sid in (record["segmentation_ids"] or []) if sid is not None
+                ]
+            else:
+                search_seg_ids = []
+                seg_ids = []
+
+            segment_ids = search_seg_ids + seg_ids
+
+            logger.info(
+                "Found segments for manifestation %s. search_segmentation_ids=%s, segmentation_ids=%s",
+                manifestation_id,
+                search_seg_ids,
+                seg_ids,
+            )
+
+            delete_query_keys = [
+                "delete_segmentation_and_pagination",
+                "delete_search_segmentation",
+                "delete_bibliography_annotations",
+                "delete_toc_annotations",
+                "delete_durchen_annotations",
+                "delete_alignment_annotations",
+            ]
+
+            for key in delete_query_keys:
+                tx.run(
+                    Queries.manifestations[key],
+                    manifestation_id=manifestation_id,
+                )
+
+            logger.info(
+                "Deleted all annotations for manifestation %s using %d delete queries",
+                manifestation_id,
+                len(delete_query_keys),
+            )
+
+            tx.run(
+                Queries.manifestations["cleanup_for_update"],
+                manifestation_id=manifestation_id,
+            )
+            incipit_element_id = None
+            if manifestation.incipit_title:
+                alt_incipit_data = (
+                    [alt.root for alt in manifestation.alt_incipit_titles]
+                    if manifestation.alt_incipit_titles
+                    else None
+                )
+                incipit_element_id = self._create_nomens(
+                    tx,
+                    manifestation.incipit_title.root,
+                    alt_incipit_data,
+                )
+            
+            tx.run(
+                Queries.manifestations["update_properties"],
+                manifestation_id=manifestation_id,
+                bdrc=manifestation.bdrc,
+                wiki=manifestation.wiki,
+                colophon=manifestation.colophon,
+                type=manifestation.type.value if manifestation.type else None,
+                source=manifestation.source,
+                incipit_element_id=incipit_element_id,
+            )
+
+            # 5. Create new annotations and segments
+            if annotation:
+                self._execute_add_annotation(tx, manifestation_id, annotation)
+                self._create_segments(tx, annotation.id, annotation_segments)
+                if annotation.type == AnnotationType.PAGINATION:
+                    self._create_and_link_references(tx, annotation_segments)
+                elif annotation.type == AnnotationType.DURCHEN:
+                    self._create_durchen_note(tx, annotation_segments)
+
+            # Add bibliography annotation
+            if bibliography_annotation:
+                self._execute_add_annotation(tx, manifestation_id, bibliography_annotation)
+                self._create_segments(tx, bibliography_annotation.id, bibliography_segments)
+                if bibliography_segments:
+                    self._link_segment_and_bibliography_type(tx, bibliography_segments)
+
+            return segment_ids
+
+        with self.get_session() as session:
+            return session.execute_write(transaction_function)
+
     def get_expression_id_by_manifestation_id(self, manifestation_id: str) -> str:
         """Get expression ID for a single manifestation ID. Returns None if not found."""
         result = self.get_expression_ids_by_manifestation_ids([manifestation_id])
@@ -686,8 +812,6 @@ class Neo4JDatabase:
                 if annotation_segments:
                     if "reference" in annotation_segments[0]:
                         self._create_and_link_references(tx, annotation_segments)
-                    if "type" in annotation_segments[0]:
-                        self._link_segment_and_bibliography_type(tx, annotation_segments)
 
             # Add bibliography annotation in the same transaction
             if bibliography_annotation:
@@ -890,13 +1014,13 @@ class Neo4JDatabase:
                     person_name_dict = self.__convert_to_localized_text(person_name_list)
                     if person_name_dict:
                         person_name = LocalizedString(person_name_dict)
-                
+
                 out.append(
                     ContributionModelOutput(
                         person_id=c.get("person_id"),
                         person_bdrc_id=c.get("person_bdrc_id"),
                         role=c["role"],
-                        person_name=person_name
+                        person_name=person_name,
                     )
                 )
         return out
