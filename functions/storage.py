@@ -89,7 +89,7 @@ class Storage:
 
         if not blob.exists():
             raise FileNotFoundError(f"File not found in storage: {storage_path}")
-
+        logger.info("Retrieving file from storage")
         file_data = blob.download_as_bytes()
         logger.info("Retrieved from storage: %s, size: %s", storage_path, len(file_data))
         return file_data
