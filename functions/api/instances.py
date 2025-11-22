@@ -4,6 +4,7 @@ import threading
 import requests
 from api.annotations import _alignment_annotation_mapping
 from api.relation import _get_relation_for_an_expression
+from database import Database
 from exceptions import InvalidRequest
 from flask import Blueprint, Response, jsonify, request
 from identifier import generate_id
@@ -62,7 +63,7 @@ def get_instance(manifestation_id: str):
     logger.info("Annotation parameter %s", annotation_param)
 
     logger.info("Getting manifestation detail and expression id from Neo4J Database")
-    manifestation, expression_id = Neo4JDatabase().get_manifestation(manifestation_id=manifestation_id)
+    manifestation, expression_id = Database().manifestation.get(manifestation_id=manifestation_id)
 
     logger.info("Retrieving base text from storage")
     base_text = None
@@ -77,9 +78,7 @@ def get_instance(manifestation_id: str):
         "wiki": manifestation.wiki,
         "colophon": manifestation.colophon,
         "incipit_title": manifestation.incipit_title.model_dump() if manifestation.incipit_title else None,
-        "alt_incipit_titles": (
-            [alt.model_dump() for alt in manifestation.alt_incipit_titles] if manifestation.alt_incipit_titles else None
-        ),
+        "alt_incipit_titles": [alt.model_dump() for alt in (manifestation.alt_incipit_titles or [])] or None,
     }
 
     annotations = None
@@ -243,8 +242,8 @@ def _create_aligned_text(
 def get_segments_relation_by_manifestation(manifestation_id: str):
 
     logger.info("Getting segmentation annotation and it's segments by manifestation")
-    db = Neo4JDatabase()
-    segments = db.get_segmentation_annotation_by_manifestation(manifestation_id=manifestation_id)
+    db = Database()
+    segments = db.annotation.get_segmentation_by_manifestation(manifestation_id=manifestation_id)
     logger.info("Fetched segmentation annotation with it's segments nodes")
     response = {"instance_id": manifestation_id, "segments_relations": []}
 
@@ -259,7 +258,7 @@ def get_segments_relation_by_manifestation(manifestation_id: str):
             "Getting related segments for segment id: %s with span_start: %s, span_end: %s", segment["id"], start, end
         )
 
-        related_segments = db._get_related_segments(
+        related_segments = db.segment.get_related(
             manifestation_id=manifestation_id, start=start, end=end, transform=True
         )
 
@@ -358,26 +357,24 @@ def _validate_segment_related_request(
 def get_segment_related(manifestation_id: str) -> tuple[Response, int]:
     # Parse transformed parameter (boolean)
     transform = request.args.get("transform")
-    if transform == "true":
-        transform = True
-    else:
-        transform = False
-    db = Neo4JDatabase()
+    transform = bool(transform)
+
+    db = Database()
     span, error_response = _validate_segment_related_request(db, manifestation_id)
     if error_response:
         return error_response
 
-    related_segments = db._get_related_segments(manifestation_id, span.start, span.end, transform)
+    related_segments = db.segment.get_related(manifestation_id, span.start, span.end, transform)
     manifestation_ids = [segment["manifestation_id"] for segment in related_segments]
     manifestation_ids.append(manifestation_id)
 
     # Get expression_id mapping for all manifestation_ids
-    expression_map = db.get_expression_ids_by_manifestation_ids(manifestation_ids)
+    expression_map = db.expression.get_ids_by_manifestations(manifestation_ids)
 
     expression_ids = [expression_map.get(manifestation_id) for manifestation_id in manifestation_ids]
 
-    manifestations_metadata = db.get_manifestations_metadata_by_ids(manifestation_ids)
-    expression_metadata = db.get_expressions_metadata_by_ids(expression_ids)
+    manifestations = db.manifestation.get_by_ids(manifestation_ids)
+    expressions = db.expression.get(expression_ids)
 
     relations = _get_relation_for_an_expression(expression_id=expression_map[manifestation_id])
     relations_look_up = {
@@ -389,22 +386,20 @@ def get_segment_related(manifestation_id: str) -> tuple[Response, int]:
     for related_segment in related_segments:
         manifestation_id = related_segment.get("manifestation_id")
         del related_segment["manifestation_id"]
-        related_segment["instance_metadata"] = manifestations_metadata.get(manifestation_id)
 
-        _delete_unwanted_fields(
-            dictionary=related_segment["instance_metadata"],
-            unwanted_fields=["annotations", "alignment_sources", "alignment_targets"],
+        manifestation_model = manifestations.get(manifestation_id)
+        related_segment["instance_metadata"] = (
+            manifestation_model.model_dump(exclude={"annotations", "alignment_sources", "alignment_targets"})
+            if manifestation_model
+            else None
         )
 
-        related_segment["text_metadata"] = expression_metadata.get(expression_map.get(manifestation_id))
-        related_segment["relation"] = relations_look_up.get(expression_map.get(manifestation_id)).lower()
+        expression_id = expression_map.get(manifestation_id)
+        expression_model = expressions.get(expression_id) if expression_id else None
+        related_segment["text_metadata"] = expression_model.model_dump() if expression_model else None
+        related_segment["relation"] = relations_look_up.get(expression_id).lower() if expression_id else None
 
     return jsonify(related_segments), 200
-
-
-def _delete_unwanted_fields(dictionary: dict, unwanted_fields: list[str]) -> None:
-    for field in unwanted_fields:
-        del dictionary[field]
 
 
 @instances_bp.route("/<string:manifestation_id>/related", methods=["GET"], strict_slashes=False)

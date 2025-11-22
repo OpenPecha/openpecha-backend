@@ -44,27 +44,18 @@ def get_all_texts() -> tuple[Response, int]:
     return jsonify(response_data), 200
 
 
-@texts_bp.route("/<string:texts_id>/group", methods=["GET"], strict_slashes=False)
-def get_texts_group(texts_id: str) -> tuple[Response, int]:
-    logger.info("Getting texts group for texts ID: %s", texts_id)
-    db = Neo4JDatabase()
-    texts_group = db.get_texts_group(texts_id=texts_id)
-    response_data = {"texts": [expr.model_dump() for expr in texts_group["texts"]]}
-    return jsonify(response_data), 200
-
-
 @texts_bp.route("/<string:expression_id>", methods=["GET"], strict_slashes=False)
 def get_texts(expression_id: str) -> tuple[Response, int]:
-    db = Neo4JDatabase()
+    db = Database()
 
     # Try to get expression by ID first
     try:
-        expression = db.get_expression(expression_id=expression_id)
+        expression = db.expression.get(expression_id=expression_id)
         return jsonify(expression.model_dump()), 200
     except DataNotFound:
         # If not found by ID, try to get by BDRC ID
         try:
-            expression = db.get_expression_by_bdrc(bdrc_id=expression_id)
+            expression = db.expression.get_by_bdrc(bdrc_id=expression_id)
             return jsonify(expression.model_dump()), 200
         except DataNotFound as exc:
             # If both fail, return not found
@@ -83,12 +74,12 @@ def post_texts() -> tuple[Response, int]:
 
     logger.info("Successfully parsed expression: %s", expression.model_dump_json())
 
-    db = Neo4JDatabase()
+    db = Database()
 
     # First check if expression with same BDRC ID already exists
     if expression.bdrc:
         try:
-            existing_expression = db.get_expression_by_bdrc(expression.bdrc)
+            existing_expression = db.expression.get_by_bdrc(expression.bdrc)
             logger.info("Expression with BDRC ID %s already exists: %s", expression.bdrc, existing_expression.id)
             return (
                 jsonify({"message": "Expression with this BDRC ID already exists", "id": existing_expression.id}),
@@ -99,7 +90,7 @@ def post_texts() -> tuple[Response, int]:
             logger.info("No existing expression found with BDRC ID %s, creating new expression", expression.bdrc)
 
     # Create new expression
-    expression_id = db.create_expression(expression)
+    expression_id = db.expression.create(expression)
     logger.info("Successfully created expression with ID: %s", expression_id)
     return jsonify({"message": "Text created successfully", "id": expression_id}), 201
 

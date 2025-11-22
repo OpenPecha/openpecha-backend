@@ -1,6 +1,7 @@
 import logging
 
 import requests
+from database import Database
 from exceptions import DataNotFound, InvalidRequest
 from flask import Blueprint, Response, jsonify, request
 from models import SearchFilterModel, SearchRequestModel, SearchResponseModel, SearchResultModel
@@ -16,9 +17,9 @@ SEARCH_API_URL = "https://openpecha-search.onrender.com"
 
 @segments_bp.route("/<string:segment_id>/related", methods=["GET"], strict_slashes=False)
 def get_related_texts_by_segment(segment_id: str) -> tuple[Response, int]:
-    db = Neo4JDatabase()
+    db = Database()
 
-    aligned = db.find_aligned_segments(segment_id)
+    aligned = db.segment.get_aligned(segment_id)
 
     targets_map = {}
     sources_map = {}
@@ -32,10 +33,10 @@ def get_related_texts_by_segment(segment_id: str) -> tuple[Response, int]:
     def build_related_texts(manifestations_map):
         result = []
         for related_manifestation_id, segments in manifestations_map.items():
-            manifestation, expression_id = db.get_manifestation(related_manifestation_id)
+            manifestation, expression_id = db.manifestation.get(related_manifestation_id)
             result.append(
                 {
-                    "text": db.get_expression(expression_id).model_dump(),
+                    "text": db.expression.get(expression_id).model_dump(),
                     "instance": manifestation.model_dump(),
                     "segments": [
                         {"id": segment.id, "span": {"start": segment.span[0], "end": segment.span[1]}}

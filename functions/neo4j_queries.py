@@ -194,10 +194,10 @@ Queries.expressions = {
       ] AS relations
     ORDER BY id
 """,
-    "get_expressions_metadata_by_ids": f"""
+    "get_expressions_by_ids": f"""
 MATCH (e:Expression)
 WHERE e.id IN $expression_ids
-RETURN e.id as expression_id, {Queries.expression_fragment('e')} as metadata
+RETURN e.id as expression_id, {Queries.expression_fragment('e')} as expression
 """,
     "fetch_by_category": f"""
     MATCH (c:Category {{id: $category_id}})
@@ -297,13 +297,6 @@ MERGE (e)-[:HAS_LANGUAGE {{bcp47: $bcp47_tag}}]->(l)
 MERGE (e)-[:HAS_TITLE]->(n)
 {Queries.create_copyright_and_license('e')}
 RETURN e.id as expression_id
-""",
-    "get_texts_group": f"""
-MATCH (e1:Expression {{id: $expression_id}})
-MATCH (e1)-[:EXPRESSION_OF]->(w:Work)
-MATCH (w)<-[:EXPRESSION_OF]-(e:Expression)
-WHERE e.id <> e1.id
-RETURN {Queries.expression_fragment('e')} AS expression
 """,
     "get_work_ids_by_expression_ids": """
 MATCH (e:Expression)-[:EXPRESSION_OF]->(w:Work)
@@ -445,10 +438,10 @@ MATCH (m:Manifestation)-[:MANIFESTATION_OF]->(e:Expression)
 WHERE m.id IN $manifestation_ids
 RETURN m.id as manifestation_id, e.id as expression_id
 """,
-    "get_manifestations_metadata_by_ids": f"""
+    "get_manifestations_by_ids": f"""
 MATCH (m:Manifestation)
 WHERE m.id IN $manifestation_ids
-RETURN m.id as manifestation_id, {Queries.manifestation_fragment('m')} as metadata
+RETURN {Queries.manifestation_fragment('m')} as manifestation
 """,
 }
 

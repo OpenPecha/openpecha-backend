@@ -62,6 +62,23 @@ class ManifestationDatabase:
             d = record.data()
             return DataAdapter.mainfestation(d["manifestation"]), d["expression_id"]
 
+    def get_by_ids(self, manifestation_ids: list[str]) -> dict[str, ManifestationModelOutput]:
+        if not manifestation_ids:
+            return {}
+
+        with self.session as session:
+            result = session.execute_read(
+                lambda tx: list(
+                    tx.run(
+                        Queries.manifestations["get_manifestations_by_ids"],
+                        manifestation_ids=manifestation_ids,
+                    )
+                )
+            )
+            return {
+                record["manifestation"]["id"]: DataAdapter.mainfestation(record["manifestation"]) for record in result
+            }
+
     def get_id_by_annotation(self, annotation_id: str) -> str:
         with self.session as session:
             record = session.execute_read(

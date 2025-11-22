@@ -35,6 +35,18 @@ class ExpressionDatabase:
 
             return DataAdapter.expression(data=record.data()["expression"])
 
+    def get_by_ids(self, expression_ids: list[str]) -> dict[str, ExpressionModelOutput]:
+        if not expression_ids:
+            return {}
+
+        with self.session as session:
+            result = session.execute_read(
+                lambda tx: list(tx.run(Queries.expressions["get_expressions_by_ids"], expression_ids=expression_ids))
+            )
+            return {
+                record["expression_id"]: DataAdapter.expression(data=record.data()["expression"]) for record in result
+            }
+
     def get_id_by_manifestation(self, manifestation_id: str) -> str:
         result = self.get_ids_by_manifestations([manifestation_id])
         return result.get(manifestation_id)

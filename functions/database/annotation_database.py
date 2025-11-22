@@ -65,6 +65,33 @@ class AnnotationDatabase:
 
             return response
 
+    def get_segmentation_by_manifestation(self, manifestation_id: str) -> list[dict]:
+        """
+        Get segments from the segmentation/pagination annotation for a given manifestation.
+        Since there's always one segmentation annotation, returns only the segments array.
+        Includes both 'segmentation' (for critical) and 'pagination' (for diplomatic) types.
+
+        Args:
+            manifestation_id: The ID of the manifestation
+
+        Returns:
+            List of segment dictionaries, each containing: id, span (with start and end)
+        """
+        with self.session as session:
+            result = session.run(
+                Queries.annotations["get_segmentation_annotation_by_manifestation"],
+                manifestation_id=manifestation_id,
+            ).single()
+
+            if not result:
+                return []
+
+            return [
+                {"id": seg["id"], "span": {"start": seg["span_start"], "end": seg["span_end"]}}
+                for seg in result["segments"]
+                if seg.get("id")
+            ]
+
     @staticmethod
     def create_with_transaction(tx, manifestation_id: str, annotation: AnnotationModel) -> str:
         logger.info("Aligned_to_id: %s", annotation.aligned_to)

@@ -16,7 +16,6 @@ from models import (
     ExpressionModelOutput,
     LicenseType,
     LocalizedString,
-    ManifestationModelBase,
     ManifestationModelInput,
     ManifestationModelOutput,
     ManifestationType,
@@ -60,26 +59,6 @@ class Neo4JDatabase:
         """Private method to close the Neo4j driver"""
         if self.__driver:
             self.__driver.close()
-
-    # ExpressionDatabase
-    def get_expression(self, expression_id: str) -> ExpressionModelOutput:
-        with self.get_session() as session:
-            result = session.run(Queries.expressions["fetch_by_id"], id=expression_id)
-
-            if (record := result.single()) is None:
-                raise DataNotFound(f"Expression with ID '{expression_id}' not found")
-
-            return self._process_expression_data(record.data()["expression"])
-
-    # ExpressionDatabase
-    def get_expression_by_bdrc(self, bdrc_id: str) -> ExpressionModelOutput:
-        with self.get_session() as session:
-            result = session.run(Queries.expressions["fetch_by_bdrc"], bdrc_id=bdrc_id)
-
-            if (record := result.single()) is None:
-                raise DataNotFound(f"Expression with BDRC ID '{bdrc_id}' not found")
-
-            return self._process_expression_data(record.data()["expression"])
 
     def get_all_expression_relations(self) -> dict:
         with self.get_session() as session:
@@ -149,20 +128,6 @@ class Neo4JDatabase:
             license=LicenseType(expression_data.get("license") or LicenseType.PUBLIC_DOMAIN_MARK.value),
         )
 
-    def process_manifestation_metadata(self, manifestation_data: dict) -> ManifestationModelBase:
-        return ManifestationModelBase(
-            id=manifestation_data.get("id"),
-            bdrc=manifestation_data.get("bdrc"),
-            wiki=manifestation_data.get("wiki"),
-            type=ManifestationType(manifestation_data["type"]),
-            source=manifestation_data.get("source"),
-            colophon=manifestation_data.get("colophon"),
-            incipit_title=self.__convert_to_localized_text(manifestation_data.get("incipit_title")),
-            alt_incipit_titles=[
-                self.__convert_to_localized_text(alt) for alt in manifestation_data.get("alt_incipit_titles", [])
-            ],
-        )
-
     # ManifestationDatabase
     def get_manifestation(self, manifestation_id: str) -> tuple[ManifestationModelOutput, str]:
         with self.get_session() as session:
@@ -209,6 +174,7 @@ class Neo4JDatabase:
             d = record.data()
             return d["manifestation_id"]
 
+    # AnnotationDatabase
     def get_segmentation_annotation_by_manifestation(self, manifestation_id: str) -> list[dict]:
         """
         Get segments from the segmentation/pagination annotation for a given manifestation.
@@ -282,30 +248,6 @@ class Neo4JDatabase:
                 )
             )
             return {record["expression_id"]: record["work_id"] for record in result}
-
-    def get_manifestations_metadata_by_ids(self, manifestation_ids: list[str]) -> dict[str, dict]:
-        """
-        Get metadata for a list of manifestation IDs.
-
-        Args:
-            manifestation_ids: List of manifestation IDs
-
-        Returns:
-            Dictionary mapping manifestation_id to metadata dictionary
-        """
-        if not manifestation_ids:
-            return {}
-
-        with self.get_session() as session:
-            result = session.execute_read(
-                lambda tx: list(
-                    tx.run(
-                        Queries.manifestations["get_manifestations_metadata_by_ids"],
-                        manifestation_ids=manifestation_ids,
-                    )
-                )
-            )
-            return {record["manifestation_id"]: record["metadata"] for record in result}
 
     def get_expressions_metadata_by_ids(self, expression_ids: list[str]) -> dict[str, dict]:
         """
@@ -429,27 +371,7 @@ class Neo4JDatabase:
 
             return related_instances
 
-    def find_segments_by_span(self, manifestation_id: str, span: SpanModel) -> list[SegmentModel]:
-        with self.get_session() as session:
-            result = session.execute_read(
-                lambda tx: list(
-                    tx.run(
-                        Queries.segments["find_by_span"],
-                        manifestation_id=manifestation_id,
-                        span_start=span.start,
-                        span_end=span.end,
-                    )
-                )
-            )
-
-            return [
-                SegmentModel(
-                    id=record["segment_id"],
-                    span=SpanModel(start=record["span_start"], end=record["span_end"]),
-                )
-                for record in result
-            ]
-
+    # SegmentDatabase
     def find_aligned_segments(self, segment_id: str) -> dict[str, dict[str, list[SegmentModel]]]:
         """
         Find all segments aligned to a given segment, separated by direction.
@@ -511,72 +433,6 @@ class Neo4JDatabase:
                 id=data["segment_id"], span=SpanModel(start=data["span_start"], end=data["span_end"])
             )
             return segment, data["manifestation_id"], data["expression_id"]
-
-    def get_segment_related(
-        self, manifestation_id: str, span_start: int, span_end: int, transform: bool = False
-    ) -> list[dict]:
-        """
-        Get related manifestations via alignment layer.
-        """
-        query_name = "find_related_with_transfer" if transform else "find_related_alignment_only"
-        layer_description = "with transfer to segmentation layer" if transform else "via alignment layer"
-        segment_type = "segmentation" if transform else "alignment"
-
-        logger.info(
-            "Finding related manifestations %s for manifestation '%s', span=[%d, %d)",
-            layer_description,
-            manifestation_id,
-            span_start,
-            span_end,
-        )
-
-        with self.get_session() as session:
-            result = session.execute_read(
-                lambda tx: list(
-                    tx.run(
-                        Queries.segments[query_name],
-                        manifestation_id=manifestation_id,
-                        span_start=span_start,
-                        span_end=span_end,
-                    )
-                )
-            )
-
-            logger.info("Query returned %d related manifestation(s)", len(result))
-
-            related = []
-            for record in result:
-                data = record.data()
-                # Get full manifestation and expression details
-                manifestation_model, _ = self.get_manifestation(data["manifestation_id"])
-                expression_model = self.get_expression(data["expression_id"])
-
-                logger.info(
-                    "Processing manifestation '%s' with %d %s segment(s)",
-                    data["manifestation_id"],
-                    len(data["segments"]),
-                    segment_type,
-                )
-
-                # Convert to dict and remove unwanted fields
-                instance_dict = manifestation_model.model_dump()
-                instance_dict.pop("annotations", None)
-                instance_dict.pop("alignment_sources", None)
-                instance_dict.pop("alignment_targets", None)
-
-                related.append(
-                    {
-                        "text": expression_model.model_dump(),
-                        "instance": instance_dict,
-                        "segments": [
-                            {"id": seg["id"], "span": {"start": seg["span_start"], "end": seg["span_end"]}}
-                            for seg in data["segments"]
-                        ],
-                    }
-                )
-
-            logger.info("Successfully built %d related manifestation response(s)", len(related))
-            return related
 
     def get_all_persons(self, offset: int = 0, limit: int = 20) -> list[PersonModelOutput]:
         params = {
@@ -1144,100 +1000,6 @@ class Neo4JDatabase:
     def _create_durchen_note(self, tx, segments: list[dict]) -> None:
         tx.run(Queries.durchen_notes["create"], segments=segments)
 
-    # AnnotationDatabase
-    def get_annotation(self, annotation_id: str) -> dict:
-        """Get all segments for an annotation. Returns uniform structure with all possible keys."""
-        with self.get_session() as session:
-            # Get annotation type
-            annotation_result = session.run(Queries.annotations["get_annotation_type"], annotation_id=annotation_id)
-            annotation_record = annotation_result.single()
-
-            if not annotation_record:
-                raise DataNotFound(f"Annotation with ID '{annotation_id}' not found")
-
-            annotation_type = annotation_record["annotation_type"]
-
-            # Initialize uniform response structure
-            response = {"id": annotation_id, "type": annotation_type, "data": None}
-
-            # Get aligned annotation ID if it exists
-            aligned_to_id = None
-            if annotation_type == "alignment":
-                aligned_result = session.run(
-                    Queries.annotations["get_aligned_annotation"],
-                    annotation_id=annotation_id,
-                )
-                aligned_record = aligned_result.single()
-                if aligned_record:
-                    aligned_to_id = aligned_record["aligned_to_id"]
-
-            if annotation_type == "alignment" and aligned_to_id:
-                # For alignment annotations, return both source and target segments
-                source_segments = self._get_annotation_segments(annotation_id)
-                target_segments = self._get_annotation_segments(aligned_to_id)
-
-                response["data"] = {"alignment_annotation": source_segments, "target_annotation": target_segments}
-            elif annotation_type == "table_of_contents":
-                # For table of contents annotations, return sections
-                sections = self._get_annotation_sections(annotation_id)
-                response["data"] = sections
-
-            elif annotation_type == "durchen":
-                durchen_notes = self._get_durchen_annotation(annotation_id)
-                response["data"] = durchen_notes
-
-            else:
-                # For segmentation and pagination annotations, return segments
-                segments_result = self._get_annotation_segments(annotation_id)
-                response["data"] = segments_result
-
-            return response
-
-    # AnnotationDatabase
-    def _get_durchen_annotation(self, annotation_id: str) -> list[dict]:
-        """Helper method to get durchen annotation for a specific annotation."""
-        with self.get_session() as session:
-            result = session.run(Queries.annotations["get_durchen_annotation"], annotation_id=annotation_id)
-            durchen_annotation = []
-            for record in result:
-                durchen_annotation.append(
-                    {
-                        "id": record["id"],
-                        "span": {"start": record["span_start"], "end": record["span_end"]},
-                        "note": record["note"],
-                    }
-                )
-            return durchen_annotation
-
-    # AnnotationDatabase
-    def _get_annotation_sections(self, annotation_id: str) -> list[dict]:
-        """Helper method to get sections for a specific annotation."""
-        with self.get_session() as session:
-            result = session.run(Queries.annotations["get_sections"], annotation_id=annotation_id)
-            sections = []
-            for record in result:
-                section = {"id": record["id"], "title": record["title"], "segments": record["segments"]}
-                sections.append(section)
-        return sections
-
-    # AnnotationDatabase
-    def _get_annotation_segments(self, annotation_id: str) -> list[dict]:
-        """Helper method to get segments for a specific annotation."""
-        with self.get_session() as session:
-            result = session.run(Queries.annotations["get_segments"], annotation_id=annotation_id)
-            segments = []
-            for record in result:
-                segment = {"id": record["id"], "span": {"start": record["start"], "end": record["end"]}}
-                if record["reference"]:
-                    segment["reference"] = record["reference"]
-                if record["bibliography_type"]:
-                    segment["type"] = record["bibliography_type"]
-                if record["aligned_segments"]:
-                    segment["aligned_segments"] = record["aligned_segments"]
-                segments.append(segment)
-
-        return segments
-
     def get_annotation_type(self, annotation_id: str) -> str | None:
         """
         Get the annotation type for a given annotation ID.
@@ -1534,11 +1296,3 @@ class Neo4JDatabase:
             return transformed_related_segments
         else:
             return untransformed_related_segments
-
-    def get_texts_group(self, texts_id: str) -> dict:
-        with self.get_session() as session:
-            result = session.execute_read(
-                lambda tx: tx.run(Queries.expressions["get_texts_group"], expression_id=texts_id).data()
-            )
-        expressions = [self._process_expression_data(record["expression"]) for record in result]
-        return {"texts": expressions}
