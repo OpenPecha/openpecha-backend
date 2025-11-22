@@ -245,24 +245,70 @@ class Neo4JDatabase:
         def transaction_function(tx):
             # 2. Clean up old related nodes (contributions, incipit titles, type relationships)
             # Note: Annotations are already deleted above
-            segment_ids = tx.run(Queries.manifestations["get_annotation_segments_and_delete_all"], manifestation_id=manifestation_id).single()
-            search_seg_ids = [sid for sid in segment_ids["search_segmentation_ids"] if sid is not None]
-            seg_ids = [sid for sid in segment_ids["segmentation_ids"] if sid is not None]
+
+            record = tx.run(
+                Queries.manifestations["get_annotation_segment_ids"],
+                manifestation_id=manifestation_id,
+            ).single()
+
+            if record:
+                search_seg_ids = [
+                    sid for sid in (record["search_segmentation_ids"] or []) if sid is not None
+                ]
+                seg_ids = [
+                    sid for sid in (record["segmentation_ids"] or []) if sid is not None
+                ]
+            else:
+                search_seg_ids = []
+                seg_ids = []
+
             segment_ids = search_seg_ids + seg_ids
-            
-            logger.info("Deleted all annotations for manifestation %s. Segment IDs: %s", manifestation_id, segment_ids)
 
-            tx.run(Queries.manifestations["cleanup_for_update"], manifestation_id=manifestation_id)
+            logger.info(
+                "Found segments for manifestation %s. search_segmentation_ids=%s, segmentation_ids=%s",
+                manifestation_id,
+                search_seg_ids,
+                seg_ids,
+            )
 
-            # 3. Update manifestation properties
+            delete_query_keys = [
+                "delete_segmentation_and_pagination",
+                "delete_search_segmentation",
+                "delete_bibliography_annotations",
+                "delete_toc_annotations",
+                "delete_durchen_annotations",
+                "delete_alignment_annotations",
+            ]
+
+            for key in delete_query_keys:
+                tx.run(
+                    Queries.manifestations[key],
+                    manifestation_id=manifestation_id,
+                )
+
+            logger.info(
+                "Deleted all annotations for manifestation %s using %d delete queries",
+                manifestation_id,
+                len(delete_query_keys),
+            )
+
+            tx.run(
+                Queries.manifestations["cleanup_for_update"],
+                manifestation_id=manifestation_id,
+            )
             incipit_element_id = None
             if manifestation.incipit_title:
                 alt_incipit_data = (
-                    [alt.root for alt in manifestation.alt_incipit_titles] if manifestation.alt_incipit_titles else None
+                    [alt.root for alt in manifestation.alt_incipit_titles]
+                    if manifestation.alt_incipit_titles
+                    else None
                 )
-                incipit_element_id = self._create_nomens(tx, manifestation.incipit_title.root, alt_incipit_data)
-
-            # Update manifestation node properties and relationships using query from neo4j_queries.py
+                incipit_element_id = self._create_nomens(
+                    tx,
+                    manifestation.incipit_title.root,
+                    alt_incipit_data,
+                )
+            
             tx.run(
                 Queries.manifestations["update_properties"],
                 manifestation_id=manifestation_id,
@@ -274,7 +320,7 @@ class Neo4JDatabase:
                 incipit_element_id=incipit_element_id,
             )
 
-            # 4. Create new annotations and segments
+            # 5. Create new annotations and segments
             if annotation:
                 self._execute_add_annotation(tx, manifestation_id, annotation)
                 self._create_segments(tx, annotation.id, annotation_segments)
@@ -282,21 +328,19 @@ class Neo4JDatabase:
                     self._create_and_link_references(tx, annotation_segments)
                 elif annotation.type == AnnotationType.DURCHEN:
                     self._create_durchen_note(tx, annotation_segments)
-                    
+
             # Add bibliography annotation
             if bibliography_annotation:
                 self._execute_add_annotation(tx, manifestation_id, bibliography_annotation)
                 self._create_segments(tx, bibliography_annotation.id, bibliography_segments)
                 if bibliography_segments:
                     self._link_segment_and_bibliography_type(tx, bibliography_segments)
-            
+
             return segment_ids
 
         with self.get_session() as session:
             return session.execute_write(transaction_function)
 
-
-    # ExppressionDatabase
     def get_expression_id_by_manifestation_id(self, manifestation_id: str) -> str:
         """Get expression ID for a single manifestation ID. Returns None if not found."""
         result = self.get_expression_ids_by_manifestation_ids([manifestation_id])
