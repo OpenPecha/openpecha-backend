@@ -460,8 +460,6 @@ RETURN m.id as manifestation_id, {Queries.manifestation_fragment('m')} as metada
     // 1. Find the expression to delete contributions
     OPTIONAL MATCH (m)-[:MANIFESTATION_OF]->(e:Expression)
     OPTIONAL MATCH (e)-[:HAS_CONTRIBUTION]->(contrib:Contribution)
-    OPTIONAL MATCH (contrib)-[contrib_by:BY]->(:Person|AI)
-    OPTIONAL MATCH (contrib)-[contrib_role:WITH_ROLE]->(:RoleType)
 
     // 2. Delete incipit title nomens (both primary and alternatives)
     OPTIONAL MATCH (m)-[:HAS_INCIPIT_TITLE]->(inc_nomen:Nomen)
