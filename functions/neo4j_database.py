@@ -241,14 +241,17 @@ class Neo4JDatabase:
             bibliography_annotation: New bibliography annotation
             bibliography_segments: Segments for bibliography annotation
         """
-
         # 1. First delete all annotations and get segment IDs (if needed for future use)
-        segment_ids = self.delete_all_annotations_and_get_segments(manifestation_id)
-        logger.info("Deleted all annotations for manifestation %s. Segment IDs: %s", manifestation_id, segment_ids)
-
         def transaction_function(tx):
             # 2. Clean up old related nodes (contributions, incipit titles, type relationships)
             # Note: Annotations are already deleted above
+            segment_ids = tx.run(Queries.manifestations["get_annotation_segments_and_delete_all"], manifestation_id=manifestation_id).single()
+            search_seg_ids = [sid for sid in segment_ids["search_segmentation_ids"] if sid is not None]
+            seg_ids = [sid for sid in segment_ids["segmentation_ids"] if sid is not None]
+            segment_ids = search_seg_ids + seg_ids
+            
+            logger.info("Deleted all annotations for manifestation %s. Segment IDs: %s", manifestation_id, segment_ids)
+
             tx.run(Queries.manifestations["cleanup_for_update"], manifestation_id=manifestation_id)
 
             # 3. Update manifestation properties
@@ -286,56 +289,12 @@ class Neo4JDatabase:
                 self._create_segments(tx, bibliography_annotation.id, bibliography_segments)
                 if bibliography_segments:
                     self._link_segment_and_bibliography_type(tx, bibliography_segments)
-
-        with self.get_session() as session:
-            session.execute_write(transaction_function)
-
-        return segment_ids
-
-    def delete_all_annotations_and_get_segments(self, manifestation_id: str) -> list[str]:
-        """
-        Delete all annotations of a manifestation and return combined segment IDs from
-        search_segmentation and segmentation/pagination annotations.
-
-        This method:
-        1. Retrieves segment IDs from search_segmentation annotation (if exists)
-        2. Retrieves segment IDs from segmentation/pagination annotation (if exists)
-        3. Deletes ALL annotations and their related nodes
-        4. Returns combined list of all segment IDs
-
-        Args:
-            manifestation_id: ID of the manifestation
-
-        Returns:
-            List of segment IDs from both search_segmentation and segmentation/pagination annotations
-
-        Raises:
-            DataNotFound: If manifestation doesn't exist
-        """
-        with self.get_session() as session:
-            # First check if manifestation exists
-            exists = session.execute_read(
-                lambda tx: tx.run("MATCH (m:Manifestation {id: $id}) RETURN 1", id=manifestation_id).single()
-            )
-            if not exists:
-                raise DataNotFound(f"Manifestation '{manifestation_id}' not found")
-
-            # Execute the query to get segment IDs and delete all annotations
-            result = session.execute_write(
-                lambda tx: tx.run(
-                    Queries.manifestations["get_annotation_segments_and_delete_all"], manifestation_id=manifestation_id
-                ).single()
-            )
-
-            if result is None:
-                # Manifestation exists but has no annotations
-                return []
-
-            # Filter out None values from the lists
-            search_seg_ids = [sid for sid in result["search_segmentation_ids"] if sid is not None]
-            seg_ids = [sid for sid in result["segmentation_ids"] if sid is not None]
-            segment_ids = search_seg_ids + seg_ids
+            
             return segment_ids
+
+        with self.get_session() as session:
+            return session.execute_write(transaction_function)
+
 
     # ExppressionDatabase
     def get_expression_id_by_manifestation_id(self, manifestation_id: str) -> str:

@@ -189,8 +189,6 @@ def update_instance(manifestation_id: str):
 
         return jsonify({"message": "Manifestation updated successfully", "id": manifestation_id}), 200
 
-    except DataNotFound as e:
-        return jsonify({"error": str(e)}), 404
     except Exception as e:
         logger.error("Error updating manifestation: %s", e)
         return jsonify({"error": str(e)}), 500
