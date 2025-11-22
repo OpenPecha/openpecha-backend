@@ -138,7 +138,7 @@ def update_instance(manifestation_id: str):
         storage = Storage()
 
         # Get expression_id for this manifestation
-        _, expression_id = db.get_expression_id_by_manifestation_id(manifestation_id=manifestation_id)
+        expression_id = db.get_expression_id_by_manifestation_id(manifestation_id=manifestation_id)
 
         # Prepare annotation if provided
         annotation = None
