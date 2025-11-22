@@ -59,7 +59,7 @@ def _trigger_delete_search_segments(segment_ids: list[str]) -> None:
     """
 
     def _make_request():
-        url = "https://sqs-delete-search-segments-api.onrender.com/jobs/delete"
+        url = "https://sqs-search-segmenter-api.onrender.com/jobs/delete"
         payload = {"segment_ids": segment_ids}
         response = requests.post(url, json=payload, timeout=10)
         logger.info(
