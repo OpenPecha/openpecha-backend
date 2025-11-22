@@ -104,6 +104,14 @@ class ContributionModel(OpenPechaModel):
     role: ContributorRole
 
 
+class ContributionModelInput(ContributionModel):
+    pass
+
+
+class ContributionModelOutput(ContributionModel):
+    person_name: LocalizedString
+
+
 class AnnotationModel(OpenPechaModel):
     id: str
     type: AnnotationType
@@ -189,6 +197,7 @@ class ExpressionModelBase(OpenPechaModel):
 
 
 class ExpressionModelInput(ExpressionModelBase):
+    contributions: list[ContributionModelInput | AIContributionModel]
 
     @model_validator(mode="after")
     def validate_contribution_exclusivity(self):
@@ -205,6 +214,7 @@ class ExpressionModelInput(ExpressionModelBase):
 
 class ExpressionModelOutput(ExpressionModelBase):
     id: str
+    contributions: list[ContributionModelOutput | AIContributionModel]
 
 
 class ManifestationModelBase(OpenPechaModel):
