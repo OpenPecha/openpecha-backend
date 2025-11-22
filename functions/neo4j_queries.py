@@ -472,10 +472,14 @@ RETURN m.id as manifestation_id, {Queries.manifestation_fragment('m')} as metada
     // 3. Detach manifestation type relationship
     OPTIONAL MATCH (m)-[type_rel:HAS_TYPE]->(:ManifestationType)
 
-    // Delete all collected nodes and relationships
-    DELETE contrib_by, contrib_role, contrib,
-           inc_lt, alt_inc_lt, inc_nomen, alt_inc_nomen,
-           type_rel
+    // First delete only the explicit relationships we want gone but keep the other nodes
+    DELETE type_rel
+
+    // Then delete nodes and automatically remove all their remaining relationships
+    DETACH DELETE
+        contrib,
+        inc_nomen, alt_inc_nomen,
+        inc_lt, alt_inc_lt
 """,
     "update_properties": """
     MATCH (m:Manifestation {id: $manifestation_id})
@@ -505,69 +509,74 @@ RETURN m.id as manifestation_id, {Queries.manifestation_fragment('m')} as metada
     OPTIONAL MATCH (m)<-[:ANNOTATION_OF]-(search_ann:Annotation)
         -[:HAS_TYPE]->(search_at:AnnotationType {name: 'search_segmentation'})
     OPTIONAL MATCH (search_ann)<-[:SEGMENTATION_OF]-(search_seg:Segment)
-    WITH m, collect(DISTINCT search_seg.id) as search_segmentation_ids
+    WITH m, collect(DISTINCT search_seg.id) AS search_segmentation_ids
 
     // 2. Get segmentation/pagination segment IDs before deletion
     OPTIONAL MATCH (m)<-[:ANNOTATION_OF]-(seg_ann:Annotation)-[:HAS_TYPE]->(seg_at:AnnotationType)
-    WHERE seg_at.name IN ['segmentation']
+    WHERE seg_at.name IN ['segmentation', 'pagination']
     OPTIONAL MATCH (seg_ann)<-[:SEGMENTATION_OF]-(seg_segment:Segment)
-    WITH m, search_segmentation_ids, collect(DISTINCT seg_segment.id) as segmentation_ids
+    WITH m, search_segmentation_ids, collect(DISTINCT seg_segment.id) AS segmentation_ids
 
-    // 3. Delete ALL annotations and their related nodes
-    // Delete segmentation annotations.
-    OPTIONAL MATCH (m)<-[:ANNOTATION_OF]-(del_seg_ann:Annotation)-[:HAS_TYPE]->(del_at:AnnotationType)
-    WHERE del_at.name IN ['segmentation']
-    OPTIONAL MATCH (del_seg_ann)<-[:SEGMENTATION_OF]-(del_seg:Segment)
-    OPTIONAL MATCH (del_seg)-[:HAS_REFERENCE]->(ref:Reference)
+    // 3. Delete ALL annotations and their related nodes in a subquery
+    CALL {
+        WITH m
 
-    // Delete search_segmentation annotations and their segments
-    OPTIONAL MATCH (m)<-[:ANNOTATION_OF]-(del_search_ann:Annotation)
-        -[:HAS_TYPE]->(del_search_at:AnnotationType {name: 'search_segmentation'})
-    OPTIONAL MATCH (del_search_ann)<-[:SEGMENTATION_OF]-(del_search_seg:Segment)
+        // Delete segmentation & pagination annotations.
+        OPTIONAL MATCH (m)<-[:ANNOTATION_OF]-(del_seg_ann:Annotation)-[:HAS_TYPE]->(del_at:AnnotationType)
+        WHERE del_at.name IN ['segmentation', 'pagination']
+        OPTIONAL MATCH (del_seg_ann)<-[:SEGMENTATION_OF]-(del_seg:Segment)
+        OPTIONAL MATCH (del_seg)-[:HAS_REFERENCE]->(ref:Reference)
 
-    // Delete bibliography annotations and detach segments from bibliography types
-    OPTIONAL MATCH (m)<-[:ANNOTATION_OF]-(bib_ann:Annotation)
-        -[:HAS_TYPE]->(bat:AnnotationType {name: 'bibliography'})
-    OPTIONAL MATCH (bib_ann)<-[:SEGMENTATION_OF]-(bib_seg:Segment)
-    OPTIONAL MATCH (bib_seg)-[bib_type_rel:HAS_TYPE]->(bt:BibliographyType)
+        // Delete search_segmentation annotations and their segments
+        OPTIONAL MATCH (m)<-[:ANNOTATION_OF]-(del_search_ann:Annotation)
+            -[:HAS_TYPE]->(del_search_at:AnnotationType {name: 'search_segmentation'})
+        OPTIONAL MATCH (del_search_ann)<-[:SEGMENTATION_OF]-(del_search_seg:Segment)
 
-    // Delete table_of_contents annotations and their sections
-    OPTIONAL MATCH (m)<-[:ANNOTATION_OF]-(toc_ann:Annotation)
-        -[:HAS_TYPE]->(toc_at:AnnotationType {name: 'table_of_contents'})
-    OPTIONAL MATCH (toc_ann)<-[:SECTION_OF]-(section:Section)
-    OPTIONAL MATCH (section)<-[part_of:PART_OF]-(seg_in_section:Segment)
+        // Delete bibliography annotations and detach segments from bibliography types
+        OPTIONAL MATCH (m)<-[:ANNOTATION_OF]-(bib_ann:Annotation)
+            -[:HAS_TYPE]->(bat:AnnotationType {name: 'bibliography'})
+        OPTIONAL MATCH (bib_ann)<-[:SEGMENTATION_OF]-(bib_seg:Segment)
 
-    // Delete durchen annotations and their segments
-    OPTIONAL MATCH (m)<-[:ANNOTATION_OF]-(durchen_ann:Annotation)
-        -[:HAS_TYPE]->(durchen_at:AnnotationType {name: 'durchen'})
-    OPTIONAL MATCH (durchen_ann)<-[:SEGMENTATION_OF]-(durchen_seg:Segment)
-    OPTIONAL MATCH (durchen_seg)-[:HAS_DURCHEN_NOTE]->(durchen_note:DurchenNote)
+        // Delete table_of_contents annotations and their sections
+        OPTIONAL MATCH (m)<-[:ANNOTATION_OF]-(toc_ann:Annotation)
+            -[:HAS_TYPE]->(toc_at:AnnotationType {name: 'table_of_contents'})
+        OPTIONAL MATCH (toc_ann)<-[:SECTION_OF]-(section:Section)
+        OPTIONAL MATCH (section)<-[:PART_OF]-(seg_in_section:Segment)
 
-    // Delete alignment annotations - find all alignment annotations for this manifestation
-    OPTIONAL MATCH (m)<-[:ANNOTATION_OF]-(this_align_ann:Annotation)
-        -[:HAS_TYPE]->(aat:AnnotationType {name: 'alignment'})
+        // Delete durchen annotations and their segments
+        OPTIONAL MATCH (m)<-[:ANNOTATION_OF]-(durchen_ann:Annotation)
+            -[:HAS_TYPE]->(durchen_at:AnnotationType {name: 'durchen'})
+        OPTIONAL MATCH (durchen_ann)<-[:SEGMENTATION_OF]-(durchen_seg:Segment)
+        OPTIONAL MATCH (durchen_seg)-[:HAS_DURCHEN_NOTE]->(durchen_note:DurchenNote)
 
-    // Find the paired annotation (could be source or target)
-    OPTIONAL MATCH (this_align_ann)-[:ALIGNED_TO]-(other_align_ann:Annotation)
+        // Delete alignment annotations - find all alignment annotations for this manifestation
+        OPTIONAL MATCH (m)<-[:ANNOTATION_OF]-(this_align_ann:Annotation)
+            -[:HAS_TYPE]->(aat:AnnotationType {name: 'alignment'})
 
-    // Delete segments from both this manifestation's alignment annotation and the paired one
-    OPTIONAL MATCH (this_align_ann)<-[:SEGMENTATION_OF]-(this_align_seg:Segment)
-    OPTIONAL MATCH (other_align_ann)<-[:SEGMENTATION_OF]-(other_align_seg:Segment)
+        // Find the paired annotation (could be source or target)
+        OPTIONAL MATCH (this_align_ann)-[:ALIGNED_TO]-(other_align_ann:Annotation)
 
-    // Delete alignment relationships between segments
-    OPTIONAL MATCH (this_align_seg)-[seg_align_rel:ALIGNED_TO]-(other_align_seg)
+        // Delete segments from both this manifestation's alignment annotation and the paired one
+        OPTIONAL MATCH (this_align_ann)<-[:SEGMENTATION_OF]-(this_align_seg:Segment)
+        OPTIONAL MATCH (other_align_ann)<-[:SEGMENTATION_OF]-(other_align_seg:Segment)
 
-    // Delete all collected nodes and relationships
-    DELETE ref, del_seg, del_seg_ann,
-           del_search_seg, del_search_ann,
-           bib_type_rel, bib_seg, bib_ann,
-           part_of, section, toc_ann,
-           durchen_note, durchen_seg, durchen_ann,
-           seg_align_rel, this_align_seg, other_align_seg, this_align_ann, other_align_ann
+        // Delete alignment relationships between segments
+        OPTIONAL MATCH (this_align_seg)-[:ALIGNED_TO]-(other_align_seg)
 
-    // Return the collected segment IDs
+        // Safely delete all matched nodes (and their relationships)
+        DETACH DELETE
+            ref,
+            del_seg, del_seg_ann,
+            del_search_seg, del_search_ann,
+            bib_seg, bib_ann,
+            section, toc_ann,
+            durchen_note, durchen_seg, durchen_ann,
+            this_align_seg, other_align_seg, this_align_ann, other_align_ann
+    }
+
+    // 4. Return the collected segment IDs (now includes both segmentation + pagination)
     RETURN search_segmentation_ids, segmentation_ids
-""",
+"""
 }
 
 

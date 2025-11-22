@@ -214,7 +214,6 @@ class Neo4JDatabase:
             d = record.data()
             return self._process_manifestation_data(d["manifestation"]), d["expression_id"]
 
-
     def update_manifestation(
         self,
         manifestation_id: str,
@@ -242,12 +241,6 @@ class Neo4JDatabase:
             bibliography_annotation: New bibliography annotation
             bibliography_segments: Segments for bibliography annotation
         """
-        with self.get_session() as session:     
-            exists = session.execute_read(
-                lambda tx: tx.run("MATCH (m:Manifestation {id: $id}) RETURN 1", id=manifestation_id).single()
-            ).single()
-            if not exists:
-                raise DataNotFound(f"Manifestation '{manifestation_id}' not found")
 
         # 1. First delete all annotations and get segment IDs (if needed for future use)
         segment_ids = self.delete_all_annotations_and_get_segments(manifestation_id)
@@ -282,7 +275,11 @@ class Neo4JDatabase:
             if annotation:
                 self._execute_add_annotation(tx, manifestation_id, annotation)
                 self._create_segments(tx, annotation.id, annotation_segments)
-
+                if annotation.type == AnnotationType.PAGINATION:
+                    self._create_and_link_references(tx, annotation_segments)
+                elif annotation.type == AnnotationType.DURCHEN:
+                    self._create_durchen_note(tx, annotation_segments)
+                    
             # Add bibliography annotation
             if bibliography_annotation:
                 self._execute_add_annotation(tx, manifestation_id, bibliography_annotation)
