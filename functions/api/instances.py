@@ -189,10 +189,6 @@ def update_instance(manifestation_id: str):
 
         return jsonify({"message": "Manifestation updated successfully", "id": manifestation_id}), 200
 
-    except Exception as e:
-        logger.error("Error updating manifestation: %s", e)
-        return jsonify({"error": str(e)}), 500
-
 
 def _create_aligned_text(
     request_model: AlignedTextRequestModel, text_type: TextType, target_manifestation_id: str
