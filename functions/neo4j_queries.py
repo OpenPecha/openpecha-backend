@@ -500,6 +500,7 @@ RETURN m.id as manifestation_id, {Queries.manifestation_fragment('m')} as metada
         CREATE (m)-[:HAS_TYPE]->(mt)
     )
     FOREACH (_ IN CASE WHEN s IS NOT NULL THEN [1] ELSE [] END |
+        MERGE (s:Source {name: $source})
         CREATE (m)-[:HAS_SOURCE]->(s)
     )
 """,
