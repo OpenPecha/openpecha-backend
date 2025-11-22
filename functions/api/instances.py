@@ -130,64 +130,63 @@ def update_instance(manifestation_id: str):
     if not data:
         return jsonify({"error": "Request body is required"}), 400
 
-    try:
-        # Validate request using InstanceRequestModel
-        request_model = InstanceRequestModel.model_validate(data)
+    # Validate request using InstanceRequestModel
+    request_model = InstanceRequestModel.model_validate(data)
 
-        db = Neo4JDatabase()
-        storage = Storage()
+    db = Neo4JDatabase()
+    storage = Storage()
 
-        # Get expression_id for this manifestation
-        expression_id = db.get_expression_id_by_manifestation_id(manifestation_id=manifestation_id)
+    # Get expression_id for this manifestation
+    expression_id = db.get_expression_id_by_manifestation_id(manifestation_id=manifestation_id)
 
-        # Prepare annotation if provided
-        annotation = None
-        annotation_segments = None
-        if request_model.annotation:
-            annotation_id = generate_id()
-            annotation_type = (
-                AnnotationType.SEGMENTATION
-                if request_model.metadata.type == ManifestationType.CRITICAL
-                else AnnotationType.PAGINATION
+    # Prepare annotation if provided
+    annotation = None
+    annotation_segments = None
+    if request_model.annotation:
+        annotation_id = generate_id()
+        annotation_type = (
+            AnnotationType.SEGMENTATION
+            if request_model.metadata.type == ManifestationType.CRITICAL
+            else AnnotationType.PAGINATION
+        )
+        annotation = AnnotationModel(id=annotation_id, type=annotation_type)
+        annotation_segments = [seg.model_dump() for seg in request_model.annotation]
+
+    # Prepare bibliography annotation if provided
+    bibliography_annotation = None
+    bibliography_segments = None
+    if request_model.biblography_annotation:
+        bibliography_annotation_id = generate_id()
+        bibliography_annotation = AnnotationModel(id=bibliography_annotation_id, type=AnnotationType.BIBLIOGRAPHY)
+        bibliography_types = [seg.type for seg in request_model.biblography_annotation]
+        with db.get_session() as session:
+            Neo4JDatabaseValidator().validate_bibliography_type_exists(
+                session=session, bibliography_types=bibliography_types
             )
-            annotation = AnnotationModel(id=annotation_id, type=annotation_type)
-            annotation_segments = [seg.model_dump() for seg in request_model.annotation]
+        bibliography_segments = [seg.model_dump() for seg in request_model.biblography_annotation]
 
-        # Prepare bibliography annotation if provided
-        bibliography_annotation = None
-        bibliography_segments = None
-        if request_model.biblography_annotation:
-            bibliography_annotation_id = generate_id()
-            bibliography_annotation = AnnotationModel(id=bibliography_annotation_id, type=AnnotationType.BIBLIOGRAPHY)
-            bibliography_types = [seg.type for seg in request_model.biblography_annotation]
-            with db.get_session() as session:
-                Neo4JDatabaseValidator().validate_bibliography_type_exists(
-                    session=session, bibliography_types=bibliography_types
-                )
-            bibliography_segments = [seg.model_dump() for seg in request_model.biblography_annotation]
+    # Update manifestation in database
+    segment_ids = db.update_manifestation(
+        manifestation_id=manifestation_id,
+        manifestation=request_model.metadata,
+        annotation=annotation,
+        annotation_segments=annotation_segments,
+        bibliography_annotation=bibliography_annotation,
+        bibliography_segments=bibliography_segments,
+    )
 
-        # Update manifestation in database
-        segment_ids = db.update_manifestation(
-            manifestation_id=manifestation_id,
-            manifestation=request_model.metadata,
-            annotation=annotation,
-            annotation_segments=annotation_segments,
-            bibliography_annotation=bibliography_annotation,
-            bibliography_segments=bibliography_segments,
-        )
+    # Update base text in storage
+    storage.store_base_text(
+        expression_id=expression_id,
+        manifestation_id=manifestation_id,
+        base_text=request_model.content,
+    )
 
-        # Update base text in storage
-        storage.store_base_text(
-            expression_id=expression_id,
-            manifestation_id=manifestation_id,
-            base_text=request_model.content,
-        )
+    _trigger_delete_search_segments(segment_ids)
+    # Trigger search segmenter API asynchronously
+    _trigger_search_segmenter(manifestation_id)
 
-        _trigger_delete_search_segments(segment_ids)
-        # Trigger search segmenter API asynchronously
-        _trigger_search_segmenter(manifestation_id)
-
-        return jsonify({"message": "Manifestation updated successfully", "id": manifestation_id}), 200
+    return jsonify({"message": "Manifestation updated successfully", "id": manifestation_id}), 200
 
 
 def _create_aligned_text(
