@@ -583,22 +583,24 @@ RETURN m.id as manifestation_id, {Queries.manifestation_fragment('m')} as metada
         OPTIONAL MATCH (m)<-[:ANNOTATION_OF]-(this_align_ann:Annotation)
             -[:HAS_TYPE]->(:AnnotationType {name: 'alignment'})
         OPTIONAL MATCH (this_align_ann)-[:ALIGNED_TO]-(other_align_ann:Annotation)
-        WITH collect(DISTINCT this_align_ann) AS this_anns,
-             collect(DISTINCT other_align_ann) AS other_anns
+        OPTIONAL MATCH (this_align_ann)<-[:SEGMENTATION_OF]-(this_align_seg:Segment)
+        OPTIONAL MATCH (other_align_ann)<-[:SEGMENTATION_OF]-(other_align_seg:Segment)
+        OPTIONAL MATCH (this_align_seg)-[r1:ALIGNED_TO]-()
+        OPTIONAL MATCH (other_align_seg)-[r2:ALIGNED_TO]-()
+        WITH
+            collect(DISTINCT r1) AS rels1,
+            collect(DISTINCT r2) AS rels2,
+            collect(DISTINCT this_align_seg) AS segs1,
+            collect(DISTINCT other_align_seg) AS segs2,
+            collect(DISTINCT this_align_ann) AS anns1,
+            collect(DISTINCT other_align_ann) AS anns2
 
-        // delete segments + ALIGNED_TO rels for this side
-        UNWIND this_anns AS ta
-        OPTIONAL MATCH (ta)<-[:SEGMENTATION_OF]-(tas:Segment)
-        OPTIONAL MATCH (tas)-[r:ALIGNED_TO]-()
-        DELETE r
-        DETACH DELETE tas, ta;
-
-        // optionally also delete the other side's segments + rels
-        UNWIND other_anns AS oa
-        OPTIONAL MATCH (oa)<-[:SEGMENTATION_OF]-(oas:Segment)
-        OPTIONAL MATCH (oas)-[r2:ALIGNED_TO]-()
-        DELETE r2
-        DETACH DELETE oas, oa;
+        FOREACH (r IN rels1 | DELETE r)
+        FOREACH (r IN rels2 | DELETE r)
+        FOREACH (s IN segs1 | DETACH DELETE s)
+        FOREACH (s IN segs2 | DETACH DELETE s)
+        FOREACH (a IN anns1 | DETACH DELETE a)
+        FOREACH (a IN anns2 | DETACH DELETE a)
     """
 }
 
