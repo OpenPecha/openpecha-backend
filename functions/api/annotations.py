@@ -263,7 +263,7 @@ def _update_alignment_annotation(db: Neo4JDatabase, annotation_id: str, data: di
         "target_annotation_id": target_annotation_id,
         "source_annotation_id": source_annotation_id,
     }
-
+    logger.info("Response: %s", response)
     return response
 
 
