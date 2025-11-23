@@ -38,7 +38,7 @@ def update_annotation(annotation_id: str) -> tuple[Response, int]:
     data = request.get_json(force=True, silent=True)
     if not data:
         raise InvalidRequest("Request body is required")
-
+    logger.info("Annotation update request body: %s", data)
     logger.info("Parsing and validating request body")
     request_model = UpdateAnnotationRequestModel.model_validate(data)
 
