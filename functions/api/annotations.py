@@ -21,6 +21,15 @@ logger = logging.getLogger(__name__)
 
 @annotations_bp.route("/<string:annotation_id>", methods=["GET"], strict_slashes=False)
 def get_annotation(annotation_id: str) -> tuple[Response, int]:
+    """
+    Retrieve annotation by annotation ID.
+
+    Args:
+        annotation_id: The ID of the annotation to retrieve
+
+    Returns:
+        JSON response with annotation data and HTTP status code
+    """
     annotation = Database().annotation.get(annotation_id)
     return jsonify(annotation), 200
 
@@ -79,19 +88,9 @@ def add_annotation(manifestation_id: str) -> tuple[Response, int]:
     request_model = AddAnnotationRequestModel.model_validate(data)
 
     logger.info("Getting manifestation and expression id from Neo4J Database")
-    db = Neo4JDatabase()
+    db = Database()
 
-    # For ALIGNMENT annotations, check both source and target manifestations
-    if request_model.type == AnnotationType.ALIGNMENT:
-        if request_model.target_manifestation_id is None:
-            raise InvalidRequest("Target manifestation id must be provided for alignment annotation")
-
-        # Check source manifestation
-        _check_alignment_annotation_type_exists(db, manifestation_id, request_model.target_manifestation_id)
-    else:
-        _check_annotation_type_exists(db, manifestation_id, request_model.type)
-
-    manifestation, _ = db.get_manifestation(manifestation_id=manifestation_id)
+    manifestation, _ = db.manifestation.get(manifestation_id=manifestation_id)
 
     # Check if annotation of the same type already exists in Neo4j database
     logger.info(
@@ -238,8 +237,10 @@ def _update_alignment_annotation(db: Neo4JDatabase, annotation_id: str, data: di
 
     target_annotation_id = generate_id()
     source_annotation_id = generate_id()
-    target_annotation=AnnotationModel(id=target_annotation_id, type=AnnotationType.ALIGNMENT)
-    source_annotation=AnnotationModel(id=source_annotation_id, type=AnnotationType.ALIGNMENT, aligned_to=target_annotation_id)
+    target_annotation = AnnotationModel(id=target_annotation_id, type=AnnotationType.ALIGNMENT)
+    source_annotation = AnnotationModel(
+        id=source_annotation_id, type=AnnotationType.ALIGNMENT, aligned_to=target_annotation_id
+    )
     db.add_alignment_annotation_to_manifestation(
         target_annotation=target_annotation,
         alignment_annotation=source_annotation,

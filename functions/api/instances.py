@@ -186,7 +186,7 @@ def _create_aligned_text(
                 request_model.target_annotation, request_model.alignment_annotation
             )
 
-            db.create_aligned_manifestation(
+            db.manifestation.create_aligned(
                 expression=expression,
                 expression_id=expression_id,
                 manifestation_id=manifestation_id,
@@ -203,7 +203,7 @@ def _create_aligned_text(
                 bibliography_segments=bibliography_segments,
             )
         else:
-            db.create_manifestation(
+            db.manifestation.create(
                 expression=expression,
                 expression_id=expression_id,
                 manifestation=manifestation,

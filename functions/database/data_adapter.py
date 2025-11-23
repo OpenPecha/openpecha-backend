@@ -8,6 +8,7 @@ from models import (
     LicenseType,
     ManifestationModelOutput,
     ManifestationType,
+    PersonModelOutput,
     TextType,
 )
 
@@ -40,7 +41,7 @@ class DataAdapter:
         return out
 
     @staticmethod
-    def mainfestation(data: dict) -> ManifestationModelOutput:
+    def manifestation(data: dict) -> ManifestationModelOutput:
         annotations = [
             AnnotationModel(
                 id=annotation.get("id"),
@@ -95,4 +96,16 @@ class DataAdapter:
             category_id=data.get("category_id"),
             copyright=CopyrightStatus(data.get("copyright") or CopyrightStatus.PUBLIC_DOMAIN.value),
             license=LicenseType(data.get("license") or LicenseType.PUBLIC_DOMAIN_MARK.value),
+        )
+
+    @staticmethod
+    def person(data: dict) -> PersonModelOutput:
+        return PersonModelOutput(
+            id=data["id"],
+            bdrc=data.get("bdrc"),
+            wiki=data.get("wiki"),
+            name=DataAdapter.localized_text(data["name"]),
+            alt_names=(
+                [DataAdapter.localized_text(alt) for alt in data["alt_names"]] if data.get("alt_names") else None
+            ),
         )

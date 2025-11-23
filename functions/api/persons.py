@@ -1,9 +1,9 @@
 import logging
 
+from database import Database
 from exceptions import InvalidRequest, ValidationError
 from flask import Blueprint, Response, jsonify, request
 from models import PersonModelInput
-from neo4j_database import Neo4JDatabase
 
 persons_bp = Blueprint("persons", __name__)
 
@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 @persons_bp.route("/<string:person_id>", methods=["GET"], strict_slashes=False)
 def get_person(person_id: str) -> tuple[Response, int]:
-    person = Neo4JDatabase().get_person(person_id)
+    person = Database().person.get(person_id)
     return jsonify(person.model_dump()), 200
 
 
@@ -26,7 +26,7 @@ def get_all_persons() -> tuple[Response, int]:
     if offset < 0:
         raise ValidationError("Offset must be non-negative")
 
-    persons = Neo4JDatabase().get_all_persons(offset=offset, limit=limit)
+    persons = Database().person.get_all(offset=offset, limit=limit)
     return jsonify([person.model_dump() for person in persons]), 200
 
 
@@ -38,6 +38,6 @@ def create_person() -> tuple[Response, int]:
 
     logger.info("Successfully parsed person: %s", person.model_dump_json())
 
-    person_id = Neo4JDatabase().create_person(person)
+    person_id = Database().person.create_person(person)
 
     return jsonify({"message": "Person created successfully", "_id": person_id}), 201

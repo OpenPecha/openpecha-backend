@@ -26,6 +26,37 @@ class ExpressionDatabase:
 
             return DataAdapter.expression(data=record.data()["expression"])
 
+    def get_all(
+        self,
+        offset: int = 0,
+        limit: int = 20,
+        filters: dict[str, str] | None = None,
+    ) -> list[ExpressionModelOutput]:
+        if filters is None:
+            filters = {}
+
+        params = {
+            "offset": offset,
+            "limit": limit,
+            "type": filters.get("type"),
+            "language": filters.get("language"),
+            "title": filters.get("title"),
+        }
+
+        with self.session as session:
+            if params.get("language"):
+                DatabaseValidator.validate_language_code_exists(session, params["language"])
+
+            result = session.run(Queries.expressions["fetch_all"], params)
+            expressions = []
+
+            for record in result:
+                expression_data = record.data()["expression"]
+                expression = DataAdapter.expression(data=expression_data)
+                expressions.append(expression)
+
+            return expressions
+
     def get_by_bdrc(self, bdrc_id: str) -> ExpressionModelOutput:
         with self.session as session:
             result = session.run(Queries.expressions["fetch_by_bdrc"], bdrc_id=bdrc_id)

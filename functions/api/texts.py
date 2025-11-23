@@ -36,8 +36,7 @@ def get_all_texts() -> tuple[Response, int]:
     if title_filter := request.args.get("title"):
         filters["title"] = title_filter
 
-    db = Neo4JDatabase()
-    result = db.get_all_expressions(offset=offset, limit=limit, filters=filters)
+    result = Database().expression.get_all(offset=offset, limit=limit, filters=filters)
 
     response_data = [item.model_dump() for item in result]
 

@@ -33,7 +33,7 @@ class ManifestationDatabase:
             if record is None:
                 raise DataNotFound(f"Manifestation '{manifestation_id}' not found")
             d = record.data()
-            return DataAdapter.mainfestation(d["manifestation"]), d["expression_id"]
+            return DataAdapter.manifestation(d["manifestation"]), d["expression_id"]
 
     def get_by_expression(
         self, expression_id: str, manifestation_type: str | None = None
@@ -50,7 +50,7 @@ class ManifestationDatabase:
                     )
                 ]
             )
-            return [DataAdapter.mainfestation(row["manifestation"]) for row in rows]
+            return [DataAdapter.manifestation(row["manifestation"]) for row in rows]
 
     def get_by_annotation(self, annotation_id: str) -> tuple[ManifestationModelOutput, str] | None:
         with self.session as session:
@@ -60,7 +60,7 @@ class ManifestationDatabase:
             if record is None:
                 return None
             d = record.data()
-            return DataAdapter.mainfestation(d["manifestation"]), d["expression_id"]
+            return DataAdapter.manifestation(d["manifestation"]), d["expression_id"]
 
     def get_by_ids(self, manifestation_ids: list[str]) -> dict[str, ManifestationModelOutput]:
         if not manifestation_ids:
@@ -76,7 +76,7 @@ class ManifestationDatabase:
                 )
             )
             return {
-                record["manifestation"]["id"]: DataAdapter.mainfestation(record["manifestation"]) for record in result
+                record["manifestation"]["id"]: DataAdapter.manifestation(record["manifestation"]) for record in result
             }
 
     def get_id_by_annotation(self, annotation_id: str) -> str:
