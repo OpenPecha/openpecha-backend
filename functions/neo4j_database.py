@@ -857,9 +857,9 @@ class Neo4JDatabase:
 
             _ = self._execute_add_annotation(tx, source_manifestation_id, alignment_annotation)
             self._create_segments(tx, alignment_annotation.id, alignment_segments)
-
+            logger.info("Creating alignments batch: %s", alignments)
             tx.run(Queries.segments["create_alignments_batch"], alignments=alignments)
-
+            logger.info("Alignments batch created successfully")
         with self.get_session() as session:
             return session.execute_write(transaction_function)
 
