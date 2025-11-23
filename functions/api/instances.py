@@ -106,7 +106,7 @@ def _create_aligned_text(
     request_model: AlignedTextRequestModel, text_type: TextType, target_manifestation_id: str
 ) -> tuple[Response, int]:
 
-    db = Neo4JDatabase()
+    db = Database()
 
     # Validate and prepare bibliography annotation
     bibliography_annotation = None
@@ -114,18 +114,13 @@ def _create_aligned_text(
     if request_model.biblography_annotation:
         bibliography_annotation_id = generate_id()
         bibliography_annotation = AnnotationModel(id=bibliography_annotation_id, type=AnnotationType.BIBLIOGRAPHY)
-        bibliography_types = [seg.type for seg in request_model.biblography_annotation]
-        with db.get_session() as session:
-            Neo4JDatabaseValidator().validate_bibliography_type_exists(
-                session=session, bibliography_types=bibliography_types
-            )
         bibliography_segments = [seg.model_dump() for seg in request_model.biblography_annotation]
 
     expression_id = generate_id()
     segmentation_annotation_id = generate_id()
 
     manifestation_id = generate_id()
-    _, target_expression_id = db.get_manifestation(target_manifestation_id)
+    _, target_expression_id = db.manifestation.get(target_manifestation_id)
 
     segmentation = AnnotationModel(id=segmentation_annotation_id, type=AnnotationType.SEGMENTATION)
     segmentation_segments = [

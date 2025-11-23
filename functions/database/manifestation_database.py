@@ -127,6 +127,53 @@ class ManifestationDatabase:
         with self.session as session:
             return session.execute_write(transaction_function)
 
+    def create_aligned(
+        self,
+        expression: ExpressionModelInput,
+        expression_id: str,
+        manifestation_id: str,
+        manifestation: ManifestationModelInput,
+        target_manifestation_id: str,
+        segmentation: AnnotationModel,
+        segmentation_segments: list[dict],
+        alignment_annotation: AnnotationModel,
+        alignment_segments: list[dict],
+        target_annotation: AnnotationModel,
+        target_segments: list[dict],
+        alignments: list[dict],
+        bibliography_annotation: AnnotationModel = None,
+        bibliography_segments: list[dict] = None,
+    ) -> str:
+        def transaction_function(tx):
+            _ = ExpressionDatabase.create_with_transaction(tx, expression, expression_id)
+            _ = ManifestationDatabase.create_with_transaction(tx, manifestation, expression_id, manifestation_id)
+
+            _ = AnnotationDatabase.create_with_transaction(tx, manifestation_id, segmentation)
+            SegmentDatabase.create_with_transaction(tx, segmentation.id, segmentation_segments)
+
+            SegmentDatabase.create_with_transaction(tx, segmentation.id, segmentation_segments)
+            SegmentDatabase.create_and_link_with_transaction(tx, segmentation_segments)
+
+            _ = AnnotationDatabase.create_with_transaction(tx, target_manifestation_id, target_annotation)
+            SegmentDatabase.create_with_transaction(tx, target_annotation.id, target_segments)
+            SegmentDatabase.create_and_link_with_transaction(tx, target_segments)
+
+            _ = AnnotationDatabase.create_with_transaction(tx, manifestation_id, alignment_annotation)
+            SegmentDatabase.create_with_transaction(tx, alignment_annotation.id, alignment_segments)
+            SegmentDatabase.create_and_link_with_transaction(tx, alignment_segments)
+
+            tx.run(Queries.segments["create_alignments_batch"], alignments=alignments)
+
+            # Add bibliography annotation in the same transaction
+            if bibliography_annotation:
+                _ = AnnotationDatabase.create_with_transaction(tx, manifestation_id, bibliography_annotation)
+                SegmentDatabase.create_with_transaction(tx, bibliography_annotation.id, bibliography_segments)
+                if bibliography_segments:
+                    SegmentDatabase.link_bibliography_type_with_transaction(tx, bibliography_segments)
+
+        with self.session as session:
+            return session.execute_write(transaction_function)
+
     @staticmethod
     def create_with_transaction(
         tx, manifestation: ManifestationModelInput, expression_id: str, manifestation_id: str
