@@ -972,8 +972,9 @@ class Neo4JDatabase:
             # Validate language filter against Neo4j if provided
             if params.get("language"):
                 self.__validator.validate_language_code_exists(session, params["language"])
-
+            logger.info("Fetching expressions with params: %s", params)
             result = session.run(Queries.expressions["fetch_all"], params)
+            logger.info("All Expressions Result: %s", result)
             expressions = []
 
             for record in result:
@@ -984,7 +985,9 @@ class Neo4JDatabase:
                     raise ValueError(f"Expression type invalid for expression {expression_data['id']}")
 
                 # Use helper method to process expression data
+                logger.info("Processing expression data: %s", expression_data)
                 expression = self._process_expression_data(expression_data)
+                logger.info("Processed expression: %s", expression)
                 expressions.append(expression)
 
             return expressions
