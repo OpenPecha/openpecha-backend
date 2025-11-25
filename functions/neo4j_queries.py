@@ -168,24 +168,18 @@ Queries.expressions = {
 """,
     "fetch_all": f"""
     MATCH (e:Expression)
-    WITH e
+    MATCH (e)-[:HAS_LANGUAGE]->(l:Language)
+    MATCH (e)-[:HAS_TITLE]->(primary:Nomen)
+    MATCH (primary)-[:HAS_LOCALIZATION]->(pt:LocalizedText)
+    OPTIONAL MATCH (primary)<-[:ALTERNATIVE_OF]-(alt:Nomen)
+    OPTIONAL MATCH (alt)-[:HAS_LOCALIZATION]->(at:LocalizedText)
+    WITH e, l, collect(pt.text) + collect(at.text) AS titles
     WHERE ($type IS NULL OR {Queries.get_expression_type('e')} = $type)
-    AND ($language IS NULL OR [(e)-[:HAS_LANGUAGE]->(l:Language) | l.code][0] = $language)
-    AND ($title IS NULL OR (
-        EXISTS {{
-            MATCH (e)-[:HAS_TITLE]->(titleNomen:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
-            WHERE toLower(lt.text) CONTAINS toLower($title)
-        }}
-        OR EXISTS {{
-            MATCH (e)-[:HAS_TITLE]->(:Nomen)<-[:ALTERNATIVE_OF]-(altNomen:Nomen)
-                  -[:HAS_LOCALIZATION]->(lt:LocalizedText)
-            WHERE toLower(lt.text) CONTAINS toLower($title)
-        }}
-    ))
-
-    OFFSET $offset
+      AND ($language IS NULL OR l.code = $language)
+      AND ($title IS NULL OR any(t IN titles WHERE toLower(t) CONTAINS toLower($title)))
+    WITH DISTINCT e
+    SKIP $offset
     LIMIT $limit
-
     RETURN {Queries.expression_fragment('e')} AS expression
 """,
     "fetch_all_relations": """
