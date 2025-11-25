@@ -39,7 +39,7 @@ def update_annotation(annotation_id: str) -> tuple[Response, int]:
     data = request.get_json(force=True, silent=True)
     if not data:
         raise InvalidRequest("Request body is required")
-
+    logger.info("Annotation update request body: %s", data)
     logger.info("Parsing and validating request body")
     request_model = UpdateAnnotationRequestModel.model_validate(data)
 
@@ -256,7 +256,7 @@ def _update_alignment_annotation(db: Neo4JDatabase, annotation_id: str, data: di
         "target_annotation_id": target_annotation_id,
         "source_annotation_id": source_annotation_id,
     }
-
+    logger.info("Response: %s", response)
     return response
 
 

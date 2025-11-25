@@ -444,7 +444,160 @@ MATCH (m:Manifestation)
 WHERE m.id IN $manifestation_ids
 RETURN {Queries.manifestation_fragment('m')} as manifestation
 """,
+    "cleanup_for_update": """
+    MATCH (m:Manifestation {id: $manifestation_id})
+
+    // Note: All annotations are deleted separately via delete_all_annotations_and_get_segments
+    // This query only handles non-annotation cleanup
+
+    // 1. Find the expression to delete contributions
+    OPTIONAL MATCH (m)-[:MANIFESTATION_OF]->(e:Expression)
+    OPTIONAL MATCH (e)-[:HAS_CONTRIBUTION]->(contrib:Contribution)
+
+    // 2. Delete incipit title nomens (both primary and alternatives)
+    OPTIONAL MATCH (m)-[:HAS_INCIPIT_TITLE]->(inc_nomen:Nomen)
+    OPTIONAL MATCH (inc_nomen)<-[:ALTERNATIVE_OF]-(alt_inc_nomen:Nomen)
+    OPTIONAL MATCH (inc_nomen)-[:HAS_LOCALIZATION]->(inc_lt:LocalizedText)
+    OPTIONAL MATCH (alt_inc_nomen)-[:HAS_LOCALIZATION]->(alt_inc_lt:LocalizedText)
+
+    // 3. Detach manifestation type relationship
+    OPTIONAL MATCH (m)-[type_rel:HAS_TYPE]->(:ManifestationType)
+
+    // 4. Detach source relationship
+    OPTIONAL MATCH (m)-[source_rel:HAS_SOURCE]->(:Source)
+
+    // First delete only the explicit relationships we want gone but keep the other nodes
+    DELETE type_rel, source_rel
+
+    // Then delete nodes and automatically remove all their remaining relationships
+    DETACH DELETE
+        contrib,
+        inc_nomen, alt_inc_nomen,
+        inc_lt, alt_inc_lt
+""",
+    "update_properties": """
+    MATCH (m:Manifestation {id: $manifestation_id})
+    SET m.bdrc = $bdrc,
+        m.wiki = $wiki,
+        m.colophon = $colophon
+
+    WITH m
+    OPTIONAL MATCH (it:Nomen) WHERE elementId(it) = $incipit_element_id
+    OPTIONAL MATCH (mt:ManifestationType {name: $type})
+    MERGE (s:Source {name: $source})
+
+    FOREACH (_ IN CASE WHEN it IS NOT NULL THEN [1] ELSE [] END |
+        CREATE (m)-[:HAS_INCIPIT_TITLE]->(it)
+    )
+    FOREACH (_ IN CASE WHEN mt IS NOT NULL THEN [1] ELSE [] END |
+        CREATE (m)-[:HAS_TYPE]->(mt)
+    )
+    FOREACH (_ IN CASE WHEN s IS NOT NULL THEN [1] ELSE [] END |
+        CREATE (m)-[:HAS_SOURCE]->(s)
+    )
+""",
+    "get_annotation_segment_ids": """
+        MATCH (m:Manifestation {id: $manifestation_id})
+
+        // 1. Get search_segmentation segment IDs
+        OPTIONAL MATCH (m)<-[:ANNOTATION_OF]-(search_ann:Annotation)
+            -[:HAS_TYPE]->(:AnnotationType {name: 'search_segmentation'})
+        OPTIONAL MATCH (search_ann)<-[:SEGMENTATION_OF]-(search_seg:Segment)
+        WITH m, collect(DISTINCT search_seg.id) AS search_segmentation_ids
+
+        // 2. Get segmentation/pagination segment IDs
+        OPTIONAL MATCH (m)<-[:ANNOTATION_OF]-(seg_ann:Annotation)-[:HAS_TYPE]->(seg_at:AnnotationType)
+        WHERE seg_at.name IN ['segmentation', 'pagination']
+        OPTIONAL MATCH (seg_ann)<-[:SEGMENTATION_OF]-(seg_segment:Segment)
+        WITH search_segmentation_ids, collect(DISTINCT seg_segment.id) AS segmentation_ids
+
+        RETURN search_segmentation_ids, segmentation_ids
+    """,
+    "delete_segmentation_and_pagination": """
+        MATCH (m:Manifestation {id: $manifestation_id})
+        OPTIONAL MATCH (m)<-[:ANNOTATION_OF]-(ann:Annotation)-[:HAS_TYPE]->(at:AnnotationType)
+        WHERE at.name IN ['segmentation', 'pagination']
+        OPTIONAL MATCH (ann)<-[:SEGMENTATION_OF]-(seg:Segment)
+        OPTIONAL MATCH (seg)-[:HAS_REFERENCE]->(ref:Reference)
+        WITH collect(DISTINCT ref) AS refs,
+             collect(DISTINCT seg) AS segs,
+             collect(DISTINCT ann) AS anns
+        FOREACH (r IN refs | DETACH DELETE r)
+        FOREACH (s IN segs | DETACH DELETE s)
+        FOREACH (a IN anns | DETACH DELETE a)
+    """,
+    "delete_search_segmentation": """
+        MATCH (m:Manifestation {id: $manifestation_id})
+        OPTIONAL MATCH (m)<-[:ANNOTATION_OF]-(ann:Annotation)
+            -[:HAS_TYPE]->(:AnnotationType {name: 'search_segmentation'})
+        OPTIONAL MATCH (ann)<-[:SEGMENTATION_OF]-(seg:Segment)
+        WITH collect(DISTINCT seg) AS segs,
+             collect(DISTINCT ann) AS anns
+        FOREACH (s IN segs | DETACH DELETE s)
+        FOREACH (a IN anns | DETACH DELETE a)
+    """,
+    "delete_bibliography_annotations": """
+        MATCH (m:Manifestation {id: $manifestation_id})
+        OPTIONAL MATCH (m)<-[:ANNOTATION_OF]-(bib_ann:Annotation)
+            -[:HAS_TYPE]->(:AnnotationType {name: 'bibliography'})
+        OPTIONAL MATCH (bib_ann)<-[:SEGMENTATION_OF]-(bib_seg:Segment)
+        WITH collect(DISTINCT bib_seg) AS segs,
+             collect(DISTINCT bib_ann) AS anns
+        FOREACH (s IN segs | DETACH DELETE s)
+        FOREACH (a IN anns | DETACH DELETE a)
+    """,
+    "delete_toc_annotations": """
+        MATCH (m:Manifestation {id: $manifestation_id})
+        OPTIONAL MATCH (m)<-[:ANNOTATION_OF]-(toc_ann:Annotation)
+            -[:HAS_TYPE]->(:AnnotationType {name: 'table_of_contents'})
+        OPTIONAL MATCH (toc_ann)<-[:SECTION_OF]-(section:Section)
+        OPTIONAL MATCH (section)<-[:PART_OF]-(seg_in_section:Segment)
+        WITH collect(DISTINCT seg_in_section) AS segs,
+             collect(DISTINCT section) AS sections,
+             collect(DISTINCT toc_ann) AS anns
+        FOREACH (s IN segs | DETACH DELETE s)
+        FOREACH (sec IN sections | DETACH DELETE sec)
+        FOREACH (a IN anns | DETACH DELETE a)
+    """,
+    "delete_durchen_annotations": """
+        MATCH (m:Manifestation {id: $manifestation_id})
+        OPTIONAL MATCH (m)<-[:ANNOTATION_OF]-(durchen_ann:Annotation)
+            -[:HAS_TYPE]->(:AnnotationType {name: 'durchen'})
+        OPTIONAL MATCH (durchen_ann)<-[:SEGMENTATION_OF]-(durchen_seg:Segment)
+        OPTIONAL MATCH (durchen_seg)-[:HAS_DURCHEN_NOTE]->(durchen_note:DurchenNote)
+        WITH collect(DISTINCT durchen_note) AS notes,
+             collect(DISTINCT durchen_seg) AS segs,
+             collect(DISTINCT durchen_ann) AS anns
+        FOREACH (n IN notes | DETACH DELETE n)
+        FOREACH (s IN segs | DETACH DELETE s)
+        FOREACH (a IN anns | DETACH DELETE a)
+    """,
+    "delete_alignment_annotations": """
+        MATCH (m:Manifestation {id: $manifestation_id})
+        OPTIONAL MATCH (m)<-[:ANNOTATION_OF]-(this_align_ann:Annotation)
+            -[:HAS_TYPE]->(:AnnotationType {name: 'alignment'})
+        OPTIONAL MATCH (this_align_ann)-[:ALIGNED_TO]-(other_align_ann:Annotation)
+        OPTIONAL MATCH (this_align_ann)<-[:SEGMENTATION_OF]-(this_align_seg:Segment)
+        OPTIONAL MATCH (other_align_ann)<-[:SEGMENTATION_OF]-(other_align_seg:Segment)
+        OPTIONAL MATCH (this_align_seg)-[r1:ALIGNED_TO]-()
+        OPTIONAL MATCH (other_align_seg)-[r2:ALIGNED_TO]-()
+        WITH
+            collect(DISTINCT r1) AS rels1,
+            collect(DISTINCT r2) AS rels2,
+            collect(DISTINCT this_align_seg) AS segs1,
+            collect(DISTINCT other_align_seg) AS segs2,
+            collect(DISTINCT this_align_ann) AS anns1,
+            collect(DISTINCT other_align_ann) AS anns2
+
+        FOREACH (r IN rels1 | DELETE r)
+        FOREACH (r IN rels2 | DELETE r)
+        FOREACH (s IN segs1 | DETACH DELETE s)
+        FOREACH (s IN segs2 | DETACH DELETE s)
+        FOREACH (a IN anns1 | DETACH DELETE a)
+        FOREACH (a IN anns2 | DETACH DELETE a)
+    """
 }
+
 
 Queries.annotations = {
     "delete": """
