@@ -6,6 +6,15 @@ from pydantic import BaseModel, ConfigDict, Field, RootModel, StrictStr, StringC
 NonEmptyStr = Annotated[StrictStr, StringConstraints(min_length=1, strip_whitespace=True)]
 
 
+def remove_duplicate_alternatives(primary, alternatives):
+    """Helper to remove alternatives that match the primary value and deduplicate the list"""
+    unique = []
+    for alt in alternatives or []:
+        if alt != primary and alt not in unique:
+            unique.append(alt)
+    return unique or None
+
+
 class TextType(str, Enum):
     ROOT = "root"
     COMMENTARY = "commentary"
@@ -83,6 +92,11 @@ class PersonModelBase(OpenPechaModel):
     wiki: str | None = None
     name: LocalizedString
     alt_names: list[LocalizedString] | None = None
+
+    @model_validator(mode="after")
+    def remove_duplicate_alt_names(self) -> "PersonModelBase":
+        self.alt_names = remove_duplicate_alternatives(self.name, self.alt_names)
+        return self
 
 
 class PersonModelInput(PersonModelBase):
@@ -195,6 +209,11 @@ class ExpressionModelBase(OpenPechaModel):
 
         return self
 
+    @model_validator(mode="after")
+    def remove_duplicate_alt_titles(self) -> "ExpressionModelBase":
+        self.alt_titles = remove_duplicate_alternatives(self.title, self.alt_titles)
+        return self
+
 
 class ExpressionModelInput(ExpressionModelBase):
     contributions: list[ContributionModelInput | AIContributionModel]
@@ -240,6 +259,12 @@ class ManifestationModelBase(OpenPechaModel):
     def validate_alt_incipit_titles(self):
         if self.alt_incipit_titles and self.incipit_title is None:
             raise ValueError("alt_incipit_titles can only be set when incipit_title is also provided")
+        return self
+
+    @model_validator(mode="after")
+    def remove_duplicate_alt_incipit_titles(self) -> "ManifestationModelBase":
+        if self.incipit_title:
+            self.alt_incipit_titles = remove_duplicate_alternatives(self.incipit_title, self.alt_incipit_titles)
         return self
 
 
@@ -317,6 +342,11 @@ class AlignedTextRequestModel(OpenPechaModel):
                 raise ValueError("Biblography annotation cannot be empty list")
             elif not all(isinstance(ann, BibliographyAnnotationModel) for ann in self.biblography_annotation):
                 raise ValueError("All biblography annotations must be of type BibliographyAnnotationModel")
+        return self
+
+    @model_validator(mode="after")
+    def remove_duplicate_alt_titles(self) -> "AlignedTextRequestModel":
+        self.alt_titles = remove_duplicate_alternatives(self.title, self.alt_titles)
         return self
 
 

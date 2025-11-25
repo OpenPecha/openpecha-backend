@@ -852,14 +852,21 @@ class Neo4JDatabase:
         alignments: list[dict],
     ) -> str:
         def transaction_function(tx):
+            logger.info("Creating target annotation: %s", target_annotation)
             _ = self._execute_add_annotation(tx, target_manifestation_id, target_annotation)
+            logger.info("Target annotation created successfully")
             self._create_segments(tx, target_annotation.id, target_segments)
-
+            logger.info("Target segments created successfully")
             _ = self._execute_add_annotation(tx, source_manifestation_id, alignment_annotation)
+            logger.info("Alignment annotation created successfully")
             self._create_segments(tx, alignment_annotation.id, alignment_segments)
+            logger.info("Alignment segments created successfully")
+
+            logger.info("Creating alignments batch: %s", alignments)
 
             tx.run(Queries.segments["create_alignments_batch"], alignments=alignments)
 
+            logger.info("Alignments batch created successfully")
         with self.get_session() as session:
             return session.execute_write(transaction_function)
 
@@ -965,8 +972,9 @@ class Neo4JDatabase:
             # Validate language filter against Neo4j if provided
             if params.get("language"):
                 self.__validator.validate_language_code_exists(session, params["language"])
-
+            logger.info("Fetching expressions with params: %s", params)
             result = session.run(Queries.expressions["fetch_all"], params)
+            logger.info("All Expressions Result: %s", result)
             expressions = []
 
             for record in result:
@@ -977,7 +985,9 @@ class Neo4JDatabase:
                     raise ValueError(f"Expression type invalid for expression {expression_data['id']}")
 
                 # Use helper method to process expression data
+                logger.info("Processing expression data: %s", expression_data)
                 expression = self._process_expression_data(expression_data)
+                logger.info("Processed expression: %s", expression)
                 expressions.append(expression)
 
             return expressions

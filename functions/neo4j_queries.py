@@ -171,12 +171,17 @@ Queries.expressions = {
     WITH e
     WHERE ($type IS NULL OR {Queries.get_expression_type('e')} = $type)
     AND ($language IS NULL OR [(e)-[:HAS_LANGUAGE]->(l:Language) | l.code][0] = $language)
-    AND ($title IS NULL OR EXISTS {{
-        MATCH (e)-[:HAS_TITLE]->(titleNomen:Nomen)
-        MATCH (n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
-        WHERE (n = titleNomen OR (n)-[:ALTERNATIVE_OF]->(titleNomen))
-        AND toLower(lt.text) CONTAINS toLower($title)
-    }})
+    AND ($title IS NULL OR (
+        EXISTS {{
+            MATCH (e)-[:HAS_TITLE]->(titleNomen:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
+            WHERE toLower(lt.text) CONTAINS toLower($title)
+        }}
+        OR EXISTS {{
+            MATCH (e)-[:HAS_TITLE]->(:Nomen)<-[:ALTERNATIVE_OF]-(altNomen:Nomen)
+                  -[:HAS_LOCALIZATION]->(lt:LocalizedText)
+            WHERE toLower(lt.text) CONTAINS toLower($title)
+        }}
+    ))
 
     OFFSET $offset
     LIMIT $limit
