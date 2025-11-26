@@ -6,9 +6,8 @@ from database import Database
 from exceptions import DataNotFound, InvalidRequest
 from flask import Blueprint, Response, jsonify, request
 from identifier import generate_id
-from models import AnnotationModel, AnnotationType, ExpressionModelInput, InstanceRequestModel, ManifestationType
+from models import AnnotationModel, AnnotationType, ExpressionModelInput, InstanceRequestModel
 from neo4j_database import Neo4JDatabase
-from neo4j_database_validator import Neo4JDatabaseValidator
 from storage import Storage
 
 texts_bp = Blueprint("texts", __name__)
@@ -117,30 +116,23 @@ def create_instance(expression_id: str) -> tuple[Response, int]:
 
     instance_request = InstanceRequestModel.model_validate(data)
 
-    db = Neo4JDatabase()
+    db = Database()
 
-    # Validate critical manifestation constraint
-    if instance_request.metadata.type == ManifestationType.CRITICAL:
-        with db.get_session() as session:
-            if Neo4JDatabaseValidator().has_manifestation_of_type_for_expression_id(
-                session=session, expression_id=expression_id, manifestation_type=ManifestationType.CRITICAL
-            ):
-                raise InvalidRequest("Critical manifestation already present for this expression")
-
-    # Validate and prepare bibliography annotation
     bibliography_annotation = None
     bibliography_segments = None
     if instance_request.biblography_annotation:
         bibliography_annotation_id = generate_id()
         bibliography_annotation = AnnotationModel(id=bibliography_annotation_id, type=AnnotationType.BIBLIOGRAPHY)
-        bibliography_types = [seg.type for seg in instance_request.biblography_annotation]
-        with db.get_session() as session:
-            Neo4JDatabaseValidator().validate_bibliography_type_exists(
-                session=session, bibliography_types=bibliography_types
-            )
         bibliography_segments = [seg.model_dump() for seg in instance_request.biblography_annotation]
 
     manifestation_id = generate_id()
+
+    db.manifestation.validate_create(
+        manifestation=instance_request.metadata,
+        expression_id=expression_id,
+        bibliography_annotation=bibliography_annotation,
+    )
+
     storage = Storage()
 
     storage.store_base_text(
@@ -156,7 +148,7 @@ def create_instance(expression_id: str) -> tuple[Response, int]:
         annotation_segments = [seg.model_dump() for seg in instance_request.annotation]
 
     # Create manifestation with both annotations in a single transaction
-    db.create_manifestation(
+    db.manifestation.create(
         manifestation=instance_request.metadata,
         annotation=annotation,
         annotation_segments=annotation_segments,

@@ -38,6 +38,6 @@ def create_person() -> tuple[Response, int]:
 
     logger.info("Successfully parsed person: %s", person.model_dump_json())
 
-    person_id = Database().person.create_person(person)
+    person_id = Database().person.create(person)
 
     return jsonify({"message": "Person created successfully", "_id": person_id}), 201

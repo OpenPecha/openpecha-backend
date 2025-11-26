@@ -126,22 +126,6 @@ class Neo4JDatabase:
             license=LicenseType(expression_data.get("license") or LicenseType.PUBLIC_DOMAIN_MARK.value),
         )
 
-    # ManifestationDatabase
-    def get_manifestation(self, manifestation_id: str) -> tuple[ManifestationModelOutput, str]:
-        with self.get_session() as session:
-            record = session.execute_read(
-                lambda tx: tx.run(
-                    Queries.manifestations["fetch"],
-                    manifestation_id=manifestation_id,
-                    expression_id=None,
-                    manifestation_type=None,
-                ).single()
-            )
-            if record is None:
-                raise DataNotFound(f"Manifestation '{manifestation_id}' not found")
-            d = record.data()
-            return self._process_manifestation_data(d["manifestation"]), d["expression_id"]
-
     def update_manifestation(
         self,
         manifestation_id: str,
@@ -169,6 +153,7 @@ class Neo4JDatabase:
             bibliography_annotation: New bibliography annotation
             bibliography_segments: Segments for bibliography annotation
         """
+
         # 1. First delete all annotations and get segment IDs (if needed for future use)
         def transaction_function(tx):
             # 2. Clean up old related nodes (contributions, incipit titles, type relationships)
@@ -180,12 +165,8 @@ class Neo4JDatabase:
             ).single()
 
             if record:
-                search_seg_ids = [
-                    sid for sid in (record["search_segmentation_ids"] or []) if sid is not None
-                ]
-                seg_ids = [
-                    sid for sid in (record["segmentation_ids"] or []) if sid is not None
-                ]
+                search_seg_ids = [sid for sid in (record["search_segmentation_ids"] or []) if sid is not None]
+                seg_ids = [sid for sid in (record["segmentation_ids"] or []) if sid is not None]
             else:
                 search_seg_ids = []
                 seg_ids = []
@@ -227,16 +208,14 @@ class Neo4JDatabase:
             incipit_element_id = None
             if manifestation.incipit_title:
                 alt_incipit_data = (
-                    [alt.root for alt in manifestation.alt_incipit_titles]
-                    if manifestation.alt_incipit_titles
-                    else None
+                    [alt.root for alt in manifestation.alt_incipit_titles] if manifestation.alt_incipit_titles else None
                 )
                 incipit_element_id = self._create_nomens(
                     tx,
                     manifestation.incipit_title.root,
                     alt_incipit_data,
                 )
-            
+
             tx.run(
                 Queries.manifestations["update_properties"],
                 manifestation_id=manifestation_id,
@@ -501,40 +480,6 @@ class Neo4JDatabase:
         with self.get_session() as session:
             return session.execute_write(lambda tx: self._execute_create_expression(tx, expression))
 
-    def create_manifestation(
-        self,
-        manifestation: ManifestationModelInput,
-        expression_id: str,
-        manifestation_id: str,
-        annotation: AnnotationModel = None,
-        annotation_segments: list[dict] = None,
-        expression: ExpressionModelInput = None,
-        bibliography_annotation: AnnotationModel = None,
-        bibliography_segments: list[dict] = None,
-    ) -> str:
-        def transaction_function(tx):
-            if expression:
-                self._execute_create_expression(tx, expression, expression_id)
-
-            self._execute_create_manifestation(tx, manifestation, expression_id, manifestation_id)
-
-            if annotation:
-                self._execute_add_annotation(tx, manifestation_id, annotation)
-                self._create_segments(tx, annotation.id, annotation_segments)
-                if annotation_segments:
-                    if "reference" in annotation_segments[0]:
-                        self._create_and_link_references(tx, annotation_segments)
-
-            # Add bibliography annotation in the same transaction
-            if bibliography_annotation:
-                self._execute_add_annotation(tx, manifestation_id, bibliography_annotation)
-                self._create_segments(tx, bibliography_annotation.id, bibliography_segments)
-                if bibliography_segments:
-                    self._link_segment_and_bibliography_type(tx, bibliography_segments)
-
-        with self.get_session() as session:
-            return session.execute_write(transaction_function)
-
     def add_annotation_to_manifestation(
         self, manifestation_id: str, annotation: AnnotationModel, annotation_segments: list[dict]
     ):
@@ -579,6 +524,7 @@ class Neo4JDatabase:
             tx.run(Queries.segments["create_alignments_batch"], alignments=alignments)
 
             logger.info("Alignments batch created successfully")
+
         with self.get_session() as session:
             return session.execute_write(transaction_function)
 

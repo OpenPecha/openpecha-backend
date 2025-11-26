@@ -595,7 +595,7 @@ RETURN {Queries.manifestation_fragment('m')} as manifestation
         FOREACH (s IN segs2 | DETACH DELETE s)
         FOREACH (a IN anns1 | DETACH DELETE a)
         FOREACH (a IN anns2 | DETACH DELETE a)
-    """
+    """,
 }
 
 

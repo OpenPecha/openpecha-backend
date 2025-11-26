@@ -6,7 +6,6 @@ from api.annotations import _alignment_annotation_mapping
 from api.relation import _get_relation_for_an_expression
 from database import Database
 from exceptions import InvalidRequest
-from exceptions import DataNotFound, InvalidRequest
 from flask import Blueprint, Response, jsonify, request
 from identifier import generate_id
 from models import (

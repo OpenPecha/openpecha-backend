@@ -1,5 +1,11 @@
 from exceptions import DataNotFound
-from models import AnnotationModel, ExpressionModelInput, ManifestationModelInput, ManifestationModelOutput
+from models import (
+    AnnotationModel,
+    ExpressionModelInput,
+    ManifestationModelInput,
+    ManifestationModelOutput,
+    ManifestationType,
+)
 from neo4j_database import Neo4JDatabase
 from neo4j_queries import Queries
 
@@ -174,11 +180,37 @@ class ManifestationDatabase:
         with self.session as session:
             return session.execute_write(transaction_function)
 
+    def validate_create(
+        self,
+        manifestation: ManifestationModelInput,
+        expression_id: str,
+        bibliography_annotation: AnnotationModel = None,
+    ):
+        with self.session as session:
+            session.execute_read(
+                lambda tx: self._validate_create(tx, manifestation, expression_id, bibliography_annotation)
+            )
+
+    @staticmethod
+    def _validate_create(
+        tx,
+        manifestation: ManifestationModelInput,
+        expression_id: str,
+        bibliography_annotation: AnnotationModel = None,
+    ):
+        DatabaseValidator.validate_expression_exists(tx, expression_id)
+
+        if manifestation.type == ManifestationType.CRITICAL:
+            DatabaseValidator.validate_add_critical_manifestation(tx, expression_id)
+
+        if bibliography_annotation:
+            DatabaseValidator.validate_bibliography_type_exists(tx, annotation=bibliography_annotation)
+
     @staticmethod
     def create_with_transaction(
         tx, manifestation: ManifestationModelInput, expression_id: str, manifestation_id: str
     ) -> str:
-        DatabaseValidator.validate_expression_exists(tx, expression_id)
+        ManifestationDatabase._validate_create(tx, manifestation, expression_id)
 
         incipit_element_id = None
         if manifestation.incipit_title:

@@ -1,7 +1,7 @@
 import logging
 
 from exceptions import InvalidRequest
-from models import ExpressionModelInput, ManifestationType, TextType
+from models import AnnotationModel, ExpressionModelInput, ManifestationType, TextType
 from neo4j_queries import Queries
 
 logger = logging.getLogger(__name__)
@@ -110,21 +110,21 @@ class DatabaseValidator:
             )
 
     @staticmethod
-    def has_manifestation_of_type_for_expression_id(
-        session, expression_id: str, manifestation_type: ManifestationType
-    ) -> bool:
+    def validate_add_critical_manifestation(tx, expression_id: str) -> None:
+        """Ensure only one critical manifestation exists for an expression.
 
-        query = """
-        MATCH (e:Expression {id: $expression_id})
-        MATCH (m:Manifestation)-[:MANIFESTATION_OF]->(e)
-        MATCH (m)-[:HAS_TYPE]->(mt:ManifestationType {name: $type})
-        RETURN count(m) AS count
+        Raises DataValidationError if a critical manifestation already exists.
         """
+        result = tx.run(
+            Queries.manifestations["fetch"],
+            expression_id=expression_id,
+            manifestation_id=None,
+            manifestation_type=ManifestationType.CRITICAL.value,
+        )
 
-        result = session.run(query, expression_id=expression_id, type=manifestation_type.value)
-        record = result.single()
-
-        return bool(record and record.get("count", 0) > 0)
+        manifestations = list(result)
+        if len(manifestations) > 0:
+            raise DataValidationError("Critical manifestation already present for this expression")
 
     @staticmethod
     def validate_language_code_exists(session, language_code: str) -> None:
@@ -150,8 +150,11 @@ class DatabaseValidator:
             )
 
     @staticmethod
-    def validate_bibliography_type_exists(session, bibliography_types: list[str]) -> None:
+    def validate_bibliography_type_exists(session, annotation: AnnotationModel) -> None:
         """Validate that all given bibliography type names exist."""
+
+        bibliography_types = [seg.type for seg in annotation]
+
         query = """
         MATCH (bt:BibliographyType)
         WITH collect(bt.name) AS names
@@ -163,7 +166,7 @@ class DatabaseValidator:
         missing = [n for n in (record["missing"] or []) if n]
         if missing:
             available_list = ", ".join(sorted(record["names"])) if record["names"] else "none"
-            raise InvalidRequest(
+            raise DataValidationError(
                 f"Bibliography type(s) not found: {', '.join(sorted(missing))}. "
                 f"Available bibliography types: {available_list}"
             )

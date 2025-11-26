@@ -3,6 +3,8 @@ from logging import getLogger
 
 from neo4j import GraphDatabase
 
+from functions.database.person_database import PersonDatabase
+
 from .annotation_database import AnnotationDatabase
 from .expression_database import ExpressionDatabase
 from .manifestation_database import ManifestationDatabase
@@ -16,6 +18,7 @@ class Database:
     manifestation: ManifestationDatabase
     annotation: AnnotationDatabase
     segment: SegmentDatabase
+    person: PersonDatabase
 
     def __init__(self, neo4j_uri: str = None, neo4j_auth: tuple = None) -> None:
         if neo4j_uri and neo4j_auth:
