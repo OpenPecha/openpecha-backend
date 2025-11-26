@@ -1707,3 +1707,27 @@ class Neo4JDatabase:
             )
         expressions = [self._process_expression_data(record["expression"]) for record in result]
         return {"texts": expressions}
+    
+    def update_title(self, expression_id: str, title: dict[str, str]) -> None:
+        logger.info("Updating title for expression ID: %s", expression_id)
+        with self.get_session() as session:
+            result = session.execute_write(
+                lambda tx: tx.run(
+                    Queries.expressions["update_title"], 
+                    expression_id=expression_id, 
+                    title=title).single())
+                    
+            if result is None:
+                raise DataNotFound(f"Expression with ID '{expression_id}' not found")
+
+    def update_license(self, expression_id: str, license: LicenseType) -> None:
+        with self.get_session() as session:
+            result = session.execute_write(
+                lambda tx: tx.run(
+                    Queries.expressions["update_license"], 
+                    expression_id=expression_id, 
+                    license=license.value
+                    ).single())
+            
+            if result is None:
+                raise DataNotFound(f"Expression with ID '{expression_id}' not found")
