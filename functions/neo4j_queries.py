@@ -462,20 +462,16 @@ RETURN m.id as manifestation_id, {Queries.manifestation_fragment('m')} as metada
     // Note: All annotations are deleted separately via delete_all_annotations_and_get_segments
     // This query only handles non-annotation cleanup
 
-    // 1. Find the expression to delete contributions
-    OPTIONAL MATCH (m)-[:MANIFESTATION_OF]->(e:Expression)
-    OPTIONAL MATCH (e)-[:HAS_CONTRIBUTION]->(contrib:Contribution)
-
-    // 2. Delete incipit title nomens (both primary and alternatives)
+    // 1. Delete incipit title nomens (both primary and alternatives)
     OPTIONAL MATCH (m)-[:HAS_INCIPIT_TITLE]->(inc_nomen:Nomen)
     OPTIONAL MATCH (inc_nomen)<-[:ALTERNATIVE_OF]-(alt_inc_nomen:Nomen)
     OPTIONAL MATCH (inc_nomen)-[:HAS_LOCALIZATION]->(inc_lt:LocalizedText)
     OPTIONAL MATCH (alt_inc_nomen)-[:HAS_LOCALIZATION]->(alt_inc_lt:LocalizedText)
 
-    // 3. Detach manifestation type relationship
+    // 2. Detach manifestation type relationship
     OPTIONAL MATCH (m)-[type_rel:HAS_TYPE]->(:ManifestationType)
 
-    // 4. Detach source relationship
+    // 3. Detach source relationship
     OPTIONAL MATCH (m)-[source_rel:HAS_SOURCE]->(:Source)
 
     // First delete only the explicit relationships we want gone but keep the other nodes
@@ -483,7 +479,6 @@ RETURN m.id as manifestation_id, {Queries.manifestation_fragment('m')} as metada
 
     // Then delete nodes and automatically remove all their remaining relationships
     DETACH DELETE
-        contrib,
         inc_nomen, alt_inc_nomen,
         inc_lt, alt_inc_lt
 """,
