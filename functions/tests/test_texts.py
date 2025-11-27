@@ -632,3 +632,103 @@ class TestPostTextV2:
         assert verify_data["title"]["en"] == "Standalone Translation"
         # Standalone commentaries/translations return target as "N/A"
         assert verify_data["target"] == "N/A"
+
+
+class TestUpdateTitleV2:
+    """Tests for PUT /v2/texts/{expression_id}/title endpoint (update title)"""
+
+    def test_update_title_preserves_other_languages(self, client, test_database, test_person_data):
+        """Test that updating a title in one language preserves other language versions"""
+        # Create test person
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        # Create expression with multiple language titles
+        expression_data = {
+            "type": "root",
+            "title": {"en": "Original English Title", "bo": "བོད་ཡིག་མཚན་བྱང་།"},
+            "language": "en",
+            "contributions": [{"person_id": person_id, "role": "author"}],
+        }
+        expression = ExpressionModelInput.model_validate(expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        # Verify both language versions exist
+        verify_response = client.get(f"/v2/texts/{expression_id}")
+        assert verify_response.status_code == 200
+        verify_data = json.loads(verify_response.data)
+        assert verify_data["title"]["en"] == "Original English Title"
+        assert verify_data["title"]["bo"] == "བོད་ཡིག་མཚན་བྱང་།"
+
+        # Update only the English title
+        update_data = {"title": {"en": "Updated English Title"}}
+        response = client.put(f"/v2/texts/{expression_id}/title", data=json.dumps(update_data), content_type="application/json")
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert "message" in data
+        assert "Title updated successfully" in data["message"]
+
+        # Verify the English title was updated AND the Tibetan title was preserved
+        verify_response = client.get(f"/v2/texts/{expression_id}")
+        assert verify_response.status_code == 200
+        verify_data = json.loads(verify_response.data)
+        assert verify_data["title"]["en"] == "Updated English Title"
+        assert verify_data["title"]["bo"] == "བོད་ཡིག་མཚན་བྱང་།"  # Should still be present!
+
+    def test_update_title_adds_new_language(self, client, test_database, test_person_data):
+        """Test that updating a title with a new language adds it without removing existing ones"""
+        # Create test person
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        # Create expression with only English title
+        expression_data = {
+            "type": "root",
+            "title": {"en": "English Title"},
+            "language": "en",
+            "contributions": [{"person_id": person_id, "role": "author"}],
+        }
+        expression = ExpressionModelInput.model_validate(expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        # Add a Tibetan title
+        update_data = {"title": {"bo": "བོད་ཡིག་མཚན་བྱང་།"}}
+        response = client.put(f"/v2/texts/{expression_id}/title", data=json.dumps(update_data), content_type="application/json")
+
+        assert response.status_code == 200
+
+        # Verify both titles now exist
+        verify_response = client.get(f"/v2/texts/{expression_id}")
+        assert verify_response.status_code == 200
+        verify_data = json.loads(verify_response.data)
+        assert verify_data["title"]["en"] == "English Title"  # Original should be preserved
+        assert verify_data["title"]["bo"] == "བོད་ཡིག་མཚན་བྱང་།"  # New should be added
+
+    def test_update_title_updates_existing_language(self, client, test_database, test_person_data):
+        """Test that updating an existing language version modifies it correctly"""
+        # Create test person
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        # Create expression with English title
+        expression_data = {
+            "type": "root",
+            "title": {"en": "Original Title"},
+            "language": "en",
+            "contributions": [{"person_id": person_id, "role": "author"}],
+        }
+        expression = ExpressionModelInput.model_validate(expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        # Update the English title (same language)
+        update_data = {"title": {"en": "Modified Title"}}
+        response = client.put(f"/v2/texts/{expression_id}/title", data=json.dumps(update_data), content_type="application/json")
+
+        assert response.status_code == 200
+
+        # Verify the title was updated
+        verify_response = client.get(f"/v2/texts/{expression_id}")
+        assert verify_response.status_code == 200
+        verify_data = json.loads(verify_response.data)
+        assert verify_data["title"]["en"] == "Modified Title"

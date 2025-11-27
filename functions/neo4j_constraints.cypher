@@ -68,3 +68,8 @@ CREATE CONSTRAINT manifestation_bdrc_unique IF NOT EXISTS FOR (m:Manifestation) 
 CREATE CONSTRAINT manifestation_wiki_unique IF NOT EXISTS FOR (m:Manifestation) REQUIRE m.wiki IS UNIQUE;
 
 
+// =============================================================================
+// INDEXING FOR FULLTEXT SEARCH ON LOCALIZED TEXT NODES
+// =============================================================================
+CREATE FULLTEXT INDEX localized_text_fulltext IF NOT EXISTS
+FOR (lt:LocalizedText) ON EACH [lt.text];

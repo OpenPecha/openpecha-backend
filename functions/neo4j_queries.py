@@ -316,6 +316,26 @@ MATCH (e:Expression)-[:EXPRESSION_OF]->(w:Work)
 WHERE e.id IN $expression_ids
 RETURN e.id as expression_id, w.id as work_id
 """,
+    "update_title": """
+MATCH (e:Expression {{id: $expression_id}})-[:HAS_TITLE]->(primary_nomen:Nomen)
+MATCH (l:Language {{code: $title.lang_code}})
+OPTIONAL MATCH (primary_nomen)-[:HAS_LOCALIZATION]->(existing_lt:LocalizedText)-[:HAS_LANGUAGE]->(l)
+FOREACH (_ IN CASE WHEN existing_lt IS NOT NULL THEN [1] ELSE [] END |
+    SET existing_lt.text = $title.text
+)
+FOREACH (_ IN CASE WHEN existing_lt IS NULL THEN [1] ELSE [] END |
+    CREATE (primary_nomen)-[:HAS_LOCALIZATION]->(new_lt:LocalizedText {{text: $title.text}})-[:HAS_LANGUAGE]->(l)
+)
+RETURN e.id as expression_id
+""",
+    "update_license": """
+MATCH (e:Expression {{id: $expression_id}})
+OPTIONAL MATCH (e)-[lc_rel:HAS_LICENSE]->(license:License)
+WITH e, lc_rel
+DELETE lc_rel
+MERGE (e)-[:HAS_LICENSE]->(:License {{name: $license}})
+RETURN e.id as expression_id
+""",
 }
 
 Queries.persons = {

@@ -5,7 +5,7 @@ from api.relation import _get_expression_relations
 from exceptions import DataNotFound, InvalidRequest
 from flask import Blueprint, Response, jsonify, request
 from identifier import generate_id
-from models import AnnotationModel, AnnotationType, ExpressionModelInput, InstanceRequestModel, ManifestationType
+from models import AnnotationModel, AnnotationType, ExpressionModelInput, InstanceRequestModel, LicenseType, ManifestationType
 from neo4j_database import Neo4JDatabase
 from neo4j_database_validator import Neo4JDatabaseValidator
 from storage import Storage
@@ -216,3 +216,57 @@ def get_related_by_work(expression_id: str) -> tuple[Response, int]:
         grouped_by_work[work_id]["expression_ids"].append(expr_id)
 
     return jsonify(grouped_by_work), 200
+
+@texts_bp.route("/<string:expression_id>/title", methods=["PUT"], strict_slashes=False)
+def update_title(expression_id: str) -> tuple[Response, int]:
+    data = request.get_json(force=True, silent=True)
+    if not data:
+        return jsonify({"error": "Request body is required"}), 400
+
+    logger.info("Received data for updating title: %s", data)
+
+    title = data.get("title")
+    if not title:
+        return jsonify({"error": "Title is required"}), 400
+    
+    # Convert dict_keys to list to make it subscriptable (Python 3)
+    lang_code = list(title.keys())[0]
+    
+    # Extract base language code (in case of BCP47 tags like "bo-CN")
+    base_lang_code = lang_code.split("-")[0].lower()
+    
+    # Validate that the language code exists
+    db = Neo4JDatabase()
+    with db.get_session() as session:
+        Neo4JDatabaseValidator().validate_language_code_exists(session, base_lang_code)
+    
+    title_data = {
+        "lang_code": lang_code,
+        "text": title[lang_code],
+    }
+    db.update_title(expression_id=expression_id, title=title_data)
+    return jsonify({"message": "Title updated successfully"}), 200
+
+@texts_bp.route("/<string:expression_id>/license", methods=["PUT"], strict_slashes=False)
+def update_license(expression_id: str) -> tuple[Response, int]:
+    data = request.get_json(force=True, silent=True)
+    if not data:
+        return jsonify({"error": "Request body is required"}), 400
+        
+    logger.info("Received data for updating license: %s", data)
+    license_str = data.get("license")
+    if not license_str:
+        return jsonify({"error": "License is required"}), 400
+
+    # Validate and convert license string to LicenseType enum
+    try:
+        license = LicenseType(license_str)
+    except ValueError:
+        valid_licenses = [lt.value for lt in LicenseType]
+        return jsonify({
+            "error": f"Invalid license type. Must be one of: {', '.join(valid_licenses)}"
+        }), 400
+
+    db = Neo4JDatabase()
+    db.update_license(expression_id=expression_id, license=license)
+    return jsonify({"message": "License updated successfully"}), 200
