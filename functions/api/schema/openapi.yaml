@@ -2221,6 +2221,126 @@ paths:
         "500":
           $ref: '#/components/responses/ServerError'
 
+  /v2/texts/{expression_id}/title:
+    put:
+      summary: Update expression title
+      description: >-
+        Update the title of a text expression. The title should be provided as a dictionary
+        with language code as the key and the title text as the value.
+      tags:
+        - Texts
+      parameters:
+        - name: expression_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The expression ID of the text to update
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - title
+              properties:
+                title:
+                  type: object
+                  description: Dictionary with language code as key and title text as value
+                  additionalProperties:
+                    type: string
+                  example:
+                    bo: "རྒྱལ་པོ་རབས་ཀྱི་གཏམ་རྒྱུད།"
+      responses:
+        "200":
+          description: Title updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Title updated successfully"
+        "400":
+          description: Bad request - Invalid input
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "Title is required"
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+  /v2/texts/{expression_id}/license:
+    put:
+      summary: Update expression license
+      description: Update the license information for a text expression
+      tags:
+        - Texts
+      parameters:
+        - name: expression_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The expression ID of the text to update
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - license
+              properties:
+                license:
+                  type: string
+                  description: License identifier or name
+                  enum:
+                    - "CC0"
+                    - "Public Domain Mark"
+                    - "CC BY"
+                    - "CC BY-SA"
+                    - "CC BY-ND"
+                    - "CC BY-NC"
+                    - "CC BY-NC-SA"
+                    - "CC BY-NC-ND"
+                    - "under copyright"
+                    - "unknown"
+                  example: "CC BY-SA"
+      responses:
+        "200":
+          description: License updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "License updated successfully"
+        "400":
+          description: Bad request - Invalid input
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: "License is required"
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
   /v2/persons:
     get:
       summary: Retrieve all persons
