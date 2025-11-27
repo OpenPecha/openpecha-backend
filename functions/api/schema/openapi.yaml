@@ -2221,21 +2221,21 @@ paths:
         "500":
           $ref: '#/components/responses/ServerError'
 
-  /v2/texts/{expression_id}/title:
+  /v2/texts/{texts_id}/title:
     put:
-      summary: Update expression title
+      summary: Update texts title
       description: >-
-        Update the title of a text expression. The title should be provided as a dictionary
+        Update the title of a texts. The title should be provided as a dictionary
         with language code as the key and the title text as the value.
       tags:
         - Texts
       parameters:
-        - name: expression_id
+        - name: texts_id
           in: path
           required: true
           schema:
             type: string
-          description: The expression ID of the text to update
+          description: The texts ID of the text to update
       requestBody:
         required: true
         content:
@@ -2278,19 +2278,19 @@ paths:
         "500":
           $ref: '#/components/responses/ServerError'
 
-  /v2/texts/{expression_id}/license:
+  /v2/texts/{texts_id}/license:
     put:
-      summary: Update expression license
-      description: Update the license information for a text expression
+      summary: Update texts license
+      description: Update the license information for a texts
       tags:
         - Texts
       parameters:
-        - name: expression_id
+        - name: texts_id
           in: path
           required: true
           schema:
             type: string
-          description: The expression ID of the text to update
+          description: The texts ID of the text to update
       requestBody:
         required: true
         content:
