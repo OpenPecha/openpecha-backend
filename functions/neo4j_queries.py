@@ -333,7 +333,7 @@ MATCH (e:Expression {{id: $expression_id}})
 OPTIONAL MATCH (e)-[lc_rel:HAS_LICENSE]->(license:License)
 WITH e, lc_rel
 DELETE lc_rel
-CREATE (e)-[:HAS_LICENSE]->(:License {{name: $license}})
+MERGE (e)-[:HAS_LICENSE]->(:License {{name: $license}})
 RETURN e.id as expression_id
 """,
 }

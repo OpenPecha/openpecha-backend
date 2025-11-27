@@ -228,12 +228,6 @@ def update_title(expression_id: str) -> tuple[Response, int]:
     title = data.get("title")
     if not title:
         return jsonify({"error": "Title is required"}), 400
-
-    if not isinstance(title, dict):
-        return jsonify({"error": "Title must be a dictionary"}), 400
-    
-    if not title:
-        return jsonify({"error": "Title dictionary cannot be empty"}), 400
     
     # Convert dict_keys to list to make it subscriptable (Python 3)
     lang_code = list(title.keys())[0]
