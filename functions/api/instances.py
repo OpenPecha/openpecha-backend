@@ -25,7 +25,6 @@ from models import (
     TextType,
 )
 from neo4j_database import Neo4JDatabase
-from neo4j_database_validator import Neo4JDatabaseValidator
 from storage import Storage
 
 instances_bp = Blueprint("instances", __name__)
@@ -132,11 +131,10 @@ def update_instance(manifestation_id: str):
     # Validate request using InstanceRequestModel
     request_model = InstanceRequestModel.model_validate(data)
 
-    db = Neo4JDatabase()
-    storage = Storage()
+    db = Database()
 
     # Get expression_id for this manifestation
-    expression_id = db.get_expression_id_by_manifestation_id(manifestation_id=manifestation_id)
+    expression_id = db.expression.get_id_by_manifestation(manifestation_id=manifestation_id)
 
     # Prepare annotation if provided
     annotation = None
@@ -157,15 +155,16 @@ def update_instance(manifestation_id: str):
     if request_model.biblography_annotation:
         bibliography_annotation_id = generate_id()
         bibliography_annotation = AnnotationModel(id=bibliography_annotation_id, type=AnnotationType.BIBLIOGRAPHY)
-        bibliography_types = [seg.type for seg in request_model.biblography_annotation]
-        with db.get_session() as session:
-            Neo4JDatabaseValidator().validate_bibliography_type_exists(
-                session=session, bibliography_types=bibliography_types
-            )
         bibliography_segments = [seg.model_dump() for seg in request_model.biblography_annotation]
 
+    db.manifestation.validate_update(
+        manifestation=request_model.metadata, bibliography_annotation=bibliography_annotation
+    )
+
+    # TODO: check if the order should be reversed (first storage and then db)
+
     # Update manifestation in database
-    segment_ids = db.update_manifestation(
+    segment_ids = db.manifestation.update(
         manifestation_id=manifestation_id,
         manifestation=request_model.metadata,
         annotation=annotation,
@@ -175,7 +174,7 @@ def update_instance(manifestation_id: str):
     )
 
     # Update base text in storage
-    storage.store_base_text(
+    Storage().store_base_text(
         expression_id=expression_id,
         manifestation_id=manifestation_id,
         base_text=request_model.content,
@@ -494,13 +493,7 @@ def get_related_instances(manifestation_id: str) -> tuple[Response, int]:
     if type_filter and type_filter not in ["translation", "commentary", "root"]:
         return jsonify({"error": "Invalid type filter. Must be 'translation', 'commentary', or 'root'"}), 400
 
-    db = Neo4JDatabase()
-
-    try:
-        related_instances = db.find_related_instances(manifestation_id, type_filter)
-    except Exception as e:
-        logger.error("Error finding related instances: %s", e)
-        return jsonify({"error": str(e)}), 500
+    related_instances = Database().manifestation.get_related(manifestation_id, type_filter)
 
     return jsonify(related_instances), 200
 

@@ -1,7 +1,7 @@
 import logging
 
 from exceptions import InvalidRequest
-from models import AnnotationModel, ExpressionModelInput, ManifestationType, TextType
+from models import AnnotationModel, AnnotationType, ExpressionModelInput, ManifestationType, TextType
 from neo4j_queries import Queries
 
 logger = logging.getLogger(__name__)
@@ -297,3 +297,56 @@ class DatabaseValidator:
                     f"A category with application '{application}', title '{title_text}' in language '{language}', "
                     f"and parent_id '{parent_id}' already exists."
                 )
+
+    @staticmethod
+    def validate_no_annotation_type_exists(tx, manifestation_id: str, annotation_type: AnnotationType) -> None:
+        """Ensure annotation type doesn't already exist for manifestation."""
+        query = """
+        MATCH (m:Manifestation {id: $manifestation_id})<-[:ANNOTATION_OF]-(a:Annotation)-[:HAS_TYPE]->
+        (t:AnnotationType {name: $type})
+        RETURN count(a) as count
+        """
+        result = tx.run(query, manifestation_id=manifestation_id, type=annotation_type.value)
+        record = result.single()
+        if record and record["count"] > 0:
+            raise DataValidationError(
+                f"Annotation of type '{annotation_type.value}' already exists for manifestation '{manifestation_id}'"
+            )
+
+    @staticmethod
+    def validate_no_alignment_exists(tx, manifestation_id: str, target_manifestation_id: str) -> None:
+        """Ensure alignment relationship doesn't already exist between manifestations."""
+        query = """
+        MATCH (m1:Manifestation {id: $manifestation_id})<-[:ANNOTATION_OF]-(a1:Annotation)-[:HAS_TYPE]->
+        (t:AnnotationType {name: 'alignment'})
+        MATCH (m2:Manifestation {id: $target_manifestation_id})<-[:ANNOTATION_OF]-(a2:Annotation {aligned_to: a1.id})
+        RETURN count(*) as count
+        """
+        result = tx.run(query, manifestation_id=manifestation_id, target_manifestation_id=target_manifestation_id)
+        record = result.single()
+        if record and record["count"] > 0:
+            raise DataValidationError(
+                f"Alignment relationship already exists between manifestation '{manifestation_id}' "
+                f"and target manifestation '{target_manifestation_id}'"
+            )
+
+    @staticmethod
+    def validate_expression_title_unique(tx, title: dict[str, str]) -> None:
+        """Ensure no expression exists with the same title text and language combination."""
+        if not title:
+            return
+
+        query = """
+        UNWIND $titles AS item
+        RETURN EXISTS {
+            MATCH (e:Expression)-[:HAS_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText {text: item.text})
+                  -[:HAS_LANGUAGE]->(lang:Language {code: item.lang})
+        } AS exists
+        """
+
+        titles_list = [{"text": text, "lang": lang} for lang, text in title.items()]
+        result = tx.run(query, titles=titles_list)
+
+        for record in result:
+            if record["exists"]:
+                raise DataValidationError("Expression with the same title and language already exists")

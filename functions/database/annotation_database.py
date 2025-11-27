@@ -1,9 +1,11 @@
 import logging
 
 from exceptions import DataNotFound
-from models import AnnotationModel
+from models import AnnotationModel, AnnotationType
 from neo4j_database import Neo4JDatabase
 from neo4j_queries import Queries
+
+from .database_validator import DatabaseValidator
 
 logger = logging.getLogger(__name__)
 
@@ -92,9 +94,33 @@ class AnnotationDatabase:
                 if seg.get("id")
             ]
 
+    def validate_create(
+        self,
+        manifestation_id: str,
+        annotation_type: AnnotationType,
+        target_manifestation_id: str | None = None,
+    ):
+        with self.session as session:
+            session.execute_read(
+                lambda tx: self._validate_create(tx, manifestation_id, annotation_type, target_manifestation_id)
+            )
+
+    @staticmethod
+    def _validate_create(
+        tx,
+        manifestation_id: str,
+        annotation_type: AnnotationType,
+        target_manifestation_id: str | None = None,
+    ):
+        if annotation_type == AnnotationType.ALIGNMENT:
+            if target_manifestation_id:
+                DatabaseValidator.validate_no_alignment_exists(tx, manifestation_id, target_manifestation_id)
+        else:
+            DatabaseValidator.validate_no_annotation_type_exists(tx, manifestation_id, annotation_type)
+
     @staticmethod
     def create_with_transaction(tx, manifestation_id: str, annotation: AnnotationModel) -> str:
-        logger.info("Aligned_to_id: %s", annotation.aligned_to)
+        AnnotationDatabase._validate_create(tx, manifestation_id, annotation.type, annotation.aligned_to)
         tx.run(
             Queries.annotations["create"],
             manifestation_id=manifestation_id,
@@ -105,7 +131,6 @@ class AnnotationDatabase:
         return annotation.id
 
     def _get_segments(self, annotation_id: str) -> list[dict]:
-        """Helper method to get segments for a specific annotation."""
         with self.session as session:
             result = session.run(Queries.annotations["get_segments"], annotation_id=annotation_id)
             segments = []
@@ -122,7 +147,6 @@ class AnnotationDatabase:
         return segments
 
     def _get_sections(self, annotation_id: str) -> list[dict]:
-        """Helper method to get sections for a specific annotation."""
         with self.session as session:
             result = session.run(Queries.annotations["get_sections"], annotation_id=annotation_id)
             sections = []
@@ -132,7 +156,6 @@ class AnnotationDatabase:
         return sections
 
     def _get_durchen_annotation(self, annotation_id: str) -> list[dict]:
-        """Helper method to get durchen annotation for a specific annotation."""
         with self.session as session:
             result = session.run(Queries.annotations["get_durchen_annotation"], annotation_id=annotation_id)
             durchen_annotation = []

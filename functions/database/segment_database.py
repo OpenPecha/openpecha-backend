@@ -121,6 +121,10 @@ class SegmentDatabase:
             )
 
     @staticmethod
+    def create_durchen_note_with_transaction(tx, segments: list[dict]) -> None:
+        tx.run(Queries.durchen_notes["create"], segments=segments)
+
+    @staticmethod
     def create_and_link_with_transaction(tx, segments: list[dict]) -> None:
         """Create reference nodes and link them to segments."""
         segment_references = []

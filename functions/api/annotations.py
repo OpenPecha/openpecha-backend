@@ -90,6 +90,12 @@ def add_annotation(manifestation_id: str) -> tuple[Response, int]:
     logger.info("Getting manifestation and expression id from Neo4J Database")
     db = Database()
 
+    db.annotation.validate_create(
+        manifestation_id=manifestation_id,
+        annotation_type=request_model.type,
+        target_manifestation_id=request_model.target_manifestation_id,
+    )
+
     manifestation, _ = db.manifestation.get(manifestation_id=manifestation_id)
 
     # Check if annotation of the same type already exists in Neo4j database

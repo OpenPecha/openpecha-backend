@@ -101,6 +101,29 @@ class ExpressionDatabase:
         with self.session as session:
             return session.execute_write(lambda tx: self.create_with_transaction(tx, expression))
 
+    def validate_create(self, expression: ExpressionModelInput):
+        with self.session as session:
+            session.execute_read(lambda tx: self._validate_create(tx, expression))
+
+    @staticmethod
+    def _validate_create(tx, expression: ExpressionModelInput):
+        DatabaseValidator.validate_expression_title_unique(tx, expression.title)
+
+        if expression.contributions:
+            person_ids = [
+                contrib.person_id
+                for contrib in expression.contributions
+                if hasattr(contrib, "person_id") and contrib.person_id
+            ]
+            person_bdrc_ids = [
+                contrib.person_bdrc_id
+                for contrib in expression.contributions
+                if hasattr(contrib, "person_bdrc_id") and contrib.person_bdrc_id
+            ]
+
+            DatabaseValidator.validate_person_references(tx, person_ids)
+            DatabaseValidator.validate_person_bdrc_references(tx, person_bdrc_ids)
+
     @staticmethod
     def create_with_transaction(tx, expression: ExpressionModelInput, expression_id: str | None = None) -> str:
         # TODO: move the validation based on language to the database validator

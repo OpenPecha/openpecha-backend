@@ -8,15 +8,12 @@ from models import (
     AnnotationModel,
     AnnotationType,
     CategoryListItemModel,
-    ContributionModel,
     ContributionModelOutput,
     CopyrightStatus,
     EnumType,
-    ExpressionModelInput,
     ExpressionModelOutput,
     LicenseType,
     LocalizedString,
-    ManifestationModelInput,
     ManifestationModelOutput,
     ManifestationType,
     SegmentModel,
@@ -126,128 +123,6 @@ class Neo4JDatabase:
             license=LicenseType(expression_data.get("license") or LicenseType.PUBLIC_DOMAIN_MARK.value),
         )
 
-    def update_manifestation(
-        self,
-        manifestation_id: str,
-        manifestation: ManifestationModelInput,
-        annotation: AnnotationModel = None,
-        annotation_segments: list[dict] = None,
-        bibliography_annotation: AnnotationModel = None,
-        bibliography_segments: list[dict] = None,
-    ) -> list[str]:
-        """
-        Update a manifestation by cleaning up old related nodes and creating new ones.
-
-        This method:
-        1. Validates manifestation exists
-        2. Deletes all annotations and retrieves segment IDs
-        3. Cleans up old contributions, incipit titles, and type relationships
-        4. Updates manifestation properties
-        5. Creates new annotations and segments as provided
-
-        Args:
-            manifestation_id: ID of the manifestation to update
-            manifestation: New manifestation metadata
-            annotation: New annotation (typically segmentation)
-            annotation_segments: Segments for the new annotation
-            bibliography_annotation: New bibliography annotation
-            bibliography_segments: Segments for bibliography annotation
-        """
-
-        # 1. First delete all annotations and get segment IDs (if needed for future use)
-        def transaction_function(tx):
-            # 2. Clean up old related nodes (contributions, incipit titles, type relationships)
-            # Note: Annotations are already deleted above
-
-            record = tx.run(
-                Queries.manifestations["get_annotation_segment_ids"],
-                manifestation_id=manifestation_id,
-            ).single()
-
-            if record:
-                search_seg_ids = [sid for sid in (record["search_segmentation_ids"] or []) if sid is not None]
-                seg_ids = [sid for sid in (record["segmentation_ids"] or []) if sid is not None]
-            else:
-                search_seg_ids = []
-                seg_ids = []
-
-            segment_ids = search_seg_ids + seg_ids
-
-            logger.info(
-                "Found segments for manifestation %s. search_segmentation_ids=%s, segmentation_ids=%s",
-                manifestation_id,
-                search_seg_ids,
-                seg_ids,
-            )
-
-            delete_query_keys = [
-                "delete_segmentation_and_pagination",
-                "delete_search_segmentation",
-                "delete_bibliography_annotations",
-                "delete_toc_annotations",
-                "delete_durchen_annotations",
-                "delete_alignment_annotations",
-            ]
-
-            for key in delete_query_keys:
-                tx.run(
-                    Queries.manifestations[key],
-                    manifestation_id=manifestation_id,
-                )
-
-            logger.info(
-                "Deleted all annotations for manifestation %s using %d delete queries",
-                manifestation_id,
-                len(delete_query_keys),
-            )
-
-            tx.run(
-                Queries.manifestations["cleanup_for_update"],
-                manifestation_id=manifestation_id,
-            )
-            incipit_element_id = None
-            if manifestation.incipit_title:
-                alt_incipit_data = (
-                    [alt.root for alt in manifestation.alt_incipit_titles] if manifestation.alt_incipit_titles else None
-                )
-                incipit_element_id = self._create_nomens(
-                    tx,
-                    manifestation.incipit_title.root,
-                    alt_incipit_data,
-                )
-
-            tx.run(
-                Queries.manifestations["update_properties"],
-                manifestation_id=manifestation_id,
-                bdrc=manifestation.bdrc,
-                wiki=manifestation.wiki,
-                colophon=manifestation.colophon,
-                type=manifestation.type.value if manifestation.type else None,
-                source=manifestation.source,
-                incipit_element_id=incipit_element_id,
-            )
-
-            # 5. Create new annotations and segments
-            if annotation:
-                self._execute_add_annotation(tx, manifestation_id, annotation)
-                self._create_segments(tx, annotation.id, annotation_segments)
-                if annotation.type == AnnotationType.PAGINATION:
-                    self._create_and_link_references(tx, annotation_segments)
-                elif annotation.type == AnnotationType.DURCHEN:
-                    self._create_durchen_note(tx, annotation_segments)
-
-            # Add bibliography annotation
-            if bibliography_annotation:
-                self._execute_add_annotation(tx, manifestation_id, bibliography_annotation)
-                self._create_segments(tx, bibliography_annotation.id, bibliography_segments)
-                if bibliography_segments:
-                    self._link_segment_and_bibliography_type(tx, bibliography_segments)
-
-            return segment_ids
-
-        with self.get_session() as session:
-            return session.execute_write(transaction_function)
-
     def get_expression_id_by_manifestation_id(self, manifestation_id: str) -> str:
         """Get expression ID for a single manifestation ID. Returns None if not found."""
         result = self.get_expression_ids_by_manifestation_ids([manifestation_id])
@@ -312,107 +187,6 @@ class Neo4JDatabase:
             )
             return {record["expression_id"]: record["work_id"] for record in result}
 
-    def find_related_instances(self, manifestation_id: str, type_filter: str | None = None) -> list[dict]:
-        """
-        Find all manifestations that have alignment relationships with the given manifestation.
-
-        Args:
-            manifestation_id: The ID of the manifestation to find related instances for
-            type_filter: Optional filter to only return instances of a specific type (translation/commentary)
-
-        Returns:
-            List of dictionaries containing instance metadata, expression details, and alignment annotation IDs
-        """
-        with self.get_session() as session:
-            # Step 1: Find instances related through alignment annotations
-            alignment_result = session.execute_read(
-                lambda tx: list(
-                    tx.run(Queries.manifestations["find_related_instances"], manifestation_id=manifestation_id)
-                )
-            )
-
-            # Step 2: Find instances related through expression-level relationships
-            expression_result = session.execute_read(
-                lambda tx: list(
-                    tx.run(
-                        Queries.manifestations["find_expression_related_instances"], manifestation_id=manifestation_id
-                    )
-                )
-            )
-
-            # Get instance_ids from alignment results to prioritize them
-            alignment_instance_ids = set()
-            for record in alignment_result:
-                data = record.data()["related_instance"]
-                manifestation_data = data["manifestation"]
-                alignment_instance_ids.add(manifestation_data["id"])
-
-            # Filter expression results to remove duplicates from alignment results
-            filtered_expression_result = []
-            for record in expression_result:
-                data = record.data()["related_instance"]
-                manifestation_data = data["manifestation"]
-                if manifestation_data["id"] not in alignment_instance_ids:
-                    filtered_expression_result.append(record)
-
-            # Combine alignment results with filtered expression results
-            result = alignment_result + filtered_expression_result
-
-            related_instances = []
-            for record in result:
-                data = record.data()["related_instance"]
-
-                # Process manifestation and expression using existing helper methods
-                manifestation = self._process_manifestation_data(data["manifestation"])
-                expression = self._process_expression_data(data["expression"])
-                alignment_annotation_id = data["alignment_annotation_id"]
-
-                # Determine relationship type from expression type
-                # Related instances must be one of: ROOT, TRANSLATION, or COMMENTARY
-                if expression.type == TextType.TRANSLATION:
-                    relationship_type = "translation"
-                elif expression.type == TextType.COMMENTARY:
-                    relationship_type = "commentary"
-                elif expression.type == TextType.TRANSLATION_SOURCE:
-                    relationship_type = "translation_source"
-                elif expression.type == TextType.ROOT:  # TextType.ROOT
-                    relationship_type = "root"
-                else:
-                    relationship_type = "none"
-
-                # Apply type filter if provided
-                if type_filter and relationship_type != type_filter:
-                    continue
-
-                # Build the response object with essential metadata only
-                # Format contributions to only include person_id (not person_bdrc_id)
-                formatted_contributions = []
-                if expression.contributions:
-                    for contrib in expression.contributions:
-                        contrib_dict = contrib.model_dump()
-                        # Remove person_bdrc_id if it exists
-                        contrib_dict.pop("person_bdrc_id", None)
-                        formatted_contributions.append(contrib_dict)
-
-                instance = {
-                    "instance_id": manifestation.id,
-                    "metadata": {
-                        "instance_type": manifestation.type.value,
-                        "source": manifestation.source,
-                        "text_id": expression.id,
-                        "title": expression.title.root if expression.title else None,
-                        "alt_titles": [alt.root for alt in expression.alt_titles] if expression.alt_titles else [],
-                        "language": expression.language,
-                        "contributions": formatted_contributions,
-                    },
-                    "annotation": alignment_annotation_id,
-                    "relationship": relationship_type,
-                }
-
-                related_instances.append(instance)
-
-            return related_instances
-
     # SegmentDatabase
     def find_aligned_segments(self, segment_id: str) -> dict[str, dict[str, list[SegmentModel]]]:
         """
@@ -475,10 +249,6 @@ class Neo4JDatabase:
                 id=data["segment_id"], span=SpanModel(start=data["span_start"], end=data["span_end"])
             )
             return segment, data["manifestation_id"], data["expression_id"]
-
-    def create_expression(self, expression: ExpressionModelInput) -> str:
-        with self.get_session() as session:
-            return session.execute_write(lambda tx: self._execute_create_expression(tx, expression))
 
     def add_annotation_to_manifestation(
         self, manifestation_id: str, annotation: AnnotationModel, annotation_segments: list[dict]
@@ -648,129 +418,6 @@ class Neo4JDatabase:
                 )
 
             return out
-
-    # ExpressionDatabase
-    def _execute_create_expression(self, tx, expression: ExpressionModelInput, expression_id: str | None = None) -> str:
-        # TODO: move the validation based on language to the database validator
-        expression_id = expression_id or generate_id()
-        target_id = expression.target if expression.target != "N/A" else None
-        if target_id and expression.type == TextType.TRANSLATION:
-            result = tx.run(Queries.expressions["fetch_by_id"], id=target_id).single()
-            target_language = result.data()["expression"]["language"] if result else None
-            if target_language == expression.language:
-                raise ValueError("Translation must have a different language than the target expression")
-
-        work_id = generate_id()
-        self.__validator.validate_expression_creation(tx, expression, work_id)
-        base_lang_code = expression.language.split("-")[0].lower()
-        # Validate base language exists (single-query validator)
-        self.__validator.validate_language_code_exists(tx, base_lang_code)
-        # Validate category exists if category_id is provided
-        if expression.category_id:
-            self.__validator.validate_category_exists(tx, expression.category_id)
-        alt_titles_data = [alt_title.root for alt_title in expression.alt_titles] if expression.alt_titles else None
-        expression_title_element_id = self._create_nomens(tx, expression.title.root, alt_titles_data)
-
-        common_params = {
-            "expression_id": expression_id,
-            "bdrc": expression.bdrc,
-            "wiki": expression.wiki,
-            "date": expression.date,
-            "language_code": base_lang_code,
-            "bcp47_tag": expression.language,
-            "title_nomen_element_id": expression_title_element_id,
-            "target_id": target_id,
-            "copyright": expression.copyright.value,
-            "license": expression.license.value,
-        }
-
-        match expression.type:
-            case TextType.ROOT:
-                tx.run(Queries.expressions["create_standalone"], work_id=work_id, original=True, **common_params)
-            case TextType.TRANSLATION:
-                if expression.target == "N/A":
-                    tx.run(Queries.expressions["create_standalone"], work_id=work_id, original=False, **common_params)
-                else:
-                    tx.run(Queries.expressions["create_translation"], **common_params)
-            case TextType.COMMENTARY:
-                if expression.target == "N/A":
-                    raise NotImplementedError("Standalone COMMENTARY texts (target='N/A') are not yet supported")
-                tx.run(Queries.expressions["create_commentary"], work_id=work_id, **common_params)
-
-        # Link work to category if category_id is provided
-        if expression.category_id:
-            tx.run(Queries.works["link_to_category"], work_id=work_id, category_id=expression.category_id)
-
-        if expression.contributions:
-            for contribution in expression.contributions:
-                # Validate that the role exists in the database
-                if isinstance(contribution, ContributionModel):
-                    result = tx.run(
-                        Queries.expressions["create_contribution"],
-                        expression_id=expression_id,
-                        person_id=contribution.person_id,
-                        person_bdrc_id=contribution.person_bdrc_id,
-                        role_name=contribution.role.value,
-                    )
-
-                    if not result.single():
-                        raise DataNotFound(
-                            f"Person or Role not found. "
-                            f"Person: id={contribution.person_id}, bdrc_id={contribution.person_bdrc_id}; "
-                            f"Role: {contribution.role.value}"
-                        )
-                elif isinstance(contribution, AIContributionModel):
-                    ai_result = tx.run(
-                        Queries.ai["find_or_create"],
-                        ai_id=contribution.ai_id,
-                    )
-                    record = ai_result.single()
-                    if not record:
-                        raise DataNotFound("Failed to find or create AI node")
-
-                    result = tx.run(
-                        Queries.expressions["create_ai_contribution"],
-                        expression_id=expression_id,
-                        ai_element_id=record["ai_element_id"],
-                        role_name=contribution.role.value,
-                    )
-                    if not result.single():
-                        raise DataNotFound(
-                            f"AI contribution creation failed. "
-                            f"AI: {contribution.ai_id}; Role: {contribution.role.value}"
-                        )
-                else:
-                    raise ValueError(f"Unknown contribution type: {type(contribution)}")
-
-        return expression_id
-
-    # ManifestationDatabase
-    def _execute_create_manifestation(
-        self, tx, manifestation: ManifestationModelInput, expression_id: str, manifestation_id: str
-    ) -> str:
-        self.__validator.validate_expression_exists(tx, expression_id)
-
-        incipit_element_id = None
-        if manifestation.incipit_title:
-            alt_incipit_data = (
-                [alt.root for alt in manifestation.alt_incipit_titles] if manifestation.alt_incipit_titles else None
-            )
-            incipit_element_id = self._create_nomens(tx, manifestation.incipit_title.root, alt_incipit_data)
-
-        result = tx.run(
-            Queries.manifestations["create"],
-            manifestation_id=manifestation_id,
-            expression_id=expression_id,
-            bdrc=manifestation.bdrc,
-            wiki=manifestation.wiki,
-            type=manifestation.type.value if manifestation.type else None,
-            source=manifestation.source,
-            colophon=manifestation.colophon,
-            incipit_element_id=incipit_element_id,
-        )
-
-        if not result.single():
-            raise DataNotFound(f"Expression '{expression_id}' not found")
 
     # AnnotationDatabase
     def _execute_add_annotation(self, tx, manifestation_id: str, annotation: AnnotationModel) -> str:
