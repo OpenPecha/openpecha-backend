@@ -151,10 +151,10 @@ def update_instance(manifestation_id: str):
     # Prepare bibliography annotation if provided
     bibliography_annotation = None
     bibliography_segments = None
-    if request_model.biblography_annotation:
+    if request_model.bibliography:
         bibliography_annotation_id = generate_id()
         bibliography_annotation = AnnotationModel(id=bibliography_annotation_id, type=AnnotationType.BIBLIOGRAPHY)
-        bibliography_segments = [seg.model_dump() for seg in request_model.biblography_annotation]
+        bibliography_segments = [seg.model_dump() for seg in request_model.bibliography]
 
     db.manifestation.validate_update(
         manifestation=request_model.metadata, bibliography_annotation=bibliography_annotation

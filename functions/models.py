@@ -381,32 +381,27 @@ class DurchenAnnotationModel(OpenPechaModel):
 
 class InstanceRequestModel(OpenPechaModel):
     metadata: ManifestationModelInput
-    annotation: list[SegmentationAnnotationModel | PaginationAnnotationModel] | None = None
-    biblography_annotation: list[BibliographyAnnotationModel] | None = None
+    pagination: list[PaginationAnnotationModel] | None = None
+    segmentation: list[SegmentationAnnotationModel] | None = None
+    bibliography: list[BibliographyAnnotationModel] | None = None
     content: NonEmptyStr
 
     @model_validator(mode="after")
     def validate_annotation(self):
-        if self.annotation is not None:
-            if len(self.annotation) == 0:
-                raise ValueError("Cannot provide an empty annotation")
-            elif self.metadata.type is ManifestationType.CRITICAL and not all(
-                isinstance(ann, SegmentationAnnotationModel) for ann in self.annotation
-            ):
-                raise ValueError("For 'critical' manifestations, all annotations must be SegmentationAnnotationModel")
-            elif self.metadata.type is ManifestationType.DIPLOMATIC and not all(
-                isinstance(ann, PaginationAnnotationModel) for ann in self.annotation
-            ):
-                raise ValueError("For 'diplomatic' manifestations, all annotations must be PaginationAnnotationModel")
-            elif not all(
-                isinstance(ann, (SegmentationAnnotationModel, PaginationAnnotationModel)) for ann in self.annotation
-            ):
-                raise ValueError("Annotations must be either SegmentationAnnotationModel or PaginationAnnotationModel")
-        if self.biblography_annotation is not None:
-            if len(self.biblography_annotation) == 0:
-                raise ValueError("Biblography annotation cannot be empty list")
-            elif not all(isinstance(ann, BibliographyAnnotationModel) for ann in self.biblography_annotation):
-                raise ValueError("All biblography annotations must be of type BibliographyAnnotationModel")
+        if self.metadata.type is ManifestationType.CRITICAL:
+            if not self.segmentation:
+                raise ValueError("Critical editions must have segmentation_annotation")
+            if self.pagination:
+                raise ValueError("Critical editions must not have pagination_annotation")
+        elif self.metadata.type is ManifestationType.DIPLOMATIC:
+            if not self.pagination:
+                raise ValueError("Diplomatic editions must have pagination_annotation")
+            if self.segmentation:
+                raise ValueError("Diplomatic editions must not have segmentation_annotation")
+
+        if self.bibliography is not None and len(self.bibliography) == 0:
+            raise ValueError("Biblography annotation cannot be empty list")
+
         return self
 
 
