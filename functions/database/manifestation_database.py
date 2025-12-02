@@ -3,7 +3,6 @@ import logging
 from exceptions import DataNotFound
 from models import (
     AnnotationModel,
-    AnnotationType,
     ExpressionModelInput,
     ManifestationModelInput,
     ManifestationModelOutput,
@@ -15,7 +14,6 @@ from neo4j_queries import Queries
 
 from functions.database.database_validator import DatabaseValidator
 from functions.database.nomen_database import NomenDatabase
-from functions.database.segment_database import SegmentDatabase
 
 from .annotation_database import AnnotationDatabase
 from .data_adapter import DataAdapter
@@ -222,20 +220,13 @@ class ManifestationDatabase:
             self.create_with_transaction(tx, manifestation, expression_id, manifestation_id)
 
             if annotation:
-                AnnotationDatabase.create_with_transaction(tx, manifestation_id, annotation)
-                SegmentDatabase.create_with_transaction(tx, annotation.id, annotation_segments)
-                if annotation_segments:
-                    if "reference" in annotation_segments[0]:
-                        SegmentDatabase.create_and_link_with_transaction(tx, annotation_segments)
-                    if "type" in annotation_segments[0]:
-                        SegmentDatabase.link_bibliography_type_with_transaction(tx, annotation_segments)
+                AnnotationDatabase.create_with_transaction(tx, manifestation_id, annotation, annotation_segments)
 
             # Add bibliography annotation in the same transaction
             if bibliography_annotation:
-                AnnotationDatabase.create_with_transaction(tx, manifestation_id, bibliography_annotation)
-                SegmentDatabase.create_with_transaction(tx, bibliography_annotation.id, bibliography_segments)
-                if bibliography_segments:
-                    SegmentDatabase.link_bibliography_type_with_transaction(tx, bibliography_segments)
+                AnnotationDatabase.create_with_transaction(
+                    tx, manifestation_id, bibliography_annotation, bibliography_segments
+                )
 
         with self.session as session:
             return session.execute_write(transaction_function)
@@ -250,10 +241,7 @@ class ManifestationDatabase:
         segmentation: AnnotationModel,
         segmentation_segments: list[dict],
         alignment_annotation: AnnotationModel,
-        alignment_segments: list[dict],
         target_annotation: AnnotationModel,
-        target_segments: list[dict],
-        alignments: list[dict],
         bibliography_annotation: AnnotationModel = None,
         bibliography_segments: list[dict] = None,
     ) -> str:
@@ -261,28 +249,21 @@ class ManifestationDatabase:
             _ = ExpressionDatabase.create_with_transaction(tx, expression, expression_id)
             _ = ManifestationDatabase.create_with_transaction(tx, manifestation, expression_id, manifestation_id)
 
-            _ = AnnotationDatabase.create_with_transaction(tx, manifestation_id, segmentation)
-            SegmentDatabase.create_with_transaction(tx, segmentation.id, segmentation_segments)
+            AnnotationDatabase.create_alignment_with_transaction(
+                tx,
+                target_annotation,
+                alignment_annotation,
+                target_manifestation_id,
+                manifestation_id,
+            )
 
-            SegmentDatabase.create_with_transaction(tx, segmentation.id, segmentation_segments)
-            SegmentDatabase.create_and_link_with_transaction(tx, segmentation_segments)
-
-            _ = AnnotationDatabase.create_with_transaction(tx, target_manifestation_id, target_annotation)
-            SegmentDatabase.create_with_transaction(tx, target_annotation.id, target_segments)
-            SegmentDatabase.create_and_link_with_transaction(tx, target_segments)
-
-            _ = AnnotationDatabase.create_with_transaction(tx, manifestation_id, alignment_annotation)
-            SegmentDatabase.create_with_transaction(tx, alignment_annotation.id, alignment_segments)
-            SegmentDatabase.create_and_link_with_transaction(tx, alignment_segments)
-
-            tx.run(Queries.segments["create_alignments_batch"], alignments=alignments)
+            AnnotationDatabase.create_with_transaction(tx, manifestation_id, segmentation, segmentation_segments)
 
             # Add bibliography annotation in the same transaction
             if bibliography_annotation:
-                _ = AnnotationDatabase.create_with_transaction(tx, manifestation_id, bibliography_annotation)
-                SegmentDatabase.create_with_transaction(tx, bibliography_annotation.id, bibliography_segments)
-                if bibliography_segments:
-                    SegmentDatabase.link_bibliography_type_with_transaction(tx, bibliography_segments)
+                _ = AnnotationDatabase.create_with_transaction(
+                    tx, manifestation_id, bibliography_annotation, bibliography_segments
+                )
 
         with self.session as session:
             return session.execute_write(transaction_function)
@@ -391,19 +372,13 @@ class ManifestationDatabase:
 
             # 5. Create new annotations and segments
             if annotation:
-                AnnotationDatabase.create_with_transaction(tx, manifestation_id, annotation)
-                SegmentDatabase.create_with_transaction(tx, annotation.id, annotation_segments)
-                if annotation.type == AnnotationType.PAGINATION:
-                    SegmentDatabase.create_and_link_with_transaction(tx, annotation_segments)
-                elif annotation.type == AnnotationType.DURCHEN:
-                    SegmentDatabase.create_durchen_note_with_transaction(tx, annotation_segments)
+                AnnotationDatabase.create_with_transaction(tx, manifestation_id, annotation, annotation_segments)
 
             # Add bibliography annotation
             if bibliography_annotation:
-                AnnotationDatabase.create_with_transaction(tx, manifestation_id, bibliography_annotation)
-                SegmentDatabase.create_with_transaction(tx, bibliography_annotation.id, bibliography_segments)
-                if bibliography_segments:
-                    SegmentDatabase.link_bibliography_type_with_transaction(tx, bibliography_segments)
+                AnnotationDatabase.create_with_transaction(
+                    tx, manifestation_id, bibliography_annotation, bibliography_segments
+                )
 
             return segment_ids
 

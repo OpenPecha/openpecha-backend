@@ -2,7 +2,6 @@ import logging
 import threading
 
 import requests
-from api.annotations import _alignment_annotation_mapping
 from api.relation import _get_relation_for_an_expression
 from database import Database
 from exceptions import InvalidRequest
@@ -267,10 +266,6 @@ def _create_aligned_text(
                 id=alignment_annotation_id, type=AnnotationType.ALIGNMENT, aligned_to=target_annotation_id
             )
 
-            alignment_segments_with_ids, target_segments_with_ids, alignments = _alignment_annotation_mapping(
-                request_model.target_annotation, request_model.alignment_annotation
-            )
-
             db.manifestation.create_aligned(
                 expression=expression,
                 expression_id=expression_id,
@@ -280,10 +275,7 @@ def _create_aligned_text(
                 segmentation=segmentation,
                 segmentation_segments=segmentation_segments,
                 alignment_annotation=alignment_annotation,
-                alignment_segments=alignment_segments_with_ids,
                 target_annotation=target_annotation,
-                target_segments=target_segments_with_ids,
-                alignments=alignments,
                 bibliography_annotation=bibliography_annotation,
                 bibliography_segments=bibliography_segments,
             )

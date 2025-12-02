@@ -465,7 +465,7 @@ class AddAnnotationRequestModel(OpenPechaModel):
 
     def _validate_alignment(self):
         if self.target_manifestation_id is None:
-            raise ValueError("Target manifestation id must be provided")
+            raise ValueError("Target instance id must be provided")
         if self.target_annotation is None or len(self.target_annotation) == 0:
             raise ValueError("Target annotation must be provided and cannot be empty")
         if self.alignment_annotation is None or len(self.alignment_annotation) == 0:
