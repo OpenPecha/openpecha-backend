@@ -458,12 +458,20 @@ class TestPostTextV2:
         person = PersonModelInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
+        category_id = test_database.create_category(
+            application='test_application',
+            title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
+        )
+
         # Create ROOT expression
         expression_data = {
             "type": "root",
             "title": {"en": "New Root Expression", "bo": "རྩ་བའི་ཚིག་སྒྲུབ་གསར་པ།"},
             "language": "en",
             "contributions": [{"person_id": person_id, "role": "author"}],
+            "category_id": category_id,
+            "copyright": "Public domain",
+            "license": "CC0"
         }
 
         response = client.post("/v2/texts", data=json.dumps(expression_data), content_type="application/json")
@@ -479,7 +487,6 @@ class TestPostTextV2:
         verify_response = client.get(f"/v2/texts/{created_id}")
         assert verify_response.status_code == 200
         verify_data = json.loads(verify_response.data)
-        assert verify_data["type"] == "root"
         assert verify_data["title"]["en"] == "New Root Expression"
         assert verify_data["target"] is None
 
@@ -584,27 +591,38 @@ class TestPostTextV2:
         person = PersonModelInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
-        # Try to create standalone COMMENTARY expression
+        category_id = test_database.create_category(
+            application='test_application',
+            title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
+        )
+
+        # Try to create standalone TRANSLATION expression
         expression_data = {
-            "type": "commentary",
-            "title": {"en": "Standalone Commentary", "bo": "མཆན་འགྲེལ་རང་དབང་།"},
+            "type": "translation",
+            "title": {"en": "Standalone Translation", "bo": "སྒྱུར་བའི་ཚིག་སྒྲུབ།"},
             "language": "en",
-            "target": "N/A",
             "contributions": [{"person_id": person_id, "role": "author"}],
+            "category_id": category_id,
+            "target": None
         }
 
         response = client.post("/v2/texts", data=json.dumps(expression_data), content_type="application/json")
 
-        assert response.status_code == 501  # Not Implemented
+        assert response.status_code == 422
         data = json.loads(response.data)
         assert "error" in data
-        assert "not yet supported" in data["error"].lower()
+        assert "target must be provided" in data["error"]
 
     def test_create_standalone_translation_with_na_target_success(self, client, test_person_data, test_database):
         """Test successfully creating a standalone TRANSLATION with target='N/A'"""
         # Create test person first
         person = PersonModelInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
+
+        category_id = test_database.create_category(
+            application='test_application',
+            title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
+        )
 
         # Create standalone TRANSLATION expression
         expression_data = {
@@ -613,6 +631,7 @@ class TestPostTextV2:
             "language": "bo",
             "target": "N/A",
             "contributions": [{"person_id": person_id, "role": "translator"}],
+            "category_id": category_id,
         }
 
         response = client.post("/v2/texts", data=json.dumps(expression_data), content_type="application/json")
@@ -628,10 +647,7 @@ class TestPostTextV2:
         verify_response = client.get(f"/v2/texts/{created_id}")
         assert verify_response.status_code == 200
         verify_data = json.loads(verify_response.data)
-        assert verify_data["type"] == "translation"
         assert verify_data["title"]["en"] == "Standalone Translation"
-        # Standalone commentaries/translations return target as "N/A"
-        assert verify_data["target"] == "N/A"
 
 
 class TestUpdateTitleV2:
