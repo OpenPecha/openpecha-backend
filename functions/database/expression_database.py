@@ -1,12 +1,23 @@
+import logging
+
 from exceptions import DataNotFound
 from identifier import generate_id
-from models import AIContributionModel, ContributionModel, ExpressionModelInput, ExpressionModelOutput, TextType
+from models import (
+    AIContributionModel,
+    ContributionModel,
+    ExpressionModelInput,
+    ExpressionModelOutput,
+    LicenseType,
+    TextType,
+)
 from neo4j_database import Neo4JDatabase
 from neo4j_queries import Queries
 
 from .data_adapter import DataAdapter
 from .database_validator import DatabaseValidator
 from .nomen_database import NomenDatabase
+
+logger = logging.getLogger(__name__)
 
 
 class ExpressionDatabase:
@@ -96,6 +107,29 @@ class ExpressionDatabase:
                 )
             )
             return {record["manifestation_id"]: record["expression_id"] for record in result}
+
+    def update_title(self, expression_id: str, title: dict[str, str]) -> None:
+        logger.info("Updating title for expression ID: %s", expression_id)
+        with self.session as session:
+            result = session.execute_write(
+                lambda tx: tx.run(
+                    Queries.expressions["update_title"], expression_id=expression_id, title=title
+                ).single()
+            )
+
+            if result is None:
+                raise DataNotFound(f"Expression with ID '{expression_id}' not found")
+
+    def update_license(self, expression_id: str, license: LicenseType) -> None:
+        with self.session as session:
+            result = session.execute_write(
+                lambda tx: tx.run(
+                    Queries.expressions["update_license"], expression_id=expression_id, license=license.value
+                ).single()
+            )
+
+            if result is None:
+                raise DataNotFound(f"Expression with ID '{expression_id}' not found")
 
     def create(self, expression: ExpressionModelInput) -> str:
         with self.session as session:

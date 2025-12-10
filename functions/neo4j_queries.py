@@ -171,12 +171,17 @@ Queries.expressions = {
     WITH e
     WHERE ($type IS NULL OR {Queries.get_expression_type('e')} = $type)
     AND ($language IS NULL OR [(e)-[:HAS_LANGUAGE]->(l:Language) | l.code][0] = $language)
-    AND ($title IS NULL OR EXISTS {{
-        MATCH (e)-[:HAS_TITLE]->(titleNomen:Nomen)
-        MATCH (n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
-        WHERE (n = titleNomen OR (n)-[:ALTERNATIVE_OF]->(titleNomen))
-        AND toLower(lt.text) CONTAINS toLower($title)
-    }})
+    AND ($title IS NULL OR (
+        EXISTS {{
+            MATCH (e)-[:HAS_TITLE]->(titleNomen:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
+            WHERE toLower(lt.text) CONTAINS toLower($title)
+        }}
+        OR EXISTS {{
+            MATCH (e)-[:HAS_TITLE]->(:Nomen)<-[:ALTERNATIVE_OF]-(altNomen:Nomen)
+                  -[:HAS_LOCALIZATION]->(lt:LocalizedText)
+            WHERE toLower(lt.text) CONTAINS toLower($title)
+        }}
+    ))
 
     OFFSET $offset
     LIMIT $limit
@@ -303,6 +308,27 @@ RETURN e.id as expression_id
 MATCH (e:Expression)-[:EXPRESSION_OF]->(w:Work)
 WHERE e.id IN $expression_ids
 RETURN e.id as expression_id, w.id as work_id
+""",
+    "update_title": """
+MATCH (e:Expression {id: $expression_id})-[:HAS_TITLE]->(primary_nomen:Nomen)
+MATCH (l:Language {code: $title.lang_code})
+OPTIONAL MATCH (primary_nomen)-[:HAS_LOCALIZATION]->(existing_lt:LocalizedText)-[:HAS_LANGUAGE]->(l)
+FOREACH (_ IN CASE WHEN existing_lt IS NOT NULL THEN [1] ELSE [] END |
+    SET existing_lt.text = $title.text
+)
+FOREACH (_ IN CASE WHEN existing_lt IS NULL THEN [1] ELSE [] END |
+    CREATE (primary_nomen)-[:HAS_LOCALIZATION]->(new_lt:LocalizedText {text: $title.text})-[:HAS_LANGUAGE]->(l)
+)
+RETURN e.id as expression_id
+""",
+    "update_license": """
+MATCH (e:Expression {id: $expression_id})
+OPTIONAL MATCH (e)-[lc_rel:HAS_LICENSE]->(license:License)
+WITH e, lc_rel
+DELETE lc_rel
+MATCH (license:License {name: $license})
+MERGE (e)-[:HAS_LICENSE]->(license)
+RETURN e.id as expression_id
 """,
 }
 
@@ -450,20 +476,16 @@ RETURN {Queries.manifestation_fragment('m')} as manifestation
     // Note: All annotations are deleted separately via delete_all_annotations_and_get_segments
     // This query only handles non-annotation cleanup
 
-    // 1. Find the expression to delete contributions
-    OPTIONAL MATCH (m)-[:MANIFESTATION_OF]->(e:Expression)
-    OPTIONAL MATCH (e)-[:HAS_CONTRIBUTION]->(contrib:Contribution)
-
-    // 2. Delete incipit title nomens (both primary and alternatives)
+    // 1. Delete incipit title nomens (both primary and alternatives)
     OPTIONAL MATCH (m)-[:HAS_INCIPIT_TITLE]->(inc_nomen:Nomen)
     OPTIONAL MATCH (inc_nomen)<-[:ALTERNATIVE_OF]-(alt_inc_nomen:Nomen)
     OPTIONAL MATCH (inc_nomen)-[:HAS_LOCALIZATION]->(inc_lt:LocalizedText)
     OPTIONAL MATCH (alt_inc_nomen)-[:HAS_LOCALIZATION]->(alt_inc_lt:LocalizedText)
 
-    // 3. Detach manifestation type relationship
+    // 2. Detach manifestation type relationship
     OPTIONAL MATCH (m)-[type_rel:HAS_TYPE]->(:ManifestationType)
 
-    // 4. Detach source relationship
+    // 3. Detach source relationship
     OPTIONAL MATCH (m)-[source_rel:HAS_SOURCE]->(:Source)
 
     // First delete only the explicit relationships we want gone but keep the other nodes
@@ -471,7 +493,6 @@ RETURN {Queries.manifestation_fragment('m')} as manifestation
 
     // Then delete nodes and automatically remove all their remaining relationships
     DETACH DELETE
-        contrib,
         inc_nomen, alt_inc_nomen,
         inc_lt, alt_inc_lt
 """,
