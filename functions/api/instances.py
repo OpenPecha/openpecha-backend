@@ -19,7 +19,6 @@ from models import (
     LocalizedString,
     ManifestationModelInput,
     ManifestationType,
-    SegmentModel,
     SpanModel,
     TextType,
 )
@@ -146,15 +145,13 @@ def update_instance(manifestation_id: str):
             else AnnotationType.PAGINATION
         )
         annotation = AnnotationModel(id=annotation_id, type=annotation_type)
-        annotation_segments = [seg.model_dump() for seg in request_model.annotation]
+        annotation_segments = request_model.annotation
 
     # Prepare bibliography annotation if provided
     bibliography_annotation = None
-    bibliography_segments = None
     if request_model.bibliography:
         bibliography_annotation_id = generate_id()
         bibliography_annotation = AnnotationModel(id=bibliography_annotation_id, type=AnnotationType.BIBLIOGRAPHY)
-        bibliography_segments = [seg.model_dump() for seg in request_model.bibliography]
 
     db.manifestation.validate_update(
         manifestation=request_model.metadata, bibliography_annotation=bibliography_annotation
@@ -169,7 +166,7 @@ def update_instance(manifestation_id: str):
         annotation=annotation,
         annotation_segments=annotation_segments,
         bibliography_annotation=bibliography_annotation,
-        bibliography_segments=bibliography_segments,
+        bibliography_segments=request_model.bibliography,
     )
 
     # Update base text in storage
@@ -194,11 +191,9 @@ def _create_aligned_text(
 
     # Validate and prepare bibliography annotation
     bibliography_annotation = None
-    bibliography_segments = None
     if request_model.biblography_annotation:
         bibliography_annotation_id = generate_id()
         bibliography_annotation = AnnotationModel(id=bibliography_annotation_id, type=AnnotationType.BIBLIOGRAPHY)
-        bibliography_segments = [seg.model_dump() for seg in request_model.biblography_annotation]
 
     expression_id = generate_id()
     segmentation_annotation_id = generate_id()
@@ -207,9 +202,6 @@ def _create_aligned_text(
     _, target_expression_id = db.manifestation.get(target_manifestation_id)
 
     segmentation = AnnotationModel(id=segmentation_annotation_id, type=AnnotationType.SEGMENTATION)
-    segmentation_segments = [
-        SegmentModel(id=generate_id(), span=span["span"]).model_dump() for span in request_model.segmentation
-    ]
 
     storage = Storage()
     storage.store_base_text(
@@ -273,11 +265,13 @@ def _create_aligned_text(
                 manifestation=manifestation,
                 target_manifestation_id=target_manifestation_id,
                 segmentation=segmentation,
-                segmentation_segments=segmentation_segments,
+                segmentation_segments=request_model.segmentation,
                 alignment_annotation=alignment_annotation,
+                alignment_segments=request_model.alignment_annotation,
                 target_annotation=target_annotation,
+                target_segments=request_model.target_annotation,
                 bibliography_annotation=bibliography_annotation,
-                bibliography_segments=bibliography_segments,
+                bibliography_segments=request_model.biblography_annotation,
             )
         else:
             db.manifestation.create(
@@ -286,9 +280,9 @@ def _create_aligned_text(
                 manifestation=manifestation,
                 manifestation_id=manifestation_id,
                 annotation=segmentation,
-                annotation_segments=segmentation_segments,
+                annotation_segments=request_model.segmentation,
                 bibliography_annotation=bibliography_annotation,
-                bibliography_segments=bibliography_segments,
+                bibliography_segments=request_model.biblography_annotation,
             )
     except Exception as e:
         logger.error("Error creating aligned text: %s", e)
@@ -437,7 +431,7 @@ def get_segment_related(manifestation_id: str) -> tuple[Response, int]:
         return error_response
 
     related_segments = db.segment.get_related(manifestation_id, span.start, span.end, transform)
-    manifestation_ids = [segment["manifestation_id"] for segment in related_segments]
+    manifestation_ids = [segment.manifestation_id for segment in related_segments]
     manifestation_ids.append(manifestation_id)
 
     # Get expression_id mapping for all manifestation_ids
@@ -458,6 +452,8 @@ def get_segment_related(manifestation_id: str) -> tuple[Response, int]:
     for related_segment in related_segments:
         manifestation_id = related_segment.get("manifestation_id")
         del related_segment["manifestation_id"]
+
+        related_segment["segments"] = [seg.model_dump() for seg in related_segment["segments"]]
 
         manifestation_model = manifestations.get(manifestation_id)
         related_segment["instance_metadata"] = (

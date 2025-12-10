@@ -6,7 +6,7 @@ from database import Database
 from exceptions import DataNotFound, InvalidRequest
 from flask import Blueprint, Response, jsonify, request
 from identifier import generate_id
-from models import AnnotationModel, AnnotationType, ExpressionModelInput, InstanceRequestModel, LicenseType
+from models import AnnotationModel, AnnotationType, ExpressionModelInput, InstanceRequestModel
 from neo4j_database import Neo4JDatabase
 from storage import Storage
 
@@ -119,11 +119,9 @@ def create_instance(expression_id: str) -> tuple[Response, int]:
     db = Database()
 
     bibliography_annotation = None
-    bibliography_segments = None
     if instance_request.bibliography:
         bibliography_annotation_id = generate_id()
         bibliography_annotation = AnnotationModel(id=bibliography_annotation_id, type=AnnotationType.BIBLIOGRAPHY)
-        bibliography_segments = [seg.model_dump() for seg in instance_request.bibliography]
 
     manifestation_id = generate_id()
 
@@ -145,11 +143,11 @@ def create_instance(expression_id: str) -> tuple[Response, int]:
     if instance_request.pagination:
         annotation_id = generate_id()
         annotation = AnnotationModel(id=annotation_id, type=AnnotationType.PAGINATION)
-        annotation_segments = [seg.model_dump() for seg in instance_request.pagination]
+        annotation_segments = instance_request.pagination
     elif instance_request.segmentation:
         annotation_id = generate_id()
         annotation = AnnotationModel(id=annotation_id, type=AnnotationType.SEGMENTATION)
-        annotation_segments = [seg.model_dump() for seg in instance_request.segmentation]
+        annotation_segments = instance_request.segmentation
 
     # Create manifestation with both annotations in a single transaction
     db.manifestation.create(
@@ -159,7 +157,7 @@ def create_instance(expression_id: str) -> tuple[Response, int]:
         expression_id=expression_id,
         manifestation_id=manifestation_id,
         bibliography_annotation=bibliography_annotation,
-        bibliography_segments=bibliography_segments,
+        bibliography_segments=instance_request.bibliography,
     )
 
     # Trigger search segmenter API asynchronously

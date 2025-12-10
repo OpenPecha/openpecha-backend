@@ -129,7 +129,7 @@ def search_segments() -> tuple[Response, int]:
             )
 
             # Extract segment IDs
-            segmentation_ids = [seg["segment_id"] for seg in overlapping_segments]
+            segmentation_ids = [seg.id for seg in overlapping_segments]
 
             # Create enriched result
             enriched_result = SearchResultModel(

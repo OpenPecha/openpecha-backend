@@ -2,11 +2,15 @@ import logging
 
 from exceptions import DataNotFound
 from models import (
+    AlignmentSegmentModel,
+    AlignmentTargetSegmentModel,
     AnnotationModel,
+    BibliographySegmentModel,
     ExpressionModelInput,
     ManifestationModelInput,
     ManifestationModelOutput,
     ManifestationType,
+    SegmentModelInput,
     TextType,
 )
 from neo4j_database import Neo4JDatabase
@@ -208,10 +212,10 @@ class ManifestationDatabase:
         expression_id: str,
         manifestation_id: str,
         annotation: AnnotationModel = None,
-        annotation_segments: list[dict] = None,
+        annotation_segments: list[SegmentModelInput] = None,
         expression: ExpressionModelInput = None,
         bibliography_annotation: AnnotationModel = None,
-        bibliography_segments: list[dict] = None,
+        bibliography_segments: list[BibliographySegmentModel] = None,
     ) -> str:
         def transaction_function(tx):
             if expression:
@@ -239,11 +243,13 @@ class ManifestationDatabase:
         manifestation: ManifestationModelInput,
         target_manifestation_id: str,
         segmentation: AnnotationModel,
-        segmentation_segments: list[dict],
+        segmentation_segments: list[SegmentModelInput],
         alignment_annotation: AnnotationModel,
+        alignment_segments: list[AlignmentSegmentModel],
         target_annotation: AnnotationModel,
+        target_segments: list[AlignmentTargetSegmentModel],
         bibliography_annotation: AnnotationModel = None,
-        bibliography_segments: list[dict] = None,
+        bibliography_segments: list[BibliographySegmentModel] = None,
     ) -> str:
         def transaction_function(tx):
             _ = ExpressionDatabase.create_with_transaction(tx, expression, expression_id)
@@ -252,7 +258,9 @@ class ManifestationDatabase:
             AnnotationDatabase.create_alignment_with_transaction(
                 tx,
                 target_annotation,
+                target_segments,
                 alignment_annotation,
+                alignment_segments,
                 target_manifestation_id,
                 manifestation_id,
             )
@@ -273,9 +281,9 @@ class ManifestationDatabase:
         manifestation_id: str,
         manifestation: ManifestationModelInput,
         annotation: AnnotationModel = None,
-        annotation_segments: list[dict] = None,
+        annotation_segments: list[SegmentModelInput] = None,
         bibliography_annotation: AnnotationModel = None,
-        bibliography_segments: list[dict] = None,
+        bibliography_segments: list[BibliographySegmentModel] = None,
     ) -> list[str]:
         """
         Update a manifestation by cleaning up old related nodes and creating new ones.

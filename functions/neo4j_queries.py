@@ -694,11 +694,11 @@ RETURN DISTINCT
 """,
     "get_alignment_pairs_by_manifestation": """
 MATCH (m:Manifestation {id: $manifestation_id})
-MATCH (m)<-[:ANNOTATION_OF]-(a1:Annotation)-[:HAS_TYPE]->(:AnnotationType {name: 'alignment'})
+    <-[:ANNOTATION_OF]-(a1:Annotation)-[:HAS_TYPE]->(:AnnotationType {name: 'alignment'})
 MATCH (a1)-[:ALIGNED_TO]-(a2:Annotation)
-WITH a1, a2, m.id as manifestation_id
-
-RETURN manifestation_id, a1.id as alignment_1_id, a2.id as alignment_2_id
+RETURN m.id as manifestation_id,
+    a1.id as alignment_1_id,
+    a2.id as alignment_2_id
 """,
     "get_segmentation_annotation_by_manifestation": """
 MATCH (m:Manifestation {id: $manifestation_id})

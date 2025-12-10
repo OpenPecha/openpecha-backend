@@ -2,7 +2,17 @@ import logging
 import queue as queue_module
 
 from identifier import generate_id
-from models import SegmentModel, SpanModel
+from models import (
+    AlignmentSegmentModel,
+    AlignmentTargetSegmentModel,
+    BibliographySegmentModel,
+    DurchenSegmentModel,
+    PaginationSegmentModel,
+    SegmentModelBase,
+    SegmentModelInput,
+    SegmentModelOutput,
+    SpanModel,
+)
 from neo4j_database import Neo4JDatabase
 from neo4j_queries import Queries
 
@@ -17,7 +27,7 @@ class SegmentDatabase:
     def session(self):
         return self._db.get_session()
 
-    def get_aligned(self, segment_id: str) -> dict[str, dict[str, list[SegmentModel]]]:
+    def get_aligned(self, segment_id: str) -> dict[str, dict[str, list[SegmentModelInput]]]:
         """
         Find all segments aligned to a given segment, separated by direction.
         Returns a dictionary with 'targets' and 'sources' keys, each containing a dict of
@@ -36,14 +46,18 @@ class SegmentDatabase:
             return {
                 "targets": {
                     record["manifestation_id"]: [
-                        SegmentModel(id=seg["segment_id"], span=SpanModel(start=seg["span_start"], end=seg["span_end"]))
+                        SegmentModelOutput(
+                            id=seg["segment_id"], span=SpanModel(start=seg["span_start"], end=seg["span_end"])
+                        )
                         for seg in record["segments"]
                     ]
                     for record in targets_result
                 },
                 "sources": {
                     record["manifestation_id"]: [
-                        SegmentModel(id=seg["segment_id"], span=SpanModel(start=seg["span_start"], end=seg["span_end"]))
+                        SegmentModelOutput(
+                            id=seg["segment_id"], span=SpanModel(start=seg["span_start"], end=seg["span_end"])
+                        )
                         for seg in record["segments"]
                     ]
                     for record in sources_result
@@ -68,8 +82,8 @@ class SegmentDatabase:
                     # Skip if no segments found
                     if not segments_list:
                         continue
-                    overall_start = min(segments_list, key=lambda x: x["span"]["start"])["span"]["start"]
-                    overall_end = max(segments_list, key=lambda x: x["span"]["end"])["span"]["end"]
+                    overall_start = min(segments_list, key=lambda x: x.span.start).span.start
+                    overall_end = max(segments_list, key=lambda x: x.span.end).span.end
 
                     # Get manifestation ID by annotation ID
                     with self.session as session:
@@ -107,12 +121,10 @@ class SegmentDatabase:
             return untransformed_related_segments
 
     @staticmethod
-    def create_with_transaction(tx, annotation_id: str, segments: list[dict]) -> None:
-        segments_with_ids = []
-        for seg in segments:
-            if "id" not in seg or seg["id"] is None:
-                seg["id"] = generate_id()
-            segments_with_ids.append(seg)
+    def _create_node(tx, annotation_id: str, segments: list[SegmentModelBase]) -> None:
+        segments_with_ids = [
+            {"id": generate_id(), "span": {"start": seg.span.start, "end": seg.span.end}} for seg in segments
+        ]
         if segments_with_ids:
             tx.run(
                 Queries.segments["create_batch"],
@@ -121,12 +133,67 @@ class SegmentDatabase:
             )
 
     @staticmethod
-    def create_durchen_note_with_transaction(tx, segments: list[dict]) -> None:
+    def create_with_transaction(tx, annotation_id: str, segments: list[SegmentModelBase]) -> None:
+        SegmentDatabase._create_node(tx, annotation_id, segments)
+
+    @staticmethod
+    def create_aligned_with_transaction(
+        tx,
+        target_annotation_id: str,
+        target_segments: list[AlignmentTargetSegmentModel],
+        alignment_annotation_id: str,
+        alignment_segments: list[AlignmentSegmentModel],
+    ) -> None:
+        """Create alignment and target segments with their relationships in a single transaction."""
+        # Generate IDs and create mappings for alignment segments
+        alignment_ids = [generate_id() for _ in alignment_segments]
+        alignment_id_map = {seg.index: alignment_ids[i] for i, seg in enumerate(alignment_segments)}
+        alignment_dicts = [
+            {"id": alignment_ids[i], "span": {"start": seg.span.start, "end": seg.span.end}}
+            for i, seg in enumerate(alignment_segments)
+        ]
+
+        # Generate IDs and create mappings for target segments
+        target_ids = [generate_id() for _ in target_segments]
+        target_id_map = {seg.index: target_ids[i] for i, seg in enumerate(target_segments)}
+        target_dicts = [
+            {"id": target_ids[i], "span": {"start": seg.span.start, "end": seg.span.end}}
+            for i, seg in enumerate(target_segments)
+        ]
+
+        # Create target segments
+        if target_dicts:
+            tx.run(
+                Queries.segments["create_batch"],
+                annotation_id=target_annotation_id,
+                segments=target_dicts,
+            )
+
+        # Create alignment segments
+        if alignment_dicts:
+            tx.run(
+                Queries.segments["create_batch"],
+                annotation_id=alignment_annotation_id,
+                segments=alignment_dicts,
+            )
+
+        # Build and create alignment relationships
+        alignments = [
+            {"source_id": alignment_id_map[seg.index], "target_id": target_id_map[target_idx]}
+            for seg in alignment_segments
+            for target_idx in seg.alignment_index
+        ]
+        if alignments:
+            tx.run(Queries.segments["create_alignments_batch"], alignments=alignments)
+
+    @staticmethod
+    def create_durchen_with_transaction(tx, annotation_id: str, segments: list[DurchenSegmentModel]) -> None:
+        SegmentDatabase._create_node(tx, annotation_id, segments)
         tx.run(Queries.durchen_notes["create"], segments=segments)
 
     @staticmethod
-    def create_and_link_with_transaction(tx, segments: list[dict]) -> None:
-        """Create reference nodes and link them to segments."""
+    def create_pagination_with_transaction(tx, annotation_id: str, segments: list[PaginationSegmentModel]) -> None:
+        SegmentDatabase._create_node(tx, annotation_id, segments)
         segment_references = []
         for seg in segments:
             if "reference" in seg and seg["reference"]:
@@ -152,13 +219,16 @@ class SegmentDatabase:
         return reference_id
 
     @staticmethod
-    def link_bibliography_type_with_transaction(tx, segment_and_type_name: list[dict]) -> None:
+    def create_bibliography_with_transaction(
+        tx, annotation_id: str, segment_and_type_name: list[BibliographySegmentModel]
+    ) -> None:
         """Create bibliography type nodes and link them to segments."""
+        SegmentDatabase._create_node(tx, annotation_id, segment_and_type_name)
 
         segment_type_pairs = [{"segment_id": seg["id"], "type_name": seg["type"]} for seg in segment_and_type_name]
         tx.run(Queries.bibliography_types["link_to_segments"], segment_and_type_names=segment_type_pairs)
 
-    def _get_aligned_segments(self, alignment_1_id: str, start: int, end: int) -> list[dict]:
+    def _get_aligned_segments(self, alignment_1_id: str, start: int, end: int) -> list[SegmentModelOutput]:
         with self.session as session:
             result = session.execute_read(
                 lambda tx: tx.run(
@@ -169,10 +239,10 @@ class SegmentDatabase:
                 ).data()
             )
             return [
-                {
-                    "segment_id": record["segment_id"],
-                    "span": {"start": record["span_start"], "end": record["span_end"]},
-                }
+                SegmentModelOutput(
+                    id=record["segment_id"],
+                    span=SpanModel(start=record["span_start"], end=record["span_end"]),
+                )
                 for record in result
             ]
 
@@ -185,7 +255,7 @@ class SegmentDatabase:
             )
             return result
 
-    def _get_overlapping_segments(self, manifestation_id: str, start: int, end: int) -> list[dict]:
+    def _get_overlapping_segments(self, manifestation_id: str, start: int, end: int) -> list[SegmentModelOutput]:
         with self.session as session:
             result = session.execute_read(
                 lambda tx: tx.run(
@@ -196,9 +266,9 @@ class SegmentDatabase:
                 ).data()
             )
             return [
-                {
-                    "segment_id": record["segment_id"],
-                    "span": {"start": record["span_start"], "end": record["span_end"]},
-                }
+                SegmentModelOutput(
+                    id=record["segment_id"],
+                    span=SpanModel(start=record["span_start"], end=record["span_end"]),
+                )
                 for record in result
             ]

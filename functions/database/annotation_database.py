@@ -2,7 +2,15 @@ import logging
 
 from exceptions import DataNotFound
 from identifier import generate_id
-from models import AnnotationModel, AnnotationType
+from models import (
+    AlignmentSegmentModel,
+    AlignmentTargetSegmentModel,
+    AnnotationModel,
+    AnnotationType,
+    DurchenSegmentModel,
+    SegmentModelBase,
+    SpanModel,
+)
 from neo4j_database import Neo4JDatabase
 from neo4j_queries import Queries
 from pydantic import ValidationError
@@ -61,8 +69,8 @@ class AnnotationDatabase:
                 response["data"] = sections
 
             elif annotation_type == "durchen":
-                durchen_notes = self._get_durchen_annotation(annotation_id)
-                response["data"] = durchen_notes
+                durchen_notes = self._get_durchen_segments(annotation_id)
+                response["data"] = [seg.model_dump() for seg in durchen_notes]
 
             else:
                 # For segmentation and pagination annotations, return segments
@@ -98,7 +106,25 @@ class AnnotationDatabase:
                 if seg.get("id")
             ]
 
-    def create(self, manifestation_id: str, annotation: AnnotationModel, annotation_segments: list[dict]):
+    def get_alignment_pair(self, annotation_id: str) -> tuple[str, str] | None:
+        """
+        Get source and target annotation IDs for an alignment annotation.
+        Works regardless of which annotation ID is provided.
+
+        Returns:
+            (source_annotation_id, target_annotation_id) or None if not found
+        """
+        with self.session as session:
+            result = session.execute_read(
+                lambda tx: tx.run(Queries.annotations["get_alignment_pair"], annotation_id=annotation_id).single()
+            )
+            if result:
+                return result["source_id"], result["target_id"]
+            return None
+
+    def create(
+        self, manifestation_id: str, annotation: AnnotationModel, annotation_segments: list[SegmentModelBase]
+    ) -> str:
         def transaction_function(tx):
             return AnnotationDatabase.create_with_transaction(tx, manifestation_id, annotation, annotation_segments)
 
@@ -108,7 +134,9 @@ class AnnotationDatabase:
     def create_alignment(
         self,
         target_annotation: AnnotationModel,
+        target_segments: list[AlignmentTargetSegmentModel],
         alignment_annotation: AnnotationModel,
+        alignment_segments: list[AlignmentSegmentModel],
         target_manifestation_id: str,
         source_manifestation_id: str,
     ) -> str:
@@ -116,7 +144,9 @@ class AnnotationDatabase:
             return AnnotationDatabase.create_alignment_with_transaction(
                 tx,
                 target_annotation,
+                target_segments,
                 alignment_annotation,
+                alignment_segments,
                 target_manifestation_id,
                 source_manifestation_id,
             )
@@ -152,33 +182,22 @@ class AnnotationDatabase:
 
     @staticmethod
     def create_with_transaction(
-        tx, manifestation_id: str, annotation: AnnotationModel, annotation_segments: list[dict]
+        tx, manifestation_id: str, annotation: AnnotationModel, annotation_segments: list[SegmentModelBase]
     ) -> str:
         AnnotationDatabase._validate_create(tx, manifestation_id, annotation.type, annotation.aligned_to)
 
-        tx.run(
-            Queries.annotations["create"],
-            manifestation_id=manifestation_id,
-            annotation_id=annotation.id,
-            type=annotation.type.value,
-            aligned_to_id=annotation.aligned_to,
-        )
-
-        SegmentDatabase.create_with_transaction(
-            tx,
-            annotation.id,
-            annotation_segments,
-        )
+        # Create annotation node
+        AnnotationDatabase._create_node(tx, manifestation_id, annotation)
 
         match annotation.type:
             case AnnotationType.PAGINATION:
-                SegmentDatabase.create_and_link_with_transaction(tx, annotation_segments)
+                SegmentDatabase.create_pagination_with_transaction(tx, annotation.id, annotation_segments)
             case AnnotationType.DURCHEN:
-                SegmentDatabase.create_durchen_note_with_transaction(tx, annotation_segments)
+                SegmentDatabase.create_durchen_with_transaction(tx, annotation.id, annotation_segments)
             case AnnotationType.TABLE_OF_CONTENTS:
                 AnnotationDatabase._create_sections(tx, annotation.id, annotation_segments)
             case AnnotationType.BIBLIOGRAPHY:
-                SegmentDatabase.link_bibliography_type_with_transaction(tx, annotation_segments)
+                SegmentDatabase.create_bibliography_with_transaction(tx, annotation.id, annotation_segments)
             case AnnotationType.ALIGNMENT:
                 raise ValueError(f"Invalid annotation type: {annotation.type}")
 
@@ -188,19 +207,56 @@ class AnnotationDatabase:
     def create_alignment_with_transaction(
         tx,
         target_annotation: AnnotationModel,
+        target_segments: list[AlignmentTargetSegmentModel],
         alignment_annotation: AnnotationModel,
+        alignment_segments: list[AlignmentSegmentModel],
         target_manifestation_id: str,
         source_manifestation_id: str,
     ) -> str:
-        alignment_segments, target_segments, alignments = AnnotationDatabase._alignment_annotation_mapping(
-            target_annotation, alignment_annotation
-        )
-        AnnotationDatabase.create_with_transaction(tx, target_manifestation_id, target_annotation, target_segments)
-        AnnotationDatabase.create_with_transaction(
-            tx, source_manifestation_id, alignment_annotation, alignment_segments
+        # Create annotation nodes
+        AnnotationDatabase._create_node(tx, target_manifestation_id, target_annotation)
+        AnnotationDatabase._create_node(tx, source_manifestation_id, alignment_annotation)
+
+        # Create segments and alignments using SegmentDatabase
+        SegmentDatabase.create_aligned_with_transaction(
+            tx,
+            target_annotation.id,
+            target_segments,
+            alignment_annotation.id,
+            alignment_segments,
         )
 
-        tx.run(Queries.segments["create_alignments_batch"], alignments=alignments)
+    def delete(self, annotation_id: str) -> None:
+        with self.session as session:
+            session.run(Queries.segments["delete_all_segments_by_annotation_id"], annotation_id=annotation_id)
+            session.run(Queries.annotations["delete"], annotation_id=annotation_id)
+
+    def delete_alignment(self, source_annotation_id: str, target_annotation_id: str):
+        def transaction_function(tx):
+            tx.run(
+                Queries.segments["delete_alignment_segments"],
+                source_annotation_id=source_annotation_id,
+                target_annotation_id=target_annotation_id,
+            )
+            tx.run(
+                Queries.annotations["delete_alignment_annotations"],
+                source_annotation_id=source_annotation_id,
+                target_annotation_id=target_annotation_id,
+            )
+
+        with self.session as session:
+            session.execute_write(transaction_function)
+
+    @staticmethod
+    def _create_node(tx, manifestation_id: str, annotation: AnnotationModel) -> None:
+        """Helper method to create just the annotation node without segments."""
+        tx.run(
+            Queries.annotations["create"],
+            manifestation_id=manifestation_id,
+            annotation_id=annotation.id,
+            type=annotation.type.value,
+            aligned_to_id=annotation.aligned_to,
+        )
 
     def _get_segments(self, annotation_id: str) -> list[dict]:
         with self.session as session:
@@ -227,44 +283,28 @@ class AnnotationDatabase:
                 sections.append(section)
         return sections
 
-    def _get_durchen_annotation(self, annotation_id: str) -> list[dict]:
+    def _get_durchen_segments(self, annotation_id: str) -> list[DurchenSegmentModel]:
         with self.session as session:
-            result = session.run(Queries.annotations["get_durchen_annotation"], annotation_id=annotation_id)
-            durchen_annotation = []
-            for record in result:
-                durchen_annotation.append(
-                    {
-                        "id": record["id"],
-                        "span": {"start": record["span_start"], "end": record["span_end"]},
-                        "note": record["note"],
-                    }
+            result = session.run(Queries.annotations["get_durchen_annotation"], annotation_id=annotation_id).data()
+            return [
+                DurchenSegmentModel(
+                    id=record["id"],
+                    span=SpanModel(start=record["span_start"], end=record["span_end"]),
+                    note=record["note"],
                 )
-            return durchen_annotation
-
-    # TODO: this shouldn't be dict, it should be model
-    @staticmethod
-    def _alignment_annotation_mapping(
-        target_annotation: list[dict], alignment_annotation: list[dict]
-    ) -> tuple[list[dict], list[dict], list[dict]]:
-        def add_ids(segments):
-            with_ids = [{**seg, "id": generate_id()} for seg in segments]
-            return with_ids, {seg["index"]: seg["id"] for seg in with_ids}
-
-        alignment_segments_with_ids, alignment_id_map = add_ids(alignment_annotation)
-        target_segments_with_ids, target_id_map = add_ids(target_annotation)
-
-        alignments = [
-            {"source_id": alignment_id_map[seg["index"]], "target_id": target_id_map[target_idx]}
-            for seg in alignment_annotation
-            for target_idx in seg.get("alignment_index", [])
-        ]
-        return alignment_segments_with_ids, target_segments_with_ids, alignments
+                for record in result
+            ]
 
     @staticmethod
     def _create_sections(tx, annotation_id: str, sections: list[dict] = None) -> None:
         if sections:
-            # Generate IDs for sections that don't have them
-            # Uniqueness is enforced by Neo4j constraint on Section.id (62^21 possibilities)
+            # TODO: check if this is right, creating the sections as segments
+            SegmentDatabase.create_with_transaction(
+                tx,
+                annotation_id,
+                sections,
+            )
+
             sections_with_ids = []
             for sec in sections:
                 # Validate section structure

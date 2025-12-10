@@ -149,14 +149,42 @@ class SpanModel(OpenPechaModel):
         return self
 
 
-class SegmentModel(OpenPechaModel):
+class SegmentModelBase(OpenPechaModel):
+    span: SpanModel
+
+
+class SegmentModelInput(SegmentModelBase):
+    pass
+
+
+class SegmentModelOutput(SegmentModelBase):
     id: str
-    span: SpanModel
 
 
-class BibliographyAnnotationModel(OpenPechaModel):
-    span: SpanModel
+class PaginationSegmentModel(SegmentModelBase):
+    reference: NonEmptyStr
+
+
+class AlignmentSegmentModel(SegmentModelBase):
+    index: int
+    alignment_index: list[int]
+
+
+class AlignmentTargetSegmentModel(SegmentModelBase):
+    index: int
+
+
+class DurchenSegmentModel(SegmentModelBase):
+    note: NonEmptyStr
+
+
+class BibliographySegmentModel(SegmentModelBase):
     type: NonEmptyStr
+
+
+class TableOfContentsAnnotationModel(OpenPechaModel):
+    title: NonEmptyStr
+    sections: list[NonEmptyStr]
 
 
 class ExpressionModelBase(OpenPechaModel):
@@ -245,7 +273,7 @@ class ManifestationModelBase(OpenPechaModel):
     colophon: NonEmptyStr | None = None
     incipit_title: LocalizedString | None = None
     alt_incipit_titles: list[LocalizedString] | None = None
-    biblography_annotation: list[BibliographyAnnotationModel] | None = None
+    biblography_annotation: list[BibliographySegmentModel] | None = None
 
     @model_validator(mode="after")
     def validate_bdrc_for_diplomatic_and_critical(self):
@@ -323,15 +351,15 @@ class AlignedTextRequestModel(OpenPechaModel):
     source: NonEmptyStr
     alt_titles: list[NonEmptyStr] | None = None
     author: CreatorRequestModel | None = None
-    target_annotation: list[dict] | None = None
-    alignment_annotation: list[dict] | None = None
-    segmentation: list[dict]
+    target_annotation: list[AlignmentTargetSegmentModel] | None = None
+    alignment_annotation: list[AlignmentSegmentModel] | None = None
+    segmentation: list[SegmentModelInput]
     copyright: CopyrightStatus
     license: LicenseType
     bdrc: str | None = None
     wiki: str | None = None
     category_id: str | None = None
-    biblography_annotation: list[BibliographyAnnotationModel] | None = None
+    biblography_annotation: list[BibliographySegmentModel] | None = None
 
     @model_validator(mode="after")
     def validate_alignment_annotations(self):
@@ -340,7 +368,7 @@ class AlignedTextRequestModel(OpenPechaModel):
         if self.biblography_annotation is not None:
             if len(self.biblography_annotation) == 0:
                 raise ValueError("Biblography annotation cannot be empty list")
-            elif not all(isinstance(ann, BibliographyAnnotationModel) for ann in self.biblography_annotation):
+            elif not all(isinstance(ann, BibliographySegmentModel) for ann in self.biblography_annotation):
                 raise ValueError("All biblography annotations must be of type BibliographyAnnotationModel")
         return self
 
@@ -350,40 +378,11 @@ class AlignedTextRequestModel(OpenPechaModel):
         return self
 
 
-class SegmentationAnnotationModel(OpenPechaModel):
-    span: SpanModel
-
-
-class SearchSegmentationAnnotationModel(OpenPechaModel):
-    span: SpanModel
-
-
-class PaginationAnnotationModel(OpenPechaModel):
-    span: SpanModel
-    reference: NonEmptyStr
-
-
-class AlignmentAnnotationModel(OpenPechaModel):
-    span: SpanModel
-    index: int
-    alignment_index: list[int] | None = None
-
-
-class TableOfContentsAnnotationModel(OpenPechaModel):
-    title: NonEmptyStr
-    segments: list[NonEmptyStr]
-
-
-class DurchenAnnotationModel(OpenPechaModel):
-    span: SpanModel
-    note: NonEmptyStr
-
-
 class InstanceRequestModel(OpenPechaModel):
     metadata: ManifestationModelInput
-    pagination: list[PaginationAnnotationModel] | None = None
-    segmentation: list[SegmentationAnnotationModel] | None = None
-    bibliography: list[BibliographyAnnotationModel] | None = None
+    pagination: list[PaginationSegmentModel] | None = None
+    segmentation: list[SegmentModelInput] | None = None
+    bibliography: list[BibliographySegmentModel] | None = None
     content: NonEmptyStr
 
     @model_validator(mode="after")
@@ -407,17 +406,16 @@ class InstanceRequestModel(OpenPechaModel):
 
 class AddAnnotationRequestModel(OpenPechaModel):
     type: AnnotationType
-    annotation: list[
-        SegmentationAnnotationModel
-        | SearchSegmentationAnnotationModel
-        | PaginationAnnotationModel
-        | BibliographyAnnotationModel
+    segments: list[
+        SegmentModelInput
+        | PaginationSegmentModel
+        | BibliographySegmentModel
         | TableOfContentsAnnotationModel
-        | DurchenAnnotationModel
+        | DurchenSegmentModel
     ] = Field(default_factory=list)
     target_manifestation_id: str | None = None
-    target_annotation: list[AlignmentAnnotationModel] | None = None
-    alignment_annotation: list[AlignmentAnnotationModel] | None = None
+    target_annotation: list[AlignmentTargetSegmentModel] | None = None
+    alignment_annotation: list[AlignmentSegmentModel] | None = None
 
     @model_validator(mode="after")
     def validate_request_model(self):
@@ -441,21 +439,21 @@ class AddAnnotationRequestModel(OpenPechaModel):
         return self
 
     def _validate_segmentation(self):
-        if not self.annotation:
+        if not self.segments:
             raise ValueError("Segmentation annotation cannot be empty")
         if self.target_annotation is not None or self.alignment_annotation is not None:
             raise ValueError(
                 "Cannot provide both segmentation annotation and alignment annotation or target_annotation"
             )
-        if not all(isinstance(ann, SegmentationAnnotationModel) for ann in self.annotation):
+        if not all(isinstance(ann, SegmentModelInput) for ann in self.segments):
             raise ValueError("Invalid segmentation annotation")
 
     def _validate_pagination(self):
-        if not self.annotation:
+        if not self.segments:
             raise ValueError("Pagination annotation cannot be empty")
         if self.target_annotation is not None or self.alignment_annotation is not None:
             raise ValueError("Cannot provide both pagination annotation and alignment annotation or target_annotation")
-        if not all(isinstance(ann, PaginationAnnotationModel) for ann in self.annotation):
+        if not all(isinstance(ann, PaginationSegmentModel) for ann in self.segments):
             raise ValueError("Invalid pagination annotation")
 
     def _validate_alignment(self):
@@ -465,29 +463,25 @@ class AddAnnotationRequestModel(OpenPechaModel):
             raise ValueError("Target annotation must be provided and cannot be empty")
         if self.alignment_annotation is None or len(self.alignment_annotation) == 0:
             raise ValueError("Alignment annotation must be provided and cannot be empty")
-        if self.annotation:
-            raise ValueError("Cannot provide both annotation and alignment annotation or target_annotation")
-        if not all(
-            isinstance(ann, AlignmentAnnotationModel) for ann in self.target_annotation + self.alignment_annotation
-        ):
-            raise ValueError("Invalid target annotation or alignment annotation")
+        if self.segments:
+            raise ValueError("Cannot provide both segments and alignment annotation or target_annotation")
 
     def _validate_bibliography(self):
-        if not self.annotation:
+        if not self.segments:
             raise ValueError("Biblography annotation cannot be empty")
-        if not all(isinstance(ann, BibliographyAnnotationModel) for ann in self.annotation):
+        if not all(isinstance(ann, BibliographySegmentModel) for ann in self.segments):
             raise ValueError("Invalid annotation")
 
     def _validate_table_of_contents(self):
-        if not self.annotation:
+        if not self.segments:
             raise ValueError("Table of contents annotation cannot be empty")
-        if not all(isinstance(ann, TableOfContentsAnnotationModel) for ann in self.annotation):
+        if not all(isinstance(ann, TableOfContentsAnnotationModel) for ann in self.segments):
             raise ValueError("Invalid annotation")
 
     def _validate_durchen(self):
-        if not self.annotation:
+        if not self.segments:
             raise ValueError("Durchen annotation cannot be empty")
-        if not all(isinstance(ann, DurchenAnnotationModel) for ann in self.annotation):
+        if not all(isinstance(ann, DurchenSegmentModel) for ann in self.segments):
             raise ValueError("Invalid annotation")
 
 
@@ -513,16 +507,11 @@ class CategoryListItemModel(OpenPechaModel):
 
 class UpdateAnnotationDataModel(OpenPechaModel):
     annotations: (
-        list[
-            SegmentationAnnotationModel
-            | PaginationAnnotationModel
-            | BibliographyAnnotationModel
-            | TableOfContentsAnnotationModel
-        ]
+        list[SegmentModelInput | PaginationSegmentModel | BibliographySegmentModel | TableOfContentsAnnotationModel]
         | None
     ) = None
-    target_annotation: list[AlignmentAnnotationModel] | None = None
-    alignment_annotation: list[AlignmentAnnotationModel] | None = None
+    target_annotation: list[AlignmentTargetSegmentModel] | None = None
+    alignment_annotation: list[AlignmentSegmentModel] | None = None
 
     @model_validator(mode="after")
     def validate_request_model(self):

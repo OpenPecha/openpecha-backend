@@ -16,7 +16,7 @@ from models import (
     LocalizedString,
     ManifestationModelOutput,
     ManifestationType,
-    SegmentModel,
+    SegmentModelOutput,
     SpanModel,
     TableOfContentsAnnotationModel,
     TextType,
@@ -187,40 +187,6 @@ class Neo4JDatabase:
             )
             return {record["expression_id"]: record["work_id"] for record in result}
 
-    # SegmentDatabase
-    def find_aligned_segments(self, segment_id: str) -> dict[str, dict[str, list[SegmentModel]]]:
-        """
-        Find all segments aligned to a given segment, separated by direction.
-        Returns a dictionary with 'targets' and 'sources' keys, each containing a dict of
-        manifestation_id -> list of SegmentModelOutput instances.
-        """
-
-        with self.get_session() as session:
-            targets_result = session.execute_read(
-                lambda tx: list(tx.run(Queries.segments["find_aligned_segments_outgoing"], segment_id=segment_id))
-            )
-
-            sources_result = session.execute_read(
-                lambda tx: list(tx.run(Queries.segments["find_aligned_segments_incoming"], segment_id=segment_id))
-            )
-
-            return {
-                "targets": {
-                    record["manifestation_id"]: [
-                        SegmentModel(id=seg["segment_id"], span=SpanModel(start=seg["span_start"], end=seg["span_end"]))
-                        for seg in record["segments"]
-                    ]
-                    for record in targets_result
-                },
-                "sources": {
-                    record["manifestation_id"]: [
-                        SegmentModel(id=seg["segment_id"], span=SpanModel(start=seg["span_start"], end=seg["span_end"]))
-                        for seg in record["segments"]
-                    ]
-                    for record in sources_result
-                },
-            }
-
     def _get_segments_batch(self, segment_ids: list[str]) -> list[dict]:
         """
         Get multiple segments by their IDs in a single query.
@@ -235,7 +201,7 @@ class Neo4JDatabase:
             )
             return records
 
-    def get_segment(self, segment_id: str) -> tuple[SegmentModel, str, str]:
+    def get_segment(self, segment_id: str) -> tuple[SegmentModelOutput, str, str]:
         with self.get_session() as session:
             record = session.execute_read(
                 lambda tx: tx.run(Queries.segments["get_by_id"], segment_id=segment_id).single()
@@ -245,87 +211,10 @@ class Neo4JDatabase:
                 raise DataNotFound(f"Segment with ID {segment_id} not found")
 
             data = record.data()
-            segment = SegmentModel(
+            segment = SegmentModelOutput(
                 id=data["segment_id"], span=SpanModel(start=data["span_start"], end=data["span_end"])
             )
             return segment, data["manifestation_id"], data["expression_id"]
-
-    def add_annotation_to_manifestation(
-        self, manifestation_id: str, annotation: AnnotationModel, annotation_segments: list[dict]
-    ):
-        def transaction_function(tx):
-            annotation_id = self._execute_add_annotation(tx, manifestation_id, annotation)
-            self._create_segments(tx, annotation_id, annotation_segments)
-            if annotation_segments:
-                if annotation.type == AnnotationType.PAGINATION:
-                    self._create_and_link_references(tx, annotation_segments)
-                if annotation.type == AnnotationType.BIBLIOGRAPHY:
-                    self._link_segment_and_bibliography_type(tx, annotation_segments)
-                if annotation.type == AnnotationType.DURCHEN:
-                    self._create_durchen_note(tx, annotation_segments)
-            return annotation_id
-
-        with self.get_session() as session:
-            return session.execute_write(transaction_function)
-
-    def add_alignment_annotation_to_manifestation(
-        self,
-        target_annotation: AnnotationModel,
-        alignment_annotation: AnnotationModel,
-        target_manifestation_id: str,
-        source_manifestation_id: str,
-        target_segments: list[dict],
-        alignment_segments: list[dict],
-        alignments: list[dict],
-    ) -> str:
-        def transaction_function(tx):
-            _ = self._execute_add_annotation(tx, target_manifestation_id, target_annotation)
-            self._create_segments(tx, target_annotation.id, target_segments)
-            _ = self._execute_add_annotation(tx, source_manifestation_id, alignment_annotation)
-            self._create_segments(tx, alignment_annotation.id, alignment_segments)
-
-            tx.run(Queries.segments["create_alignments_batch"], alignments=alignments)
-
-            logger.info("Alignments batch created successfully")
-
-        with self.get_session() as session:
-            return session.execute_write(transaction_function)
-
-    # NomenDatabase
-    def _create_nomens(self, tx, primary_text: dict[str, str], alternative_texts: list[dict[str, str]] = None) -> str:
-        # Validate all base language codes from primary and alternative titles in one go (lowercased)
-        base_codes = {tag.split("-")[0].lower() for tag in primary_text.keys()}
-        for alt_text in alternative_texts or []:
-            base_codes.update(tag.split("-")[0].lower() for tag in alt_text.keys())
-        self.__validator.validate_language_codes_exist(tx, list(base_codes))
-        # Build localized payloads
-        primary_localized_texts = [
-            {"base_lang_code": bcp47_tag.split("-")[0].lower(), "bcp47_tag": bcp47_tag, "text": text}
-            for bcp47_tag, text in primary_text.items()
-        ]
-
-        # Create primary nomen
-        result = tx.run(
-            Queries.nomens["create"],
-            primary_name_element_id=None,
-            localized_texts=primary_localized_texts,
-        )
-        primary_nomen_element_id = result.single()["element_id"]
-
-        # Create alternative nomens
-        for alt_text in alternative_texts or []:
-            localized_texts = [
-                {"base_lang_code": bcp47_tag.split("-")[0].lower(), "bcp47_tag": bcp47_tag, "text": text}
-                for bcp47_tag, text in alt_text.items()
-            ]
-
-            tx.run(
-                Queries.nomens["create"],
-                primary_name_element_id=primary_nomen_element_id,
-                localized_texts=localized_texts,
-            )
-
-        return primary_nomen_element_id
 
     def __convert_to_localized_text(self, entries: list[dict[str, str]] | None) -> dict[str, str] | None:
         if entries is None:
@@ -464,154 +353,6 @@ class Neo4JDatabase:
         with self.get_session() as session:
             return session.execute_write(transaction_function)
 
-    # SegmentDatabase
-    def _create_segments(self, tx, annotation_id: str, segments: list[dict] = None) -> None:
-        if segments:
-            # Generate IDs for segments that don't have them
-            # Uniqueness is enforced by Neo4j constraint on Segment.id (62^21 possibilities)
-            segments_with_ids = []
-            for seg in segments:
-                if "id" not in seg or seg["id"] is None:
-                    seg["id"] = generate_id()
-                segments_with_ids.append(seg)
-            tx.run(
-                Queries.segments["create_batch"],
-                annotation_id=annotation_id,
-                segments=segments_with_ids,
-            )
-
-    # SegmentDatabase
-    def _create_and_link_references(self, tx, segments: list[dict]) -> None:
-        """Create reference nodes and link them to segments."""
-        segment_references = []
-        for seg in segments:
-            if "reference" in seg and seg["reference"]:
-                reference_id = self._create_reference(tx, seg["reference"])
-                segment_references.append({"segment_id": seg["id"], "reference_id": reference_id})
-
-        # Link references to segments if any
-        if segment_references:
-            tx.run(
-                Queries.references["link_to_segments"],
-                segment_references=segment_references,
-            )
-
-    # SegmentDatabase
-    def _create_reference(self, tx, reference_name: str) -> str:
-        """Create a single reference node and return its ID."""
-        reference_id = generate_id()
-        tx.run(
-            Queries.references["create"],
-            reference_id=reference_id,
-            name=reference_name,
-        )
-        return reference_id
-
-    # SegmentDatabase
-    def _link_segment_and_bibliography_type(self, tx, segment_and_type_name: list[dict]) -> None:
-        """Create bibliography type nodes and link them to segments."""
-
-        segment_type_pairs = [{"segment_id": seg["id"], "type_name": seg["type"]} for seg in segment_and_type_name]
-        tx.run(Queries.bibliography_types["link_to_segments"], segment_and_type_names=segment_type_pairs)
-
-    def _create_durchen_note(self, tx, segments: list[dict]) -> None:
-        tx.run(Queries.durchen_notes["create"], segments=segments)
-
-    def get_annotation_type(self, annotation_id: str) -> str | None:
-        """
-        Get the annotation type for a given annotation ID.
-
-        Returns:
-            The annotation type string or None if not found
-        """
-        with self.get_session() as session:
-            result = session.execute_read(
-                lambda tx: tx.run(Queries.annotations["get_annotation_type"], annotation_id=annotation_id).single()
-            )
-            if result:
-                return result["annotation_type"]
-            return None
-
-    def has_annotation_type(self, manifestation_id: str, annotation_type: str) -> bool:
-        """
-        Check if a manifestation has an annotation of the specified type.
-
-        Args:
-            manifestation_id: The ID of the manifestation to check
-            annotation_type: The annotation type to check for (e.g., 'segmentation', 'alignment')
-
-        Returns:
-            True if an annotation of the specified type exists, False otherwise
-        """
-        with self.get_session() as session:
-            result = session.execute_read(
-                lambda tx: tx.run(
-                    Queries.annotations["check_annotation_type_exists"],
-                    manifestation_id=manifestation_id,
-                    annotation_type=annotation_type,
-                ).single()
-            )
-            if result:
-                return result["exists"]
-            return False
-
-    def has_alignment_relationship(self, source_manifestation_id: str, target_manifestation_id: str) -> bool:
-        """
-        Check if an alignment relationship already exists between two manifestations.
-
-        Args:
-            source_manifestation_id: The ID of the source manifestation
-            target_manifestation_id: The ID of the target manifestation
-
-        Returns:
-            True if an alignment relationship exists between the manifestations, False otherwise
-        """
-        with self.get_session() as session:
-            result = session.execute_read(
-                lambda tx: tx.run(
-                    Queries.annotations["check_alignment_relationship_exists"],
-                    source_manifestation_id=source_manifestation_id,
-                    target_manifestation_id=target_manifestation_id,
-                ).single()
-            )
-            return bool(result and result.get("exists", False))
-
-    def get_alignment_pair(self, annotation_id: str) -> tuple[str, str] | None:
-        """
-        Get source and target annotation IDs for an alignment annotation.
-        Works regardless of which annotation ID is provided.
-
-        Returns:
-            (source_annotation_id, target_annotation_id) or None if not found
-        """
-        with self.get_session() as session:
-            result = session.execute_read(
-                lambda tx: tx.run(Queries.annotations["get_alignment_pair"], annotation_id=annotation_id).single()
-            )
-            if result:
-                return result["source_id"], result["target_id"]
-            return None
-
-    def delete_alignment_annotation(self, source_annotation_id: str, target_annotation_id: str):
-        """
-        Delete alignment annotation including all segments and relationships.
-        """
-
-        def transaction_function(tx):
-            tx.run(
-                Queries.segments["delete_alignment_segments"],
-                source_annotation_id=source_annotation_id,
-                target_annotation_id=target_annotation_id,
-            )
-            tx.run(
-                Queries.annotations["delete_alignment_annotations"],
-                source_annotation_id=source_annotation_id,
-                target_annotation_id=target_annotation_id,
-            )
-
-        with self.get_session() as session:
-            session.execute_write(transaction_function)
-
     def create_category(self, application: str, title: dict[str, str], parent_id: str | None = None) -> str:
         """Create a category with localized title and optional parent relationship."""
 
@@ -655,11 +396,6 @@ class Neo4JDatabase:
                         )
                     )
             return categories
-
-    def delete_annotation_and_its_segments(self, annotation_id: str) -> None:
-        with self.get_session() as session:
-            session.run(Queries.segments["delete_all_segments_by_annotation_id"], annotation_id=annotation_id)
-            session.run(Queries.annotations["delete"], annotation_id=annotation_id)
 
     def delete_table_of_content_annotation(self, annotation_id: str) -> None:
         with self.get_session() as session:
@@ -707,16 +443,7 @@ class Neo4JDatabase:
                 case _:
                     return []
 
-    def _get_alignment_pairs_by_manifestation(self, manifestation_id: str) -> list[dict]:
-        with self.get_session() as session:
-            result = session.execute_read(
-                lambda tx: tx.run(
-                    Queries.annotations["get_alignment_pairs_by_manifestation"], manifestation_id=manifestation_id
-                ).data()
-            )
-            return result
-
-    def _get_overlapping_segments(self, manifestation_id: str, start: int, end: int) -> list[dict]:
+    def _get_overlapping_segments(self, manifestation_id: str, start: int, end: int) -> list[SegmentModelOutput]:
         with self.get_session() as session:
             result = session.execute_read(
                 lambda tx: tx.run(
@@ -727,10 +454,10 @@ class Neo4JDatabase:
                 ).data()
             )
             return [
-                {
-                    "segment_id": record["segment_id"],
-                    "span": {"start": record["span_start"], "end": record["span_end"]},
-                }
+                SegmentModelOutput(
+                    id=record["segment_id"],
+                    span=SpanModel(start=record["span_start"], end=record["span_end"]),
+                )
                 for record in result
             ]
 
