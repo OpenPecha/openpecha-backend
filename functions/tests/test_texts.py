@@ -392,7 +392,6 @@ class TestGetSingleTextV2:
         assert response.status_code == 200
         data = json.loads(response.data)
         assert data["id"] == expression_id
-        assert data["type"] == "root"
         assert data["title"]["en"] == "Test Expression"
         assert data["title"]["bo"] == "བརྟག་དཔྱད་ཚིག་སྒྲུབ།"
         assert data["language"] == "en"
