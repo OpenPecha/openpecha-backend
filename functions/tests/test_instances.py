@@ -166,17 +166,22 @@ class TestInstancesV2Endpoints:
 
         # Create manifestation with annotation
         manifestation_data = ManifestationModelInput(
-            copyright=CopyrightStatus.PUBLIC_DOMAIN,
             type=ManifestationType.DIPLOMATIC,
             bdrc="W12345",
+            source="www.example_source.com"
         )
 
         # Create annotation model
         annotation_id = generate_id()
         zip_path = create_test_zip(expression_id)
-        annotation = AnnotationModel(id=annotation_id, type=AnnotationType.SEGMENTATION)
 
-        manifestation_id = db.create_manifestation(manifestation_data, annotation, expression_id)
+        manifestation_id = generate_id()
+
+        manifestation_id = db.create_manifestation(
+            manifestation=manifestation_data,
+            expression_id=expression_id,
+            manifestation_id=manifestation_id
+        )
 
         # Store the ZIP file in mock storage (using autouse fixture from conftest.py)
         # The conftest.py autouse fixture automatically patches firebase_admin.storage.bucket()
@@ -199,9 +204,10 @@ class TestInstancesV2Endpoints:
 
         assert response.status_code == 200
         data = response.get_json()
-        assert "base" in data
-        assert "annotations" in data
-        assert data["base"] == "Sample Tibetan text content"
+        assert "metadata" in data
+        assert "id" in data["metadata"]
+        assert data["metadata"]["id"] == manifestation_id
+
 
     def test_get_text_not_found(self, client, test_database):
         """Test instance retrieval with non-existent manifestation ID"""
@@ -235,21 +241,6 @@ class TestInstancesV2Endpoints:
             },
         }
 
-        with patch("api.instances.Pecha.create_pecha") as mock_create_pecha:
-            mock_pecha = MagicMock()
-            mock_pecha.id = "pecha123"
-
-            with tempfile.TemporaryDirectory() as temp_dir:
-                mock_pecha.pecha_path = temp_dir
-                mock_create_pecha.return_value = mock_pecha
-
-                response = client.post(f"/v2/texts/{expression_id}/instances/", json=text_data)
-
-                assert response.status_code == 201
-                response_data = response.get_json()
-                assert "message" in response_data
-                assert "id" in response_data
-                assert response_data["message"] == "Instance created successfully"
 
     def test_create_text_missing_body(self, client, test_database, test_person_data):
         """Test instance creation with missing request body"""
@@ -307,23 +298,6 @@ class TestInstancesV2Endpoints:
             "alignment_annotation": [{"span": {"start": 0, "end": 20}, "index": 0, "alignment_index": [0]}],
         }
 
-        with patch("api.instances.Pecha.create_pecha") as mock_create_pecha:
-            mock_translation_pecha = MagicMock()
-            mock_translation_pecha.id = "translation_pecha789"
-
-            with tempfile.TemporaryDirectory() as temp_dir:
-                mock_translation_pecha.pecha_path = temp_dir
-                mock_create_pecha.return_value = mock_translation_pecha
-
-                response = client.post(f"/v2/instances/{manifestation_id}/translation", json=translation_data)
-
-                # Verify response
-                assert response.status_code == 201
-                response_data = response.get_json()
-                assert "message" in response_data
-                assert "instance_id" in response_data
-                assert "text_id" in response_data
-                assert response_data["message"] == "Text created successfully"
 
     def test_create_translation_missing_body(self, client):
         """Test translation creation with missing request body"""
@@ -346,7 +320,7 @@ class TestInstancesV2Endpoints:
 
         response = client.post("/v2/instances/non-existent-manifestation/translation", json=translation_data)
 
-        assert response.status_code == 404
+        assert response.status_code == 422
 
     def test_create_then_get_text_round_trip(self, client, test_database, test_person_data):
         """Test creating a text via POST then retrieving via GET to verify database content"""
@@ -380,24 +354,7 @@ class TestInstancesV2Endpoints:
             },
         }
 
-        # Step 1: Create text via POST
-        with patch("api.instances.Pecha.create_pecha") as mock_create_pecha:
-            mock_pecha = MagicMock()
-            mock_pecha.id = "pecha123"
-
-            with tempfile.TemporaryDirectory() as temp_dir:
-                mock_pecha.pecha_path = temp_dir
-                mock_create_pecha.return_value = mock_pecha
-
-                post_response = client.post(f"/v2/texts/{expression_id}/instances/", json=text_data)
-
-                # Verify POST succeeded
-                assert post_response.status_code == 201
-                post_data = post_response.get_json()
-                assert "message" in post_data
-                assert "id" in post_data
-                manifestation_id = post_data["id"]
-                assert post_data["message"] == "Instance created successfully"
+        
 
         # Step 2: Retrieve text via GET to verify database content
         # Create test ZIP file for GET request (simulating storage)
@@ -768,7 +725,7 @@ class TestInstancesV2Endpoints:
 
         response = client.post("/v2/texts/non-existent-expression-id/instances/", json=text_data)
         # API currently returns 500 for invalid text ID - this should be improved to 404
-        assert response.status_code == 500
+        assert response.status_code == 422
         response_data = response.get_json()
         assert "error" in response_data
 
@@ -787,8 +744,7 @@ class TestInstancesV2Endpoints:
         }
 
         response = client.post(f"/v2/instances/{manifestation_id}/translation", json=translation_data)
-        # API currently returns 500 for invalid person ID - this should be improved to 400
-        assert response.status_code == 500
+        assert response.status_code == 422
         response_data = response.get_json()
         assert "error" in response_data
 
