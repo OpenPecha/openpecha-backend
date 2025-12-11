@@ -130,19 +130,29 @@ class TestGetAllTextsV2:
         person_id = test_database.create_person(person)
 
         # Create test expression
-        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
-        expression = ExpressionModelInput.model_validate(test_expression_data)
-        
-        expression_id = test_database.create_expression(expression)
+        expression_ids = []
+        for i in range(25):
+            test_expression_data["bdrc"] = f"W123456{i+1}"
+            test_expression_data["wiki"] = f"Q789012{i+1}"
+            test_expression_data["date"] = f"2024-01-01{i+1}"
+            test_expression_data["title"] = {"en": f"Test Expression {i+1}", "bo": f"བརྟག་དཔྱད་ཚིག་སྒྲུབ་{i+1}།"}
+            test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+            expression = ExpressionModelInput.model_validate(test_expression_data)
+            
+            expression_id = test_database.create_expression(expression)
+
+            expression_ids.append(expression_id)
 
         response = client.get("/v2/texts/")
 
         assert response.status_code == 200
         data = json.loads(response.data)
         assert isinstance(data, list)
-        assert len(data) == 1
-        assert data[0]["id"] == expression_id
-        assert data[0]["title"]["en"] == "Test Expression"
+        assert len(data) == 20
+        assert data[0]["id"] == expression_ids[0]
+        assert data[0]["title"]["en"] == "Test Expression 1"
+        assert data[19]["id"] == expression_ids[19]
+        assert data[19]["title"]["en"] == "Test Expression 20"
 
     def test_get_all_metadata_custom_pagination(self, client, test_database, test_person_data):
         """Test custom pagination parameters"""
@@ -170,6 +180,8 @@ class TestGetAllTextsV2:
         assert response.status_code == 200
         data = json.loads(response.data)
         assert len(data) == 2
+        assert data[0]["id"] == expression_ids[1]
+        assert data[1]["id"] == expression_ids[2]
 
     def test_get_all_metadata_filter_by_type(self, client, test_database, test_person_data):
         """Test filtering by expression type"""
@@ -199,16 +211,6 @@ class TestGetAllTextsV2:
         translation_expression = ExpressionModelInput.model_validate(translation_data)
         translation_id = test_database.create_expression(translation_expression)
 
-        # Filter by root type
-        # response = client.get("/v2/texts?type=root")
-
-        # assert response.status_code == 200
-        # data = json.loads(response.data)
-        # assert len(data) == 1
-        # assert data[0]["id"] == root_id
-        # assert data[0]["type"] == "root"
-
-        # Filter by translation type
         response = client.get("/v2/texts?type=translation")
 
         assert response.status_code == 200
