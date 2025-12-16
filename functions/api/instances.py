@@ -13,6 +13,7 @@ from models import (
     AnnotationModel,
     AnnotationType,
     ContributionModel,
+    ContributionModelInput,
     ContributorRole,
     ExpressionModelInput,
     InstanceRequestModel,
@@ -232,7 +233,7 @@ def _create_aligned_text(
 
         contributions = [
             (
-                ContributionModel(
+                ContributionModelInput(
                     person_id=creator.person_id,
                     person_bdrc_id=creator.person_bdrc_id,
                     role=role,

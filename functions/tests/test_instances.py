@@ -30,7 +30,8 @@ from models import (
     ManifestationType,
     PersonModelInput,
     TextType,
-    InstanceRequestModel
+    InstanceRequestModel,
+    AlignedTextRequestModel
 )
 from neo4j_database import Neo4JDatabase
 from storage import Storage
@@ -840,6 +841,7 @@ class TestGetInstancesV2Endpoints:
             post_response = client.post(
                 f"/v2/texts/{expression_id}/instances/", json=instance.model_dump()
             )
+            assert post_response.status_code == 201
             post_data = post_response.get_json()
             diplomatic_instance_ids.append(post_data["id"])
 
@@ -861,6 +863,7 @@ class TestGetInstancesV2Endpoints:
             post_response = client.post(
                 f"/v2/texts/{expression_id}/instances/", json=instance.model_dump()
             )
+            assert post_response.status_code == 201
             post_data = post_response.get_json()
             critical_instance_ids.append(post_data["id"])
 
@@ -1119,6 +1122,1405 @@ class TestGetInstancesV2Endpoints:
         assert response.status_code == 500
         response_data = response.get_json()
         assert "error" in response_data
+
+class TestPostInstanceV2Endpoints:
+    """Integration test class for v2/instances endpoints using real Neo4j database"""
+
+    def _create_test_category(self, test_database):
+        """Helper to create a test category in the database"""
+        category_id = test_database.create_category(
+            application='test_application',
+            title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
+        )
+        return category_id
+
+    def test_create_diplomatic_instance_with_annotation(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data
+    ):
+        """Test POST /v2/instances/{id} with content and pagination annotation flags."""
+        # Create test person and base expression
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = self._create_test_category(test_database)
+        test_expression_data["category_id"] = category_id
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        instance_request = {
+            "metadata": {
+                "bdrc": "W123456",
+                "wiki": "Q123456",
+                "type": "diplomatic",
+                "source": "source-name",
+                "colophon": "Sample colophon text",
+                "incipit_title": {
+                    "en": "Opening words",
+                    "bo": "དབུ་ཚིག"
+                },
+                "alt_incipit_titles": [
+                    {
+                        "en": "Alt incipit 1",
+                        "bo": "མཚན་བྱང་གཞན།"
+                    },
+                    {
+                        "en": "Alt incipit 2",
+                        "bo": "མཚན་བྱང་གཞན།"
+                    }
+                ]
+            },
+            "annotation": [
+                {
+                "span": {
+                    "start": 0,
+                    "end": 10
+                },
+                "reference": "https://example.com/image1.png"
+                },
+                {
+                "span": {
+                    "start": 11,
+                    "end": 20
+                },
+                "reference": "https://example.com/image2.png"
+                }
+            ],
+            "content": "This is the text content to be stored"
+            }
+
+        instance = InstanceRequestModel.model_validate(instance_request)
+        post_response = client.post(
+            f"/v2/texts/{expression_id}/instances/",
+            json=instance.model_dump()
+        )
+        assert post_response.status_code == 201
+        data = post_response.get_json()
+        assert "id" in data
+        
+        instance_id = data["id"]
+        get_response = client.get(f"/v2/instances/{instance_id}?content=true&annotation=true")
+
+        assert get_response.status_code == 200
+        instance_data = get_response.get_json()
+        assert instance_data["metadata"]["id"] == instance_id
+        assert instance_data["metadata"]["type"] == instance_request["metadata"]["type"]
+        assert instance_data["content"] == instance_request["content"]
+        assert len(instance_data["annotations"]) > 0
+        assert "annotation_id" in instance_data["annotations"][0]
+        assert "type" in instance_data["annotations"][0]
+        assert instance_data["annotations"][0]["type"] == "segmentation" 
+
+    def test_create_diplomatic_instance_with_annotation_and_biblography_annotation(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data
+    ):
+        """Test POST /v2/instances/{id} with content and pagination annotation flags."""
+        # Create test person and base expression
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = self._create_test_category(test_database)
+        test_expression_data["category_id"] = category_id
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        instance_request = {
+            "metadata": {
+                "bdrc": "W123456",
+                "wiki": "Q123456",
+                "type": "diplomatic",
+                "source": "source-name",
+                "colophon": "Sample colophon text",
+                "incipit_title": {
+                    "en": "Opening words",
+                    "bo": "དབུ་ཚིག"
+                },
+                "alt_incipit_titles": [
+                    {
+                        "en": "Alt incipit 1",
+                        "bo": "མཚན་བྱང་གཞན།"
+                    },
+                    {
+                        "en": "Alt incipit 2",
+                        "bo": "མཚན་བྱང་གཞན།"
+                    }
+                ]
+            },
+            "annotation": [
+                {
+                "span": {
+                    "start": 0,
+                    "end": 10
+                },
+                "reference": "https://example.com/image1.png"
+                },
+                {
+                "span": {
+                    "start": 11,
+                    "end": 20
+                },
+                "reference": "https://example.com/image2.png"
+                }
+            ],
+            "biblography_annotation": [
+                {
+                "span": {
+                    "start": 5,
+                    "end": 15
+                },
+                "type": "colophon"
+                },
+                {
+                "span": {
+                    "start": 20,
+                    "end": 30
+                },
+                "type": "title"
+                }
+            ],
+            "content": "This is the text content to be stored"
+            }
+
+        instance = InstanceRequestModel.model_validate(instance_request)
+        post_response = client.post(
+            f"/v2/texts/{expression_id}/instances/",
+            json=instance.model_dump()
+        )
+        assert post_response.status_code == 201
+        data = post_response.get_json()
+        assert "id" in data
+        
+        instance_id = data["id"]
+        get_response = client.get(f"/v2/instances/{instance_id}?content=true&annotation=true")
+
+        assert get_response.status_code == 200
+        instance_data = get_response.get_json()
+        assert instance_data["metadata"]["id"] == instance_id
+        assert instance_data["metadata"]["type"] == instance_request["metadata"]["type"]
+        assert instance_data["content"] == instance_request["content"]
+        assert len(instance_data["annotations"]) == 2
+        for annotation in instance_data["annotations"]:
+            assert "annotation_id" in annotation
+            assert "type" in annotation
+            assert annotation["type"] == "segmentation" or annotation["type"] == "bibliography"
+
+    def test_create_diplomatic_instance_without_annotation_and_with_biblography_annotation(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data
+    ):
+        """Test POST /v2/instances/{id} with content and pagination annotation flags."""
+        # Create test person and base expression
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = self._create_test_category(test_database)
+        test_expression_data["category_id"] = category_id
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        instance_request = {
+            "metadata": {
+                "bdrc": "W123456",
+                "wiki": "Q123456",
+                "type": "diplomatic",
+                "source": "source-name",
+                "colophon": "Sample colophon text",
+                "incipit_title": {
+                    "en": "Opening words",
+                    "bo": "དབུ་ཚིག"
+                },
+                "alt_incipit_titles": [
+                    {
+                        "en": "Alt incipit 1",
+                        "bo": "མཚན་བྱང་གཞན།"
+                    },
+                    {
+                        "en": "Alt incipit 2",
+                        "bo": "མཚན་བྱང་གཞན།"
+                    }
+                ]
+            },
+            "biblography_annotation": [
+                {
+                "span": {
+                    "start": 5,
+                    "end": 15
+                },
+                "type": "colophon"
+                },
+                {
+                "span": {
+                    "start": 20,
+                    "end": 30
+                },
+                "type": "title"
+                }
+            ],
+            "content": "This is the text content to be stored"
+            }
+
+        instance = InstanceRequestModel.model_validate(instance_request)
+        post_response = client.post(
+            f"/v2/texts/{expression_id}/instances/",
+            json=instance.model_dump()
+        )
+        assert post_response.status_code == 201
+        data = post_response.get_json()
+        assert "id" in data
+        
+        instance_id = data["id"]
+        get_response = client.get(f"/v2/instances/{instance_id}?content=true&annotation=true")
+
+        assert get_response.status_code == 200
+        instance_data = get_response.get_json()
+        assert instance_data["metadata"]["id"] == instance_id
+        assert instance_data["metadata"]["type"] == instance_request["metadata"]["type"]
+        assert instance_data["content"] == instance_request["content"]
+        assert len(instance_data["annotations"]) == 1
+        assert "annotation_id" in instance_data["annotations"][0]
+        assert "type" in instance_data["annotations"][0]
+        assert instance_data["annotations"][0]["type"] == "bibliography"
+
+    def test_create_multiple_diplomatic_instances(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data
+    ):
+        """Test POST /v2/instances/{id} with content and pagination annotation flags."""
+        # Create test person and base expression
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = self._create_test_category(test_database)
+        test_expression_data["category_id"] = category_id
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        diplomatic_instance_ids = []
+        for i in range(5):
+            instance_request = {
+                "metadata": {
+                    "bdrc": f"W123456-{i}",
+                    "wiki": f"Q123456-{i}",
+                    "type": "diplomatic",
+                    "source": "source-name",
+                    "colophon": "Sample colophon text",
+                    "incipit_title": {
+                        "en": "Opening words",
+                        "bo": "དབུ་ཚིག"
+                    },
+                    "alt_incipit_titles": [
+                        {
+                            "en": "Alt incipit 1",
+                            "bo": "མཚན་བྱང་གཞན།"
+                        },
+                        {
+                            "en": "Alt incipit 2",
+                            "bo": "མཚན་བྱང་གཞན།"
+                        }
+                    ]
+                },
+                "content": "This is the text content to be stored"
+                }
+
+            instance = InstanceRequestModel.model_validate(instance_request)
+            post_response = client.post(
+                f"/v2/texts/{expression_id}/instances/",
+                json=instance.model_dump()
+            )
+            assert post_response.status_code == 201
+            data = post_response.get_json()
+            assert "id" in data
+            diplomatic_instance_ids.append(data["id"])
+        
+        response = client.get(f"/v2/texts/{expression_id}/instances?instance_type=diplomatic")
+        assert response.status_code == 200
+        data = response.get_json()
+        assert isinstance(data, list)
+        assert len(data) == 5
+        for instance in data:
+            assert instance["type"] == "diplomatic"
+            assert instance["id"] in diplomatic_instance_ids
+
+    def test_create_multiple_diplomatic_instances_with_same_bdrc_id(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data
+    ):
+        """Test POST /v2/instances/{id} with content and pagination annotation flags."""
+        # Create test person and base expression
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = self._create_test_category(test_database)
+        test_expression_data["category_id"] = category_id
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        instance_request = {
+            "metadata": {
+                "bdrc": "W123456",
+                "wiki": "Q123456-1",
+                "type": "diplomatic",
+                "source": "source-name",
+                "colophon": "Sample colophon text",
+                "incipit_title": {
+                    "en": "Opening words",
+                    "bo": "དབུ་ཚིག"
+                },
+                "alt_incipit_titles": [
+                    {
+                        "en": "Alt incipit 1",
+                        "bo": "མཚན་བྱང་གཞན།"
+                    },
+                    {
+                        "en": "Alt incipit 2",
+                        "bo": "མཚན་བྱང་གཞན།"
+                    }
+                ]
+            },
+            "content": "This is the text content to be stored"
+            }
+
+        instance = InstanceRequestModel.model_validate(instance_request)
+        post_response = client.post(
+            f"/v2/texts/{expression_id}/instances/",
+            json=instance.model_dump()
+        )
+
+        instance_request = {
+            "metadata": {
+                "bdrc": "W123456",
+                "wiki": "Q123456-2",
+                "type": "diplomatic",
+                "source": "source-name",
+                "colophon": "Sample colophon text",
+                "incipit_title": {
+                    "en": "Opening words",
+                    "bo": "དབུ་ཚིག"
+                },
+                "alt_incipit_titles": [
+                    {
+                        "en": "Alt incipit 1",
+                        "bo": "མཚན་བྱང་གཞན།"
+                    },
+                    {
+                        "en": "Alt incipit 2",
+                        "bo": "མཚན་བྱང་གཞན།"
+                    }
+                ]
+            },
+            "content": "This is the text content to be stored"
+            }
+
+        instance = InstanceRequestModel.model_validate(instance_request)
+        post_response = client.post(
+            f"/v2/texts/{expression_id}/instances/",
+            json=instance.model_dump()
+        )
+
+        assert post_response.status_code == 500
+
+    def test_create_multiple_diplomatic_instances_with_same_wiki_id(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data
+    ):
+        """Test POST /v2/instances/{id} with content and pagination annotation flags."""
+        # Create test person and base expression
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = self._create_test_category(test_database)
+        test_expression_data["category_id"] = category_id
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        instance_request = {
+            "metadata": {
+                "bdrc": "W123456-1",
+                "wiki": "Q123456",
+                "type": "diplomatic",
+                "source": "source-name",
+                "colophon": "Sample colophon text",
+                "incipit_title": {
+                    "en": "Opening words",
+                    "bo": "དབུ་ཚིག"
+                },
+                "alt_incipit_titles": [
+                    {
+                        "en": "Alt incipit 1",
+                        "bo": "མཚན་བྱང་གཞན།"
+                    },
+                    {
+                        "en": "Alt incipit 2",
+                        "bo": "མཚན་བྱང་གཞན།"
+                    }
+                ]
+            },
+            "content": "This is the text content to be stored"
+            }
+
+        instance = InstanceRequestModel.model_validate(instance_request)
+        post_response = client.post(
+            f"/v2/texts/{expression_id}/instances/",
+            json=instance.model_dump()
+        )
+
+        instance_request = {
+            "metadata": {
+                "bdrc": "W123456-2",
+                "wiki": "Q123456",
+                "type": "diplomatic",
+                "source": "source-name",
+                "colophon": "Sample colophon text",
+                "incipit_title": {
+                    "en": "Opening words",
+                    "bo": "དབུ་ཚིག"
+                },
+                "alt_incipit_titles": [
+                    {
+                        "en": "Alt incipit 1",
+                        "bo": "མཚན་བྱང་གཞན།"
+                    },
+                    {
+                        "en": "Alt incipit 2",
+                        "bo": "མཚན་བྱང་གཞན།"
+                    }
+                ]
+            },
+            "content": "This is the text content to be stored"
+            }
+
+        instance = InstanceRequestModel.model_validate(instance_request)
+        post_response = client.post(
+            f"/v2/texts/{expression_id}/instances/",
+            json=instance.model_dump()
+        )
+
+        assert post_response.status_code == 500
+
+
+    def test_create_diplomatic_instance_without_annotation(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data
+    ):
+        """Test POST /v2/instances/{id} with content and pagination annotation flags."""
+        # Create test person and base expression
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = self._create_test_category(test_database)
+        test_expression_data["category_id"] = category_id
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        instance_request = {
+            "metadata": {
+                "bdrc": "W123456",
+                "wiki": "Q123456",
+                "type": "diplomatic",
+                "source": "source-name",
+                "colophon": "Sample colophon text",
+                "incipit_title": {
+                    "en": "Opening words",
+                    "bo": "དབུ་ཚིག"
+                },
+                "alt_incipit_titles": [
+                    {
+                        "en": "Alt incipit 1",
+                        "bo": "མཚན་བྱང་གཞན།"
+                    },
+                    {
+                        "en": "Alt incipit 2",
+                        "bo": "མཚན་བྱང་གཞན།"
+                    }
+                ]
+            },
+            "content": "This is the text content to be stored"
+            }
+
+        instance = InstanceRequestModel.model_validate(instance_request)
+        post_response = client.post(
+            f"/v2/texts/{expression_id}/instances/",
+            json=instance.model_dump()
+        )
+        assert post_response.status_code == 201
+        data = post_response.get_json()
+        assert "id" in data
+        
+        instance_id = data["id"]
+        get_response = client.get(f"/v2/instances/{instance_id}?content=true&annotation=true")
+
+        assert get_response.status_code == 200
+        instance_data = get_response.get_json()
+        assert instance_data["metadata"]["id"] == instance_id
+        assert instance_data["metadata"]["type"] == instance_request["metadata"]["type"]
+        assert instance_data["content"] == instance_request["content"]
+        assert instance_data["annotations"] is None
+
+
+
+    def test_create_critical_instance_with_annotation(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data
+    ):
+        """Test POST /v2/instances/{id} with content and pagination annotation flags."""
+        # Create test person and base expression
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = self._create_test_category(test_database)
+        test_expression_data["category_id"] = category_id
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        instance_request = {
+            "metadata": {
+                "wiki": "Q123456",
+                "type": "critical",
+                "source": "source-name",
+                "colophon": "Sample colophon text",
+                "incipit_title": {
+                    "en": "Opening words",
+                    "bo": "དབུ་ཚིག"
+                },
+                "alt_incipit_titles": [
+                    {
+                        "en": "Alt incipit 1",
+                        "bo": "མཚན་བྱང་གཞན།"
+                    },
+                    {
+                        "en": "Alt incipit 2",
+                        "bo": "མཚན་བྱང་གཞན།"
+                    }
+                ]
+            },
+            "annotation": [
+                {
+                    "span": {
+                        "start": 0,
+                        "end": 10
+                    }
+                },
+                {
+                    "span": {
+                        "start": 11,
+                        "end": 20
+                    }
+                }
+            ],
+            "content": "This is the text content to be stored"
+            }
+
+        instance = InstanceRequestModel.model_validate(instance_request)
+        post_response = client.post(
+            f"/v2/texts/{expression_id}/instances/",
+            json=instance.model_dump()
+        )
+        assert post_response.status_code == 201
+        data = post_response.get_json()
+        assert "id" in data
+        
+        instance_id = data["id"]
+        get_response = client.get(f"/v2/instances/{instance_id}?content=true&annotation=true")
+
+        assert get_response.status_code == 200
+        instance_data = get_response.get_json()
+        assert instance_data["metadata"]["id"] == instance_id
+        assert instance_data["metadata"]["type"] == instance_request["metadata"]["type"]
+        assert instance_data["content"] == instance_request["content"]
+        assert len(instance_data["annotations"]) > 0
+        assert "annotation_id" in instance_data["annotations"][0]
+        assert "type" in instance_data["annotations"][0]
+        assert instance_data["annotations"][0]["type"] == "segmentation" 
+
+    def test_create_critical_instance_with_annotation_and_biblography_annotation(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data
+    ):
+        """Test POST /v2/instances/{id} with content and pagination annotation flags."""
+        # Create test person and base expression
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = self._create_test_category(test_database)
+        test_expression_data["category_id"] = category_id
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        instance_request = {
+            "metadata": {
+                "wiki": "Q123456",
+                "type": "critical",
+                "source": "source-name",
+                "colophon": "Sample colophon text",
+                "incipit_title": {
+                    "en": "Opening words",
+                    "bo": "དབུ་ཚིག"
+                },
+                "alt_incipit_titles": [
+                    {
+                        "en": "Alt incipit 1",
+                        "bo": "མཚན་བྱང་གཞན།"
+                    },
+                    {
+                        "en": "Alt incipit 2",
+                        "bo": "མཚན་བྱང་གཞན།"
+                    }
+                ]
+            },
+            "annotation": [
+                {
+                    "span": {
+                        "start": 0,
+                        "end": 10
+                    }
+                },
+                {
+                    "span": {
+                        "start": 11,
+                        "end": 20
+                    }
+                }
+            ],
+            "biblography_annotation": [
+                {
+                "span": {
+                    "start": 5,
+                    "end": 15
+                },
+                "type": "colophon"
+                },
+                {
+                "span": {
+                    "start": 20,
+                    "end": 30
+                },
+                "type": "title"
+                }
+            ],
+            "content": "This is the text content to be stored"
+            }
+
+        instance = InstanceRequestModel.model_validate(instance_request)
+        post_response = client.post(
+            f"/v2/texts/{expression_id}/instances/",
+            json=instance.model_dump()
+        )
+        assert post_response.status_code == 201
+        data = post_response.get_json()
+        assert "id" in data
+        
+        instance_id = data["id"]
+        get_response = client.get(f"/v2/instances/{instance_id}?content=true&annotation=true")
+
+        assert get_response.status_code == 200
+        instance_data = get_response.get_json()
+        assert instance_data["metadata"]["id"] == instance_id
+        assert instance_data["metadata"]["type"] == instance_request["metadata"]["type"]
+        assert instance_data["content"] == instance_request["content"]
+        assert len(instance_data["annotations"]) == 2
+        for annotation in instance_data["annotations"]:
+            assert "annotation_id" in annotation
+            assert "type" in annotation
+            assert annotation["type"] == "segmentation" or annotation["type"] == "bibliography"
+
+    def test_create_critical_instance_without_annotation_and_with_biblography_annotation(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data
+    ):
+        """Test POST /v2/instances/{id} with content and pagination annotation flags."""
+        # Create test person and base expression
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = self._create_test_category(test_database)
+        test_expression_data["category_id"] = category_id
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        instance_request = {
+            "metadata": {
+                "wiki": "Q123456",
+                "type": "critical",
+                "source": "source-name",
+                "colophon": "Sample colophon text",
+                "incipit_title": {
+                    "en": "Opening words",
+                    "bo": "དབུ་ཚིག"
+                },
+                "alt_incipit_titles": [
+                    {
+                        "en": "Alt incipit 1",
+                        "bo": "མཚན་བྱང་གཞན།"
+                    },
+                    {
+                        "en": "Alt incipit 2",
+                        "bo": "མཚན་བྱང་གཞན།"
+                    }
+                ]
+            },
+            "biblography_annotation": [
+                {
+                "span": {
+                    "start": 5,
+                    "end": 15
+                },
+                "type": "colophon"
+                },
+                {
+                "span": {
+                    "start": 20,
+                    "end": 30
+                },
+                "type": "title"
+                }
+            ],
+            "content": "This is the text content to be stored"
+            }
+
+        instance = InstanceRequestModel.model_validate(instance_request)
+        post_response = client.post(
+            f"/v2/texts/{expression_id}/instances/",
+            json=instance.model_dump()
+        )
+        assert post_response.status_code == 201
+        data = post_response.get_json()
+        assert "id" in data
+        
+        instance_id = data["id"]
+        get_response = client.get(f"/v2/instances/{instance_id}?content=true&annotation=true")
+
+        assert get_response.status_code == 200
+        instance_data = get_response.get_json()
+        assert instance_data["metadata"]["id"] == instance_id
+        assert instance_data["metadata"]["type"] == instance_request["metadata"]["type"]
+        assert instance_data["content"] == instance_request["content"]
+        assert len(instance_data["annotations"]) == 1
+        assert "annotation_id" in instance_data["annotations"][0]
+        assert "type" in instance_data["annotations"][0]
+        assert instance_data["annotations"][0]["type"] == "bibliography"
+
+    def test_create_critical_instance_without_annotation(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data
+    ):
+        """Test POST /v2/instances/{id} with content and pagination annotation flags."""
+        # Create test person and base expression
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = self._create_test_category(test_database)
+        test_expression_data["category_id"] = category_id
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        instance_request = {
+            "metadata": {
+                "wiki": "Q123456",
+                "type": "critical",
+                "source": "source-name",
+                "colophon": "Sample colophon text",
+                "incipit_title": {
+                    "en": "Opening words",
+                    "bo": "དབུ་ཚིག"
+                },
+                "alt_incipit_titles": [
+                    {
+                        "en": "Alt incipit 1",
+                        "bo": "མཚན་བྱང་གཞན།"
+                    },
+                    {
+                        "en": "Alt incipit 2",
+                        "bo": "མཚན་བྱང་གཞན།"
+                    }
+                ]
+            },
+            "content": "This is the text content to be stored"
+            }
+
+        instance = InstanceRequestModel.model_validate(instance_request)
+        post_response = client.post(
+            f"/v2/texts/{expression_id}/instances/",
+            json=instance.model_dump()
+        )
+        assert post_response.status_code == 201
+        data = post_response.get_json()
+        assert "id" in data
+        
+        instance_id = data["id"]
+        get_response = client.get(f"/v2/instances/{instance_id}?content=true&annotation=true")
+
+        assert get_response.status_code == 200
+        instance_data = get_response.get_json()
+        assert instance_data["metadata"]["id"] == instance_id
+        assert instance_data["metadata"]["type"] == instance_request["metadata"]["type"]
+        assert instance_data["content"] == instance_request["content"]
+        assert instance_data["annotations"] is None
+
+    def test_create_multiple_critical_instances(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data
+    ):
+        """Test POST /v2/instances/{id} with content and pagination annotation flags."""
+        # Create test person and base expression
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = self._create_test_category(test_database)
+        test_expression_data["category_id"] = category_id
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        instance_request = {
+            "metadata": {
+                "wiki": "Q123456-1",
+                "type": "critical",
+                "source": "source-name",
+                "colophon": "Sample colophon text",
+                "incipit_title": {
+                    "en": "Opening words",
+                    "bo": "དབུ་ཚིག"
+                },
+                "alt_incipit_titles": [
+                    {
+                        "en": "Alt incipit 1",
+                        "bo": "མཚན་བྱང་གཞན།"
+                    },
+                    {
+                        "en": "Alt incipit 2",
+                        "bo": "མཚན་བྱང་གཞན།"
+                    }
+                ]
+            },
+            "content": "This is the text content to be stored"
+            }
+
+        instance = InstanceRequestModel.model_validate(instance_request)
+        post_response = client.post(
+            f"/v2/texts/{expression_id}/instances/",
+            json=instance.model_dump()
+        )
+
+        instance_request = {
+            "metadata": {
+                "wiki": "Q123456-2",
+                "type": "critical",
+                "source": "source-name",
+                "colophon": "Sample colophon text",
+                "incipit_title": {
+                    "en": "Opening words",
+                    "bo": "དབུ་ཚིག"
+                },
+                "alt_incipit_titles": [
+                    {
+                        "en": "Alt incipit 1",
+                        "bo": "མཚན་བྱང་གཞན།"
+                    },
+                    {
+                        "en": "Alt incipit 2",
+                        "bo": "མཚན་བྱང་གཞན།"
+                    }
+                ]
+            },
+            "content": "This is the text content to be stored"
+            }
+
+        instance = InstanceRequestModel.model_validate(instance_request)
+        post_response = client.post(
+            f"/v2/texts/{expression_id}/instances/",
+            json=instance.model_dump()
+        )
+
+        assert post_response.status_code == 400
+        response_data = post_response.get_json()
+        assert "error" in response_data
+        assert response_data["error"] == "Critical manifestation already present for this expression"
+
+    def test_create_translation_by_text_id_with_alignment(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data,
+    ):
+        """Test POST /v2/instances/{id}/translation"""
+        # Create test person and base expression
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = self._create_test_category(test_database)
+        test_expression_data["category_id"] = category_id
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        instance_request = {
+            "metadata": {
+                "wiki": "Q123456",
+                "type": "critical",
+                "source": "source-name",
+                "colophon": "Sample colophon text",
+                "incipit_title": {
+                    "en": "Opening words",
+                    "bo": "དབུ་ཚིག"
+                },
+                "alt_incipit_titles": [
+                    {
+                        "en": "Alt incipit 1",
+                        "bo": "མཚན་བྱང་གཞན།"
+                    },
+                    {
+                        "en": "Alt incipit 2",
+                        "bo": "མཚན་བྱང་གཞན།"
+                    }
+                ]
+            },
+            "content": "This is the text content to be stored"
+            }
+
+        instance = InstanceRequestModel.model_validate(instance_request)
+        post_response = client.post(
+            f"/v2/texts/{expression_id}/instances/",
+            json=instance.model_dump()
+        )
+        assert post_response.status_code == 201
+        data = post_response.get_json()
+        instance_id = data["id"]
+
+        translation_request = {
+            "language": "bo",
+            "content": "This is the translated text content",
+            "title": "Translated Title",
+            "category_id": category_id,
+            "source": "Source of the translation",
+            "author": {
+                "person_id": person_id
+            },
+            "segmentation": [
+                {
+                    "span": {
+                        "start": 0,
+                        "end": 20
+                    }
+                },
+                {
+                    "span": {
+                        "start": 21,
+                        "end": 40
+                    }
+                }
+            ],
+            "target_annotation": [
+                {
+                    "span": {
+                        "start": 0,
+                        "end": 20
+                    },
+                    "index": 0
+                },
+                {
+                    "span": {
+                        "start": 21,
+                        "end": 40
+                    },
+                    "index": 1
+                }
+            ],
+            "alignment_annotation": [
+                {
+                    "span": {
+                        "start": 0,
+                        "end": 20
+                    },
+                    "index": 0,
+                    "alignment_index": [
+                        0
+                    ]
+                },
+                {
+                    "span": {
+                        "start": 21,
+                        "end": 50
+                    },
+                    "index": 1,
+                    "alignment_index": [
+                        1
+                    ]
+                }
+            ],
+            "copyright": "Public domain",
+            "license": "CC0"
+            }
+
+        translation = AlignedTextRequestModel.model_validate(translation_request)
+        post_response = client.post(
+            f"/v2/instances/{instance_id}/translation",
+            json=translation.model_dump()
+        )
+        assert post_response.status_code == 201
+        data = post_response.get_json()
+        assert "text_id" in data
+        assert "instance_id" in data
+
+    def test_create_commentary_by_text_id_with_alignment(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data,
+    ):
+        """Test POST /v2/instances/{id}/commentary"""
+        # Create test person and base expression
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = self._create_test_category(test_database)
+        test_expression_data["category_id"] = category_id
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        instance_request = {
+            "metadata": {
+                "wiki": "Q123456",
+                "type": "critical",
+                "source": "source-name",
+                "colophon": "Sample colophon text",
+                "incipit_title": {
+                    "en": "Opening words",
+                    "bo": "དབུ་ཚིག"
+                },
+                "alt_incipit_titles": [
+                    {
+                        "en": "Alt incipit 1",
+                        "bo": "མཚན་བྱང་གཞན།"
+                    },
+                    {
+                        "en": "Alt incipit 2",
+                        "bo": "མཚན་བྱང་གཞན།"
+                    }
+                ]
+            },
+            "content": "This is the text content to be stored"
+            }
+
+        instance = InstanceRequestModel.model_validate(instance_request)
+        post_response = client.post(
+            f"/v2/texts/{expression_id}/instances/",
+            json=instance.model_dump()
+        )
+        assert post_response.status_code == 201
+        data = post_response.get_json()
+        instance_id = data["id"]
+
+        commentary_request = {
+            "language": "bo",
+            "content": "This is the commentary text content",
+            "title": "Commentary Title",
+            "category_id": category_id,
+            "source": "Source of the commentary",
+            "author": {
+                "person_id": person_id
+            },
+            "segmentation": [
+                {
+                    "span": {
+                        "start": 0,
+                        "end": 20
+                    }
+                },
+                {
+                    "span": {
+                        "start": 21,
+                        "end": 40
+                    }
+                }
+            ],
+            "target_annotation": [
+                {
+                    "span": {
+                        "start": 0,
+                        "end": 20
+                    },
+                    "index": 0
+                },
+                {
+                    "span": {
+                        "start": 21,
+                        "end": 40
+                    },
+                    "index": 1
+                }
+            ],
+            "alignment_annotation": [
+                {
+                    "span": {
+                        "start": 0,
+                        "end": 20
+                    },
+                    "index": 0,
+                    "alignment_index": [
+                        0
+                    ]
+                },
+                {
+                    "span": {
+                        "start": 21,
+                        "end": 50
+                    },
+                    "index": 1,
+                    "alignment_index": [
+                        1
+                    ]
+                }
+            ],
+            "copyright": "Public domain",
+            "license": "CC0"
+            }
+
+        commentary = AlignedTextRequestModel.model_validate(commentary_request)
+        post_response = client.post(
+            f"/v2/instances/{instance_id}/commentary",
+            json=commentary.model_dump()
+        )
+        assert post_response.status_code == 201
+        data = post_response.get_json()
+        assert "text_id" in data
+        assert "instance_id" in data
+
+    def test_create_translation_by_text_id_with_alignment_invalid_instance_id(
+        self,
+        client,
+        test_database
+    ):
+        """Test POST /v2/instances/{id}/translation"""
+
+
+        category_id = "dummy_category_id"
+        person_id = "dummy_person_id"
+        instance_id = "invalid_instance_id"
+
+        translation_request = {
+            "language": "bo",
+            "content": "This is the translated text content",
+            "title": "Translated Title",
+            "category_id": category_id,
+            "source": "Source of the translation",
+            "author": {
+                "person_id": person_id
+            },
+            "segmentation": [
+                {
+                    "span": {
+                        "start": 0,
+                        "end": 20
+                    }
+                },
+                {
+                    "span": {
+                        "start": 21,
+                        "end": 40
+                    }
+                }
+            ],
+            "target_annotation": [
+                {
+                    "span": {
+                        "start": 0,
+                        "end": 20
+                    },
+                    "index": 0
+                },
+                {
+                    "span": {
+                        "start": 21,
+                        "end": 40
+                    },
+                    "index": 1
+                }
+            ],
+            "alignment_annotation": [
+                {
+                    "span": {
+                        "start": 0,
+                        "end": 20
+                    },
+                    "index": 0,
+                    "alignment_index": [
+                        0
+                    ]
+                },
+                {
+                    "span": {
+                        "start": 21,
+                        "end": 50
+                    },
+                    "index": 1,
+                    "alignment_index": [
+                        1
+                    ]
+                }
+            ],
+            "copyright": "Public domain",
+            "license": "CC0"
+            }
+
+        translation = AlignedTextRequestModel.model_validate(translation_request)
+        post_response = client.post(
+            f"/v2/instances/{instance_id}/translation",
+            json=translation.model_dump()
+        )
+        assert post_response.status_code == 400
+
+    def test_create_commentary_by_text_id_with_alignment_invalid_instance_id(
+        self,
+        client
+    ):
+        """Test POST /v2/instances/{id}/commentary"""
+        # Create test person and base expression
+        instance_id = "invalid_instance_id"
+        category_id = "dummy_category_id"
+        person_id = "dummy_person_id"
+        commentary_request = {
+            "language": "bo",
+            "content": "This is the commentary text content",
+            "title": "Commentary Title",
+            "category_id": category_id,
+            "source": "Source of the commentary",
+            "author": {
+                "person_id": person_id
+            },
+            "segmentation": [
+                {
+                    "span": {
+                        "start": 0,
+                        "end": 20
+                    }
+                },
+                {
+                    "span": {
+                        "start": 21,
+                        "end": 40
+                    }
+                }
+            ],
+            "target_annotation": [
+                {
+                    "span": {
+                        "start": 0,
+                        "end": 20
+                    },
+                    "index": 0
+                },
+                {
+                    "span": {
+                        "start": 21,
+                        "end": 40
+                    },
+                    "index": 1
+                }
+            ],
+            "alignment_annotation": [
+                {
+                    "span": {
+                        "start": 0,
+                        "end": 20
+                    },
+                    "index": 0,
+                    "alignment_index": [
+                        0
+                    ]
+                },
+                {
+                    "span": {
+                        "start": 21,
+                        "end": 50
+                    },
+                    "index": 1,
+                    "alignment_index": [
+                        1
+                    ]
+                }
+            ],
+            "copyright": "Public domain",
+            "license": "CC0"
+            }
+
+        commentary = AlignedTextRequestModel.model_validate(commentary_request)
+        post_response = client.post(
+            f"/v2/instances/{instance_id}/commentary",
+            json=commentary.model_dump()
+        )
+        assert post_response.status_code == 400
+        data = post_response.get_json()
+
+
+    def test_create_instance_missing_body(self, client, test_database, test_person_data):
+        """Test instance creation with missing request body"""
+        # Create expression first
+        person_id = "dummy_person_id"
+        expression_data = ExpressionModelInput(
+            title={"en": "Test Expression"},
+            language="en",
+            type=TextType.ROOT,
+            contributions=[{"person_id": person_id, "role": "author"}],
+        )
+        expression_id = test_database.create_expression(expression_data)
+
+        response = client.post(f"/v2/texts/{expression_id}/instances")
+
+        assert response.status_code == 400
+        response_data = response.get_json()
+        assert "error" in response_data
+
 
 class TestInstancesV2Endpoints:
     """Integration test class for v2/instances endpoints using real Neo4j database"""        
