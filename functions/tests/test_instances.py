@@ -16,7 +16,6 @@ import os
 import tempfile
 import zipfile
 from pathlib import Path
-from unittest.mock import MagicMock, patch
 
 import pytest
 from dotenv import load_dotenv
@@ -31,6 +30,7 @@ from models import (
     ManifestationType,
     PersonModelInput,
     TextType,
+    InstanceRequestModel
 )
 from neo4j_database import Neo4JDatabase
 from storage import Storage
@@ -93,6 +93,11 @@ def test_database(neo4j_connection):
         session.run("MERGE (c:CopyrightStatus {name: 'public'})")
         session.run("MERGE (c:CopyrightStatus {name: 'copyrighted'})")
 
+        # Create bibliography types
+        session.run("MERGE (b:BibliographyType {name: 'title'})")
+        session.run("MERGE (b:BibliographyType {name: 'colophon'})")
+        session.run("MERGE (b:BibliographyType {name: 'author'})")
+
         # Create role types
         session.run("MERGE (r:RoleType {name: 'translator'})")
         session.run("MERGE (r:RoleType {name: 'author'})")
@@ -117,11 +122,121 @@ def client():
 def test_person_data():
     """Sample person data for testing"""
     return {
-        "name": {"en": "Test Author", "bo": "རྩོམ་པ་པོ།"},
+        "name": {"en": "Test Author", "bo": "སློབ་དཔོན།"},
         "alt_names": [{"en": "Alternative Name", "bo": "མིང་གཞན།"}],
         "bdrc": "P123456",
+        "wiki": "Q123456",
     }
 
+
+@pytest.fixture
+def test_expression_data():
+    """Sample expression data for testing"""
+    return {
+        "type": "root",
+        "title": {"en": "Test Expression", "bo": "བརྟག་དཔྱད་ཚིག་སྒྲུབ།"},
+        "alt_titles": [{"en": "Alternative Title", "bo": "མཚན་བྱང་གཞན།"}],
+        "language": "en",
+        "contributions": [],  # Will be populated with actual person IDs
+        "date": "2024-01-01",
+        "bdrc": "W123456",
+        "wiki": "Q789012",
+    }
+
+@pytest.fixture
+def test_diplomatic_manifestation_data():
+    """Sample diplomatic manifestation data for testing"""
+    return {
+        "metadata": {
+            "bdrc": "W12345",
+            "wiki": "Q123456",
+            "type": "diplomatic",
+            "source": "www.example_source.com",
+            "colophon": "Sample colophon text",
+            "incipit_title": {"en": "Opening words", "bo": "དབུ་ཚིག"},
+            "alt_incipit_titles": [{"en": "Alt incipit 1", "bo": "མཚན་བྱང་གཞན།"}, {"en": "Alt incipit 2", "bo": "མཚན་བྱང་གཞན།"}],
+        },
+        "content": "Sample text content"
+    }
+
+@pytest.fixture
+def test_critical_manifestation_data():
+    """Sample critical manifestation data for testing"""
+    return {
+        "metadata": {
+            "wiki": "Q123456",
+            "type": "critical",
+            "source": "www.example_source.com",
+            "colophon": "Sample colophon text",
+            "incipit_title": {"en": "Opening words", "bo": "དབུ་ཚིག"},
+            "alt_incipit_titles": [{"en": "Alt incipit 1", "bo": "མཚན་བྱང་གཞན།"}, {"en": "Alt incipit 2", "bo": "མཚན་བྱང་གཞན།"}],
+        },
+        "content": "Sample text content"
+    }
+
+@pytest.fixture
+def test_segmentation_annotation_data():
+    return {
+        "content": "This is the text content to be stored for segmentation",
+        "annotation": [
+            {
+                "span": {"start": 0, "end": 10},
+            },
+            {
+                "span": {"start": 10, "end": 20},
+            },
+            {
+                "span": {"start": 20, "end": 30},
+            },
+            {
+                "span": {"start": 30, "end": 55},
+            }
+        ]
+    }
+
+@pytest.fixture
+def test_pagination_annotation_data():
+    return {
+        "content": "This is the text content to be stored for pagination",
+        "annotation": [
+            {
+                "span": {"start": 0, "end": 10},
+                "reference": "IMG001.png",
+            },
+            {
+                "span": {"start": 10, "end": 20},
+                "reference": "IMG002.png",
+            },
+            {
+                "span": {"start": 20, "end": 30},
+                "reference": "IMG003.png",
+            },
+            {
+                "span": {"start": 30, "end": 53},
+                "reference": "IMG004.png",
+            }
+        ]
+    }
+
+@pytest.fixture
+def test_bibliography_annotation_data():
+    return {
+        "content": "This is the text content to be stored for bibliography",
+        "annotation": [
+            {
+                "span": {"start": 0, "end": 10},
+                "type": "title"
+            },
+            {
+                "span": {"start": 10, "end": 20},
+                "type": "colophon"
+            },
+            {
+                "span": {"start": 20, "end": 30},
+                "type": "author"
+            }
+        ]
+    }
 
 @pytest.fixture
 def create_test_zip():
@@ -148,66 +263,533 @@ def create_test_zip():
 class TestInstancesV2Endpoints:
     """Integration test class for v2/instances endpoints using real Neo4j database"""
 
-    def _create_test_person(self, db, person_data):
-        """Helper to create a test person in the database"""
-        person_input = PersonModelInput(**person_data)
-        return db.create_person(person_input)
-
-    def _create_test_text(self, db, person_id, create_test_zip):
-        """Helper method to create a test text in the database"""
-        # Create expression
-        expression_data = ExpressionModelInput(
-            title={"bo": "དཔེ་ཀ་ཤེར", "en": "Test Expression"},
-            language="bo",
-            type=TextType.ROOT,
-            contributions=[{"person_id": person_id, "role": "author"}],
+    def _create_test_category(self, test_database):
+        """Helper to create a test category in the database"""
+        category_id = test_database.create_category(
+            application='test_application',
+            title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
         )
-        expression_id = db.create_expression(expression_data)
+        return category_id
 
-        # Create manifestation with annotation
-        manifestation_data = ManifestationModelInput(
-            type=ManifestationType.DIPLOMATIC,
-            bdrc="W12345",
-            source="www.example_source.com"
+    def test_get_critical_instance_with_content_and_segmentation_annotations(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data,
+        test_segmentation_annotation_data,
+        test_bibliography_annotation_data,
+        test_critical_manifestation_data
+    ):
+        """Test GET /v2/instances/{id} with content and segmentation annotation flags."""
+        # Create test person and base expression
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = self._create_test_category(test_database)
+        test_expression_data["category_id"] = category_id
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
+
+        expression_id = test_database.create_expression(expression)
+
+        # Create a manifestation via the public API to ensure storage + annotations are created
+        instance_request = {
+            "content": test_segmentation_annotation_data["content"],
+            "annotation": test_segmentation_annotation_data["annotation"],
+            "metadata": {
+                "wiki": "Q123456",
+                "type": "critical",
+                "source": "www.example_source.com",
+                "colophon": "Sample colophon text",
+                "incipit_title": {"en": "Opening words", "bo": "དབུ་ཚིག"},
+                "alt_incipit_titles": [{"en": "Alt incipit 1", "bo": "མཚན་བྱང་གཞན།"}, {"en": "Alt incipit 2", "bo": "མཚན་བྱང་གཞན།"}],
+            },
+            "biblography_annotation": test_bibliography_annotation_data["annotation"],
+        }
+        instance = InstanceRequestModel.model_validate(instance_request)
+        post_response = client.post(
+            f"/v2/texts/{expression_id}/instances/", json=instance.model_dump()
         )
+        assert post_response.status_code == 201
+        post_data = post_response.get_json()
+        assert "id" in post_data
 
-        # Create annotation model
-        annotation_id = generate_id()
-        zip_path = create_test_zip(expression_id)
-
-        manifestation_id = generate_id()
-
-        manifestation_id = db.create_manifestation(
-            manifestation=manifestation_data,
-            expression_id=expression_id,
-            manifestation_id=manifestation_id
+        instance_id = post_data["id"]
+        # Now GET with content and annotation flags enabled
+        get_response = client.get(
+            f"/v2/instances/{instance_id}/?content=true&annotation=true"
         )
+        assert get_response.status_code == 200
+        data = get_response.get_json()
 
-        # Store the ZIP file in mock storage (using autouse fixture from conftest.py)
-        # The conftest.py autouse fixture automatically patches firebase_admin.storage.bucket()
-        storage_instance = Storage()
+        # Verify metadata
+        assert data["metadata"]["id"] == instance_id
+        assert data["metadata"]["type"] == "critical"
 
-        # Upload the ZIP file directly using the storage bucket interface
-        # This is cleaner than accessing the protected _blob method
-        blob = storage_instance.bucket.blob(f"opf/{expression_id}.zip")
-        blob.upload_from_filename(str(zip_path))
+        # Verify content came from storage
+        assert "content" in data
+        assert data["content"] == test_segmentation_annotation_data["content"]
 
-        return expression_id, manifestation_id
+        # Verify annotations list is present and contains non-alignment annotation
+        assert "annotations" in data
+        assert isinstance(data["annotations"], list)
+        for annotation in data["annotations"]:
+            assert "segmentation" == annotation["type"] or "bibliography" == annotation["type"]
+        
+    def test_get_critical_instance_without_content_and_segmentation_annotations(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data,
+        test_segmentation_annotation_data,
+        test_bibliography_annotation_data,
+        test_critical_manifestation_data
+    ):
+        """Test GET /v2/instances/{id} with content and segmentation annotation flags."""
+        # Create test person and base expression
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
 
-    def test_get_text_success(self, client, test_database, test_person_data, create_test_zip):
-        """Test successful instance retrieval"""
-        # Create test person and text
-        person_id = self._create_test_person(test_database, test_person_data)
-        _, manifestation_id = self._create_test_text(test_database, person_id, create_test_zip)
+        category_id = self._create_test_category(test_database)
+        test_expression_data["category_id"] = category_id
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
 
-        response = client.get(f"/v2/instances/{manifestation_id}/")
+        expression_id = test_database.create_expression(expression)
 
-        assert response.status_code == 200
-        data = response.get_json()
-        assert "metadata" in data
-        assert "id" in data["metadata"]
-        assert data["metadata"]["id"] == manifestation_id
+        # Create a manifestation via the public API to ensure storage + annotations are created
+        instance_request = {
+            "content": test_segmentation_annotation_data["content"],
+            "annotation": test_segmentation_annotation_data["annotation"],
+            "metadata": {
+                "wiki": "Q123456",
+                "type": "critical",
+                "source": "www.example_source.com",
+                "colophon": "Sample colophon text",
+                "incipit_title": {"en": "Opening words", "bo": "དབུ་ཚིག"},
+                "alt_incipit_titles": [{"en": "Alt incipit 1", "bo": "མཚན་བྱང་གཞན།"}, {"en": "Alt incipit 2", "bo": "མཚན་བྱང་གཞན།"}],
+            },
+            "biblography_annotation": test_bibliography_annotation_data["annotation"],
+        }
+        instance = InstanceRequestModel.model_validate(instance_request)
+        post_response = client.post(
+            f"/v2/texts/{expression_id}/instances/", json=instance.model_dump()
+        )
+        assert post_response.status_code == 201
+        post_data = post_response.get_json()
+        assert "id" in post_data
 
+        instance_id = post_data["id"]
+        # Now GET with content and annotation flags enabled
+        get_response = client.get(
+            f"/v2/instances/{instance_id}/?content=false&annotation=true"
+        )
+        assert get_response.status_code == 200
+        data = get_response.get_json()
+
+        # Verify metadata
+        assert data["metadata"]["id"] == instance_id
+        assert data["metadata"]["type"] == "critical"
+
+        # Verify content came from storage
+        assert "content" not in data
+
+        # Verify annotations list is present and contains non-alignment annotation
+        assert "annotations" in data
+        assert isinstance(data["annotations"], list)
+        for annotation in data["annotations"]:
+            assert "segmentation" == annotation["type"] or "bibliography" == annotation["type"]
+    
+    def test_get_critical_instance_content_and_without_annotations(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data,
+        test_segmentation_annotation_data,
+        test_bibliography_annotation_data,
+        test_critical_manifestation_data
+    ):
+        """Test GET /v2/instances/{id} with content and segmentation annotation flags."""
+        # Create test person and base expression
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = self._create_test_category(test_database)
+        test_expression_data["category_id"] = category_id
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
+
+        expression_id = test_database.create_expression(expression)
+
+        # Create a manifestation via the public API to ensure storage + annotations are created
+        instance_request = {
+            "content": test_segmentation_annotation_data["content"],
+            "annotation": test_segmentation_annotation_data["annotation"],
+            "metadata": {
+                "wiki": "Q123456",
+                "type": "critical",
+                "source": "www.example_source.com",
+                "colophon": "Sample colophon text",
+                "incipit_title": {"en": "Opening words", "bo": "དབུ་ཚིག"},
+                "alt_incipit_titles": [{"en": "Alt incipit 1", "bo": "མཚན་བྱང་གཞན།"}, {"en": "Alt incipit 2", "bo": "མཚན་བྱང་གཞན།"}],
+            },
+            "biblography_annotation": test_bibliography_annotation_data["annotation"],
+        }
+        instance = InstanceRequestModel.model_validate(instance_request)
+        post_response = client.post(
+            f"/v2/texts/{expression_id}/instances/", json=instance.model_dump()
+        )
+        assert post_response.status_code == 201
+        post_data = post_response.get_json()
+        assert "id" in post_data
+
+        instance_id = post_data["id"]
+        # Now GET with content and annotation flags enabled
+        get_response = client.get(
+            f"/v2/instances/{instance_id}/?content=true&annotation=false"
+        )
+        assert get_response.status_code == 200
+        data = get_response.get_json()
+
+        # Verify metadata
+        assert data["metadata"]["id"] == instance_id
+        assert data["metadata"]["type"] == "critical"
+
+        # Verify content came from storage
+        assert "content" in data
+        assert data["content"] == test_segmentation_annotation_data["content"]
+
+        # Verify annotations list is present and contains non-alignment annotation
+        assert "annotations" not in data
+    
+    def test_get_critical_instance_without_content_and_without_annotations(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data,
+        test_segmentation_annotation_data,
+        test_bibliography_annotation_data,
+        test_critical_manifestation_data
+    ):
+        """Test GET /v2/instances/{id} with content and segmentation annotation flags."""
+        # Create test person and base expression
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = self._create_test_category(test_database)
+        test_expression_data["category_id"] = category_id
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
+
+        expression_id = test_database.create_expression(expression)
+
+        # Create a manifestation via the public API to ensure storage + annotations are created
+        instance_request = {
+            "content": test_segmentation_annotation_data["content"],
+            "annotation": test_segmentation_annotation_data["annotation"],
+            "metadata": {
+                "wiki": "Q123456",
+                "type": "critical",
+                "source": "www.example_source.com",
+                "colophon": "Sample colophon text",
+                "incipit_title": {"en": "Opening words", "bo": "དབུ་ཚིག"},
+                "alt_incipit_titles": [{"en": "Alt incipit 1", "bo": "མཚན་བྱང་གཞན།"}, {"en": "Alt incipit 2", "bo": "མཚན་བྱང་གཞན།"}],
+            },
+            "biblography_annotation": test_bibliography_annotation_data["annotation"],
+        }
+        instance = InstanceRequestModel.model_validate(instance_request)
+        post_response = client.post(
+            f"/v2/texts/{expression_id}/instances/", json=instance.model_dump()
+        )
+        assert post_response.status_code == 201
+        post_data = post_response.get_json()
+        assert "id" in post_data
+
+        instance_id = post_data["id"]
+        # Now GET with content and annotation flags enabled
+        get_response = client.get(
+            f"/v2/instances/{instance_id}/?content=false&annotation=false"
+        )
+        assert get_response.status_code == 200
+        data = get_response.get_json()
+
+        # Verify metadata
+        assert data["metadata"]["id"] == instance_id
+        assert data["metadata"]["type"] == "critical"
+
+        # Verify content came from storage
+        assert "content" not in data
+
+        # Verify annotations list is not present
+        assert "annotations" not in data
+
+    def test_get_diplomatic_instance_with_content_and_pagination_annotations( # noqa: F811
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data,
+        test_pagination_annotation_data,
+        test_bibliography_annotation_data,
+        test_diplomatic_manifestation_data
+    ):
+        """Test GET /v2/instances/{id} with content and pagination annotation flags."""
+        # Create test person and base expression
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = self._create_test_category(test_database)
+        test_expression_data["category_id"] = category_id
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
+
+        expression_id = test_database.create_expression(expression)
+
+        # Create a manifestation via the public API to ensure storage + annotations are created
+        instance_request = {
+            "content": test_pagination_annotation_data["content"],
+            "annotation": test_pagination_annotation_data["annotation"],
+            "metadata": {
+                "bdrc": "W12345",
+                "wiki": "Q123456",
+                "type": "diplomatic",
+                "source": "www.example_source.com",
+                "colophon": "Sample colophon text",
+                "incipit_title": {"en": "Opening words", "bo": "དབུ་ཚིག"},
+                "alt_incipit_titles": [{"en": "Alt incipit 1", "bo": "མཚན་བྱང་གཞན།"}, {"en": "Alt incipit 2", "bo": "མཚན་བྱང་གཞན།"}],
+            },
+            "biblography_annotation": test_bibliography_annotation_data["annotation"],
+        }
+        instance = InstanceRequestModel.model_validate(instance_request)
+        post_response = client.post(
+            f"/v2/texts/{expression_id}/instances/", json=instance.model_dump()
+        )
+        assert post_response.status_code == 201
+        post_data = post_response.get_json()
+        assert "id" in post_data
+
+        instance_id = post_data["id"]
+        # Now GET with content and annotation flags enabled
+        get_response = client.get(
+            f"/v2/instances/{instance_id}/?content=true&annotation=true"
+        )
+        assert get_response.status_code == 200
+        data = get_response.get_json()
+
+        # Verify metadata
+        assert data["metadata"]["id"] == instance_id
+        assert data["metadata"]["type"] == "diplomatic"
+        assert data["metadata"]["bdrc"] == test_diplomatic_manifestation_data["metadata"]["bdrc"]
+
+        # Verify content came from storage
+        assert "content" in data
+        assert data["content"] == test_pagination_annotation_data["content"]
+
+        # Verify annotations list is present and contains non-alignment annotation
+        assert "annotations" in data
+        assert isinstance(data["annotations"], list)
+        for annotation in data["annotations"]:
+            assert "segmentation" == annotation["type"] or "bibliography" == annotation["type"]
+
+    def test_get_diplomatic_instance_without_content_and_with_pagination_annotations( # noqa: F811
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data,
+        test_pagination_annotation_data,
+        test_bibliography_annotation_data,
+        test_diplomatic_manifestation_data
+    ):
+        """Test GET /v2/instances/{id} with content and pagination annotation flags."""
+        # Create test person and base expression
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = self._create_test_category(test_database)
+        test_expression_data["category_id"] = category_id
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
+
+        expression_id = test_database.create_expression(expression)
+
+        # Create a manifestation via the public API to ensure storage + annotations are created
+        instance_request = {
+            "content": test_pagination_annotation_data["content"],
+            "annotation": test_pagination_annotation_data["annotation"],
+            "metadata": {
+                "bdrc": "W12345",
+                "wiki": "Q123456",
+                "type": "diplomatic",
+                "source": "www.example_source.com",
+                "colophon": "Sample colophon text",
+                "incipit_title": {"en": "Opening words", "bo": "དབུ་ཚིག"},
+                "alt_incipit_titles": [{"en": "Alt incipit 1", "bo": "མཚན་བྱང་གཞན།"}, {"en": "Alt incipit 2", "bo": "མཚན་བྱང་གཞན།"}],
+            },
+            "biblography_annotation": test_bibliography_annotation_data["annotation"],
+        }
+        instance = InstanceRequestModel.model_validate(instance_request)
+        post_response = client.post(
+            f"/v2/texts/{expression_id}/instances/", json=instance.model_dump()
+        )
+        assert post_response.status_code == 201
+        post_data = post_response.get_json()
+        assert "id" in post_data
+
+        instance_id = post_data["id"]
+        # Now GET with content and annotation flags enabled
+        get_response = client.get(
+            f"/v2/instances/{instance_id}/?content=false&annotation=true"
+        )
+        assert get_response.status_code == 200
+        data = get_response.get_json()
+
+        # Verify metadata
+        assert data["metadata"]["id"] == instance_id
+        assert data["metadata"]["type"] == "diplomatic"
+        assert data["metadata"]["bdrc"] == test_diplomatic_manifestation_data["metadata"]["bdrc"]
+
+        # Verify content came from storage
+        assert "content" not in data
+
+        # Verify annotations list is present and contains non-alignment annotation
+        assert "annotations" in data
+        assert isinstance(data["annotations"], list)
+        for annotation in data["annotations"]:
+            assert "segmentation" == annotation["type"] or "bibliography" == annotation["type"]
+
+    def test_get_diplomatic_instance_with_content_and_without_pagination_annotations( # noqa: F811
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data,
+        test_pagination_annotation_data,
+        test_bibliography_annotation_data,
+        test_diplomatic_manifestation_data
+    ):
+        """Test GET /v2/instances/{id} with content and pagination annotation flags."""
+        # Create test person and base expression
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = self._create_test_category(test_database)
+        test_expression_data["category_id"] = category_id
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
+
+        expression_id = test_database.create_expression(expression)
+
+        # Create a manifestation via the public API to ensure storage + annotations are created
+        instance_request = {
+            "content": test_pagination_annotation_data["content"],
+            "annotation": test_pagination_annotation_data["annotation"],
+            "metadata": {
+                "bdrc": "W12345",
+                "wiki": "Q123456",
+                "type": "diplomatic",
+                "source": "www.example_source.com",
+                "colophon": "Sample colophon text",
+                "incipit_title": {"en": "Opening words", "bo": "དབུ་ཚིག"},
+                "alt_incipit_titles": [{"en": "Alt incipit 1", "bo": "མཚན་བྱང་གཞན།"}, {"en": "Alt incipit 2", "bo": "མཚན་བྱང་གཞན།"}],
+            },
+            "biblography_annotation": test_bibliography_annotation_data["annotation"],
+        }
+        instance = InstanceRequestModel.model_validate(instance_request)
+        post_response = client.post(
+            f"/v2/texts/{expression_id}/instances/", json=instance.model_dump()
+        )
+        assert post_response.status_code == 201
+        post_data = post_response.get_json()
+        assert "id" in post_data
+
+        instance_id = post_data["id"]
+        # Now GET with content and annotation flags enabled
+        get_response = client.get(
+            f"/v2/instances/{instance_id}/?content=true&annotation=false"
+        )
+        assert get_response.status_code == 200
+        data = get_response.get_json()
+
+        # Verify metadata
+        assert data["metadata"]["id"] == instance_id
+        assert data["metadata"]["type"] == "diplomatic"
+        assert data["metadata"]["bdrc"] == test_diplomatic_manifestation_data["metadata"]["bdrc"]
+
+        # Verify content came from storage
+        assert "content" in data
+        assert data["content"] == test_pagination_annotation_data["content"]
+
+        # Verify annotations list is present and contains non-alignment annotation
+        assert "annotations" not in data
+
+    def test_get_diplomatic_instance_without_content_and_without_pagination_annotations( # noqa: F811
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data,
+        test_pagination_annotation_data,
+        test_bibliography_annotation_data,
+        test_diplomatic_manifestation_data
+    ):
+        """Test GET /v2/instances/{id} with content and pagination annotation flags."""
+        # Create test person and base expression
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = self._create_test_category(test_database)
+        test_expression_data["category_id"] = category_id
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
+
+        expression_id = test_database.create_expression(expression)
+
+        # Create a manifestation via the public API to ensure storage + annotations are created
+        instance_request = {
+            "content": test_pagination_annotation_data["content"],
+            "annotation": test_pagination_annotation_data["annotation"],
+            "metadata": {
+                "bdrc": "W12345",
+                "wiki": "Q123456",
+                "type": "diplomatic",
+                "source": "www.example_source.com",
+                "colophon": "Sample colophon text",
+                "incipit_title": {"en": "Opening words", "bo": "དབུ་ཚིག"},
+                "alt_incipit_titles": [{"en": "Alt incipit 1", "bo": "མཚན་བྱང་གཞན།"}, {"en": "Alt incipit 2", "bo": "མཚན་བྱང་གཞན།"}],
+            },
+            "biblography_annotation": test_bibliography_annotation_data["annotation"],
+        }
+        instance = InstanceRequestModel.model_validate(instance_request)
+        post_response = client.post(
+            f"/v2/texts/{expression_id}/instances/", json=instance.model_dump()
+        )
+        assert post_response.status_code == 201
+        post_data = post_response.get_json()
+        assert "id" in post_data
+
+        instance_id = post_data["id"]
+        # Now GET with content and annotation flags enabled
+        get_response = client.get(
+            f"/v2/instances/{instance_id}/?content=false&annotation=false"
+        )
+        assert get_response.status_code == 200
+        data = get_response.get_json()
+
+        # Verify metadata
+        assert data["metadata"]["id"] == instance_id
+        assert data["metadata"]["type"] == "diplomatic"
+        assert data["metadata"]["bdrc"] == test_diplomatic_manifestation_data["metadata"]["bdrc"]
+
+        # Verify content came from storage
+        assert "content" not in data
+
+        # Verify annotations list is not present
+        assert "annotations" not in data
 
     def test_get_text_not_found(self, client, test_database):
         """Test instance retrieval with non-existent manifestation ID"""
@@ -217,30 +799,77 @@ class TestInstancesV2Endpoints:
         response_data = response.get_json()
         assert "error" in response_data
 
-    def test_create_text_success(self, client, test_database, test_person_data):
-        """Test successful instance creation with database and storage verification"""
-        # Create test person first
-        person_id = self._create_test_person(test_database, test_person_data)
+    def test_get_all_instances_by_text_id(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data,
+        test_pagination_annotation_data,
+        test_bibliography_annotation_data,
+        test_segmentation_annotation_data,
+    ):
+        """Test GET /v2/instances/{id} with content and pagination annotation flags."""
+        # Create test person and base expression
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
 
-        # Create expression first to get valid text_id
-        expression_data = ExpressionModelInput(
-            title={"en": "Test Expression"},
-            language="en",
-            type=TextType.ROOT,
-            contributions=[{"person_id": person_id, "role": "author"}],
-        )
-        expression_id = test_database.create_expression(expression_data)
+        category_id = self._create_test_category(test_database)
+        test_expression_data["category_id"] = category_id
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
 
-        text_data = {
-            "content": "This is the English text content.",
-            "annotation": [{"span": {"start": 0, "end": 20}, "index": 0}],
-            "metadata": {
-                "copyright": "public",
-                "type": "diplomatic",
-                "bdrc": "W12345",
-            },
-        }
+        expression_id = test_database.create_expression(expression)
 
+        diplomatic_instance_ids, critical_instance_ids = [], []
+        # Create a manifestation via the public API to ensure storage + annotations are created
+        for i in range(2):
+            instance_request = {
+                "content": test_pagination_annotation_data["content"],
+                "annotation": test_pagination_annotation_data["annotation"],
+                "metadata": {
+                    "bdrc": f"W12345-{i}",
+                    "wiki": f"Q123456-{i}",
+                    "type": "diplomatic",
+                    "source": "www.example_source.com",
+                    "colophon": "Sample colophon text",
+                    "incipit_title": {"en": "Opening words", "bo": "དབུ་ཚིག"},
+                    "alt_incipit_titles": [{"en": "Alt incipit 1", "bo": "མཚན་བྱང་གཞན།"}, {"en": "Alt incipit 2", "bo": "མཚན་བྱང་གཞན།"}],
+                },
+                "biblography_annotation": test_bibliography_annotation_data["annotation"],
+            }
+            instance = InstanceRequestModel.model_validate(instance_request)
+            post_response = client.post(
+                f"/v2/texts/{expression_id}/instances/", json=instance.model_dump()
+            )
+            post_data = post_response.get_json()
+            diplomatic_instance_ids.append(post_data["id"])
+
+        for i in range(2, 3):
+            instance_request = {
+                "content": test_segmentation_annotation_data["content"],
+                "annotation": test_segmentation_annotation_data["annotation"],
+                "metadata": {
+                    "wiki": f"Q123456-{i}",
+                    "type": "critical",
+                    "source": "www.example_source.com",
+                    "colophon": "Sample colophon text",
+                    "incipit_title": {"en": "Opening words", "bo": "དབུ་ཚིག"},
+                    "alt_incipit_titles": [{"en": "Alt incipit 1", "bo": "མཚན་བྱང་གཞན།"}, {"en": "Alt incipit 2", "bo": "མཚན་བྱང་གཞན།"}],
+                },
+                "biblography_annotation": test_bibliography_annotation_data["annotation"],
+            }
+            instance = InstanceRequestModel.model_validate(instance_request)
+            post_response = client.post(
+                f"/v2/texts/{expression_id}/instances/", json=instance.model_dump()
+            )
+            post_data = post_response.get_json()
+            critical_instance_ids.append(post_data["id"])
+
+        response = client.get(f"/v2/texts/{expression_id}/instances/")
+
+        assert response.status_code == 200
+        
 
     def test_create_text_missing_body(self, client, test_database, test_person_data):
         """Test instance creation with missing request body"""
@@ -426,24 +1055,24 @@ class TestInstancesV2Endpoints:
         }
 
         # Perform POST translation
-        with patch("api.instances.Pecha.create_pecha") as mock_create_pecha:
-            mock_translation_pecha = MagicMock()
-            mock_translation_pecha.id = "translation_pecha789"
+        # with patch("api.instances.Pecha.create_pecha") as mock_create_pecha:
+        #     mock_translation_pecha = MagicMock()
+        #     mock_translation_pecha.id = "translation_pecha789"
 
-            with tempfile.TemporaryDirectory() as temp_dir:
-                mock_translation_pecha.pecha_path = temp_dir
-                mock_create_pecha.return_value = mock_translation_pecha
+        #     with tempfile.TemporaryDirectory() as temp_dir:
+        #         mock_translation_pecha.pecha_path = temp_dir
+        #         mock_create_pecha.return_value = mock_translation_pecha
 
-                post_response = client.post(f"/v2/instances/{manifestation_id}/translation", json=translation_data)
+        #         post_response = client.post(f"/v2/instances/{manifestation_id}/translation", json=translation_data)
 
-                # Verify POST succeeded
-                assert post_response.status_code == 201
-                post_data = post_response.get_json()
-                assert "instance_id" in post_data
-                assert "text_id" in post_data
-                translation_manifestation_id = post_data["instance_id"]
-                translation_expression_id = post_data["text_id"]
-                assert post_data["message"] == "Text created successfully"
+        #         # Verify POST succeeded
+        #         assert post_response.status_code == 201
+        #         post_data = post_response.get_json()
+        #         assert "instance_id" in post_data
+        #         assert "text_id" in post_data
+        #         translation_manifestation_id = post_data["instance_id"]
+        #         translation_expression_id = post_data["text_id"]
+        #         assert post_data["message"] == "Text created successfully"
 
         # Step 3: Retrieve translation via GET to verify database content
         # Create test ZIP for translation

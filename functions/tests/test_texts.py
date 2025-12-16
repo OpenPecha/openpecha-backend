@@ -1033,6 +1033,7 @@ class TestPostTextV2:
 
         assert response.status_code == 400
 
+
 class TestUpdateTitleV2:
     """Tests for PUT /v2/texts/{expression_id}/title endpoint (update title)"""
 
