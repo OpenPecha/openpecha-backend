@@ -259,10 +259,8 @@ def create_test_zip():
 
     return _create_zip
 
-
-class TestInstancesV2Endpoints:
+class TestGetInstancesV2Endpoints:
     """Integration test class for v2/instances endpoints using real Neo4j database"""
-
     def _create_test_category(self, test_database):
         """Helper to create a test category in the database"""
         category_id = test_database.create_category(
@@ -791,7 +789,7 @@ class TestInstancesV2Endpoints:
         # Verify annotations list is not present
         assert "annotations" not in data
 
-    def test_get_text_not_found(self, client, test_database):
+    def test_get_instance_not_found(self, client):
         """Test instance retrieval with non-existent manifestation ID"""
         response = client.get("/v2/instances/non-existent-id/")
 
@@ -869,7 +867,261 @@ class TestInstancesV2Endpoints:
         response = client.get(f"/v2/texts/{expression_id}/instances/")
 
         assert response.status_code == 200
+        data = response.get_json()
+        assert isinstance(data, list)
+        assert len(data) == 3
+        for instance in data:
+            if instance["type"] == "diplomatic":
+                assert instance["id"] in diplomatic_instance_ids
+            if instance["type"] == "critical":
+                assert instance["id"] in critical_instance_ids
+
+    def test_get_diplomatic_instances_by_text_id(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data,
+        test_pagination_annotation_data,
+        test_bibliography_annotation_data,
+        test_segmentation_annotation_data,
+    ):
+        """Test GET /v2/instances/{id} with content and pagination annotation flags."""
+        # Create test person and base expression
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = self._create_test_category(test_database)
+        test_expression_data["category_id"] = category_id
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
+
+        expression_id = test_database.create_expression(expression)
+
+        diplomatic_instance_ids, critical_instance_ids = [], []
+        # Create a manifestation via the public API to ensure storage + annotations are created
+        for i in range(2):
+            instance_request = {
+                "content": test_pagination_annotation_data["content"],
+                "annotation": test_pagination_annotation_data["annotation"],
+                "metadata": {
+                    "bdrc": f"W12345-{i}",
+                    "wiki": f"Q123456-{i}",
+                    "type": "diplomatic",
+                    "source": "www.example_source.com",
+                    "colophon": "Sample colophon text",
+                    "incipit_title": {"en": "Opening words", "bo": "དབུ་ཚིག"},
+                    "alt_incipit_titles": [{"en": "Alt incipit 1", "bo": "མཚན་བྱང་གཞན།"}, {"en": "Alt incipit 2", "bo": "མཚན་བྱང་གཞན།"}],
+                },
+                "biblography_annotation": test_bibliography_annotation_data["annotation"],
+            }
+            instance = InstanceRequestModel.model_validate(instance_request)
+            post_response = client.post(
+                f"/v2/texts/{expression_id}/instances/", json=instance.model_dump()
+            )
+            post_data = post_response.get_json()
+            diplomatic_instance_ids.append(post_data["id"])
+
+        for i in range(2, 3):
+            instance_request = {
+                "content": test_segmentation_annotation_data["content"],
+                "annotation": test_segmentation_annotation_data["annotation"],
+                "metadata": {
+                    "wiki": f"Q123456-{i}",
+                    "type": "critical",
+                    "source": "www.example_source.com",
+                    "colophon": "Sample colophon text",
+                    "incipit_title": {"en": "Opening words", "bo": "དབུ་ཚིག"},
+                    "alt_incipit_titles": [{"en": "Alt incipit 1", "bo": "མཚན་བྱང་གཞན།"}, {"en": "Alt incipit 2", "bo": "མཚན་བྱང་གཞན།"}],
+                },
+                "biblography_annotation": test_bibliography_annotation_data["annotation"],
+            }
+            instance = InstanceRequestModel.model_validate(instance_request)
+            post_response = client.post(
+                f"/v2/texts/{expression_id}/instances/", json=instance.model_dump()
+            )
+            post_data = post_response.get_json()
+            critical_instance_ids.append(post_data["id"])
+
+        response = client.get(f"/v2/texts/{expression_id}/instances?instance_type=diplomatic")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert isinstance(data, list)
+        assert len(data) == 2
+        for instance in data:
+            assert instance["type"] == "diplomatic"
+            assert instance["id"] in diplomatic_instance_ids
+
+
+    def test_get_critical_instances_by_text_id(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data,
+        test_pagination_annotation_data,
+        test_bibliography_annotation_data,
+        test_segmentation_annotation_data,
+    ):
+        """Test GET /v2/instances/{id} with content and pagination annotation flags."""
+        # Create test person and base expression
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = self._create_test_category(test_database)
+        test_expression_data["category_id"] = category_id
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
+
+        expression_id = test_database.create_expression(expression)
+
+        diplomatic_instance_ids, critical_instance_ids = [], []
+        # Create a manifestation via the public API to ensure storage + annotations are created
+        for i in range(2):
+            instance_request = {
+                "content": test_pagination_annotation_data["content"],
+                "annotation": test_pagination_annotation_data["annotation"],
+                "metadata": {
+                    "bdrc": f"W12345-{i}",
+                    "wiki": f"Q123456-{i}",
+                    "type": "diplomatic",
+                    "source": "www.example_source.com",
+                    "colophon": "Sample colophon text",
+                    "incipit_title": {"en": "Opening words", "bo": "དབུ་ཚིག"},
+                    "alt_incipit_titles": [{"en": "Alt incipit 1", "bo": "མཚན་བྱང་གཞན།"}, {"en": "Alt incipit 2", "bo": "མཚན་བྱང་གཞན།"}],
+                },
+                "biblography_annotation": test_bibliography_annotation_data["annotation"],
+            }
+            instance = InstanceRequestModel.model_validate(instance_request)
+            post_response = client.post(
+                f"/v2/texts/{expression_id}/instances/", json=instance.model_dump()
+            )
+            post_data = post_response.get_json()
+            diplomatic_instance_ids.append(post_data["id"])
+
+        for i in range(2, 3):
+            instance_request = {
+                "content": test_segmentation_annotation_data["content"],
+                "annotation": test_segmentation_annotation_data["annotation"],
+                "metadata": {
+                    "wiki": f"Q123456-{i}",
+                    "type": "critical",
+                    "source": "www.example_source.com",
+                    "colophon": "Sample colophon text",
+                    "incipit_title": {"en": "Opening words", "bo": "དབུ་ཚིག"},
+                    "alt_incipit_titles": [{"en": "Alt incipit 1", "bo": "མཚན་བྱང་གཞན།"}, {"en": "Alt incipit 2", "bo": "མཚན་བྱང་གཞན།"}],
+                },
+                "biblography_annotation": test_bibliography_annotation_data["annotation"],
+            }
+            instance = InstanceRequestModel.model_validate(instance_request)
+            post_response = client.post(
+                f"/v2/texts/{expression_id}/instances/", json=instance.model_dump()
+            )
+            post_data = post_response.get_json()
+            critical_instance_ids.append(post_data["id"])
+
+        response = client.get(f"/v2/texts/{expression_id}/instances?instance_type=critical")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert isinstance(data, list)
+        assert len(data) == 1
+        for instance in data:
+            assert instance["type"] == "critical"
+            assert instance["id"] in critical_instance_ids
+
+    def test_get_instances_by_text_id_invalid_instance_type(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data,
+        test_pagination_annotation_data,
+        test_bibliography_annotation_data,
+        test_segmentation_annotation_data,
+    ):
+        """Test GET /v2/instances/{id} with content and pagination annotation flags."""
+        # Create test person and base expression
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = self._create_test_category(test_database)
+        test_expression_data["category_id"] = category_id
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
+
+        expression_id = test_database.create_expression(expression)
+
+        diplomatic_instance_ids, critical_instance_ids = [], []
+        # Create a manifestation via the public API to ensure storage + annotations are created
+        for i in range(2):
+            instance_request = {
+                "content": test_pagination_annotation_data["content"],
+                "annotation": test_pagination_annotation_data["annotation"],
+                "metadata": {
+                    "bdrc": f"W12345-{i}",
+                    "wiki": f"Q123456-{i}",
+                    "type": "diplomatic",
+                    "source": "www.example_source.com",
+                    "colophon": "Sample colophon text",
+                    "incipit_title": {"en": "Opening words", "bo": "དབུ་ཚིག"},
+                    "alt_incipit_titles": [{"en": "Alt incipit 1", "bo": "མཚན་བྱང་གཞན།"}, {"en": "Alt incipit 2", "bo": "མཚན་བྱང་གཞན།"}],
+                },
+                "biblography_annotation": test_bibliography_annotation_data["annotation"],
+            }
+            instance = InstanceRequestModel.model_validate(instance_request)
+            post_response = client.post(
+                f"/v2/texts/{expression_id}/instances/", json=instance.model_dump()
+            )
+            post_data = post_response.get_json()
+            diplomatic_instance_ids.append(post_data["id"])
+
+        for i in range(2, 3):
+            instance_request = {
+                "content": test_segmentation_annotation_data["content"],
+                "annotation": test_segmentation_annotation_data["annotation"],
+                "metadata": {
+                    "wiki": f"Q123456-{i}",
+                    "type": "critical",
+                    "source": "www.example_source.com",
+                    "colophon": "Sample colophon text",
+                    "incipit_title": {"en": "Opening words", "bo": "དབུ་ཚིག"},
+                    "alt_incipit_titles": [{"en": "Alt incipit 1", "bo": "མཚན་བྱང་གཞན།"}, {"en": "Alt incipit 2", "bo": "མཚན་བྱང་གཞན།"}],
+                },
+                "biblography_annotation": test_bibliography_annotation_data["annotation"],
+            }
+            instance = InstanceRequestModel.model_validate(instance_request)
+            post_response = client.post(
+                f"/v2/texts/{expression_id}/instances/", json=instance.model_dump()
+            )
+            post_data = post_response.get_json()
+            critical_instance_ids.append(post_data["id"])
+
+        response = client.get(f"/v2/texts/{expression_id}/instances?instance_type=invalid")
+
+        assert response.status_code == 400
+        response_data = response.get_json()
+        assert "error" in response_data
+        assert response_data["error"] == "instance_type must be one of: diplomatic, critical, all"
+
+
+    def test_get_instances_by_text_id_invalid_text_id(
+        self,
+        client
+    ):
+        """Test GET /v2/instances/{id} with content and pagination annotation flags."""
+        # Create test person and base expression
         
+
+        response = client.get("/v2/texts/invalid-text-id/instances")
+
+        assert response.status_code == 500
+        response_data = response.get_json()
+        assert "error" in response_data
+
+class TestInstancesV2Endpoints:
+    """Integration test class for v2/instances endpoints using real Neo4j database"""        
 
     def test_create_text_missing_body(self, client, test_database, test_person_data):
         """Test instance creation with missing request body"""
