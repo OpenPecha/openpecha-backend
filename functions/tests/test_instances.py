@@ -2418,7 +2418,7 @@ class TestPostInstanceV2Endpoints:
             f"/v2/instances/{instance_id}/translation",
             json=translation.model_dump()
         )
-        assert post_response.status_code == 400
+        assert post_response.status_code == 404
 
     def test_create_commentary_by_text_id_with_alignment_invalid_instance_id(
         self,
@@ -2499,21 +2499,30 @@ class TestPostInstanceV2Endpoints:
             f"/v2/instances/{instance_id}/commentary",
             json=commentary.model_dump()
         )
-        assert post_response.status_code == 400
+        assert post_response.status_code == 404
         data = post_response.get_json()
+        assert "error" in data
 
 
-    def test_create_instance_missing_body(self, client, test_database, test_person_data):
+    def test_create_instance_missing_body(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data
+    ):
         """Test instance creation with missing request body"""
         # Create expression first
-        person_id = "dummy_person_id"
-        expression_data = ExpressionModelInput(
-            title={"en": "Test Expression"},
-            language="en",
-            type=TextType.ROOT,
-            contributions=[{"person_id": person_id, "role": "author"}],
-        )
-        expression_id = test_database.create_expression(expression_data)
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = self._create_test_category(test_database)
+
+        expression_data = test_expression_data
+        expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression_data["category_id"] = category_id
+        expression = ExpressionModelInput.model_validate(expression_data)
+        expression_id = test_database.create_expression(expression)
 
         response = client.post(f"/v2/texts/{expression_id}/instances")
 
