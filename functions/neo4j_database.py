@@ -31,12 +31,9 @@ from models import (
 from neo4j import GraphDatabase
 from neo4j_database_validator import Neo4JDatabaseValidator
 from neo4j_queries import Queries
-from dotenv import load_dotenv
 
 
 logger = logging.getLogger(__name__)
-
-load_dotenv()
 
 
 class Neo4JDatabase:
