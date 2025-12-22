@@ -2210,6 +2210,191 @@ class TestPostInstanceV2Endpoints:
         assert "text_id" in data
         assert "instance_id" in data
 
+    def test_create_translation_by_text_id_without_alignment(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data,
+    ):
+        """Test POST /v2/instances/{id}/translation"""
+        # Create test person and base expression
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = self._create_test_category(test_database)
+        test_expression_data["category_id"] = category_id
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        instance_request = {
+            "metadata": {
+                "wiki": "Q123456",
+                "type": "critical",
+                "source": "source-name",
+                "colophon": "Sample colophon text",
+                "incipit_title": {
+                    "en": "Opening words",
+                    "bo": "དབུ་ཚིག"
+                },
+                "alt_incipit_titles": [
+                    {
+                        "en": "Alt incipit 1",
+                        "bo": "མཚན་བྱང་གཞན།"
+                    },
+                    {
+                        "en": "Alt incipit 2",
+                        "bo": "མཚན་བྱང་གཞན།"
+                    }
+                ]
+            },
+            "content": "This is the text content to be stored"
+            }
+
+        instance = InstanceRequestModel.model_validate(instance_request)
+        post_response = client.post(
+            f"/v2/texts/{expression_id}/instances/",
+            json=instance.model_dump()
+        )
+        assert post_response.status_code == 201
+        data = post_response.get_json()
+        instance_id = data["id"]
+
+        translation_request = {
+            "language": "bo",
+            "content": "This is the translated text content",
+            "title": "Translated Title",
+            "category_id": category_id,
+            "source": "Source of the translation",
+            "author": {
+                "person_id": person_id
+            },
+            "segmentation": [
+                {
+                    "span": {
+                        "start": 0,
+                        "end": 20
+                    }
+                },
+                {
+                    "span": {
+                        "start": 21,
+                        "end": 40
+                    }
+                }
+            ],
+            "copyright": "Public domain",
+            "license": "CC0"
+            }
+
+        translation = AlignedTextRequestModel.model_validate(translation_request)
+        post_response = client.post(
+            f"/v2/instances/{instance_id}/translation",
+            json=translation.model_dump()
+        )
+        assert post_response.status_code == 201
+        data = post_response.get_json()
+        assert "text_id" in data
+        assert "instance_id" in data
+
+    def test_create_translation_by_text_id_with_biblography(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data,
+    ):
+        """Test POST /v2/instances/{id}/translation"""
+        # Create test person and base expression
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = self._create_test_category(test_database)
+        test_expression_data["category_id"] = category_id
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        instance_request = {
+            "metadata": {
+                "wiki": "Q123456",
+                "type": "critical",
+                "source": "source-name",
+                "colophon": "Sample colophon text",
+                "incipit_title": {
+                    "en": "Opening words",
+                    "bo": "དབུ་ཚིག"
+                },
+                "alt_incipit_titles": [
+                    {
+                        "en": "Alt incipit 1",
+                        "bo": "མཚན་བྱང་གཞན།"
+                    },
+                    {
+                        "en": "Alt incipit 2",
+                        "bo": "མཚན་བྱང་གཞན།"
+                    }
+                ]
+            },
+            "content": "This is the text content to be stored"
+            }
+
+        instance = InstanceRequestModel.model_validate(instance_request)
+        post_response = client.post(
+            f"/v2/texts/{expression_id}/instances/",
+            json=instance.model_dump()
+        )
+        assert post_response.status_code == 201
+        data = post_response.get_json()
+        instance_id = data["id"]
+
+        translation_request = {
+            "language": "bo",
+            "content": "This is the translated text content",
+            "title": "Translated Title",
+            "category_id": category_id,
+            "source": "Source of the translation",
+            "author": {
+                "person_id": person_id
+            },
+            "segmentation": [
+                {
+                    "span": {
+                        "start": 0,
+                        "end": 20
+                    }
+                },
+                {
+                    "span": {
+                        "start": 21,
+                        "end": 40
+                    }
+                }
+            ],
+            "biblography_annotation": [
+                {
+                    "span": {
+                        "start": 0,
+                        "end": 20
+                    },
+                    "type": "colophon"
+                }
+            ],
+            "copyright": "Public domain",
+            "license": "CC0"
+            }
+
+        translation = AlignedTextRequestModel.model_validate(translation_request)
+        post_response = client.post(
+            f"/v2/instances/{instance_id}/translation",
+            json=translation.model_dump()
+        )
+        assert post_response.status_code == 201
+        data = post_response.get_json()
+        assert "text_id" in data
+        assert "instance_id" in data
+
     def test_create_commentary_by_text_id_with_alignment(
         self,
         client,
@@ -2320,6 +2505,423 @@ class TestPostInstanceV2Endpoints:
                     "alignment_index": [
                         1
                     ]
+                }
+            ],
+            "copyright": "Public domain",
+            "license": "CC0"
+            }
+
+        commentary = AlignedTextRequestModel.model_validate(commentary_request)
+        post_response = client.post(
+            f"/v2/instances/{instance_id}/commentary",
+            json=commentary.model_dump()
+        )
+        assert post_response.status_code == 201
+        data = post_response.get_json()
+        assert "text_id" in data
+        assert "instance_id" in data
+
+    def test_create_commentary_by_text_id_with_alignment_and_biblography(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data,
+    ):
+        """Test POST /v2/instances/{id}/commentary"""
+        # Create test person and base expression
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = self._create_test_category(test_database)
+        test_expression_data["category_id"] = category_id
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        instance_request = {
+            "metadata": {
+                "wiki": "Q123456",
+                "type": "critical",
+                "source": "source-name",
+                "colophon": "Sample colophon text",
+                "incipit_title": {
+                    "en": "Opening words",
+                    "bo": "དབུ་ཚིག"
+                },
+                "alt_incipit_titles": [
+                    {
+                        "en": "Alt incipit 1",
+                        "bo": "མཚན་བྱང་གཞན།"
+                    },
+                    {
+                        "en": "Alt incipit 2",
+                        "bo": "མཚན་བྱང་གཞན།"
+                    }
+                ]
+            },
+            "content": "This is the text content to be stored"
+            }
+
+        instance = InstanceRequestModel.model_validate(instance_request)
+        post_response = client.post(
+            f"/v2/texts/{expression_id}/instances/",
+            json=instance.model_dump()
+        )
+        assert post_response.status_code == 201
+        data = post_response.get_json()
+        instance_id = data["id"]
+
+        commentary_request = {
+            "language": "bo",
+            "content": "This is the commentary text content",
+            "title": "Commentary Title",
+            "category_id": category_id,
+            "source": "Source of the commentary",
+            "author": {
+                "person_id": person_id
+            },
+            "segmentation": [
+                {
+                    "span": {
+                        "start": 0,
+                        "end": 20
+                    }
+                },
+                {
+                    "span": {
+                        "start": 21,
+                        "end": 40
+                    }
+                }
+            ],
+            "target_annotation": [
+                {
+                    "span": {
+                        "start": 0,
+                        "end": 20
+                    },
+                    "index": 0
+                },
+                {
+                    "span": {
+                        "start": 21,
+                        "end": 40
+                    },
+                    "index": 1
+                }
+            ],
+            "alignment_annotation": [
+                {
+                    "span": {
+                        "start": 0,
+                        "end": 20
+                    },
+                    "index": 0,
+                    "alignment_index": [
+                        0
+                    ]
+                },
+                {
+                    "span": {
+                        "start": 21,
+                        "end": 50
+                    },
+                    "index": 1,
+                    "alignment_index": [
+                        1
+                    ]
+                }
+            ],
+            "biblography_annotation": [
+                {
+                    "span": {
+                        "start": 0,
+                        "end": 20
+                    },
+                    "type": "colophon"
+                }
+            ],
+            "copyright": "Public domain",
+            "license": "CC0"
+            }
+
+        commentary = AlignedTextRequestModel.model_validate(commentary_request)
+        post_response = client.post(
+            f"/v2/instances/{instance_id}/commentary",
+            json=commentary.model_dump()
+        )
+        assert post_response.status_code == 201
+        data = post_response.get_json()
+        assert "text_id" in data
+        assert "instance_id" in data
+
+    def test_create_translation_by_text_id_with_only_biblography(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data,
+    ):
+        """Test POST /v2/instances/{id}/commentary"""
+        # Create test person and base expression
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = self._create_test_category(test_database)
+        test_expression_data["category_id"] = category_id
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        instance_request = {
+            "metadata": {
+                "wiki": "Q123456",
+                "type": "critical",
+                "source": "source-name",
+                "colophon": "Sample colophon text",
+                "incipit_title": {
+                    "en": "Opening words",
+                    "bo": "དབུ་ཚིག"
+                },
+                "alt_incipit_titles": [
+                    {
+                        "en": "Alt incipit 1",
+                        "bo": "མཚན་བྱང་གཞན།"
+                    },
+                    {
+                        "en": "Alt incipit 2",
+                        "bo": "མཚན་བྱང་གཞན།"
+                    }
+                ]
+            },
+            "content": "This is the text content to be stored"
+            }
+
+        instance = InstanceRequestModel.model_validate(instance_request)
+        post_response = client.post(
+            f"/v2/texts/{expression_id}/instances/",
+            json=instance.model_dump()
+        )
+        assert post_response.status_code == 201
+        data = post_response.get_json()
+        instance_id = data["id"]
+
+        translation_request = {
+            "language": "bo",
+            "content": "This is the translated text content",
+            "title": "Translated Title",
+            "category_id": category_id,
+            "source": "Source of the translation",
+            "author": {
+                "person_id": person_id
+            },
+            "segmentation": [
+                {
+                    "span": {
+                        "start": 0,
+                        "end": 20
+                    }
+                },
+                {
+                    "span": {
+                        "start": 21,
+                        "end": 40
+                    }
+                }
+            ],
+            "biblography_annotation": [
+                {
+                    "span": {
+                        "start": 0,
+                        "end": 20
+                    },
+                    "type": "colophon"
+                }
+            ],
+            "copyright": "Public domain",
+            "license": "CC0"
+            }
+
+        translation = AlignedTextRequestModel.model_validate(translation_request)
+        post_response = client.post(
+            f"/v2/instances/{instance_id}/translation",
+            json=translation.model_dump()
+        )
+        assert post_response.status_code == 201
+        data = post_response.get_json()
+        assert "text_id" in data
+        assert "instance_id" in data
+
+    def test_create_commentary_by_text_id_with_only_biblography(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data,
+    ):
+        """Test POST /v2/instances/{id}/commentary"""
+        # Create test person and base expression
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = self._create_test_category(test_database)
+        test_expression_data["category_id"] = category_id
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        instance_request = {
+            "metadata": {
+                "wiki": "Q123456",
+                "type": "critical",
+                "source": "source-name",
+                "colophon": "Sample colophon text",
+                "incipit_title": {
+                    "en": "Opening words",
+                    "bo": "དབུ་ཚིག"
+                },
+                "alt_incipit_titles": [
+                    {
+                        "en": "Alt incipit 1",
+                        "bo": "མཚན་བྱང་གཞན།"
+                    },
+                    {
+                        "en": "Alt incipit 2",
+                        "bo": "མཚན་བྱང་གཞན།"
+                    }
+                ]
+            },
+            "content": "This is the text content to be stored"
+            }
+
+        instance = InstanceRequestModel.model_validate(instance_request)
+        post_response = client.post(
+            f"/v2/texts/{expression_id}/instances/",
+            json=instance.model_dump()
+        )
+        assert post_response.status_code == 201
+        data = post_response.get_json()
+        instance_id = data["id"]
+
+        commentary_request = {
+            "language": "bo",
+            "content": "This is the commentary text content",
+            "title": "Commentary Title",
+            "category_id": category_id,
+            "source": "Source of the commentary",
+            "author": {
+                "person_id": person_id
+            },
+            "segmentation": [
+                {
+                    "span": {
+                        "start": 0,
+                        "end": 20
+                    }
+                },
+                {
+                    "span": {
+                        "start": 21,
+                        "end": 40
+                    }
+                }
+            ],
+            "biblography_annotation": [
+                {
+                    "span": {
+                        "start": 0,
+                        "end": 20
+                    },
+                    "type": "colophon"
+                }
+            ],
+            "copyright": "Public domain",
+            "license": "CC0"
+            }
+
+        commentary = AlignedTextRequestModel.model_validate(commentary_request)
+        post_response = client.post(
+            f"/v2/instances/{instance_id}/commentary",
+            json=commentary.model_dump()
+        )
+        assert post_response.status_code == 201
+        data = post_response.get_json()
+        assert "text_id" in data
+        assert "instance_id" in data
+
+    def test_create_commentary_by_text_id_without_alignment(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data,
+    ):
+        """Test POST /v2/instances/{id}/commentary"""
+        # Create test person and base expression
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = self._create_test_category(test_database)
+        test_expression_data["category_id"] = category_id
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        instance_request = {
+            "metadata": {
+                "wiki": "Q123456",
+                "type": "critical",
+                "source": "source-name",
+                "colophon": "Sample colophon text",
+                "incipit_title": {
+                    "en": "Opening words",
+                    "bo": "དབུ་ཚིག"
+                },
+                "alt_incipit_titles": [
+                    {
+                        "en": "Alt incipit 1",
+                        "bo": "མཚན་བྱང་གཞན།"
+                    },
+                    {
+                        "en": "Alt incipit 2",
+                        "bo": "མཚན་བྱང་གཞན།"
+                    }
+                ]
+            },
+            "content": "This is the text content to be stored"
+            }
+
+        instance = InstanceRequestModel.model_validate(instance_request)
+        post_response = client.post(
+            f"/v2/texts/{expression_id}/instances/",
+            json=instance.model_dump()
+        )
+        assert post_response.status_code == 201
+        data = post_response.get_json()
+        instance_id = data["id"]
+
+        commentary_request = {
+            "language": "bo",
+            "content": "This is the commentary text content",
+            "title": "Commentary Title",
+            "category_id": category_id,
+            "source": "Source of the commentary",
+            "author": {
+                "person_id": person_id
+            },
+            "segmentation": [
+                {
+                    "span": {
+                        "start": 0,
+                        "end": 20
+                    }
+                },
+                {
+                    "span": {
+                        "start": 21,
+                        "end": 40
+                    }
                 }
             ],
             "copyright": "Public domain",

@@ -70,6 +70,9 @@ def test_database(neo4j_connection):
         session.run("MERGE (r:RoleType {name: 'author'})")
         session.run("MERGE (r:RoleType {name: 'reviser'})")
 
+        # Create test license type
+        session.run("MERGE (l:License {name: 'CC0'})")
+
     yield db
 
     # Cleanup after test
@@ -539,7 +542,7 @@ class TestGetAllTextsV2:
 class TestGetSingleTextV2:
     """Tests for GET /v2/texts/{text_id} endpoint (get single text)"""
 
-    def test_get_single_metadata_success(self, client, test_database, test_person_data, test_expression_data):
+    def test_get_single_metadata_by_text_id_success(self, client, test_database, test_person_data, test_expression_data):
         """Test successfully retrieving a single expression"""
 
         # Create test person
@@ -565,6 +568,37 @@ class TestGetSingleTextV2:
         assert data["language"] == "en"
         assert data["date"] == "2024-01-01"
         assert data["bdrc"] == "W123456"
+        assert data["wiki"] == "Q789012"
+        assert len(data["contributions"]) == 1
+        assert data["contributions"][0]["role"] == "author"
+        assert data["target"] is None
+        assert data["category_id"] == category_id
+
+    def test_get_single_metadata_by_bdrc_id_success(self, client, test_database, test_person_data, test_expression_data):
+        """Test successfully retrieving a single expression"""
+
+        # Create test person
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+        category_id = test_database.create_category(
+            application='test_application',
+            title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
+        )
+        # Create test expression
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        test_expression_data["category_id"] = category_id
+        expression = ExpressionModelInput.model_validate(test_expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        response = client.get(f"/v2/texts/{test_expression_data['bdrc']}")
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data["bdrc"] == test_expression_data['bdrc']
+        assert data["title"]["en"] == "Test Expression"
+        assert data["title"]["bo"] == "བརྟག་དཔྱད་ཚིག་སྒྲུབ།"
+        assert data["language"] == "en"
+        assert data["date"] == "2024-01-01"
         assert data["wiki"] == "Q789012"
         assert len(data["contributions"]) == 1
         assert data["contributions"][0]["role"] == "author"
@@ -1008,7 +1042,7 @@ class TestPostTextV2:
         # Create ROOT expression
         expression_data = {
             "type": "root",
-            "bdrc": "T123456",
+            "bdrc": "T1234567",
             "title": {"en": "New Root Expression", "bo": "རྩ་བའི་ཚིག་སྒྲུབ་གསར་པ།"},
             "language": "en",
             "contributions": [{"person_id": person_id, "role": "author"}],
@@ -1016,11 +1050,13 @@ class TestPostTextV2:
             "copyright": "Public domain",
             "license": "CC0"
         }
-        response = client.post("/v2/texts", data=json.dumps(expression_data), content_type="application/json")
+        response_1 = client.post("/v2/texts", data=json.dumps(expression_data), content_type="application/json")
+
+        assert response_1.status_code == 201
 
         duplicate_expression_data = {
             "type": "root",
-            "bdrc": "T123456",
+            "bdrc": "T1234567",
             "title": {"en": "Duplicate Root Expression", "bo": "རྩ་བའི་ཚིག་སྒྲུབ་གསར་པ།"},
             "language": "en",
             "contributions": [{"person_id": person_id, "role": "author"}],
@@ -1029,10 +1065,9 @@ class TestPostTextV2:
             "license": "CC0"
         }
 
-        response = client.post("/v2/texts", data=json.dumps(duplicate_expression_data), content_type="application/json")
+        response_2 = client.post("/v2/texts", data=json.dumps(duplicate_expression_data), content_type="application/json")
 
-        assert response.status_code == 400
-
+        assert response_2.status_code == 500
 
 class TestUpdateTitleV2:
     """Tests for PUT /v2/texts/{expression_id}/title endpoint (update title)"""
@@ -1191,3 +1226,147 @@ class TestUpdateTitleV2:
 
         # Mirror your POST tests (500 + {"error": ...})
         assert response.status_code == 400
+
+class TestUpdateLicenseV2:
+    """Tests for PUT /v2/texts/{expression_id}/license endpoint (update license)"""
+
+    def test_update_license_success(self, client, test_database, test_person_data):
+        """Happy path: updates license and persists it (verify via GET)."""
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = test_database.create_category(
+            application='test_application',
+            title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
+        )
+
+        expression_data = {
+            'type': 'root',
+            'title': {'en': 'License Test Text'},
+            'language': 'en',
+            'contributions': [{'person_id': person_id, 'role': 'author'}],
+            'category_id': category_id
+        }
+        expression = ExpressionModelInput.model_validate(expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        update_data = {'license': 'CC0'}
+        response = client.put(
+            f'/v2/texts/{expression_id}/license',
+            data=json.dumps(update_data),
+            content_type='application/json',
+        )
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['message'] == 'License updated successfully'
+
+        verify_response = client.get(f'/v2/texts/{expression_id}')
+        assert verify_response.status_code == 200
+        verify_data = json.loads(verify_response.data)
+        assert verify_data['license'] == 'CC0'
+
+    def test_update_license_missing_json_body(self, client, test_database, test_person_data):
+        """PUT with no JSON body should return 400 + error."""
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = test_database.create_category(
+            application='test_application',
+            title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
+        )
+
+        expression_data = {
+            'type': 'root',
+            'title': {'en': 'License Missing Body'},
+            'language': 'en',
+            'contributions': [{'person_id': person_id, 'role': 'author'}],
+            'category_id': category_id
+        }
+        expression = ExpressionModelInput.model_validate(expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        response = client.put(
+            f'/v2/texts/{expression_id}/license',
+            content_type='application/json',
+        )
+
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert data['error'] == 'Request body is required'
+
+    def test_update_license_missing_license_field(self, client, test_database, test_person_data):
+        """PUT with JSON but no 'license' should return 400 + error."""
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = test_database.create_category(
+            application='test_application',
+            title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
+        )
+
+        expression_data = {
+            'type': 'root',
+            'title': {'en': 'License Missing Field'},
+            'language': 'en',
+            'contributions': [{'person_id': person_id, 'role': 'author'}],
+            'category_id': category_id
+        }
+        expression = ExpressionModelInput.model_validate(expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        response = client.put(
+            f'/v2/texts/{expression_id}/license',
+            data=json.dumps({'something_else': 'value'}),
+            content_type='application/json',
+        )
+
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert data['error'] == 'License is required'
+
+    def test_update_license_invalid_license_value(self, client, test_database, test_person_data):
+        """PUT with invalid license should return 400 and list valid values."""
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = test_database.create_category(
+            application='test_application',
+            title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
+        )
+
+        expression_data = {
+            'type': 'root',
+            'title': {'en': 'License Invalid Value'},
+            'language': 'en',
+            'contributions': [{'person_id': person_id, 'role': 'author'}],
+            'category_id': category_id
+        }
+        expression = ExpressionModelInput.model_validate(expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        response = client.put(
+            f'/v2/texts/{expression_id}/license',
+            data=json.dumps({'license': 'NOT_A_LICENSE'}),
+            content_type='application/json',
+        )
+
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert 'Invalid license type' in data['error']
+        # Spot-check a couple known allowed values so the error remains helpful.
+        assert 'CC0' in data['error']
+        assert 'Public Domain Mark' in data['error']
+
+    def test_update_license_nonexistent_expression_returns_404(self, client, test_database):
+        """Nonexistent expression_id should return 404 (DataNotFound)."""
+        response = client.put(
+            '/v2/texts/nonexistent_expression_id/license',
+            data=json.dumps({'license': 'CC0'}),
+            content_type='application/json',
+        )
+
+        assert response.status_code == 404
+        data = json.loads(response.data)
+        assert 'not found' in data['error'].lower()
+

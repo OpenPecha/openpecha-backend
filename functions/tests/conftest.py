@@ -182,8 +182,13 @@ def mock_storage():
 
 @pytest.fixture(autouse=True)
 def mock_search_segmenter():
-    """Mock the external search segmenter API call to prevent network requests during tests"""
-    with patch("api.instances._trigger_search_segmenter"):
+    """
+    Prevent background threads / network calls during tests.
+
+    These helpers are "fire-and-forget" and call external services; tests should never
+    hit the network or spawn those background threads.
+    """
+    with patch("api.instances._trigger_search_segmenter"), patch("api.instances._trigger_delete_search_segments"):
         yield
 
 
