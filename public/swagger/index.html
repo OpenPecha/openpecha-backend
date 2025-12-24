@@ -15,5 +15,24 @@
     <script src="./swagger-ui-bundle.js" charset="UTF-8"> </script>
     <script src="./swagger-ui-standalone-preset.js" charset="UTF-8"> </script>
     <script src="./swagger-initializer.js" charset="UTF-8"> </script>
+    
+    <!-- Userback Widget -->
+    <script>
+      window.Userback = window.Userback || {};
+      Userback.access_token = "A-JldUwSRlsuKf8Te85bql54w7U";
+      Userback.user_data = {
+        id: "annonymous",
+        info: {
+          name: "annonymous",
+          email: "annonymous@mail.com"
+        }
+      };
+      (function(d) {
+        var s = d.createElement('script');
+        s.async = true;
+        s.src = 'https://static.userback.io/widget/v1.js';
+        (d.head || d.body).appendChild(s);
+      })(document);
+    </script>
   </body>
 </html>
