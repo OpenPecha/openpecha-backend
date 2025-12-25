@@ -11,7 +11,7 @@ from dotenv import load_dotenv
 from models import (
     PersonModelInput,
     ExpressionModelInput,
-    ManifestationModelInput,
+    InstanceRequestModel,
     AlignedTextRequestModel
 )
 from main import create_app
@@ -126,22 +126,22 @@ class TestGetSegmentRelationV2:
     def _create_expression_and_manifestation_for_text_A(
         self,
         client,
-        test_database,
         test_expression_data,
-        test_person_data
+        category_id,
+        person_id
     ) -> tuple[str, str]:
         """Create a test expression"""
-        person_id = self._create_person(test_database, test_person_data)
-        category_id = self._create_category(test_database)
 
         expression_data = test_expression_data
-        expression_data["title"] = "Bo root expression"
+        expression_data["title"] = {"bo": "Bo root expression"}
         expression_data["language"] = "bo"
         expression_data["category_id"] = category_id
+        expression_data["bdrc"] = "W123456"
+        expression_data["wiki"] = "Q123456"
         expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
         expression = ExpressionModelInput.model_validate(expression_data)
         
-        expression_response = client.post("/v2/texts", data=json.dumps(expression), content_type="application/json")
+        expression_response = client.post("/v2/texts", data=json.dumps(expression.model_dump(mode="json")), content_type="application/json")
         
         assert expression_response.status_code == 201
         data = json.loads(expression_response.data)
@@ -149,7 +149,7 @@ class TestGetSegmentRelationV2:
 
         manifestation_data = {
             "metadata": {
-                "wiki": "Q123456",
+                "wiki": "Q1",
                 "type": "critical",
                 "source": "source-name",
                 "colophon": "Sample colophon text",
@@ -196,8 +196,8 @@ class TestGetSegmentRelationV2:
             ],
             "content": "This is the text content to be stored"
         }
-        manifestation = ManifestationModelInput.model_validate(manifestation_data)
-        manifestation_response = client.post("/v2/manifestations", data=json.dumps(manifestation), content_type="application/json")
+        manifestation = InstanceRequestModel.model_validate(manifestation_data)
+        manifestation_response = client.post(f"/v2/texts/{expression_id}/instances", data=json.dumps(manifestation.model_dump(mode="json")), content_type="application/json")
         
         assert manifestation_response.status_code == 201
         data = json.loads(manifestation_response.data)
@@ -208,17 +208,14 @@ class TestGetSegmentRelationV2:
     def _create_text_B_translation_target_text_A(
         self,
         client,
-        test_database,
-        test_person_data,
+        category_id,
+        person_id,
         target_manifestation_id
-    ) -> str:
+    ) -> tuple[str, str]:
         """Create a test translation"""
 
-        category_id = self._create_category(test_database)
-        person_id = self._create_person(test_database, test_person_data)
-
         translation_request = {
-            "language": "bo",
+            "language": "en",
             "content": "This is the translated text content",
             "title": "B. En translation with target A",
             "category_id": category_id,
@@ -320,20 +317,18 @@ class TestGetSegmentRelationV2:
 
         assert translation_response.status_code == 201
         data = translation_response.get_json()
-        translation_id = data["id"]
-        return translation_id
+        translation_text_id = data["text_id"]
+        translation_instance_id = data["instance_id"]
+        return translation_text_id, translation_instance_id
 
     def _create_text_C_commentary_target_text_A(
         self,
         client,
-        test_database,
-        test_person_data,
+        category_id,
+        person_id,
         target_manifestation_id
-    ) -> str:
+    ) -> tuple[str, str]:
         """Create a test commentary"""
-
-        category_id = self._create_category(test_database)
-        person_id = self._create_person(test_database, test_person_data)
 
         commentary_request = {
             "language": "bo",
@@ -436,19 +431,16 @@ class TestGetSegmentRelationV2:
 
         assert commentary_response.status_code == 201
         data = commentary_response.get_json()
-        commentary_id = data["id"]
-        return commentary_id
+        return data["text_id"], data["instance_id"]
     
     def _create_text_D_commentary_target_text_B(
         self,
         client,
-        test_database,
-        test_person_data,
+        category_id,
+        person_id,
         target_manifestation_id
-    ) -> str:
+    ) -> tuple[str, str]:
         """Create a test commentary"""
-        category_id = self._create_category(test_database)
-        person_id = self._create_person(test_database, test_person_data)
 
         commentary_request = {
             "language": "en",
@@ -521,16 +513,6 @@ class TestGetSegmentRelationV2:
                     "alignment_index": [
                         1
                     ]
-                },
-                {
-                    "span": {
-                        "start": 60,
-                        "end": 80
-                    },
-                    "index": 2,
-                    "alignment_index": [
-                        2
-                    ]
                 }
             ],
             "copyright": "Public domain",
@@ -545,24 +527,20 @@ class TestGetSegmentRelationV2:
 
         assert commentary_response.status_code == 201
         data = commentary_response.get_json()
-        commentary_id = data["id"]
-        return commentary_id
+        return data["text_id"], data["instance_id"]
 
     def _create_text_E_translation_target_text_A(
         self,
         client,
-        test_database,
-        test_person_data,
+        category_id,
+        person_id,
         target_manifestation_id
-    ) -> str:
+    ) -> tuple[str, str]:
         """Create a test translation"""
-        category_id = self._create_category(test_database)
-        person_id = self._create_person(test_database, test_person_data)
-
         translation_request = {
-            "language": "fr",
+            "language": "en",
             "content": "This is the translated text content",
-            "title": "E. Fr translation with target A",
+            "title": "E. En translation with target A",
             "category_id": category_id,
             "source": "Source of the translation",
             "author": {
@@ -660,24 +638,20 @@ class TestGetSegmentRelationV2:
         )
         assert translation_response.status_code == 201
         data = translation_response.get_json()
-        translation_id = data["id"]
-        return translation_id
+        return data["text_id"], data["instance_id"]
 
     def _create_text_F_commentary_target_text_E(
         self,
         client,
-        test_database,
-        test_person_data,
+        category_id,
+        person_id,
         target_manifestation_id
-    ) -> str:
+    ) -> tuple[str, str]:
         """Create a test commentary"""
-        category_id = self._create_category(test_database)
-        person_id = self._create_person(test_database, test_person_data)
-
         commentary_request = {
-            "language": "fr",
+            "language": "en",
             "content": "This is the translated text content",
-            "title": "F. Fr commentary with target E",
+            "title": "F. En commentary with target E",
             "category_id": category_id,
             "source": "Source of the commentary",
             "author": {
@@ -767,22 +741,27 @@ class TestGetSegmentRelationV2:
             "copyright": "Public domain",
             "license": "CC0"
         }
+        commentary = AlignedTextRequestModel.model_validate(commentary_request)
+        commentary_response = client.post(
+            f"/v2/instances/{target_manifestation_id}/commentary",
+            json=commentary.model_dump()
+        )
+        assert commentary_response.status_code == 201
+        data = commentary_response.get_json()
+        return data["text_id"], data["instance_id"]
     
     def _create_text_G_translation_target_text_C(
         self,
         client,
-        test_database,
-        test_person_data,
+        category_id,
+        person_id,
         target_manifestation_id
-    ) -> str:
+    ) -> tuple[str, str]:
         """Create a test translation"""
-        category_id = self._create_category(test_database)
-        person_id = self._create_person(test_database, test_person_data)
-
         translation_request = {
-            "language": "lzh",
+            "language": "zh",
             "content": "This is the translated text content",
-            "title": "J. Lzh translation with target C",
+            "title": "G. Zh translation with target C",
             "category_id": category_id,
             "source": "Source of the translation",
             "author": {
@@ -890,19 +869,16 @@ class TestGetSegmentRelationV2:
         )
         assert translation_response.status_code == 201
         data = translation_response.get_json()
-        translation_id = data["id"]
-        return translation_id
+        return data["text_id"], data["instance_id"]
 
     def _create_text_H_commentary_target_text_C(
         self,
         client,
-        test_database,
-        test_person_data,
+        category_id,
+        person_id,
         target_manifestation_id
-    ) -> str:
+    ) -> tuple[str, str]:
         """Create a test commentary"""
-        category_id = self._create_category(test_database)
-        person_id = self._create_person(test_database, test_person_data)
 
         commentary_request = {
             "language": "bo",
@@ -975,24 +951,20 @@ class TestGetSegmentRelationV2:
         )
         assert commentary_response.status_code == 201
         data = commentary_response.get_json()
-        commentary_id = data["id"]
-        return commentary_id
+        return data["text_id"], data["instance_id"]
 
     def _create_text_I_commentary_target_text_G(
         self,
         client,
-        test_database,
-        test_person_data,
+        category_id,
+        person_id,
         target_manifestation_id
-    ) -> str:
+    ) -> tuple[str, str]:
         """Create a test commentary"""
-        category_id = self._create_category(test_database)
-        person_id = self._create_person(test_database, test_person_data)
-
         commentary_request = {
-            "language": "lzh",
+            "language": "zh",
             "content": "This is the commentary text content",
-            "title": "I. Lzh commentary with target G",
+            "title": "I. Zh commentary with target G",
             "category_id": category_id,
             "source": "Source of the commentary",
             "author": {
@@ -1060,19 +1032,16 @@ class TestGetSegmentRelationV2:
         )
         assert commentary_response.status_code == 201
         data = commentary_response.get_json()
-        commentary_id = data["id"]
-        return commentary_id
+        return data["text_id"], data["instance_id"]
     
     def _create_text_J_translation_target_text_H(
         self,
         client,
-        test_database,
-        test_person_data,
+        category_id,
+        person_id,
         target_manifestation_id
-    ) -> str:
+    ) -> tuple[str, str]:
         """Create a test translation"""
-        category_id = self._create_category(test_database)
-        person_id = self._create_person(test_database, test_person_data)
 
         translation_request = {
             "language": "zh",
@@ -1174,24 +1143,20 @@ class TestGetSegmentRelationV2:
         )
         assert translation_response.status_code == 201
         data = translation_response.get_json()
-        translation_id = data["id"]
-        return translation_id
+        return data["text_id"], data["instance_id"]
 
     def _create_text_K_translation_target_text_B(
         self,
         client,
-        test_database,
-        test_person_data,
+        category_id,
+        person_id,
         target_manifestation_id
-    ) -> str:
+    ) -> tuple[str, str]:
         """Create a test translation"""
-        category_id = self._create_category(test_database)
-        person_id = self._create_person(test_database, test_person_data)
-
         translation_request = {
-            "language": "ja",
+            "language": "zh",
             "content": "This is the translated text content",
-            "title": "K. ja translation with target B",
+            "title": "K. Zh translation with target B",
             "category_id": category_id,
             "source": "Source of the translation",
             "author": {
@@ -1282,30 +1247,32 @@ class TestGetSegmentRelationV2:
         )
         assert translation_response.status_code == 201
         data = translation_response.get_json()
-        translation_id = data["id"]
-        return translation_id
+        return data["text_id"], data["instance_id"]
 
     def _create_expression_and_manifestation_for_text_L(
         self,
         client,
-        test_database,
         test_expression_data,
-        test_person_data
+        category_id,
+        person_id,
     ) -> tuple[str, str]:
         """Create a test expression"""
-        person_id = self._create_person(test_database, test_person_data)
-        category_id = self._create_category(test_database)
-
         expression_data = test_expression_data
-        expression_data["title"] = "Sa standalone translationexpression"
+        expression_data["title"] = {"sa": "Sa standalone translation expression"}
         expression_data["language"] = "sa"
         expression_data["target"] = "N/A"
+        expression_data["bdrc"] = "W123455"
+        expression_data["wiki"] = "Q123455"
         expression_data["type"] = "translation"
         expression_data["category_id"] = category_id
         expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
         expression = ExpressionModelInput.model_validate(expression_data)
         
-        expression_response = client.post("/v2/texts", data=json.dumps(expression), content_type="application/json")
+        expression_response = client.post(
+            "/v2/texts",
+            data=json.dumps(expression.model_dump(mode="json")),
+            content_type="application/json",
+        )
         
         assert expression_response.status_code == 201
         data = json.loads(expression_response.data)
@@ -1313,7 +1280,7 @@ class TestGetSegmentRelationV2:
 
         manifestation_data = {
             "metadata": {
-                "wiki": "Q123456",
+                "wiki": "Q2",
                 "type": "critical",
                 "source": "source-name",
                 "colophon": "Sample colophon text",
@@ -1366,8 +1333,12 @@ class TestGetSegmentRelationV2:
             ],
             "content": "This is the text content to be stored"
         }
-        manifestation = ManifestationModelInput.model_validate(manifestation_data)
-        manifestation_response = client.post("/v2/manifestations", data=json.dumps(manifestation), content_type="application/json")
+        manifestation = InstanceRequestModel.model_validate(manifestation_data)
+        manifestation_response = client.post(
+            f"/v2/texts/{expression_id}/instances",
+            data=json.dumps(manifestation.model_dump(mode="json")),
+            content_type="application/json",
+        )
         
         assert manifestation_response.status_code == 201
         data = json.loads(manifestation_response.data)
@@ -1378,13 +1349,11 @@ class TestGetSegmentRelationV2:
     def _create_text_M_translation_target_text_L(
         self,
         client,
-        test_database,
-        test_person_data,
+        category_id,
+        person_id,
         target_manifestation_id
-    ) -> str:
+    ) -> tuple[str, str]:
         """Create a test translation"""
-        category_id = self._create_category(test_database)
-        person_id = self._create_person(test_database, test_person_data)
 
         translation_request = {
             "language": "bo",
@@ -1492,22 +1461,18 @@ class TestGetSegmentRelationV2:
         )
         assert translation_response.status_code == 201
         data = translation_response.get_json()
-        translation_id = data["id"]
-        return translation_id
+        return data["text_id"], data["instance_id"]
     
     def _create_text_N_commentary_target_text_L(
         self,
         client,
-        test_database,
-        test_person_data,
+        category_id,
+        person_id,
         target_manifestation_id
-    ) -> str:
+    ) -> tuple[str, str]:
         """Create a test commentary"""
-        category_id = self._create_category(test_database)
-        person_id = self._create_person(test_database, test_person_data)
-
         commentary_request = {
-            "language": "Bo",
+            "language": "bo",
             "content": "This is the commentary text content",
             "title": "N. Bo commentary with target L",
             "category_id": category_id,
@@ -1566,30 +1531,32 @@ class TestGetSegmentRelationV2:
         )
         assert commentary_response.status_code == 201
         data = commentary_response.get_json()
-        commentary_id = data["id"]
-        return commentary_id
+        return data["text_id"], data["instance_id"]
 
     def _create_expression_and_manifestation_for_text_O(
         self,
         client,
-        test_database,
         test_expression_data,
-        test_person_data
+        category_id,
+        person_id,
     ) -> tuple[str, str]:
         """Create a test expression"""
-        person_id = self._create_person(test_database, test_person_data)
-        category_id = self._create_category(test_database)
-
         expression_data = test_expression_data
-        expression_data["title"] = "Bo standalone commentary expression"
+        expression_data["title"] = {"bo": "Bo standalone commentary expression"}
         expression_data["language"] = "bo"
         expression_data["target"] = "N/A"
+        expression_data["bdrc"] = "W123454"
+        expression_data["wiki"] = "Q123454"
         expression_data["type"] = "commentary"
         expression_data["category_id"] = category_id
         expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
         expression = ExpressionModelInput.model_validate(expression_data)
         
-        expression_response = client.post("/v2/texts", data=json.dumps(expression), content_type="application/json")
+        expression_response = client.post(
+            "/v2/texts",
+            data=json.dumps(expression.model_dump(mode="json")),
+            content_type="application/json",
+        )
         
         assert expression_response.status_code == 201
         data = json.loads(expression_response.data)
@@ -1597,7 +1564,7 @@ class TestGetSegmentRelationV2:
 
         manifestation_data = {
             "metadata": {
-                "wiki": "Q123456",
+                "wiki": "Q3",
                 "type": "critical",
                 "source": "source-name",
                 "colophon": "Sample colophon text",
@@ -1644,8 +1611,12 @@ class TestGetSegmentRelationV2:
             ],
             "content": "This is the text content to be stored"
         }
-        manifestation = ManifestationModelInput.model_validate(manifestation_data)
-        manifestation_response = client.post("/v2/manifestations", data=json.dumps(manifestation), content_type="application/json")
+        manifestation = InstanceRequestModel.model_validate(manifestation_data)
+        manifestation_response = client.post(
+            f"/v2/texts/{expression_id}/instances",
+            data=json.dumps(manifestation.model_dump(mode="json")),
+            content_type="application/json",
+        )
         
         assert manifestation_response.status_code == 201
         data = json.loads(manifestation_response.data)
@@ -1656,16 +1627,13 @@ class TestGetSegmentRelationV2:
     def _create_text_P_commentary_target_text_O(
         self,
         client,
-        test_database,
-        test_person_data,
+        category_id,
+        person_id,
         target_manifestation_id
-    ) -> str:
+    ) -> tuple[str, str]:
         """Create a test commentary"""
-        category_id = self._create_category(test_database)
-        person_id = self._create_person(test_database, test_person_data)
-
         commentary_request = {
-            "language": "En",
+            "language": "en",
             "content": "This is the commentary text content",
             "title": "P. En commentary with target O",
             "category_id": category_id,
@@ -1781,24 +1749,21 @@ class TestGetSegmentRelationV2:
         )
         assert commentary_response.status_code == 201
         data = commentary_response.get_json()
-        commentary_id = data["id"]
-        return commentary_id
+        return data["text_id"], data["instance_id"]
 
     def _create_text_Q_translation_target_text_O(
         self,
         client,
-        test_database,
-        test_person_data,
+        category_id,
+        person_id,
         target_manifestation_id
-    ) -> str:
+    ) -> tuple[str, str]:
         """Create a test translation"""
-        category_id = self._create_category(test_database)
-        person_id = self._create_person(test_database, test_person_data)
 
         translation_request = {
-            "language": "bo",
+            "language": "en",
             "content": "This is the translated text content",
-            "title": "Q. Bo translation with target O",
+            "title": "Q. En translation with target O",
             "category_id": category_id,
             "source": "Source of the translation",
             "author": {
@@ -1878,8 +1843,71 @@ class TestGetSegmentRelationV2:
         )
         assert translation_response.status_code == 201
         data = translation_response.get_json()
-        translation_id = data["id"]
-        return translation_id
+        return data["text_id"], data["instance_id"]
 
+    def test_all_texts_creation(
+        self,
+        client,
+        test_database,
+        test_expression_data,
+        test_person_data
+    ):
+        """Test all texts creation"""
 
-    
+        category_id = self._create_category(test_database)
+        person_id = self._create_person(test_database, test_person_data)
+
+        text_a_id, instance_a_id = self._create_expression_and_manifestation_for_text_A(
+            client, test_expression_data, category_id, person_id
+        )
+        text_b_id, instance_b_id = self._create_text_B_translation_target_text_A(
+            client, category_id, person_id, instance_a_id
+        )
+        text_c_id, instance_c_id = self._create_text_C_commentary_target_text_A(
+            client, category_id, person_id, instance_a_id
+        )
+        text_d_id, instance_d_id = self._create_text_D_commentary_target_text_B(
+            client, category_id, person_id, instance_b_id
+        )
+        text_e_id, instance_e_id = self._create_text_E_translation_target_text_A(
+            client, category_id, person_id, instance_a_id
+        )
+        text_f_id, instance_f_id = self._create_text_F_commentary_target_text_E(
+            client, category_id, person_id, instance_e_id
+        )
+        text_g_id, instance_g_id = self._create_text_G_translation_target_text_C(
+            client, category_id, person_id, instance_c_id
+        )
+        text_h_id, instance_h_id = self._create_text_H_commentary_target_text_C(
+            client, category_id, person_id, instance_c_id
+        )
+        text_i_id, instance_i_id = self._create_text_I_commentary_target_text_G(
+            client, category_id, person_id, instance_g_id
+        )
+        text_j_id, instance_j_id = self._create_text_J_translation_target_text_H(
+            client, category_id, person_id, instance_h_id
+        )
+        text_k_id, instance_k_id = self._create_text_K_translation_target_text_B(
+            client, category_id, person_id, instance_b_id
+        )
+        text_l_id, instance_l_id = self._create_expression_and_manifestation_for_text_L(
+            client, test_expression_data, category_id, person_id
+        )
+        text_m_id, instance_m_id = self._create_text_M_translation_target_text_L(
+            client, category_id, person_id, instance_l_id
+        )
+        text_n_id, instance_n_id = self._create_text_N_commentary_target_text_L(
+            client, category_id, person_id, instance_l_id
+        )
+        # STANDALONE COMMENTARY NOT SUPPORTED YET
+        # text_o_id, instance_o_id = self._create_expression_and_manifestation_for_text_O(
+        #     client, test_expression_data, category_id, person_id
+        # )
+        # text_p_id, instance_p_id = self._create_text_P_commentary_target_text_O(
+        #     client, category_id, person_id, instance_o_id
+        # )
+        # text_q_id, instance_q_id = self._create_text_Q_translation_target_text_O(
+        #     client, category_id, person_id, instance_o_id
+        # )
+        
+        assert True
