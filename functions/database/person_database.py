@@ -1,22 +1,23 @@
 from exceptions import DataNotFound
 from identifier import generate_id
-from models import PersonModelInput, PersonModelOutput
-from neo4j_database import Neo4JDatabase
+from models import PersonInput, PersonOutput
+from neo4j import ManagedTransaction, Session
 from neo4j_queries import Queries
 
 from .data_adapter import DataAdapter
+from .database import Database
 from .nomen_database import NomenDatabase
 
 
 class PersonDatabase:
-    def __init__(self, db: Neo4JDatabase):
+    def __init__(self, db: Database) -> None:
         self._db = db
 
     @property
-    def session(self):
+    def session(self) -> Session:
         return self._db.get_session()
 
-    def get(self, person_id: str) -> PersonModelOutput:
+    def get(self, person_id: str) -> PersonOutput:
         with self.session as session:
             result = session.run(Queries.persons["fetch_by_id"], id=person_id)
             record = result.single()
@@ -29,7 +30,7 @@ class PersonDatabase:
                 raise DataNotFound(f"Person with ID '{person_id}' has invalid data and cannot be retrieved")
             return person_model
 
-    def get_all(self, offset: int = 0, limit: int = 20) -> list[PersonModelOutput]:
+    def get_all(self, offset: int = 0, limit: int = 20) -> list[PersonOutput]:
         params = {
             "offset": offset,
             "limit": limit,
@@ -43,21 +44,21 @@ class PersonDatabase:
                 if (person_model := DataAdapter.person(record.data()["person"])) is not None
             ]
 
-    def create_person(self, person: PersonModelInput) -> str:
-        def create_transaction(tx):
+    def create(self, person: PersonInput) -> str:
+        def create_transaction(tx: ManagedTransaction) -> str:
             person_id = generate_id()
             alt_names_data = [alt_name.root for alt_name in person.alt_names] if person.alt_names else None
-            primary_name_element_id = NomenDatabase.create_with_transaction(tx, person.name.root, alt_names_data)
+            primary_nomen_id = NomenDatabase.create_with_transaction(tx, person.name.root, alt_names_data)
 
             tx.run(
                 Queries.persons["create"],
                 id=person_id,
                 bdrc=person.bdrc,
                 wiki=person.wiki,
-                primary_name_element_id=primary_name_element_id,
+                primary_nomen_id=primary_nomen_id,
             )
 
             return person_id
 
         with self.session as session:
-            return session.execute_write(create_transaction)
+            return str(session.execute_write(create_transaction))

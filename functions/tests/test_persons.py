@@ -11,6 +11,7 @@ Requires environment variables:
 - NEO4J_TEST_URI: Neo4j test instance URI
 - NEO4J_TEST_PASSWORD: Password for test instance
 """
+
 import json
 import logging
 import os
@@ -19,7 +20,7 @@ from unittest.mock import patch
 import pytest
 from dotenv import load_dotenv
 from main import create_app
-from models import PersonModelInput
+from models import PersonInput
 from neo4j_database import Neo4JDatabase
 
 logger = logging.getLogger(__name__)
@@ -39,7 +40,7 @@ def neo4j_connection():
             "Neo4j test credentials not provided. Set NEO4J_TEST_URI and NEO4J_TEST_PASSWORD environment variables."
         )
 
-    yield {"uri": test_uri, "auth": ("neo4j", test_password)}
+    return {"uri": test_uri, "auth": ("neo4j", test_password)}
 
 
 @pytest.fixture
@@ -121,7 +122,7 @@ class TestGetAllPersonsV2:
             mock_db_class.return_value = test_database
 
             # Create test person
-            person = PersonModelInput.model_validate(test_person_data)
+            person = PersonInput.model_validate(test_person_data)
             person_id = test_database.create_person(person)
 
             response = client.get("/v2/persons/")
@@ -142,8 +143,8 @@ class TestGetAllPersonsV2:
             # Create multiple test persons
             person_ids = []
             for i in range(3):
-                person_data = {"name": {"en": f"Person {i+1}", "bo": f"གང་ཟག་{i+1}།"}, "bdrc": f"P{i+1:06d}"}
-                person = PersonModelInput.model_validate(person_data)
+                person_data = {"name": {"en": f"Person {i + 1}", "bo": f"གང་ཟག་{i + 1}།"}, "bdrc": f"P{i + 1:06d}"}
+                person = PersonInput.model_validate(person_data)
                 person_id = test_database.create_person(person)
                 person_ids.append(person_id)
 
@@ -169,7 +170,7 @@ class TestGetAllPersonsV2:
                 "name": {"en": "Primary Name", "bo": "གཙོ་བོའི་མིང་།"},
                 "alt_names": [{"en": "Alt Name 1", "bo": "གཞན་མིང་༡།"}, {"en": "Alt Name 2"}],
             }
-            person = PersonModelInput.model_validate(person_data)
+            person = PersonInput.model_validate(person_data)
             person_id = test_database.create_person(person)
 
             response = client.get("/v2/persons/")
@@ -192,8 +193,8 @@ class TestGetAllPersonsV2:
 
             # Create 25 test persons
             for i in range(25):
-                person_data = {"name": {"en": f"Person {i+1}"}}
-                person = PersonModelInput.model_validate(person_data)
+                person_data = {"name": {"en": f"Person {i + 1}"}}
+                person = PersonInput.model_validate(person_data)
                 test_database.create_person(person)
 
             # Request without pagination params (should use defaults)
@@ -211,8 +212,8 @@ class TestGetAllPersonsV2:
 
             # Create 15 test persons
             for i in range(15):
-                person_data = {"name": {"en": f"Person {i+1}"}}
-                person = PersonModelInput.model_validate(person_data)
+                person_data = {"name": {"en": f"Person {i + 1}"}}
+                person = PersonInput.model_validate(person_data)
                 test_database.create_person(person)
 
             # Request with limit=5
@@ -230,8 +231,8 @@ class TestGetAllPersonsV2:
             # Create 10 test persons with identifiable names
             created_ids = []
             for i in range(10):
-                person_data = {"name": {"en": f"Person {i+1:02d}"}}
-                person = PersonModelInput.model_validate(person_data)
+                person_data = {"name": {"en": f"Person {i + 1:02d}"}}
+                person = PersonInput.model_validate(person_data)
                 person_id = test_database.create_person(person)
                 created_ids.append(person_id)
 
@@ -259,8 +260,8 @@ class TestGetAllPersonsV2:
 
             # Create some test persons
             for i in range(5):
-                person_data = {"name": {"en": f"Person {i+1}"}}
-                person = PersonModelInput.model_validate(person_data)
+                person_data = {"name": {"en": f"Person {i + 1}"}}
+                person = PersonInput.model_validate(person_data)
                 test_database.create_person(person)
 
             # Test limit=1
@@ -315,8 +316,8 @@ class TestGetAllPersonsV2:
 
             # Create 5 test persons
             for i in range(5):
-                person_data = {"name": {"en": f"Person {i+1}"}}
-                person = PersonModelInput.model_validate(person_data)
+                person_data = {"name": {"en": f"Person {i + 1}"}}
+                person = PersonInput.model_validate(person_data)
                 test_database.create_person(person)
 
             # Request with offset=100 (beyond all results)
@@ -333,15 +334,15 @@ class TestGetAllPersonsV2:
             # Create 30 test persons
             all_created_ids = []
             for i in range(30):
-                person_data = {"name": {"en": f"Person {i+1:02d}"}}
-                person = PersonModelInput.model_validate(person_data)
+                person_data = {"name": {"en": f"Person {i + 1:02d}"}}
+                person = PersonInput.model_validate(person_data)
                 person_id = test_database.create_person(person)
                 all_created_ids.append(person_id)
 
             # Fetch all persons using pagination (3 pages of 10)
             all_fetched_ids = []
             for page in range(3):
-                response = client.get(f"/v2/persons/?limit=10&offset={page*10}")
+                response = client.get(f"/v2/persons/?limit=10&offset={page * 10}")
                 assert response.status_code == 200
                 data = json.loads(response.data)
                 fetched_ids = [p["id"] for p in data]
@@ -362,7 +363,7 @@ class TestGetSinglePersonV2:
             mock_db_class.return_value = test_database
 
             # Create test person
-            person = PersonModelInput.model_validate(test_person_data)
+            person = PersonInput.model_validate(test_person_data)
             person_id = test_database.create_person(person)
 
             response = client.get(f"/v2/persons/{person_id}")
@@ -381,7 +382,7 @@ class TestGetSinglePersonV2:
             mock_db_class.return_value = test_database
 
             # Create minimal person
-            person = PersonModelInput.model_validate(test_person_data_minimal)
+            person = PersonInput.model_validate(test_person_data_minimal)
             person_id = test_database.create_person(person)
 
             response = client.get(f"/v2/persons/{person_id}")
@@ -608,7 +609,7 @@ class TestPersonsIntegration:
             # Create multiple persons
             created_ids = []
             for i in range(3):
-                person_data = {"name": {"en": f"Batch Person {i+1}"}, "bdrc": f"P{i+1:06d}"}
+                person_data = {"name": {"en": f"Batch Person {i + 1}"}, "bdrc": f"P{i + 1:06d}"}
 
                 response = client.post("/v2/persons/", data=json.dumps(person_data), content_type="application/json")
 

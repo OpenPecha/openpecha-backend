@@ -1,7 +1,12 @@
 import logging
 
 from exceptions import InvalidRequest
-from models import AnnotationModel, AnnotationType, ExpressionModelInput, ManifestationType, TextType
+from models import (
+    AnnotationType,
+    ContributionInput,
+    ExpressionInput,
+)
+from neo4j import ManagedTransaction
 from neo4j_queries import Queries
 
 logger = logging.getLogger(__name__)
@@ -12,27 +17,26 @@ class DataValidationError(Exception):
 
 
 class DatabaseValidator:
-    def __init__(self):
+    def __init__(self) -> None:
         pass
 
     @staticmethod
-    def validate_original_expression_uniqueness(session, work_id: str) -> None:
+    def validate_original_expression_uniqueness(tx: ManagedTransaction, work_id: str) -> None:
         query = """
         MATCH (w:Work {id: $work_id})<-[:EXPRESSION_OF {original: true}]-(e:Expression)
         RETURN count(e) as existing_count
         """
 
-        result = session.run(query, work_id=work_id)
+        result = tx.run(query, work_id=work_id)
         record = result.single()
 
         if record and record["existing_count"] > 0:
             raise DataValidationError(
-                f"Work {work_id} already has an original expression. "
-                "Only one original expression per work is allowed."
+                f"Work {work_id} already has an original expression. Only one original expression per work is allowed."
             )
 
     @staticmethod
-    def validate_person_references(session, person_ids: list[str]) -> None:
+    def validate_person_references(tx: ManagedTransaction, person_ids: list[str]) -> None:
         if not person_ids:
             return
 
@@ -42,18 +46,14 @@ class DatabaseValidator:
         RETURN person_id, p IS NOT NULL as exists
         """
 
-        result = session.run(query, person_ids=person_ids)
-        missing_persons = []
-
-        for record in result:
-            if not record["exists"]:
-                missing_persons.append(record["person_id"])
+        result = tx.run(query, person_ids=person_ids)
+        missing_persons = [record["person_id"] for record in result if not record["exists"]]
 
         if missing_persons:
             raise DataValidationError(f"Referenced persons do not exist: {', '.join(missing_persons)}")
 
     @staticmethod
-    def validate_person_bdrc_references(session, person_bdrc_ids: list[str]) -> None:
+    def validate_person_bdrc_references(tx: ManagedTransaction, person_bdrc_ids: list[str]) -> None:
         if not person_bdrc_ids:
             return
 
@@ -63,71 +63,50 @@ class DatabaseValidator:
         RETURN bdrc_id, p IS NOT NULL as exists
         """
 
-        result = session.run(query, person_bdrc_ids=person_bdrc_ids)
-        missing_persons = []
-
-        for record in result:
-            if not record["exists"]:
-                missing_persons.append(record["bdrc_id"])
+        result = tx.run(query, person_bdrc_ids=person_bdrc_ids)
+        missing_persons = [record["bdrc_id"] for record in result if not record["exists"]]
 
         if missing_persons:
             raise DataValidationError(f"Referenced person BDRC IDs do not exist: {', '.join(missing_persons)}")
 
     @staticmethod
-    def validate_expression_creation(session, expression: ExpressionModelInput, work_id: str) -> None:
-        if expression.type == TextType.ROOT:
-            DatabaseValidator.validate_original_expression_uniqueness(session, work_id)
+    def validate_expression_creation(tx: ManagedTransaction, expression: ExpressionInput, work_id: str) -> None:
+        # Validate uniqueness for root expressions (no parent relationships)
+        if not expression.commentary_of and not expression.translation_of:
+            DatabaseValidator.validate_original_expression_uniqueness(tx, work_id)
 
         if expression.contributions:
             person_ids = [
                 contrib.person_id
                 for contrib in expression.contributions
-                if hasattr(contrib, "person_id") and contrib.person_id
+                if isinstance(contrib, ContributionInput) and contrib.person_id
             ]
             person_bdrc_ids = [
                 contrib.person_bdrc_id
                 for contrib in expression.contributions
-                if hasattr(contrib, "person_bdrc_id") and contrib.person_bdrc_id
+                if isinstance(contrib, ContributionInput) and contrib.person_bdrc_id
             ]
 
-            DatabaseValidator.validate_person_references(session, person_ids)
-            DatabaseValidator.validate_person_bdrc_references(session, person_bdrc_ids)
+            DatabaseValidator.validate_person_references(tx, person_ids)
+            DatabaseValidator.validate_person_bdrc_references(tx, person_bdrc_ids)
 
     @staticmethod
-    def validate_expression_exists(session, expression_id: str) -> None:
+    def validate_expression_exists(tx: ManagedTransaction, expression_id: str) -> None:
         query = """
         MATCH (e:Expression {id: $expression_id})
         RETURN count(e) as expression_count
         """
 
-        result = session.run(query, expression_id=expression_id)
+        result = tx.run(query, expression_id=expression_id)
         record = result.single()
 
         if not record or record["expression_count"] == 0:
             raise DataValidationError(
-                f"Expression {expression_id} does not exist. "
-                "Cannot create manifestation for non-existent expression."
+                f"Expression {expression_id} does not exist. Cannot create manifestation for non-existent expression."
             )
 
     @staticmethod
-    def validate_add_critical_manifestation(tx, expression_id: str) -> None:
-        """Ensure only one critical manifestation exists for an expression.
-
-        Raises DataValidationError if a critical manifestation already exists.
-        """
-        result = tx.run(
-            Queries.manifestations["fetch"],
-            expression_id=expression_id,
-            manifestation_id=None,
-            manifestation_type=ManifestationType.CRITICAL.value,
-        )
-
-        manifestations = list(result)
-        if len(manifestations) > 0:
-            raise DataValidationError("Critical manifestation already present for this expression")
-
-    @staticmethod
-    def validate_language_code_exists(session, language_code: str) -> None:
+    def validate_language_code_exists(tx: ManagedTransaction, language_code: str) -> None:
         """Validate that a given base language code exists.
 
         Uses a single query to both check existence and obtain the available codes.
@@ -139,40 +118,20 @@ class DatabaseValidator:
         RETURN $code IN codes AS exists, codes
         """
 
-        record = session.run(
+        record = tx.run(
             query,
             code=language_code,
         ).single()
 
-        if not record or not record["exists"]:
+        if not record:
+            raise InvalidRequest(f"Language '{language_code}' is not present in Neo4j. No languages found.")
+        if not record["exists"]:
             raise InvalidRequest(
                 f"Language '{language_code}' is not present in Neo4j. Available languages: {', '.join(record['codes'])}"
             )
 
     @staticmethod
-    def validate_bibliography_type_exists(session, annotation: AnnotationModel) -> None:
-        """Validate that all given bibliography type names exist."""
-
-        bibliography_types = [seg.type for seg in annotation]
-
-        query = """
-        MATCH (bt:BibliographyType)
-        WITH collect(bt.name) AS names
-        UNWIND $names_to_check AS name
-        WITH names, name, name IN names AS exists
-        RETURN collect(CASE WHEN exists THEN NULL ELSE name END) AS missing, names
-        """
-        record = session.run(query, names_to_check=[n.lower() for n in bibliography_types]).single()
-        missing = [n for n in (record["missing"] or []) if n]
-        if missing:
-            available_list = ", ".join(sorted(record["names"])) if record["names"] else "none"
-            raise DataValidationError(
-                f"Bibliography type(s) not found: {', '.join(sorted(missing))}. "
-                f"Available bibliography types: {available_list}"
-            )
-
-    @staticmethod
-    def validate_language_codes_exist(session, language_codes: list[str]) -> None:
+    def validate_language_codes_exist(tx: ManagedTransaction, language_codes: list[str]) -> None:
         """Validate that all given base language codes exist. Raises InvalidRequest listing missing and available."""
         query = """
         MATCH (l:Language)
@@ -181,7 +140,9 @@ class DatabaseValidator:
         WITH codes, code, code IN codes AS exists
         RETURN collect(CASE WHEN exists THEN NULL ELSE code END) AS missing, codes
         """
-        record = session.run(query, codes_to_check=[c.lower() for c in language_codes]).single()
+        record = tx.run(query, codes_to_check=[c.lower() for c in language_codes]).single()
+        if not record:
+            raise InvalidRequest("No languages found in Neo4j database")
         missing = [c for c in (record["missing"] or []) if c]
         if missing:
             raise InvalidRequest(
@@ -190,7 +151,7 @@ class DatabaseValidator:
             )
 
     @staticmethod
-    def validate_category_exists(session, category_id: str) -> None:
+    def validate_category_exists(tx: ManagedTransaction, category_id: str) -> None:
         """Validate that a category with the given ID exists.
 
         Raises DataValidationError if the category does not exist.
@@ -200,81 +161,83 @@ class DatabaseValidator:
         RETURN count(c) as count
         """
 
-        result = session.run(query, category_id=category_id)
+        result = tx.run(query, category_id=category_id)
         record = result.single()
 
         if not record or record["count"] == 0:
             raise DataValidationError(
-                f"Category with ID '{category_id}' does not exist. " "Please provide a valid category_id."
+                f"Category with ID '{category_id}' does not exist. Please provide a valid category_id."
             )
 
     @staticmethod
-    def validate_language_enum_exists(session, code: str, name: str):
+    def validate_language_enum_exists(tx: ManagedTransaction, code: str, name: str) -> None:
         query = """
         MATCH (l:Language)
         WHERE toLower(l.code) = toLower($code) OR toLower(l.name) = toLower($name)
         RETURN count(l) as count
         """
-        result = session.run(query, code=code, name=name)
+        result = tx.run(query, code=code, name=name)
         record = result.single()
 
         if record and record["count"] > 0:
             raise DataValidationError(f"Language with code '{code}' or name '{name}' already exists")
 
     @staticmethod
-    def validate_bibliography_enum_exists(session, name: str):
+    def validate_bibliography_enum_exists(tx: ManagedTransaction, name: str) -> None:
         query = """
         MATCH (bt:BibliographyType)
         WHERE toLower(bt.name) = toLower($name)
         RETURN count(bt) as count
         """
-        result = session.run(query, name=name)
+        result = tx.run(query, name=name)
         record = result.single()
 
         if record and record["count"] > 0:
             raise DataValidationError(f"Bibliography type with name '{name}' already exists")
 
     @staticmethod
-    def validate_manifestation_enum_exists(session, name: str):
+    def validate_manifestation_enum_exists(tx: ManagedTransaction, name: str) -> None:
         query = """
         MATCH (mt:ManifestationType)
         WHERE toLower(mt.name) = toLower($name)
         RETURN count(mt) as count
         """
-        result = session.run(query, name=name)
+        result = tx.run(query, name=name)
         record = result.single()
 
         if record and record["count"] > 0:
             raise DataValidationError(f"Manifestation type with name '{name}' already exists")
 
     @staticmethod
-    def validate_role_enum_exists(session, description: str, name: str):
+    def validate_role_enum_exists(tx: ManagedTransaction, description: str, name: str) -> None:
         query = """
         MATCH (rt:RoleType)
         WHERE toLower(rt.name) = toLower($name)
         RETURN count(rt) as count
         """
-        result = session.run(query, description=description, name=name)
+        result = tx.run(query, description=description, name=name)
         record = result.single()
 
         if record and record["count"] > 0:
             raise DataValidationError(f"Role type with name '{name}' already exists")
 
     @staticmethod
-    def validate_annotation_enum_exists(session, name: str):
+    def validate_annotation_enum_exists(tx: ManagedTransaction, name: str) -> None:
         query = """
         MATCH (at:AnnotationType)
         WHERE toLower(at.name) = toLower($name)
         RETURN count(at) as count
         """
-        result = session.run(query, name=name)
+        result = tx.run(query, name=name)
         record = result.single()
 
         if record and record["count"] > 0:
             raise DataValidationError(f"Annotation type with name '{name}' already exists")
 
     @staticmethod
-    def validate_category_not_exists(session, application: str, title: dict[str, str], parent_id: str | None = None):
+    def validate_category_not_exists(
+        tx: ManagedTransaction, application: str, title: dict[str, str], parent_id: str | None = None
+    ) -> None:
         """
         Validate that a category with the same application, title, and parent doesn't already exist.
         Raises DataValidationError if the category exists.
@@ -282,7 +245,7 @@ class DatabaseValidator:
 
         # Check each language in the title
         for language, title_text in title.items():
-            result = session.run(
+            result = tx.run(
                 Queries.categories["find_existing_category"],
                 application=application,
                 parent_id=parent_id,
@@ -299,7 +262,9 @@ class DatabaseValidator:
                 )
 
     @staticmethod
-    def validate_no_annotation_type_exists(tx, manifestation_id: str, annotation_type: AnnotationType) -> None:
+    def validate_no_annotation_type_exists(
+        tx: ManagedTransaction, manifestation_id: str, annotation_type: AnnotationType
+    ) -> None:
         """Ensure annotation type doesn't already exist for manifestation."""
         query = """
         MATCH (m:Manifestation {id: $manifestation_id})<-[:ANNOTATION_OF]-(a:Annotation)-[:HAS_TYPE]->
@@ -314,7 +279,9 @@ class DatabaseValidator:
             )
 
     @staticmethod
-    def validate_no_alignment_exists(tx, manifestation_id: str, target_manifestation_id: str) -> None:
+    def validate_no_alignment_exists(
+        tx: ManagedTransaction, manifestation_id: str, target_manifestation_id: str
+    ) -> None:
         """Ensure alignment relationship doesn't already exist between manifestations."""
         query = """
         MATCH (m1:Manifestation {id: $manifestation_id})<-[:ANNOTATION_OF]-(a1:Annotation)-[:HAS_TYPE]->
@@ -331,7 +298,7 @@ class DatabaseValidator:
             )
 
     @staticmethod
-    def validate_expression_title_unique(tx, title: dict[str, str]) -> None:
+    def validate_expression_title_unique(tx: ManagedTransaction, title: dict[str, str]) -> None:
         """Ensure no expression exists with the same title text and language combination."""
         if not title:
             return

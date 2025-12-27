@@ -1,25 +1,27 @@
-from neo4j_database import Neo4JDatabase
+from identifier import generate_id
+from neo4j import ManagedTransaction, Session
 from neo4j_queries import Queries
 
+from .database import Database
 from .database_validator import DatabaseValidator
 
 
 class NomenDatabase:
-    def __init__(self, db: Neo4JDatabase):
+    def __init__(self, db: Database) -> None:
         self._db = db
 
     @property
-    def session(self):
+    def session(self) -> Session:
         return self._db.get_session()
 
     @staticmethod
     def create_with_transaction(
-        tx, primary_text: dict[str, str], alternative_texts: list[dict[str, str]] = None
+        tx: ManagedTransaction, primary_text: dict[str, str], alternative_texts: list[dict[str, str]] | None = None
     ) -> str:
         # Validate all base language codes from primary and alternative titles in one go (lowercased)
-        base_codes = {tag.split("-")[0].lower() for tag in primary_text.keys()}
+        base_codes = {tag.split("-")[0].lower() for tag in primary_text}
         for alt_text in alternative_texts or []:
-            base_codes.update(tag.split("-")[0].lower() for tag in alt_text.keys())
+            base_codes.update(tag.split("-")[0].lower() for tag in alt_text)
         DatabaseValidator.validate_language_codes_exist(tx, list(base_codes))
         # Build localized payloads
         primary_localized_texts = [
@@ -28,12 +30,14 @@ class NomenDatabase:
         ]
 
         # Create primary nomen
+        primary_nomen_id = generate_id()
         result = tx.run(
             Queries.nomens["create"],
-            primary_name_element_id=None,
+            nomen_id=primary_nomen_id,
+            primary_nomen_id=None,
             localized_texts=primary_localized_texts,
         )
-        primary_nomen_element_id = result.single()["element_id"]
+        result.single(strict=True)
 
         # Create alternative nomens
         for alt_text in alternative_texts or []:
@@ -44,8 +48,9 @@ class NomenDatabase:
 
             tx.run(
                 Queries.nomens["create"],
-                primary_name_element_id=primary_nomen_element_id,
+                nomen_id=generate_id(),
+                primary_nomen_id=primary_nomen_id,
                 localized_texts=localized_texts,
             )
 
-        return primary_nomen_element_id
+        return primary_nomen_id

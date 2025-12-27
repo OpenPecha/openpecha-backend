@@ -1,0 +1,19 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.8.3
+    hooks:
+      - id: ruff
+        files: ^functions/
+        args: ["--fix"]
+      - id: ruff-format
+        files: ^functions/
+
+  - repo: local
+    hooks:
+      - id: pyright
+        name: pyright
+        entry: pyright
+        language: system
+        types: [python]
+        files: ^functions/
+        exclude: "tests/"

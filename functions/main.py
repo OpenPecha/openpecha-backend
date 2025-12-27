@@ -6,22 +6,21 @@ import firebase_admin
 from api.annotations import annotations_bp
 from api.api import api_bp
 from api.categories import categories_bp
+from api.enum import enum_bp
 from api.instances import instances_bp
 from api.persons import persons_bp
 from api.schema import schema_bp
 from api.segments import segments_bp
 from api.texts import texts_bp
-from api.enum import enum_bp
-from api.relation import relation_bp
 from exceptions import OpenPechaException
 from firebase_admin import credentials
 from firebase_functions import https_fn, options
-from flask import Flask, jsonify, request
+from flask import Flask, Response, jsonify, request
 from google.cloud import logging as cloud_logging
 from pydantic import ValidationError
 
 
-def _init_firebase():
+def _init_firebase() -> None:
     try:
         firebase_admin.get_app()  # Check if Firebase is already initialized
     except ValueError:
@@ -35,12 +34,12 @@ def _init_firebase():
         logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(name)s - %(message)s")
 
 
-def create_app(testing=False):
+def create_app(*, testing: bool = False) -> Flask:
     app = Flask(__name__)
     app.config["TESTING"] = testing
     app.config["SEND_FILE_MAX_AGE_DEFAULT"] = 0
-    app.json.ensure_ascii = False
-    app.json.sort_keys = False  # Preserve dictionary insertion order
+    app.config["JSON_AS_ASCII"] = False
+    app.config["JSON_SORT_KEYS"] = False
 
     app.register_blueprint(texts_bp, url_prefix="/v2/texts")
     app.register_blueprint(api_bp, url_prefix="/api")
@@ -51,15 +50,14 @@ def create_app(testing=False):
     app.register_blueprint(annotations_bp, url_prefix="/v2/annotations")
     app.register_blueprint(categories_bp, url_prefix="/v2/categories")
     app.register_blueprint(enum_bp, url_prefix="/v2/enum")
-    app.register_blueprint(relation_bp, url_prefix="/v2/relations")
 
     @app.route("/__/health")
-    def health_check():
+    def health_check() -> tuple[Response, int]:
         """Health check endpoint for Firebase Functions."""
         return jsonify({"status": "healthy"}), 200
 
     @app.after_request
-    def add_no_cache_headers(response):
+    def add_no_cache_headers(response: Response) -> Response:
         """Add no-cache headers to all responses."""
         response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
         response.headers["Pragma"] = "no-cache"
@@ -67,7 +65,7 @@ def create_app(testing=False):
         return response
 
     @app.errorhandler(Exception)
-    def handle_exception(e):
+    def handle_exception(e: Exception) -> tuple[Response, int]:
         # Log the full traceback for ALL exceptions
         app.logger.error("Exception occurred:")
         app.logger.error("Exception type: %s", type(e).__name__)
@@ -87,16 +85,18 @@ def create_app(testing=False):
         return jsonify({"error": str(e)}), 500
 
     @app.after_request
-    def log_response(response):
+    def log_response(response: Response) -> Response:
         try:
             request_body = request.get_json() if request.is_json else request.get_data(as_text=True)
-        except Exception:  # pylint: disable=broad-exception-caught
+        except Exception:  # noqa: BLE001
             request_body = "<unknown>"
 
         if response.is_json:
             response_body = response.get_json()
+        elif response.mimetype and response.mimetype.startswith("text/"):
+            response_body = response.data.decode()
         else:
-            response_body = response.data.decode() if response.mimetype.startswith("text/") else "<binary data>"
+            response_body = "<binary data>"
 
         app.logger.info(
             "Request: %s %s Body: %s | Response: %s | Status: %d",
@@ -113,7 +113,6 @@ def create_app(testing=False):
 
 @https_fn.on_request(
     cors=options.CorsOptions(
-        # cors_origins=["https://pecha-backend.web.app", "http://localhost:5002"],
         cors_origins=["*"],
         cors_methods=["GET", "POST", "OPTIONS", "PUT"],
     ),
@@ -132,4 +131,9 @@ def api(req: https_fn.Request) -> https_fn.Response:
     _init_firebase()
     app = create_app()
     with app.request_context(req.environ):
-        return app.full_dispatch_request()
+        rv = app.full_dispatch_request()
+        return https_fn.Response(
+            response=rv.get_data(),
+            status=rv.status_code,
+            headers=dict(rv.headers),
+        )

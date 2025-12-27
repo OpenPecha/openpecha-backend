@@ -5,7 +5,7 @@ class OpenPechaException(Exception):
         super().__init__(message)
         self.message = message
 
-    def to_dict(self):
+    def to_dict(self) -> dict[str, str]:
         return {"error": self.message}
 
 

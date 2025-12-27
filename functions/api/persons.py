@@ -1,9 +1,10 @@
 import logging
 
+from api.decorators import validate_json, validate_query_params
 from database import Database
-from exceptions import InvalidRequest, ValidationError
-from flask import Blueprint, Response, jsonify, request
-from models import PersonModelInput
+from flask import Blueprint, Response, jsonify
+from models import PersonInput
+from request_models import PaginationParams
 
 persons_bp = Blueprint("persons", __name__)
 
@@ -17,27 +18,17 @@ def get_person(person_id: str) -> tuple[Response, int]:
 
 
 @persons_bp.route("/", methods=["GET"], strict_slashes=False)
-def get_all_persons() -> tuple[Response, int]:
-    limit = request.args.get("limit", 20, type=int)
-    offset = request.args.get("offset", 0, type=int)
-
-    if limit < 1 or limit > 100:
-        raise ValidationError("Limit must be between 1 and 100")
-    if offset < 0:
-        raise ValidationError("Offset must be non-negative")
-
-    persons = Database().person.get_all(offset=offset, limit=limit)
+@validate_query_params(PaginationParams)
+def get_all_persons(validated_params: PaginationParams) -> tuple[Response, int]:
+    persons = Database().person.get_all(offset=validated_params.offset, limit=validated_params.limit)
     return jsonify([person.model_dump() for person in persons]), 200
 
 
 @persons_bp.route("/", methods=["POST"], strict_slashes=False)
-def create_person() -> tuple[Response, int]:
-    if not (data := request.get_json()):
-        raise InvalidRequest("No JSON data provided")
-    person = PersonModelInput.model_validate(data)
+@validate_json(PersonInput)
+def create_person(validated_data: PersonInput) -> tuple[Response, int]:
+    logger.info("Successfully parsed person: %s", validated_data.model_dump_json())
 
-    logger.info("Successfully parsed person: %s", person.model_dump_json())
-
-    person_id = Database().person.create(person)
+    person_id = Database().person.create(validated_data)
 
     return jsonify({"message": "Person created successfully", "_id": person_id}), 201

@@ -1,7 +1,7 @@
 import logging
 
 from exceptions import InvalidRequest
-from models import ExpressionModelInput, TextType
+from models import ExpressionInput
 from neo4j_queries import Queries
 
 logger = logging.getLogger(__name__)
@@ -26,8 +26,7 @@ class Neo4JDatabaseValidator:
 
         if record and record["existing_count"] > 0:
             raise DataValidationError(
-                f"Work {work_id} already has an original expression. "
-                "Only one original expression per work is allowed."
+                f"Work {work_id} already has an original expression. Only one original expression per work is allowed."
             )
 
     def validate_person_references(self, session, person_ids: list[str]) -> None:
@@ -70,8 +69,9 @@ class Neo4JDatabaseValidator:
         if missing_persons:
             raise DataValidationError(f"Referenced person BDRC IDs do not exist: {', '.join(missing_persons)}")
 
-    def validate_expression_creation(self, session, expression: ExpressionModelInput, work_id: str) -> None:
-        if expression.type == TextType.ROOT:
+    def validate_expression_creation(self, session, expression: ExpressionInput, work_id: str) -> None:
+        # Validate uniqueness for root expressions (no parent relationships)
+        if not expression.commentary_of and not expression.translation_of:
             self.validate_original_expression_uniqueness(session, work_id)
 
         if expression.contributions:
@@ -100,8 +100,7 @@ class Neo4JDatabaseValidator:
 
         if not record or record["expression_count"] == 0:
             raise DataValidationError(
-                f"Expression {expression_id} does not exist. "
-                "Cannot create manifestation for non-existent expression."
+                f"Expression {expression_id} does not exist. Cannot create manifestation for non-existent expression."
             )
 
     def validate_language_code_exists(self, session, language_code: str) -> None:
@@ -176,7 +175,7 @@ class Neo4JDatabaseValidator:
 
         if not record or record["count"] == 0:
             raise DataValidationError(
-                f"Category with ID '{category_id}' does not exist. " "Please provide a valid category_id."
+                f"Category with ID '{category_id}' does not exist. Please provide a valid category_id."
             )
 
     def validate_language_enum_exists(self, session, code: str, name: str):

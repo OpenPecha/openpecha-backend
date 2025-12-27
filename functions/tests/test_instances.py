@@ -11,6 +11,7 @@ Requires environment variables:
 - NEO4J_TEST_URI: Neo4j test instance URI
 - NEO4J_TEST_PASSWORD: Password for test instance
 """
+
 import logging
 import os
 import tempfile
@@ -26,10 +27,10 @@ from models import (
     AnnotationModel,
     AnnotationType,
     CopyrightStatus,
-    ExpressionModelInput,
-    ManifestationModelInput,
+    ExpressionInput,
+    ManifestationInput,
     ManifestationType,
-    PersonModelInput,
+    PersonInput,
     TextType,
 )
 from neo4j_database import Neo4JDatabase
@@ -52,7 +53,7 @@ def neo4j_connection():
             "Neo4j test credentials not provided. Set NEO4J_TEST_URI and NEO4J_TEST_PASSWORD environment variables."
         )
 
-    yield {"uri": test_uri, "auth": ("neo4j", test_password)}
+    return {"uri": test_uri, "auth": ("neo4j", test_password)}
 
 
 @pytest.fixture
@@ -150,13 +151,13 @@ class TestInstancesV2Endpoints:
 
     def _create_test_person(self, db, person_data):
         """Helper to create a test person in the database"""
-        person_input = PersonModelInput(**person_data)
+        person_input = PersonInput(**person_data)
         return db.create_person(person_input)
 
     def _create_test_text(self, db, person_id, create_test_zip):
         """Helper method to create a test text in the database"""
         # Create expression
-        expression_data = ExpressionModelInput(
+        expression_data = ExpressionInput(
             title={"bo": "དཔེ་ཀ་ཤེར", "en": "Test Expression"},
             language="bo",
             type=TextType.ROOT,
@@ -165,7 +166,7 @@ class TestInstancesV2Endpoints:
         expression_id = db.create_expression(expression_data)
 
         # Create manifestation with annotation
-        manifestation_data = ManifestationModelInput(
+        manifestation_data = ManifestationInput(
             copyright=CopyrightStatus.PUBLIC_DOMAIN,
             type=ManifestationType.DIPLOMATIC,
             bdrc="W12345",
@@ -217,7 +218,7 @@ class TestInstancesV2Endpoints:
         person_id = self._create_test_person(test_database, test_person_data)
 
         # Create expression first to get valid text_id
-        expression_data = ExpressionModelInput(
+        expression_data = ExpressionInput(
             title={"en": "Test Expression"},
             language="en",
             type=TextType.ROOT,
@@ -255,7 +256,7 @@ class TestInstancesV2Endpoints:
         """Test instance creation with missing request body"""
         # Create expression first
         person_id = self._create_test_person(test_database, test_person_data)
-        expression_data = ExpressionModelInput(
+        expression_data = ExpressionInput(
             title={"en": "Test Expression"},
             language="en",
             type=TextType.ROOT,
@@ -273,7 +274,7 @@ class TestInstancesV2Endpoints:
         """Test instance creation with invalid request data"""
         # Create expression first
         person_id = self._create_test_person(test_database, test_person_data)
-        expression_data = ExpressionModelInput(
+        expression_data = ExpressionInput(
             title={"en": "Test Expression"},
             language="en",
             type=TextType.ROOT,
@@ -354,7 +355,7 @@ class TestInstancesV2Endpoints:
         person_id = self._create_test_person(test_database, test_person_data)
 
         # Create expression first to get valid metadata_id
-        expression_data = ExpressionModelInput(
+        expression_data = ExpressionInput(
             title={"en": "Round Trip Test Expression"},
             language="en",
             type=TextType.ROOT,
@@ -560,7 +561,7 @@ class TestInstancesV2Endpoints:
         person_id = self._create_test_person(test_database, test_person_data)
 
         # Create source expression
-        source_expression_data = ExpressionModelInput(
+        source_expression_data = ExpressionInput(
             title={"bo": "དཔེ་ཀ་མ་དཔེ", "en": "Source Text"},
             language="bo",
             type=TextType.ROOT,
@@ -588,7 +589,7 @@ class TestInstancesV2Endpoints:
         storage_instance.store_pecha(source_pecha)
 
         # Create source manifestation
-        source_manifestation_data = ManifestationModelInput(
+        source_manifestation_data = ManifestationInput(
             type=ManifestationType.CRITICAL,
             copyright=CopyrightStatus.PUBLIC_DOMAIN,
         )
@@ -598,7 +599,7 @@ class TestInstancesV2Endpoints:
         )
 
         # Create target expression for the aligned text
-        target_expression_data = ExpressionModelInput(
+        target_expression_data = ExpressionInput(
             title={"bo": "དཔེ་ཀ་ཤེར་གཉིས་པ", "en": "Test Target Expression"},
             language="en",  # Different language for translation
             type=TextType.TRANSLATION,
@@ -629,7 +630,7 @@ class TestInstancesV2Endpoints:
         storage_instance.store_pecha(target_pecha)
 
         # Create target manifestation with alignment annotation pointing to source segmentation
-        target_manifestation_data = ManifestationModelInput(
+        target_manifestation_data = ManifestationInput(
             type=ManifestationType.CRITICAL,
             copyright=CopyrightStatus.PUBLIC_DOMAIN,
         )
@@ -681,7 +682,7 @@ class TestInstancesV2Endpoints:
         # Create manifestation with alignment annotation pointing to non-existent annotation
         # Note: Neo4j won't create ALIGNED_TO relationship if target doesn't exist,
         # so aligned_to will be None when retrieved
-        manifestation_data = ManifestationModelInput(
+        manifestation_data = ManifestationInput(
             type=ManifestationType.CRITICAL,
             copyright=CopyrightStatus.PUBLIC_DOMAIN,
         )
@@ -724,7 +725,7 @@ class TestInstancesV2Endpoints:
             },
         )
 
-        expression_data = ExpressionModelInput(
+        expression_data = ExpressionInput(
             title={"en": "Test Expression"},
             language="en",
             type=TextType.ROOT,
@@ -796,7 +797,7 @@ class TestInstancesV2Endpoints:
         """Test instance creation with malformed JSON data"""
         # Create expression first
         person_id = self._create_test_person(test_database, test_person_data)
-        expression_data = ExpressionModelInput(
+        expression_data = ExpressionInput(
             title={"en": "Test Expression"},
             language="en",
             type=TextType.ROOT,
@@ -879,7 +880,7 @@ class TestInstancesV2Endpoints:
         # Create test person and expression
         person_id = self._create_test_person(test_database, test_person_data)
 
-        expression_data = ExpressionModelInput(
+        expression_data = ExpressionInput(
             title={"bo": "དཔེ་ཀ་ཤེར", "en": "Test Expression"},
             language="bo",
             type=TextType.ROOT,
@@ -888,7 +889,7 @@ class TestInstancesV2Endpoints:
         expression_id = test_database.create_expression(expression_data)
 
         # Create manifestation WITHOUT segmentation annotation
-        manifestation_data = ManifestationModelInput(
+        manifestation_data = ManifestationInput(
             copyright=CopyrightStatus.PUBLIC_DOMAIN,
             type=ManifestationType.DIPLOMATIC,
             bdrc="W12345",

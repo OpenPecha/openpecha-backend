@@ -6,6 +6,7 @@ from exceptions import DataNotFound, InvalidRequest
 from flask import Blueprint, Response, jsonify, request
 from models import SearchFilterModel, SearchRequestModel, SearchResponseModel, SearchResultModel
 from neo4j_database import Neo4JDatabase
+from storage import Storage
 
 segments_bp = Blueprint("segments", __name__)
 
@@ -16,49 +17,27 @@ SEARCH_API_URL = "https://openpecha-search.onrender.com"
 
 
 @segments_bp.route("/<string:segment_id>/related", methods=["GET"], strict_slashes=False)
-def get_related_texts_by_segment(segment_id: str) -> tuple[Response, int]:
+def get_related(segment_id: str) -> tuple[Response, int]:
+    db = Database()
+    related_segments = db.segment.get_related(segment_id)
+    return jsonify([seg.model_dump() for seg in related_segments]), 200
+
+
+@segments_bp.route("/<string:segment_id>/content", methods=["GET"], strict_slashes=False)
+def get_segment_content(segment_id: str) -> tuple[Response, int]:
     db = Database()
 
-    aligned = db.segment.get_aligned(segment_id)
+    segment = db.segment.get(segment_id)
+    if not segment:
+        raise DataNotFound(f"Segment {segment_id} not found")
 
-    targets_map = {}
-    sources_map = {}
+    base_text = Storage().retrieve_base_text(
+        expression_id=segment.text_id,
+        manifestation_id=segment.manifestation_id,
+    )
 
-    for related_manifestation_id, segments in aligned["targets"].items():
-        targets_map[related_manifestation_id] = segments
-
-    for related_manifestation_id, segments in aligned["sources"].items():
-        sources_map[related_manifestation_id] = segments
-
-    def build_related_texts(manifestations_map):
-        result = []
-        for related_manifestation_id, segments in manifestations_map.items():
-            manifestation, expression_id = db.manifestation.get(related_manifestation_id)
-            result.append(
-                {
-                    "text": db.expression.get(expression_id).model_dump(),
-                    "instance": manifestation.model_dump(),
-                    "segments": [
-                        {"id": segment.id, "span": {"start": segment.span[0], "end": segment.span[1]}}
-                        for segment in segments
-                    ],
-                }
-            )
-        return result
-
-    return jsonify({"targets": build_related_texts(targets_map), "sources": build_related_texts(sources_map)}), 200
-
-
-# @segments_bp.route("/<string:segment_id>/content", methods=["GET"], strict_slashes=False)
-# def get_segment_content(segment_id: str) -> tuple[Response, int]:
-#     db = Neo4JDatabase()
-
-#     segment, _, expression_id = db.get_segment(segment_id)
-
-#     pecha = Storage().retrieve_pecha(expression_id)
-#     base_text = next(iter(pecha.bases.values()))
-
-#     return jsonify({"content": base_text[segment.span[0] : segment.span[1]]}), 200
+    content = base_text[segment.span.start : segment.span.end]
+    return jsonify(content), 200
 
 
 @segments_bp.route("/search", methods=["GET"], strict_slashes=False)
@@ -100,7 +79,7 @@ def search_segments() -> tuple[Response, int]:
         search_response_data = response.json()
     except requests.exceptions.RequestException as e:
         logger.error("Error calling search API: %s", str(e))
-        raise InvalidRequest(f"Failed to call search API: {str(e)}") from e
+        raise InvalidRequest(f"Failed to call search API: {e!s}") from e
 
     # Process results to add segmentation_ids
     db = Neo4JDatabase()
