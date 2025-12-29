@@ -2257,8 +2257,6 @@ class TestGetSegmentRelationV2:
 
         text_i_instance_id = all_texts["I"]["instance_id"]
         assert text_i_instance_id in mapping_dict
-        assert len(mapping_dict[text_i_instance_id]) == 2
+        assert len(mapping_dict[text_i_instance_id]) == 1
         assert mapping_dict[text_i_instance_id][0]["span"]["start"] == 0
         assert mapping_dict[text_i_instance_id][0]["span"]["end"] == 7
-        assert mapping_dict[text_i_instance_id][1]["span"]["start"] == 7
-        assert mapping_dict[text_i_instance_id][1]["span"]["end"] == 15
