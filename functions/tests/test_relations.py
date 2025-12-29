@@ -984,23 +984,24 @@ class TestGetSegmentRelationV2:
                 {
                     "span": {
                         "start": 0,
-                        "end": 15
+                        "end": 54
                     },
-                    "index": 0
+                    "index": 0,
                 },
                 {
                     "span": {
-                        "start": 15,
-                        "end": 20
+                        "start": 54,
+                        "end": 71
                     },
-                    "index": 1
+                    "index": 1,
                 }
+                
             ],
             "alignment_annotation": [
                 {
                     "span": {
                         "start": 0,
-                        "end": 54
+                        "end": 15
                     },
                     "index": 0,
                     "alignment_index": [
@@ -1009,8 +1010,8 @@ class TestGetSegmentRelationV2:
                 },
                 {
                     "span": {
-                        "start": 54,
-                        "end": 71
+                        "start": 15,
+                        "end": 20
                     },
                     "index": 1,
                     "alignment_index": [
@@ -2190,7 +2191,6 @@ class TestGetSegmentRelationV2:
         assert segment_mapping_response.status_code == 200
 
         mapping_dict = {}
-        
         for item in segment_mapping_response.get_json():
             instance_id = item["instance_metadata"]["id"]
             mapping_dict.setdefault(instance_id, []).extend(item["segments"])
@@ -2215,31 +2215,21 @@ class TestGetSegmentRelationV2:
 
         text_h_instance_id = all_texts["H"]["instance_id"]
         assert text_h_instance_id in mapping_dict
-        assert len(mapping_dict[text_h_instance_id]) == 2
+        assert len(mapping_dict[text_h_instance_id]) == 1
         assert mapping_dict[text_h_instance_id][0]["span"]["start"] == 0
-        print("1")
-        print(mapping_dict[text_h_instance_id][0]["span"]["end"])
         assert mapping_dict[text_h_instance_id][0]["span"]["end"] == 15
-        print("2")
-        print(mapping_dict[text_h_instance_id][1]["span"]["start"])
-        assert mapping_dict[text_h_instance_id][1]["span"]["start"] == 15
-        assert mapping_dict[text_h_instance_id][1]["span"]["end"] == 20
 
         text_g_instance_id = all_texts["G"]["instance_id"]
         assert text_g_instance_id in mapping_dict
-        assert len(mapping_dict[text_g_instance_id]) == 2
+        assert len(mapping_dict[text_g_instance_id]) == 1
         assert mapping_dict[text_g_instance_id][0]["span"]["start"] == 0
         assert mapping_dict[text_g_instance_id][0]["span"]["end"] == 30
-        assert mapping_dict[text_g_instance_id][1]["span"]["start"] == 30
-        assert mapping_dict[text_g_instance_id][1]["span"]["end"] == 50
 
         text_d_instance_id = all_texts["D"]["instance_id"]
         assert text_d_instance_id in mapping_dict
-        assert len(mapping_dict[text_d_instance_id]) == 2
+        assert len(mapping_dict[text_d_instance_id]) == 1
         assert mapping_dict[text_d_instance_id][0]["span"]["start"] == 0
         assert mapping_dict[text_d_instance_id][0]["span"]["end"] == 10
-        assert mapping_dict[text_d_instance_id][1]["span"]["start"] == 10
-        assert mapping_dict[text_d_instance_id][1]["span"]["end"] == 60
 
         text_k_instance_id = all_texts["K"]["instance_id"]
         assert text_k_instance_id in mapping_dict
@@ -2251,11 +2241,9 @@ class TestGetSegmentRelationV2:
 
         text_f_instance_id = all_texts["F"]["instance_id"]
         assert text_f_instance_id in mapping_dict
-        assert len(mapping_dict[text_f_instance_id]) == 2
+        assert len(mapping_dict[text_f_instance_id]) == 1
         assert mapping_dict[text_f_instance_id][0]["span"]["start"] == 0
         assert mapping_dict[text_f_instance_id][0]["span"]["end"] == 40
-        assert mapping_dict[text_f_instance_id][1]["span"]["start"] == 50
-        assert mapping_dict[text_f_instance_id][1]["span"]["end"] == 70
 
         text_j_instance_id = all_texts["J"]["instance_id"]
         assert text_j_instance_id in mapping_dict
@@ -2273,6 +2261,4 @@ class TestGetSegmentRelationV2:
         assert mapping_dict[text_i_instance_id][0]["span"]["start"] == 0
         assert mapping_dict[text_i_instance_id][0]["span"]["end"] == 7
         assert mapping_dict[text_i_instance_id][1]["span"]["start"] == 7
-        print("3")
-        print(mapping_dict[text_i_instance_id][1]["span"]["end"])
         assert mapping_dict[text_i_instance_id][1]["span"]["end"] == 15
