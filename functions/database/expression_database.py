@@ -1,5 +1,4 @@
-from database.database import Database
-from exceptions import DataNotFound
+from exceptions import DataNotFoundError
 from identifier import generate_id
 from models import (
     AIContributionModel,
@@ -10,10 +9,10 @@ from models import (
     LicenseType,
 )
 from neo4j import ManagedTransaction, Record
-from neo4j_queries import Queries
 from request_models import ExpressionFilter
 
 from .data_adapter import DataAdapter
+from .database import Database
 from .database_validator import DatabaseValidator
 from .nomen_database import NomenDatabase
 
@@ -173,6 +172,11 @@ class ExpressionDatabase:
     RETURN elementId(c) as contribution_element_id
     """
 
+    FIND_OR_CREATE_AI_QUERY = """
+    MERGE (ai:AI {id: $ai_id})
+    RETURN elementId(ai) AS ai_element_id
+    """
+
     def __init__(self, db: Database) -> None:
         self._db = db
 
@@ -185,14 +189,14 @@ class ExpressionDatabase:
         with self._db.get_session() as session:
             result = session.run(ExpressionDatabase.GET_QUERY, id=expression_id, bdrc_id=None).single()
             if result is None:
-                raise DataNotFound(f"Expression with ID '{expression_id}' not found")
+                raise DataNotFoundError(f"Expression with ID '{expression_id}' not found")
             return self._parse_record(result.data())
 
     def get_by_bdrc(self, bdrc_id: str) -> ExpressionOutput:
         with self._db.get_session() as session:
             result = session.run(ExpressionDatabase.GET_QUERY, id=None, bdrc_id=bdrc_id).single()
             if result is None:
-                raise DataNotFound(f"Expression with BDRC ID '{bdrc_id}' not found")
+                raise DataNotFoundError(f"Expression with BDRC ID '{bdrc_id}' not found")
             return self._parse_record(result.data())
 
     def get_all(self, offset: int, limit: int, filters: ExpressionFilter | None = None) -> list[ExpressionOutput]:
@@ -222,7 +226,7 @@ class ExpressionDatabase:
                 ).single()
             )
             if result is None:
-                raise DataNotFound(f"Expression with ID '{expression_id}' not found")
+                raise DataNotFoundError(f"Expression with ID '{expression_id}' not found")
 
     def update_license(self, expression_id: str, license_type: LicenseType) -> None:
         with self._db.get_session() as session:
@@ -234,7 +238,7 @@ class ExpressionDatabase:
                 ).single()
             )
             if result is None:
-                raise DataNotFound(f"Expression with ID '{expression_id}' not found")
+                raise DataNotFoundError(f"Expression with ID '{expression_id}' not found")
 
     def create(self, expression: ExpressionInput) -> str:
         with self._db.get_session() as session:
@@ -323,14 +327,14 @@ class ExpressionDatabase:
                 role_name=contribution.role.value,
             ).single()
             if not result:
-                raise DataNotFound(
+                raise DataNotFoundError(
                     f"Person or Role not found. Person: id={contribution.person_id}, "
                     f"bdrc_id={contribution.person_bdrc_id}; Role: {contribution.role.value}"
                 )
         elif isinstance(contribution, AIContributionModel):
-            ai_record = tx.run(Queries.ai["find_or_create"], ai_id=contribution.ai_id).single()
+            ai_record = tx.run(ExpressionDatabase.FIND_OR_CREATE_AI_QUERY, ai_id=contribution.ai_id).single()
             if not ai_record:
-                raise DataNotFound("Failed to find or create AI node")
+                raise DataNotFoundError("Failed to find or create AI node")
             result = tx.run(
                 ExpressionDatabase.CREATE_AI_CONTRIBUTION_QUERY,
                 expression_id=expression_id,
@@ -338,6 +342,6 @@ class ExpressionDatabase:
                 role_name=contribution.role.value,
             ).single()
             if not result:
-                raise DataNotFound(
+                raise DataNotFoundError(
                     f"AI contribution creation failed. AI: {contribution.ai_id}; Role: {contribution.role.value}"
                 )

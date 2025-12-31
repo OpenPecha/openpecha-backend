@@ -1,10 +1,10 @@
 from collections.abc import Sequence
 from enum import Enum
-from typing import Annotated, Any, Generic, Self, TypeVar
+from typing import Annotated, Any, Self, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, RootModel, StrictStr, StringConstraints, model_validator
 
-NonEmptyStr = Annotated[StrictStr, StringConstraints(min_length=1, strip_whitespace=True)]
+type NonEmptyStr = Annotated[StrictStr, StringConstraints(min_length=1, strip_whitespace=True)]
 
 T = TypeVar("T")
 
@@ -223,7 +223,7 @@ SegmentType = TypeVar("SegmentType", bound=SegmentBase)
 AlignedSegmentType = TypeVar("AlignedSegmentType", bound=AlignedSegment)
 
 
-class SegmentationBase(OpenPechaModel, Generic[SegmentType]):
+class SegmentationBase[SegmentType: SegmentBase](OpenPechaModel):
     segments: list[SegmentType]
     metadata: AnnotationMetadata | None = None
 
@@ -242,7 +242,7 @@ class SegmentationOutput(SegmentationBase[SegmentOutput]):
     id: NonEmptyStr
 
 
-class AlignmentBase(OpenPechaModel, Generic[SegmentType, AlignedSegmentType]):
+class AlignmentBase[SegmentType: SegmentBase, AlignedSegmentType: AlignedSegment](OpenPechaModel):
     target_id: NonEmptyStr
     target_segments: list[SegmentType]
     aligned_segments: list[AlignedSegmentType]
@@ -448,20 +448,6 @@ class CategoryListItemModel(OpenPechaModel):
     parent: NonEmptyStr | None = None
     title: NonEmptyStr
     has_child: bool = False
-
-
-class EnumType(str, Enum):
-    LANGUAGE = "language"
-    BIBLIOGRAPHY = "bibliography"
-    MANIFESTATION = "manifestation"
-    ROLE = "role"
-    COPYRIGHT_STATUS = "copyright_status"
-    ANNOTATION = "annotation"
-
-
-class EnumRequestModel(OpenPechaModel):
-    type: EnumType
-    values: list[dict[str, NonEmptyStr]]
 
 
 class SearchFilterModel(OpenPechaModel):

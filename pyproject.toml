@@ -3,6 +3,8 @@ pythonVersion = "3.12"
 typeCheckingMode = "standard"
 exclude = ["tests", "venv", ".venv"]
 include = ["functions"]
+venvPath = "functions"
+venv = "venv"
 
 [tool.pytest.ini_options]
 testpaths = ["functions/tests"]
@@ -13,6 +15,8 @@ addopts = "--verbose --log-cli-level=DEBUG"
 
 [tool.ruff]
 line-length = 120
+exclude = ["functions/tests"]
+target-version = "py312"
 
 [tool.ruff.lint]
 select = ["ALL"]
@@ -25,4 +29,5 @@ ignore = [
     "EM102",
     "C901",
     "TD",
+    "PLR2004", # Magic value used in comparison
 ]

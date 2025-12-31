@@ -1,5 +1,5 @@
 from database.database import Database
-from exceptions import DataNotFound
+from exceptions import DataNotFoundError
 from identifier import generate_id
 from models import (
     BibliographicMetadataInput,
@@ -54,7 +54,7 @@ class BibliographicDatabase:
                 BibliographicDatabase.GET_QUERY, bibliographic_id=bibliographic_id, manifestation_id=None
             ).single()
             if result is None:
-                raise DataNotFound(f"Bibliographic metadata with ID '{bibliographic_id}' not found")
+                raise DataNotFoundError(f"Bibliographic metadata with ID '{bibliographic_id}' not found")
             return self._parse_record(result)
 
     def get_all(self, manifestation_id: str) -> list[BibliographicMetadataOutput]:
@@ -87,7 +87,7 @@ class BibliographicDatabase:
         )
         record = result.single()
         if not record:
-            raise DataNotFound(f"Manifestation with ID '{manifestation_id}' not found")
+            raise DataNotFoundError(f"Manifestation with ID '{manifestation_id}' not found")
         return record["ids"]
 
     def add(

@@ -16,7 +16,7 @@ from pathlib import Path
 
 import pytest
 from dotenv import load_dotenv
-from exceptions import DataNotFound
+from exceptions import DataNotFoundError
 from identifier import generate_id
 from models import (
     AnnotationModel,
@@ -179,7 +179,7 @@ class TestDatabaseNeo4j:
         """Test retrieving non-existent person"""
         db = test_database
 
-        with pytest.raises(DataNotFound, match="Person with ID 'nonexistent' not found"):
+        with pytest.raises(DataNotFoundError, match="Person with ID 'nonexistent' not found"):
             db.get_person("nonexistent")
 
     def test_person_with_bdrc_and_wiki_fields(self, test_database):
@@ -257,7 +257,7 @@ class TestDatabaseNeo4j:
         """Test retrieving non-existent expression"""
         db = test_database
 
-        with pytest.raises(DataNotFound, match="Expression with ID 'nonexistent' not found"):
+        with pytest.raises(DataNotFoundError, match="Expression with ID 'nonexistent' not found"):
             db.get_expression("nonexistent")
 
     def test_manifestation_not_found(self, test_database):

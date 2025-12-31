@@ -3,7 +3,7 @@ import logging
 from api.decorators import validate_json, validate_query_params
 from api.instances import _trigger_search_segmenter
 from database import Database
-from exceptions import DataNotFound
+from exceptions import DataNotFoundError
 from flask import Blueprint, Response, jsonify, request
 from identifier import generate_id
 from models import ExpressionInput, LicenseType
@@ -40,14 +40,14 @@ def get_texts(expression_id: str) -> tuple[Response, int]:
     try:
         expression = db.expression.get(expression_id=expression_id)
         return jsonify(expression.model_dump()), 200
-    except DataNotFound:
+    except DataNotFoundError:
         # If not found by ID, try to get by BDRC ID
         try:
             expression = db.expression.get_by_bdrc(bdrc_id=expression_id)
             return jsonify(expression.model_dump()), 200
-        except DataNotFound as exc:
+        except DataNotFoundError as exc:
             # If both fail, return not found
-            raise DataNotFound(f"Text with ID or BDRC ID '{expression_id}' not found") from exc
+            raise DataNotFoundError(f"Text with ID or BDRC ID '{expression_id}' not found") from exc
 
 
 @texts_bp.route("", methods=["POST"], strict_slashes=False)

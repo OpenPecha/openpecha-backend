@@ -130,10 +130,7 @@ def get_annotations(manifestation_id: str, validated_params: AnnotationTypeFilte
 def get_segment_related(manifestation_id: str, validated_params: SpanQueryParams) -> tuple[Response, int]:
     db = Database()
 
-    # Find segment IDs that overlap with the given span
-    segment_ids = db.segment.find_segments_by_span(
-        manifestation_id, validated_params.span_start, validated_params.span_end
-    )
+    segment_ids = db.segment.find_by_span(manifestation_id, validated_params.span_start, validated_params.span_end)
 
     if not segment_ids:
         return jsonify([]), 200

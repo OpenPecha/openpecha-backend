@@ -11,7 +11,9 @@ from .annotation.bibliographic_database import BibliographicDatabase
 from .annotation.note_database import NoteDatabase
 from .annotation.pagination_database import PaginationDatabase
 from .annotation.segmentation_database import SegmentationDatabase
+from .category_database import CategoryDatabase
 from .expression_database import ExpressionDatabase
+from .language_database import LanguageDatabase
 from .manifestation_database import ManifestationDatabase
 from .person_database import PersonDatabase
 from .segment_database import SegmentDatabase
@@ -43,6 +45,8 @@ class Database:
     annotation: AnnotationDatabase
     segment: SegmentDatabase
     person: PersonDatabase
+    language: LanguageDatabase
+    category: CategoryDatabase
 
     def __init__(self, neo4j_uri: str | None = None, neo4j_auth: tuple | None = None) -> None:
         if neo4j_uri and neo4j_auth:
@@ -71,6 +75,8 @@ class Database:
         self.annotation = AnnotationDatabase(db=self)
         self.segment = SegmentDatabase(db=self)
         self.person = PersonDatabase(db=self)
+        self.language = LanguageDatabase(db=self)
+        self.category = CategoryDatabase(db=self)
 
     def get_session(self) -> Session:
         return self.__driver.session()

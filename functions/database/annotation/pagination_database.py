@@ -1,5 +1,5 @@
 from database.database import Database
-from exceptions import DataNotFound
+from exceptions import DataNotFoundError
 from identifier import generate_id
 from models import (
     PageModel,
@@ -66,7 +66,7 @@ class PaginationDatabase:
                 PaginationDatabase.GET_QUERY, pagination_id=pagination_id, manifestation_id=None
             ).single()
             if result is None:
-                raise DataNotFound(f"Pagination with ID '{pagination_id}' not found")
+                raise DataNotFoundError(f"Pagination with ID '{pagination_id}' not found")
             return self._parse_record(result)
 
     def get_all(self, manifestation_id: str) -> PaginationOutput | None:
@@ -104,7 +104,7 @@ class PaginationDatabase:
         )
         record = result.single()
         if not record:
-            raise DataNotFound(f"Manifestation with ID '{manifestation_id}' not found")
+            raise DataNotFoundError(f"Manifestation with ID '{manifestation_id}' not found")
         return pagination_id
 
     def add(self, manifestation_id: str, pagination: PaginationInput) -> str:

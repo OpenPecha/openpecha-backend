@@ -1,7 +1,7 @@
-class OpenPechaException(Exception):
+class OpenPechaError(Exception):
     status_code = 500
 
-    def __init__(self, message):
+    def __init__(self, message: str) -> None:
         super().__init__(message)
         self.message = message
 
@@ -9,17 +9,17 @@ class OpenPechaException(Exception):
         return {"error": self.message}
 
 
-class DataNotFound(OpenPechaException):
+class DataNotFoundError(OpenPechaError):
     status_code = 404
 
 
-class InvalidRequest(OpenPechaException):
+class InvalidRequestError(OpenPechaError):
     status_code = 400
 
 
-class DataConflict(OpenPechaException):
+class DataConflictError(OpenPechaError):
     status_code = 409
 
 
-class ValidationError(OpenPechaException):
+class ValidationError(OpenPechaError):
     status_code = 422

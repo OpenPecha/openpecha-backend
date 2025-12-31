@@ -1,13 +1,12 @@
 import logging
 
-from exceptions import InvalidRequest
+from exceptions import InvalidRequestError
 from models import (
     AnnotationType,
     ContributionInput,
     ExpressionInput,
 )
 from neo4j import ManagedTransaction
-from neo4j_queries import Queries
 
 logger = logging.getLogger(__name__)
 
@@ -124,9 +123,9 @@ class DatabaseValidator:
         ).single()
 
         if not record:
-            raise InvalidRequest(f"Language '{language_code}' is not present in Neo4j. No languages found.")
+            raise InvalidRequestError(f"Language '{language_code}' is not present in Neo4j. No languages found.")
         if not record["exists"]:
-            raise InvalidRequest(
+            raise InvalidRequestError(
                 f"Language '{language_code}' is not present in Neo4j. Available languages: {', '.join(record['codes'])}"
             )
 
@@ -142,10 +141,10 @@ class DatabaseValidator:
         """
         record = tx.run(query, codes_to_check=[c.lower() for c in language_codes]).single()
         if not record:
-            raise InvalidRequest("No languages found in Neo4j database")
+            raise InvalidRequestError("No languages found in Neo4j database")
         missing = [c for c in (record["missing"] or []) if c]
         if missing:
-            raise InvalidRequest(
+            raise InvalidRequestError(
                 f"Languages {', '.join(missing)} are not present in Neo4j. "
                 f"Available languages: {', '.join(record['codes'])}"
             )
@@ -168,98 +167,6 @@ class DatabaseValidator:
             raise DataValidationError(
                 f"Category with ID '{category_id}' does not exist. Please provide a valid category_id."
             )
-
-    @staticmethod
-    def validate_language_enum_exists(tx: ManagedTransaction, code: str, name: str) -> None:
-        query = """
-        MATCH (l:Language)
-        WHERE toLower(l.code) = toLower($code) OR toLower(l.name) = toLower($name)
-        RETURN count(l) as count
-        """
-        result = tx.run(query, code=code, name=name)
-        record = result.single()
-
-        if record and record["count"] > 0:
-            raise DataValidationError(f"Language with code '{code}' or name '{name}' already exists")
-
-    @staticmethod
-    def validate_bibliography_enum_exists(tx: ManagedTransaction, name: str) -> None:
-        query = """
-        MATCH (bt:BibliographyType)
-        WHERE toLower(bt.name) = toLower($name)
-        RETURN count(bt) as count
-        """
-        result = tx.run(query, name=name)
-        record = result.single()
-
-        if record and record["count"] > 0:
-            raise DataValidationError(f"Bibliography type with name '{name}' already exists")
-
-    @staticmethod
-    def validate_manifestation_enum_exists(tx: ManagedTransaction, name: str) -> None:
-        query = """
-        MATCH (mt:ManifestationType)
-        WHERE toLower(mt.name) = toLower($name)
-        RETURN count(mt) as count
-        """
-        result = tx.run(query, name=name)
-        record = result.single()
-
-        if record and record["count"] > 0:
-            raise DataValidationError(f"Manifestation type with name '{name}' already exists")
-
-    @staticmethod
-    def validate_role_enum_exists(tx: ManagedTransaction, description: str, name: str) -> None:
-        query = """
-        MATCH (rt:RoleType)
-        WHERE toLower(rt.name) = toLower($name)
-        RETURN count(rt) as count
-        """
-        result = tx.run(query, description=description, name=name)
-        record = result.single()
-
-        if record and record["count"] > 0:
-            raise DataValidationError(f"Role type with name '{name}' already exists")
-
-    @staticmethod
-    def validate_annotation_enum_exists(tx: ManagedTransaction, name: str) -> None:
-        query = """
-        MATCH (at:AnnotationType)
-        WHERE toLower(at.name) = toLower($name)
-        RETURN count(at) as count
-        """
-        result = tx.run(query, name=name)
-        record = result.single()
-
-        if record and record["count"] > 0:
-            raise DataValidationError(f"Annotation type with name '{name}' already exists")
-
-    @staticmethod
-    def validate_category_not_exists(
-        tx: ManagedTransaction, application: str, title: dict[str, str], parent_id: str | None = None
-    ) -> None:
-        """
-        Validate that a category with the same application, title, and parent doesn't already exist.
-        Raises DataValidationError if the category exists.
-        """
-
-        # Check each language in the title
-        for language, title_text in title.items():
-            result = tx.run(
-                Queries.categories["find_existing_category"],
-                application=application,
-                parent_id=parent_id,
-                language=language,
-                title_text=title_text,
-            )
-            record = result.single()
-
-            if record:
-                raise DataValidationError(
-                    f"Category already exists with id: {record['category_id']}. "
-                    f"A category with application '{application}', title '{title_text}' in language '{language}', "
-                    f"and parent_id '{parent_id}' already exists."
-                )
 
     @staticmethod
     def validate_no_annotation_type_exists(

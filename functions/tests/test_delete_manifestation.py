@@ -7,7 +7,7 @@ from unittest.mock import MagicMock, patch
 import pytest
 from main import create_app
 from neo4j_database import Neo4JDatabase
-from exceptions import DataNotFound
+from exceptions import DataNotFoundError
 from neo4j_queries import Queries
 
 logger = logging.getLogger(__name__)
@@ -44,7 +44,7 @@ class TestManifestationDeletion:
         """Test deletion of non-existent manifestation via API"""
         # Setup mock to raise DataNotFound
         mock_db_instance = mock_db_cls.return_value
-        mock_db_instance.delete_manifestation.side_effect = DataNotFound("Manifestation not found")
+        mock_db_instance.delete_manifestation.side_effect = DataNotFoundError("Manifestation not found")
 
         # Call DELETE endpoint
         response = client.delete("/v2/instances/non-existent-id")
@@ -95,5 +95,5 @@ class TestManifestationDeletion:
         db = Neo4JDatabase(neo4j_uri="bolt://localhost:7687", neo4j_auth=("neo4j", "password"))
         
         # Call delete method and expect exception
-        with pytest.raises(DataNotFound):
+        with pytest.raises(DataNotFoundError):
             db.delete_manifestation("non-existent-id")

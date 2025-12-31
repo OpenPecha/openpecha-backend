@@ -1,5 +1,5 @@
 from database.database import Database
-from exceptions import DataNotFound
+from exceptions import DataNotFoundError
 from identifier import generate_id
 from models import (
     NoteInput,
@@ -53,7 +53,7 @@ class NoteDatabase:
                 NoteDatabase.GET_QUERY, note_id=note_id, manifestation_id=None, note_type=None
             ).single()
             if result is None:
-                raise DataNotFound(f"Note with ID '{note_id}' not found")
+                raise DataNotFoundError(f"Note with ID '{note_id}' not found")
             return self._parse_record(result)
 
     def get_all(self, manifestation_id: str, note_type: str = "durchen") -> list[NoteOutput]:
@@ -88,7 +88,7 @@ class NoteDatabase:
         )
         record = result.single()
         if not record:
-            raise DataNotFound(f"Manifestation with ID '{manifestation_id}' not found")
+            raise DataNotFoundError(f"Manifestation with ID '{manifestation_id}' not found")
         return record["note_ids"]
 
     def add_durchen(self, manifestation_id: str, durchen_notes: list[NoteInput]) -> list[str]:

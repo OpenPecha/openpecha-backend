@@ -1,5 +1,5 @@
 from database.database import Database
-from exceptions import DataNotFound
+from exceptions import DataNotFoundError
 from identifier import generate_id
 from models import (
     AlignedSegment,
@@ -106,7 +106,7 @@ class AlignmentDatabase:
         target_segments = [target_min_start_to_segment[ms] for ms in target_min_starts_ordered]
 
         if not target_segments or not aligned_segments:
-            raise DataNotFound(f"Alignment '{segmentation_id}' has no segments")
+            raise DataNotFoundError(f"Alignment '{segmentation_id}' has no segments")
 
         return AlignmentOutput(
             id=segmentation_id,
@@ -121,7 +121,7 @@ class AlignmentDatabase:
                 AlignmentDatabase.GET_QUERY, segmentation_id=segmentation_id, manifestation_id=None
             ).single()
             if result is None:
-                raise DataNotFound(f"Alignment with ID '{segmentation_id}' not found")
+                raise DataNotFoundError(f"Alignment with ID '{segmentation_id}' not found")
             return self._parse_record(result)
 
     def get_all(self, source_manifestation_id: str) -> list[AlignmentOutput]:
@@ -216,7 +216,7 @@ class AlignmentDatabase:
         )
         record = result.single()
         if not record:
-            raise DataNotFound(f"Manifestation with ID '{source_manifestation_id}' not found")
+            raise DataNotFoundError(f"Manifestation with ID '{source_manifestation_id}' not found")
         return source_segmentation_id
 
     @staticmethod
@@ -241,7 +241,7 @@ class AlignmentDatabase:
         ).single()
 
         if not result or not result["exists"]:
-            raise DataNotFound(f"Segmentation with ID '{segmentation_id}' not found")
+            raise DataNotFoundError(f"Segmentation with ID '{segmentation_id}' not found")
 
         aligned_segmentation_id = result["aligned_segmentation_id"]
         if not aligned_segmentation_id:

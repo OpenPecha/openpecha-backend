@@ -6,13 +6,13 @@ import firebase_admin
 from api.annotations import annotations_bp
 from api.api import api_bp
 from api.categories import categories_bp
-from api.enum import enum_bp
 from api.instances import instances_bp
+from api.languages import languages_bp
 from api.persons import persons_bp
 from api.schema import schema_bp
 from api.segments import segments_bp
 from api.texts import texts_bp
-from exceptions import OpenPechaException
+from exceptions import OpenPechaError
 from firebase_admin import credentials
 from firebase_functions import https_fn, options
 from flask import Flask, Response, jsonify, request
@@ -49,7 +49,7 @@ def create_app(*, testing: bool = False) -> Flask:
     app.register_blueprint(schema_bp, url_prefix="/v2/schema")
     app.register_blueprint(annotations_bp, url_prefix="/v2/annotations")
     app.register_blueprint(categories_bp, url_prefix="/v2/categories")
-    app.register_blueprint(enum_bp, url_prefix="/v2/enum")
+    app.register_blueprint(languages_bp, url_prefix="/v2/languages")
 
     @app.route("/__/health")
     def health_check() -> tuple[Response, int]:
@@ -79,7 +79,7 @@ def create_app(*, testing: bool = False) -> Flask:
             return jsonify({"error": first_msg}), 422
         if isinstance(e, NotImplementedError):
             return jsonify({"error": str(e)}), 501
-        if isinstance(e, OpenPechaException):
+        if isinstance(e, OpenPechaError):
             return jsonify(e.to_dict()), e.status_code
 
         return jsonify({"error": str(e)}), 500
@@ -127,13 +127,8 @@ def create_app(*, testing: bool = False) -> Flask:
     ],
     memory=options.MemoryOption.MB_512,
 )
-def api(req: https_fn.Request) -> https_fn.Response:
+def api(req: https_fn.Request) -> https_fn.Response:  # pyright: ignore[reportPrivateImportUsage]
     _init_firebase()
     app = create_app()
     with app.request_context(req.environ):
-        rv = app.full_dispatch_request()
-        return https_fn.Response(
-            response=rv.get_data(),
-            status=rv.status_code,
-            headers=dict(rv.headers),
-        )
+        return app.full_dispatch_request()

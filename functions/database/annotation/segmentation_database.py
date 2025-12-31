@@ -1,5 +1,5 @@
 from database.database import Database
-from exceptions import DataNotFound
+from exceptions import DataNotFoundError
 from identifier import generate_id
 from models import (
     SegmentationInput,
@@ -62,7 +62,7 @@ class SegmentationDatabase:
         with self._db.get_session() as session:
             result = session.run(self.GET_QUERY, segmentation_id=segmentation_id, manifestation_id=None).single()
             if result is None:
-                raise DataNotFound(f"Segmentation with ID '{segmentation_id}' not found")
+                raise DataNotFoundError(f"Segmentation with ID '{segmentation_id}' not found")
             return self._parse_record(result)
 
     def get_all(self, manifestation_id: str) -> list[SegmentationOutput]:
@@ -90,7 +90,7 @@ class SegmentationDatabase:
         )
         record = result.single()
         if not record:
-            raise DataNotFound(f"Manifestation with ID '{manifestation_id}' not found")
+            raise DataNotFoundError(f"Manifestation with ID '{manifestation_id}' not found")
         return segmentation_id
 
     def add(self, manifestation_id: str, segmentation: SegmentationInput) -> str:

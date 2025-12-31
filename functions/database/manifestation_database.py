@@ -1,6 +1,6 @@
 import logging
 
-from exceptions import DataNotFound
+from exceptions import DataNotFoundError
 from models import (
     ExpressionInput,
     ManifestationInput,
@@ -102,7 +102,7 @@ class ManifestationDatabase:
                 manifestation_type=None,
             ).single()
             if result is None:
-                raise DataNotFound(f"Manifestation '{manifestation_id}' not found")
+                raise DataNotFoundError(f"Manifestation '{manifestation_id}' not found")
             return self._parse_record(result.data())
 
     def get_all(
@@ -207,7 +207,7 @@ class ManifestationDatabase:
         )
 
         if not result.single():
-            raise DataNotFound(f"Expression '{expression_id}' not found")
+            raise DataNotFoundError(f"Expression '{expression_id}' not found")
 
         return str(result.single())
 

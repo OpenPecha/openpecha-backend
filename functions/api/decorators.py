@@ -2,7 +2,7 @@ from collections.abc import Callable
 from functools import wraps
 from typing import ParamSpec, TypeVar
 
-from exceptions import InvalidRequest
+from exceptions import InvalidRequestError
 from flask import Response, request
 from pydantic import BaseModel
 
@@ -23,7 +23,7 @@ def validate_json(
         def decorated(*args: P.args, **kwargs: P.kwargs) -> tuple[Response, int]:
             data = request.get_json(force=True, silent=True)
             if not data:
-                raise InvalidRequest("Request body is required")
+                raise InvalidRequestError("Request body is required")
             kwargs["validated_data"] = model_class.model_validate(data)
             return f(*args, **kwargs)
 
