@@ -14,3 +14,4 @@ repos:
       - id: pyright
         files: ^functions/
         exclude: "tests/"
+        args: ["--ignoreexternal"]

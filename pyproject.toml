@@ -3,8 +3,6 @@ pythonVersion = "3.12"
 typeCheckingMode = "standard"
 exclude = ["tests", "venv", ".venv"]
 include = ["functions"]
-venvPath = "functions"
-venv = "venv"
 
 [tool.pytest.ini_options]
 testpaths = ["functions/tests"]
