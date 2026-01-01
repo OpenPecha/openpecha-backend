@@ -1,13 +1,18 @@
+from __future__ import annotations
+
 import logging
+from typing import TYPE_CHECKING
 
 from exceptions import DataNotFoundError
 from models import (
     SegmentOutput,
     SpanModel,
 )
-from neo4j import Session
 
-from .database import Database
+if TYPE_CHECKING:
+    from neo4j import Session
+
+    from .database import Database
 
 logger = logging.getLogger(__name__)
 

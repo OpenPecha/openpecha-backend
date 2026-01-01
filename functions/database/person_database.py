@@ -1,11 +1,18 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from exceptions import DataNotFoundError
 from identifier import generate_id
-from models import PersonInput, PersonOutput
-from neo4j import ManagedTransaction, Session
 
 from .data_adapter import DataAdapter
-from .database import Database
 from .nomen_database import NomenDatabase
+
+if TYPE_CHECKING:
+    from models import PersonInput, PersonOutput
+    from neo4j import ManagedTransaction, Session
+
+    from .database import Database
 
 
 class PersonDatabase:

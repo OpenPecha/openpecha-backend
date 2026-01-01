@@ -1,7 +1,13 @@
-from exceptions import DataNotFoundError, DataValidationError
-from neo4j import Session
+from __future__ import annotations
 
-from .database import Database
+from typing import TYPE_CHECKING
+
+from exceptions import DataNotFoundError, DataValidationError
+
+if TYPE_CHECKING:
+    from neo4j import Session
+
+    from .database import Database
 
 
 class LanguageDatabase:

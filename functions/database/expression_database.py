@@ -1,3 +1,7 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from exceptions import DataNotFoundError, DataValidationError
 from identifier import generate_id
 from models import (
@@ -8,13 +12,16 @@ from models import (
     ExpressionOutput,
     LicenseType,
 )
-from neo4j import ManagedTransaction, Record, Session
 from request_models import ExpressionFilter
 
 from .data_adapter import DataAdapter
-from .database import Database
 from .database_validator import DatabaseValidator
 from .nomen_database import NomenDatabase
+
+if TYPE_CHECKING:
+    from neo4j import ManagedTransaction, Record, Session
+
+    from .database import Database
 
 
 class ExpressionDatabase:

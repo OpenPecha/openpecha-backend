@@ -1,9 +1,16 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from exceptions import DataValidationError
 from identifier import generate_id
-from neo4j import ManagedTransaction, Session
 
-from .database import Database
 from .database_validator import DatabaseValidator
+
+if TYPE_CHECKING:
+    from neo4j import ManagedTransaction, Session
+
+    from .database import Database
 
 
 class NomenDatabase:

@@ -1,4 +1,7 @@
+from __future__ import annotations
+
 import logging
+from typing import TYPE_CHECKING
 
 from exceptions import DataNotFoundError
 from models import (
@@ -9,7 +12,6 @@ from models import (
     PaginationInput,
     SegmentationInput,
 )
-from neo4j import ManagedTransaction, Session
 
 from .annotation.alignment_database import AlignmentDatabase
 from .annotation.bibliographic_database import BibliographicDatabase
@@ -17,10 +19,15 @@ from .annotation.note_database import NoteDatabase
 from .annotation.pagination_database import PaginationDatabase
 from .annotation.segmentation_database import SegmentationDatabase
 from .data_adapter import DataAdapter
-from .database import AnnotationDatabase, Database
 from .database_validator import DatabaseValidator, DataValidationError
 from .expression_database import ExpressionDatabase
 from .nomen_database import NomenDatabase
+
+if TYPE_CHECKING:
+    from neo4j import ManagedTransaction, Session
+
+    from .database import Database
+
 
 logger = logging.getLogger(__name__)
 
@@ -149,10 +156,10 @@ class ManifestationDatabase:
             self.create_with_transaction(tx, manifestation, expression_id, manifestation_id)
 
             if segmentation is not None:
-                AnnotationDatabase.Segmentation.add_with_transaction(tx, manifestation_id, segmentation)
+                SegmentationDatabase.add_with_transaction(tx, manifestation_id, segmentation)
 
             if pagination is not None:
-                AnnotationDatabase.Pagination.add_with_transaction(tx, manifestation_id, pagination)
+                PaginationDatabase.add_with_transaction(tx, manifestation_id, pagination)
 
         with self.session as session:
             return str(session.execute_write(transaction_function))

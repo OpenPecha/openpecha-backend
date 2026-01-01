@@ -1,9 +1,15 @@
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from exceptions import DataValidationError
 from identifier import generate_id
 from models import CategoryListItemModel
-from neo4j import Session
 
-from .database import Database
+if TYPE_CHECKING:
+    from neo4j import Session
+
+    from .database import Database
 
 
 class CategoryDatabase:
