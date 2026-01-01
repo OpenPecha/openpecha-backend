@@ -11,13 +11,14 @@ Requires environment variables:
 - NEO4J_TEST_URI: Neo4j test instance URI
 - NEO4J_TEST_PASSWORD: Password for test instance
 """
+
 import json
 import os
 
 import pytest
 from dotenv import load_dotenv
 from main import create_app
-from models import ExpressionModelInput, PersonModelInput
+from models import ExpressionInput, PersonInput
 from neo4j_database import Neo4JDatabase
 
 # Load .env file if it exists
@@ -35,7 +36,7 @@ def neo4j_connection():
             "Neo4j test credentials not provided. Set NEO4J_TEST_URI and NEO4J_TEST_PASSWORD environment variables."
         )
 
-    yield {"uri": test_uri, "auth": ("neo4j", test_password)}
+    return {"uri": test_uri, "auth": ("neo4j", test_password)}
 
 
 @pytest.fixture
@@ -125,12 +126,12 @@ class TestGetAllTextsV2:
     def test_get_all_metadata_default_pagination(self, client, test_database, test_person_data, test_expression_data):
         """Test default pagination (limit=20, offset=0)"""
         # Create test person first
-        person = PersonModelInput.model_validate(test_person_data)
+        person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
         # Create test expression
         test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
-        expression = ExpressionModelInput.model_validate(test_expression_data)
+        expression = ExpressionInput.model_validate(test_expression_data)
         expression_id = test_database.create_expression(expression)
 
         response = client.get("/v2/texts/")
@@ -147,7 +148,7 @@ class TestGetAllTextsV2:
         """Test custom pagination parameters"""
 
         # Create test person
-        person = PersonModelInput.model_validate(test_person_data)
+        person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
         # Create multiple expressions
@@ -155,11 +156,11 @@ class TestGetAllTextsV2:
         for i in range(5):
             expr_data = {
                 "type": "root",
-                "title": {"en": f"Expression {i+1}", "bo": f"ཚིག་སྒྲུབ་{i+1}།"},
+                "title": {"en": f"Expression {i + 1}", "bo": f"ཚིག་སྒྲུབ་{i + 1}།"},
                 "language": "en",
                 "contributions": [{"person_id": person_id, "role": "author"}],
             }
-            expression = ExpressionModelInput.model_validate(expr_data)
+            expression = ExpressionInput.model_validate(expr_data)
             expr_id = test_database.create_expression(expression)
             expression_ids.append(expr_id)
 
@@ -174,7 +175,7 @@ class TestGetAllTextsV2:
         """Test filtering by expression type"""
 
         # Create test person
-        person = PersonModelInput.model_validate(test_person_data)
+        person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
         # Create ROOT expression
@@ -184,7 +185,7 @@ class TestGetAllTextsV2:
             "language": "en",
             "contributions": [{"person_id": person_id, "role": "author"}],
         }
-        root_expression = ExpressionModelInput.model_validate(root_data)
+        root_expression = ExpressionInput.model_validate(root_data)
         root_id = test_database.create_expression(root_expression)
 
         # Create TRANSLATION expression
@@ -195,7 +196,7 @@ class TestGetAllTextsV2:
             "target": root_id,
             "contributions": [{"person_id": person_id, "role": "translator"}],
         }
-        translation_expression = ExpressionModelInput.model_validate(translation_data)
+        translation_expression = ExpressionInput.model_validate(translation_data)
         translation_id = test_database.create_expression(translation_expression)
 
         # Filter by root type
@@ -220,7 +221,7 @@ class TestGetAllTextsV2:
         """Test filtering by language"""
 
         # Create test person
-        person = PersonModelInput.model_validate(test_person_data)
+        person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
         # Create English expression
@@ -230,7 +231,7 @@ class TestGetAllTextsV2:
             "language": "en",
             "contributions": [{"person_id": person_id, "role": "author"}],
         }
-        en_expression = ExpressionModelInput.model_validate(en_data)
+        en_expression = ExpressionInput.model_validate(en_data)
         en_id = test_database.create_expression(en_expression)
 
         # Create Tibetan expression
@@ -240,7 +241,7 @@ class TestGetAllTextsV2:
             "language": "bo",
             "contributions": [{"person_id": person_id, "role": "author"}],
         }
-        bo_expression = ExpressionModelInput.model_validate(bo_data)
+        bo_expression = ExpressionInput.model_validate(bo_data)
         bo_id = test_database.create_expression(bo_expression)
 
         # Filter by English
@@ -265,7 +266,7 @@ class TestGetAllTextsV2:
         """Test combining multiple filters"""
 
         # Create test person
-        person = PersonModelInput.model_validate(test_person_data)
+        person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
         # Create ROOT expression
@@ -275,7 +276,7 @@ class TestGetAllTextsV2:
             "language": "en",
             "contributions": [{"person_id": person_id, "role": "author"}],
         }
-        root_expression = ExpressionModelInput.model_validate(root_data)
+        root_expression = ExpressionInput.model_validate(root_data)
         root_id = test_database.create_expression(root_expression)
 
         # Create TRANSLATION expression in Tibetan
@@ -286,7 +287,7 @@ class TestGetAllTextsV2:
             "target": root_id,
             "contributions": [{"person_id": person_id, "role": "translator"}],
         }
-        translation_expression = ExpressionModelInput.model_validate(translation_data)
+        translation_expression = ExpressionInput.model_validate(translation_data)
         test_database.create_expression(translation_expression)
 
         # Filter by type=root AND language=en
@@ -339,7 +340,7 @@ class TestGetAllTextsV2:
         """Test edge cases for pagination"""
 
         # Create test person
-        person = PersonModelInput.model_validate(test_person_data)
+        person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
         # Create one expression
@@ -349,7 +350,7 @@ class TestGetAllTextsV2:
             "language": "en",
             "contributions": [{"person_id": person_id, "role": "author"}],
         }
-        expression = ExpressionModelInput.model_validate(expr_data)
+        expression = ExpressionInput.model_validate(expr_data)
         test_database.create_expression(expression)
 
         # Test limit=1 (minimum)
@@ -378,12 +379,12 @@ class TestGetSingleTextV2:
         """Test successfully retrieving a single expression"""
 
         # Create test person
-        person = PersonModelInput.model_validate(test_person_data)
+        person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
         # Create test expression
         test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
-        expression = ExpressionModelInput.model_validate(test_expression_data)
+        expression = ExpressionInput.model_validate(test_expression_data)
         expression_id = test_database.create_expression(expression)
 
         response = client.get(f"/v2/texts/{expression_id}")
@@ -406,7 +407,7 @@ class TestGetSingleTextV2:
         """Test retrieving TRANSLATION expression with target relationship"""
 
         # Create test person
-        person = PersonModelInput.model_validate(test_person_data)
+        person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
         # Create target ROOT expression
@@ -416,7 +417,7 @@ class TestGetSingleTextV2:
             "language": "en",
             "contributions": [{"person_id": person_id, "role": "author"}],
         }
-        root_expression = ExpressionModelInput.model_validate(root_data)
+        root_expression = ExpressionInput.model_validate(root_data)
         target_id = test_database.create_expression(root_expression)
 
         # Create TRANSLATION expression
@@ -427,7 +428,7 @@ class TestGetSingleTextV2:
             "target": target_id,
             "contributions": [{"person_id": person_id, "role": "translator"}],
         }
-        translation_expression = ExpressionModelInput.model_validate(translation_data)
+        translation_expression = ExpressionInput.model_validate(translation_data)
         translation_id = test_database.create_expression(translation_expression)
 
         response = client.get(f"/v2/texts/{translation_id}")
@@ -455,7 +456,7 @@ class TestPostTextV2:
     def test_create_root_expression_success(self, client, test_database, test_person_data):
         """Test successfully creating a ROOT expression"""
         # Create test person first
-        person = PersonModelInput.model_validate(test_person_data)
+        person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
         # Create ROOT expression
@@ -581,7 +582,7 @@ class TestPostTextV2:
     def test_create_standalone_commentary_with_na_target_not_implemented(self, client, test_database, test_person_data):
         """Test that standalone COMMENTARY with target='N/A' returns Not Implemented error"""
         # Create test person first
-        person = PersonModelInput.model_validate(test_person_data)
+        person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
         # Try to create standalone COMMENTARY expression
@@ -603,7 +604,7 @@ class TestPostTextV2:
     def test_create_standalone_translation_with_na_target_success(self, client, test_person_data, test_database):
         """Test successfully creating a standalone TRANSLATION with target='N/A'"""
         # Create test person first
-        person = PersonModelInput.model_validate(test_person_data)
+        person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
         # Create standalone TRANSLATION expression

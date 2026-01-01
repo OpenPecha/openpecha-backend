@@ -1,37 +1,4 @@
 {
-    "pylint.args": [
-        "--disable=missing-class-docstring",
-        "--disable=missing-function-docstring",
-        "--disable=missing-module-docstring",
-        "--disable=broad-exception-caught",
-        "--max-line-length=120",
-    ],
-    "mypy-type-checker.args": [
-        "--disable-error-code=import-untyped",
-        "--disallow-untyped-defs",
-        "--disallow-any-unimported",
-        "--no-implicit-optionals",
-        "--warn-return-any"
-    ],
-    "black-formatter.args": [
-        "--line-length",
-        "120"
-    ],
-    "[python]": {
-        "editor.defaultFormatter": "ms-python.black-formatter",
-        "editor.formatOnSave": true
-    },
-    "editor.codeActionsOnSave": {
-        "source.organizeImports": "explicit"
-    },
-    "flake8.args": [
-        "--exclude=tests",
-        "--max-line-length=120",
-        "--extend-ignore=E203"
-    ],
-    "flake8.ignorePatterns": [
-        "**/tests/*.py"
-    ],
     "files.exclude": {
         "**/__pycache__": true,
         "**/.git": true,
@@ -39,9 +6,16 @@
         "**/.firebase": true,
         "**/.pytest_cache": true,
     },
-    "bandit.ignorePatterns": [
-        "**/tests/*.py"
-    ],
+    "editor.formatOnSave": true,
+    "[python]": {
+        "editor.defaultFormatter": "charliermarsh.ruff",
+        "editor.formatOnSave": true
+    },
+    "editor.codeActionsOnSave": {
+        "source.fixAll.ruff": "explicit",
+        "source.organizeImports.ruff": "explicit",
+        "source.format": "explicit"
+    },
     "python.testing.pytestArgs": [
         "functions",
         "--log-cli-level=DEBUG"

@@ -1,14 +1,17 @@
+from collections.abc import Sequence
 from enum import Enum
-from typing import Annotated, Optional
+from typing import Annotated, Any, Self, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, RootModel, StrictStr, StringConstraints, model_validator
 
-NonEmptyStr = Annotated[StrictStr, StringConstraints(min_length=1, strip_whitespace=True)]
+type NonEmptyStr = Annotated[StrictStr, StringConstraints(min_length=1, strip_whitespace=True)]
+
+T = TypeVar("T")
 
 
-def remove_duplicate_alternatives(primary, alternatives):
+def remove_duplicate_alternatives(primary: T, alternatives: list[T] | None) -> list[T] | None:
     """Helper to remove alternatives that match the primary value and deduplicate the list"""
-    unique = []
+    unique: list[T] = []
     for alt in alternatives or []:
         if alt != primary and alt not in unique:
             unique.append(alt)
@@ -67,6 +70,24 @@ class LicenseType(str, Enum):
     UNKNOWN = "unknown"
 
 
+class NoteType(str, Enum):
+    DURCHEN = "durchen"
+
+
+class BibliographyType(str, Enum):
+    COLOPHON = "colophon"
+    INCIPIT = "incipit"
+    ALT_INCIPIT = "alt_incipit"
+    ALT_TITLE = "alt_title"
+    PERSON = "person"
+    TITLE = "title"
+    AUTHOR = "author"
+
+
+class AttributeType(str, Enum):
+    OCR_CONFIDENCE = "ocr_confidence"
+
+
 class OpenPechaModel(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
@@ -76,8 +97,8 @@ class OpenPechaModel(BaseModel):
 
 class Copyright(OpenPechaModel):
     status: CopyrightStatus = CopyrightStatus.UNKNOWN
-    notice: Optional[str] = ""
-    info_url: Optional[str] = None
+    notice: str = ""
+    info_url: str | None = None
 
 
 class LocalizedString(RootModel[dict[str, NonEmptyStr]]):
@@ -87,52 +108,58 @@ class LocalizedString(RootModel[dict[str, NonEmptyStr]]):
         return self.root[item]
 
 
-class PersonModelBase(OpenPechaModel):
-    bdrc: str | None = None
-    wiki: str | None = None
+class PersonBase(OpenPechaModel):
+    bdrc: NonEmptyStr | None = None
+    wiki: NonEmptyStr | None = None
     name: LocalizedString
     alt_names: list[LocalizedString] | None = None
 
     @model_validator(mode="after")
-    def remove_duplicate_alt_names(self) -> "PersonModelBase":
+    def remove_duplicate_alt_names(self) -> Self:
         self.alt_names = remove_duplicate_alternatives(self.name, self.alt_names)
         return self
 
 
-class PersonModelInput(PersonModelBase):
+class PersonInput(PersonBase):
     pass
 
 
-class PersonModelOutput(PersonModelBase):
-    id: str
+class PersonOutput(PersonBase):
+    id: NonEmptyStr
 
 
 class AIContributionModel(OpenPechaModel):
-    ai_id: str
+    ai_id: NonEmptyStr
     role: ContributorRole
 
 
-class ContributionModel(OpenPechaModel):
-    person_id: str | None = None
-    person_bdrc_id: str | None = None
+class ContributionBase(OpenPechaModel):
+    person_id: NonEmptyStr | None = None
+    person_bdrc_id: NonEmptyStr | None = None
     role: ContributorRole
 
 
-class ContributionModelInput(ContributionModel):
-    pass
+class ContributionInput(ContributionBase):
+    @model_validator(mode="after")
+    def validate_person_reference(self) -> Self:
+        if self.person_id is None and self.person_bdrc_id is None:
+            raise ValueError("Either person_id or person_bdrc_id must be provided")
+        if self.person_id is not None and self.person_bdrc_id is not None:
+            raise ValueError("Only one of person_id or person_bdrc_id can be provided")
+        return self
 
 
-class ContributionModelOutput(ContributionModel):
-    person_name: LocalizedString
+class ContributionOutput(ContributionBase):
+    person_name: LocalizedString | None = None
 
 
 class AnnotationModel(OpenPechaModel):
-    id: str
+    id: NonEmptyStr
     type: AnnotationType
-    aligned_to: str | None = None
+    aligned_to: NonEmptyStr | None = None
 
     @model_validator(mode="after")
-    def validate_aligned_to(self):
+    def validate_aligned_to(self) -> Self:
         if self.aligned_to is not None and self.type != AnnotationType.ALIGNMENT:
             raise ValueError("aligned_to can only be set when annotation type is ALIGNMENT")
         return self
@@ -143,50 +170,209 @@ class SpanModel(OpenPechaModel):
     end: int = Field(..., ge=1, description="End character position (exclusive)")
 
     @model_validator(mode="after")
-    def validate_span_range(self):
-        if self.start > self.end:
+    def validate_span_range(self) -> Self:
+        if self.start >= self.end:
             raise ValueError("'start' must be less than 'end'")
         return self
 
 
-class SegmentModel(OpenPechaModel):
-    id: str
+class AnnotationMetadata(OpenPechaModel):
+    pass
+
+
+def _validate_lines(lines: list[SpanModel]) -> None:
+    for i in range(1, len(lines)):
+        prev, curr = lines[i - 1], lines[i]
+        if curr.start != prev.end:
+            raise ValueError("lines must be continuous and sorted")
+
+
+class SegmentBase(OpenPechaModel):
+    lines: list[SpanModel] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def validate_lines_sorted(self) -> Self:
+        _validate_lines(self.lines)
+        return self
+
+    @property
+    def span(self) -> SpanModel:
+        return SpanModel(start=self.lines[0].start, end=self.lines[-1].end)
+
+
+class SegmentInput(SegmentBase):
+    pass
+
+
+class SegmentOutput(SegmentBase):
+    id: NonEmptyStr
+    manifestation_id: NonEmptyStr
+    text_id: NonEmptyStr
+
+
+class AlignedSegment(OpenPechaModel):
+    lines: list[SpanModel] = Field(min_length=1)
+    alignment_indices: list[int] = Field(min_length=1)
+
+    @model_validator(mode="after")
+    def validate_lines(self) -> Self:
+        _validate_lines(self.lines)
+        return self
+
+
+def _is_sorted_by_span_start(segments: Sequence[SegmentBase] | Sequence[AlignedSegment]) -> bool:
+    starts = [min(s.lines, key=lambda line: line.start).start for s in segments]
+    return starts == sorted(starts)
+
+
+SegmentType = TypeVar("SegmentType", bound=SegmentBase)
+AlignedSegmentType = TypeVar("AlignedSegmentType", bound=AlignedSegment)
+
+
+class SegmentationBase[SegmentType: SegmentBase](OpenPechaModel):
+    segments: list[SegmentType]
+    metadata: AnnotationMetadata | None = None
+
+    @model_validator(mode="after")
+    def validate_segments_sorted(self) -> Self:
+        if hasattr(self, "segments") and not _is_sorted_by_span_start(self.segments):
+            raise ValueError("segments must be sorted by span start")
+        return self
+
+
+class SegmentationInput(SegmentationBase[SegmentInput]):
+    pass
+
+
+class SegmentationOutput(SegmentationBase[SegmentOutput]):
+    id: NonEmptyStr
+
+
+class AlignmentBase[SegmentType: SegmentBase, AlignedSegmentType: AlignedSegment](OpenPechaModel):
+    target_id: NonEmptyStr
+    target_segments: list[SegmentType]
+    aligned_segments: list[AlignedSegmentType]
+    metadata: AnnotationMetadata | None = None
+
+    @model_validator(mode="after")
+    def validate_segments_sorted(self) -> Self:
+        if not _is_sorted_by_span_start(self.target_segments):
+            raise ValueError("target_segments must be sorted by span start")
+        if not _is_sorted_by_span_start(self.aligned_segments):
+            raise ValueError("aligned_segments must be sorted by span start")
+        return self
+
+
+class AlignmentInput(AlignmentBase[SegmentInput, AlignedSegment]):
+    pass
+
+
+class AlignmentOutput(AlignmentBase[SegmentOutput, AlignedSegment]):
+    id: NonEmptyStr
+
+
+class PageModel(OpenPechaModel):
+    lines: list[SpanModel] = Field(min_length=1)
+    reference: NonEmptyStr
+
+    @model_validator(mode="after")
+    def validate_lines(self) -> Self:
+        _validate_lines(self.lines)
+        return self
+
+
+class VolumeModel(OpenPechaModel):
+    index: int | None = None
+    pages: list[PageModel] = Field(min_length=1)
+    metadata: AnnotationMetadata | None = None
+
+    @model_validator(mode="after")
+    def validate_pages_continuous(self) -> Self:
+        for i in range(1, len(self.pages)):
+            prev_end = self.pages[i - 1].lines[-1].end
+            curr_start = self.pages[i].lines[0].start
+            if curr_start != prev_end:
+                raise ValueError("pages must be continuous and sorted")
+        return self
+
+
+class PaginationBase(OpenPechaModel):
+    volume: VolumeModel
+    metadata: AnnotationMetadata | None = None
+
+
+class PaginationInput(PaginationBase):
+    pass
+
+
+class PaginationOutput(PaginationBase):
+    id: NonEmptyStr
+
+
+class BibliographicMetadataBase(OpenPechaModel):
     span: SpanModel
+    type: BibliographyType
+    metadata: AnnotationMetadata | None = None
 
 
-class BibliographyAnnotationModel(OpenPechaModel):
+class BibliographicMetadataInput(BibliographicMetadataBase):
+    pass
+
+
+class BibliographicMetadataOutput(BibliographicMetadataBase):
+    id: NonEmptyStr
+
+
+class NoteBase(OpenPechaModel):
     span: SpanModel
-    type: NonEmptyStr
+    text: NonEmptyStr
+    metadata: AnnotationMetadata | None = None
 
 
-class ExpressionModelBase(OpenPechaModel):
-    bdrc: str | None = None
-    wiki: str | None = None
-    type: TextType
-    contributions: list[ContributionModel | AIContributionModel]
+class NoteInput(NoteBase):
+    pass
+
+
+class NoteOutput(NoteBase):
+    id: NonEmptyStr
+
+
+class AttributeBase(OpenPechaModel):
+    span: SpanModel
+    type: AttributeType
+    value: Any
+    metadata: AnnotationMetadata | None = None
+
+
+class AttributeInput(AttributeBase):
+    pass
+
+
+class AttributeOutput(AttributeBase):
+    id: NonEmptyStr
+
+
+class ExpressionBase(OpenPechaModel):
+    bdrc: NonEmptyStr | None = None
+    wiki: NonEmptyStr | None = None
     date: NonEmptyStr | None = None
     title: LocalizedString
     alt_titles: list[LocalizedString] | None = None
     language: NonEmptyStr
-    target: str | None = None
-    category_id: str | None = None
+    commentary_of: NonEmptyStr | None = None
+    translation_of: NonEmptyStr | None = None
+    category_id: NonEmptyStr | None = None
     copyright: CopyrightStatus = CopyrightStatus.PUBLIC_DOMAIN
     license: LicenseType = LicenseType.PUBLIC_DOMAIN_MARK
 
     @model_validator(mode="after")
-    def validate_target_field(self):
-        if self.type == TextType.ROOT and self.target is not None:
-            raise ValueError("When type is 'root', target must be None")
-        if self.type in [TextType.COMMENTARY, TextType.TRANSLATION] and self.target is None:
-            msg = (
-                f"When type is '{self.type.value}', target must be provided "
-                "(use 'N/A' for standalone translations/commentaries)"
-            )
-            raise ValueError(msg)
+    def validate_at_most_one_parent(self) -> Self:
+        if self.commentary_of and self.translation_of:
+            raise ValueError("Cannot be both a commentary and translation")
         return self
 
     @model_validator(mode="after")
-    def validate_title_language(self):
+    def validate_title_language(self) -> Self:
         # Check that title has an entry matching the language field
         if self.language not in self.title.root:
             raise ValueError(
@@ -197,385 +383,78 @@ class ExpressionModelBase(OpenPechaModel):
         return self
 
     @model_validator(mode="after")
-    def validate_contributions(self):
-        for i, contribution in enumerate(self.contributions):
-            if isinstance(contribution, ContributionModel):
-                if contribution.person_id is None and contribution.person_bdrc_id is None:
-                    raise ValueError(f"Contribution at index {i}: person_id or person_bdrc_id must be provided")
-            elif isinstance(contribution, AIContributionModel):
-                pass
-            else:
-                raise ValueError(f"Contribution at index {i}: Invalid contribution type")
-
-        return self
-
-    @model_validator(mode="after")
-    def remove_duplicate_alt_titles(self) -> "ExpressionModelBase":
+    def remove_duplicate_alt_titles(self) -> Self:
         self.alt_titles = remove_duplicate_alternatives(self.title, self.alt_titles)
         return self
 
 
-class ExpressionModelInput(ExpressionModelBase):
-    contributions: list[ContributionModelInput | AIContributionModel]
-
-    @model_validator(mode="after")
-    def validate_contribution_exclusivity(self):
-        for i, contribution in enumerate(self.contributions):
-            if (
-                isinstance(contribution, ContributionModel)
-                and contribution.person_id is not None
-                and contribution.person_bdrc_id is not None
-            ):
-                raise ValueError(f"Contribution at index {i}: person_id and person_bdrc_id cannot both be provided")
-
-        return self
+class ExpressionInput(ExpressionBase):
+    contributions: list[ContributionInput | AIContributionModel]
 
 
-class ExpressionModelOutput(ExpressionModelBase):
-    id: str
-    contributions: list[ContributionModelOutput | AIContributionModel]
+class ExpressionOutput(ExpressionBase):
+    id: NonEmptyStr
+    contributions: list[ContributionOutput | AIContributionModel]
+    commentaries: list[str] = []
+    translations: list[str] = []
+    instances: list[str] = []
 
 
-class ManifestationModelBase(OpenPechaModel):
-    id: str | None = None
-    bdrc: str | None = None
-    wiki: str | None = None
+class ManifestationBase(OpenPechaModel):
+    bdrc: NonEmptyStr | None = None
+    wiki: NonEmptyStr | None = None
     type: ManifestationType
-    source: str | None = None
+    source: NonEmptyStr | None = None
     colophon: NonEmptyStr | None = None
     incipit_title: LocalizedString | None = None
     alt_incipit_titles: list[LocalizedString] | None = None
-    biblography_annotation: list[BibliographyAnnotationModel] | None = None
 
     @model_validator(mode="after")
-    def validate_bdrc_for_diplomatic_and_critical(self):
+    def validate_bdrc_for_diplomatic_and_critical(self) -> Self:
         if self.type == ManifestationType.DIPLOMATIC and not self.bdrc:
             raise ValueError("When type is 'diplomatic', bdrc must be provided")
-        elif self.type is ManifestationType.CRITICAL and self.bdrc:
+        if self.type is ManifestationType.CRITICAL and self.bdrc:
             raise ValueError("When type is 'critical', bdrc should not be provided")
         return self
 
     @model_validator(mode="after")
-    def validate_alt_incipit_titles(self):
+    def validate_alt_incipit_titles(self) -> Self:
         if self.alt_incipit_titles and self.incipit_title is None:
             raise ValueError("alt_incipit_titles can only be set when incipit_title is also provided")
         return self
 
     @model_validator(mode="after")
-    def remove_duplicate_alt_incipit_titles(self) -> "ManifestationModelBase":
+    def remove_duplicate_alt_incipit_titles(self) -> Self:
         if self.incipit_title:
             self.alt_incipit_titles = remove_duplicate_alternatives(self.incipit_title, self.alt_incipit_titles)
         return self
 
 
-class ManifestationModelInput(ManifestationModelBase):
+class ManifestationInput(ManifestationBase):
     pass
 
 
-class ManifestationModelOutput(ManifestationModelBase):
-    id: str
-    annotations: list[AnnotationModel] = []
-    alignment_sources: list[str] | None = None
-    alignment_targets: list[str] | None = None
-
-    @model_validator(mode="after")
-    def validate_annotations(self):
-        # Check that only one annotation has aligned_to
-        aligned_annotations = [ann for ann in self.annotations if ann.aligned_to is not None]
-        if len(aligned_annotations) > 1:
-            raise ValueError("Only one annotation can have aligned_to set")
-
-        # Check that only one annotation is segmentation
-        segmentation_annotations = [ann for ann in self.annotations if ann.type == AnnotationType.SEGMENTATION]
-        if len(segmentation_annotations) > 1:
-            raise ValueError("Only one annotation can be of type SEGMENTATION")
-
-        return self
-
-    @property
-    def segmentation_annotation_id(self) -> str | None:
-        return next(
-            (annotation.id for annotation in self.annotations if annotation.type == AnnotationType.SEGMENTATION),
-            None,
-        )
-
-    @property
-    def aligned_to(self) -> str | None:
-        return next((ann.aligned_to for ann in self.annotations if ann.aligned_to), None)
-
-
-class CreatorRequestModel(OpenPechaModel):
-    person_id: str | None = None
-    person_bdrc_id: str | None = None
-    ai_id: str | None = None
-
-    @model_validator(mode="after")
-    def validate_translator(self):
-        if sum(field is not None for field in [self.person_id, self.person_bdrc_id, self.ai_id]) != 1:
-            raise ValueError("Exactly one of person_id, person_bdrc_id, or ai_id must be provided")
-        return self
-
-
-class AlignedTextRequestModel(OpenPechaModel):
-    language: NonEmptyStr
-    content: NonEmptyStr
-    title: NonEmptyStr
-    source: NonEmptyStr
-    alt_titles: list[NonEmptyStr] | None = None
-    author: CreatorRequestModel | None = None
-    target_annotation: list[dict] | None = None
-    alignment_annotation: list[dict] | None = None
-    segmentation: list[dict]
-    copyright: CopyrightStatus
-    license: LicenseType
-    bdrc: str | None = None
-    wiki: str | None = None
-    category_id: str | None = None
-    biblography_annotation: list[BibliographyAnnotationModel] | None = None
-
-    @model_validator(mode="after")
-    def validate_alignment_annotations(self):
-        if (self.target_annotation is not None) != (self.alignment_annotation is not None):
-            raise ValueError("Both target_annotation and alignment_annotation must be provided together, or neither")
-        if self.biblography_annotation is not None:
-            if len(self.biblography_annotation) == 0:
-                raise ValueError("Biblography annotation cannot be empty list")
-            elif not all(isinstance(ann, BibliographyAnnotationModel) for ann in self.biblography_annotation):
-                raise ValueError("All biblography annotations must be of type BibliographyAnnotationModel")
-        return self
-
-    @model_validator(mode="after")
-    def remove_duplicate_alt_titles(self) -> "AlignedTextRequestModel":
-        self.alt_titles = remove_duplicate_alternatives(self.title, self.alt_titles)
-        return self
-
-
-class SegmentationAnnotationModel(OpenPechaModel):
-    span: SpanModel
-
-
-class SearchSegmentationAnnotationModel(OpenPechaModel):
-    span: SpanModel
-
-
-class PaginationAnnotationModel(OpenPechaModel):
-    span: SpanModel
-    reference: NonEmptyStr
-
-
-class AlignmentAnnotationModel(OpenPechaModel):
-    span: SpanModel
-    index: int
-    alignment_index: list[int] | None = None
-
-
-class TableOfContentsAnnotationModel(OpenPechaModel):
-    title: NonEmptyStr
-    segments: list[NonEmptyStr]
-
-
-class DurchenAnnotationModel(OpenPechaModel):
-    span: SpanModel
-    note: NonEmptyStr
-
-
-class InstanceRequestModel(OpenPechaModel):
-    metadata: ManifestationModelInput
-    annotation: list[SegmentationAnnotationModel | PaginationAnnotationModel] | None = None
-    biblography_annotation: list[BibliographyAnnotationModel] | None = None
-    content: NonEmptyStr
-
-    @model_validator(mode="after")
-    def validate_annotation(self):
-        if self.annotation is not None:
-            if len(self.annotation) == 0:
-                raise ValueError("Cannot provide an empty annotation")
-            elif self.metadata.type is ManifestationType.CRITICAL and not all(
-                isinstance(ann, SegmentationAnnotationModel) for ann in self.annotation
-            ):
-                raise ValueError("For 'critical' manifestations, all annotations must be SegmentationAnnotationModel")
-            elif self.metadata.type is ManifestationType.DIPLOMATIC and not all(
-                isinstance(ann, PaginationAnnotationModel) for ann in self.annotation
-            ):
-                raise ValueError("For 'diplomatic' manifestations, all annotations must be PaginationAnnotationModel")
-            elif not all(
-                isinstance(ann, (SegmentationAnnotationModel, PaginationAnnotationModel)) for ann in self.annotation
-            ):
-                raise ValueError("Annotations must be either SegmentationAnnotationModel or PaginationAnnotationModel")
-        if self.biblography_annotation is not None:
-            if len(self.biblography_annotation) == 0:
-                raise ValueError("Biblography annotation cannot be empty list")
-            elif not all(isinstance(ann, BibliographyAnnotationModel) for ann in self.biblography_annotation):
-                raise ValueError("All biblography annotations must be of type BibliographyAnnotationModel")
-        return self
-
-
-class AddAnnotationRequestModel(OpenPechaModel):
-    type: AnnotationType
-    annotation: list[
-        SegmentationAnnotationModel
-        | SearchSegmentationAnnotationModel
-        | PaginationAnnotationModel
-        | BibliographyAnnotationModel
-        | TableOfContentsAnnotationModel
-        | DurchenAnnotationModel
-    ] = Field(default_factory=list)
-    target_manifestation_id: str | None = None
-    target_annotation: list[AlignmentAnnotationModel] | None = None
-    alignment_annotation: list[AlignmentAnnotationModel] | None = None
-
-    @model_validator(mode="after")
-    def validate_request_model(self):
-        validators = {
-            AnnotationType.SEGMENTATION: self._validate_segmentation,
-            AnnotationType.PAGINATION: self._validate_pagination,
-            AnnotationType.ALIGNMENT: self._validate_alignment,
-            AnnotationType.BIBLIOGRAPHY: self._validate_bibliography,
-            AnnotationType.TABLE_OF_CONTENTS: self._validate_table_of_contents,
-            AnnotationType.DURCHEN: self._validate_durchen,
-            AnnotationType.SEARCH_SEGMENTATION: self._validate_segmentation,
-        }
-
-        validator = validators.get(self.type)
-        if validator:
-            validator()
-        else:
-            raise ValueError(
-                f"Invalid annotation type. Allowed types are [{', '.join(t.name for t in AnnotationType)}]"
-            )
-        return self
-
-    def _validate_segmentation(self):
-        if not self.annotation:
-            raise ValueError("Segmentation annotation cannot be empty")
-        if self.target_annotation is not None or self.alignment_annotation is not None:
-            raise ValueError(
-                "Cannot provide both segmentation annotation and alignment annotation or target_annotation"
-            )
-        if not all(isinstance(ann, SegmentationAnnotationModel) for ann in self.annotation):
-            raise ValueError("Invalid segmentation annotation")
-
-    def _validate_pagination(self):
-        if not self.annotation:
-            raise ValueError("Pagination annotation cannot be empty")
-        if self.target_annotation is not None or self.alignment_annotation is not None:
-            raise ValueError("Cannot provide both pagination annotation and alignment annotation or target_annotation")
-        if not all(isinstance(ann, PaginationAnnotationModel) for ann in self.annotation):
-            raise ValueError("Invalid pagination annotation")
-
-    def _validate_alignment(self):
-        if self.target_manifestation_id is None:
-            raise ValueError("Target manifestation id must be provided")
-        if self.target_annotation is None or len(self.target_annotation) == 0:
-            raise ValueError("Target annotation must be provided and cannot be empty")
-        if self.alignment_annotation is None or len(self.alignment_annotation) == 0:
-            raise ValueError("Alignment annotation must be provided and cannot be empty")
-        if self.annotation:
-            raise ValueError("Cannot provide both annotation and alignment annotation or target_annotation")
-        if not all(
-            isinstance(ann, AlignmentAnnotationModel) for ann in self.target_annotation + self.alignment_annotation
-        ):
-            raise ValueError("Invalid target annotation or alignment annotation")
-
-    def _validate_bibliography(self):
-        if not self.annotation:
-            raise ValueError("Biblography annotation cannot be empty")
-        if not all(isinstance(ann, BibliographyAnnotationModel) for ann in self.annotation):
-            raise ValueError("Invalid annotation")
-
-    def _validate_table_of_contents(self):
-        if not self.annotation:
-            raise ValueError("Table of contents annotation cannot be empty")
-        if not all(isinstance(ann, TableOfContentsAnnotationModel) for ann in self.annotation):
-            raise ValueError("Invalid annotation")
-
-    def _validate_durchen(self):
-        if not self.annotation:
-            raise ValueError("Durchen annotation cannot be empty")
-        if not all(isinstance(ann, DurchenAnnotationModel) for ann in self.annotation):
-            raise ValueError("Invalid annotation")
-
-
-class CategoryRequestModel(OpenPechaModel):
-    application: NonEmptyStr
-    title: LocalizedString
-    parent: str | None = None
-
-
-class CategoryResponseModel(OpenPechaModel):
-    id: str
-    application: str
-    title: LocalizedString
-    parent: str | None = None
+class ManifestationOutput(ManifestationBase):
+    id: NonEmptyStr
+    text_id: NonEmptyStr
 
 
 class CategoryListItemModel(OpenPechaModel):
-    id: str
-    parent: str | None = None
+    id: NonEmptyStr
+    parent: NonEmptyStr | None = None
     title: NonEmptyStr
     has_child: bool = False
-
-
-class UpdateAnnotationDataModel(OpenPechaModel):
-    annotations: (
-        list[
-            SegmentationAnnotationModel
-            | PaginationAnnotationModel
-            | BibliographyAnnotationModel
-            | TableOfContentsAnnotationModel
-        ]
-        | None
-    ) = None
-    target_annotation: list[AlignmentAnnotationModel] | None = None
-    alignment_annotation: list[AlignmentAnnotationModel] | None = None
-
-    @model_validator(mode="after")
-    def validate_request_model(self):
-        if self.annotations is not None:
-            if len(self.annotations) == 0:
-                raise ValueError("Annotations cannot be empty")
-            elif self.target_annotation is not None or self.alignment_annotation is not None:
-                raise ValueError("Cannot provide both annotations with target and alignment annotation")
-        elif self.target_annotation is None or self.alignment_annotation is None:
-            raise ValueError("Need to provide both target and alignment annotation")
-        return self
-
-
-class UpdateAnnotationRequestModel(OpenPechaModel):
-    type: AnnotationType
-    data: UpdateAnnotationDataModel
-
-
-class EnumType(str, Enum):
-    LANGUAGE = "language"
-    BIBLIOGRAPHY = "bibliography"
-    MANIFESTATION = "manifestation"
-    ROLE = "role"
-    COPYRIGHT_STATUS = "copyright_status"
-    ANNOTATION = "annotation"
-
-
-class EnumRequestModel(OpenPechaModel):
-    type: EnumType
-    values: list[dict[str, NonEmptyStr]]
 
 
 class SearchFilterModel(OpenPechaModel):
     title: str | None = None
 
 
-class SearchRequestModel(OpenPechaModel):
-    query: NonEmptyStr
-    search_type: str = "hybrid"
-    limit: int = Field(default=10, ge=1, le=100)
-    filter: SearchFilterModel | None = None
-
-
 class SearchResultModel(OpenPechaModel):
-    id: str
+    id: NonEmptyStr
     distance: float
     entity: dict
-    segmentation_ids: list[str] = Field(default_factory=list)
+    segmentation_ids: list[NonEmptyStr] = Field(default_factory=list)
 
 
 class SearchResponseModel(OpenPechaModel):

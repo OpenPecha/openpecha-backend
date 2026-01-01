@@ -1,10 +1,13 @@
 import logging
 
 import requests
-from exceptions import DataNotFound, InvalidRequest
-from flask import Blueprint, Response, jsonify, request
-from models import SearchFilterModel, SearchRequestModel, SearchResponseModel, SearchResultModel
-from neo4j_database import Neo4JDatabase
+from api.decorators import validate_query_params
+from database import Database
+from exceptions import DataNotFoundError, InvalidRequestError
+from flask import Blueprint, Response, jsonify
+from models import SearchFilterModel, SearchResponseModel, SearchResultModel
+from request_models import SearchQueryParams
+from storage import Storage
 
 segments_bp = Blueprint("segments", __name__)
 
@@ -15,70 +18,35 @@ SEARCH_API_URL = "https://openpecha-search.onrender.com"
 
 
 @segments_bp.route("/<string:segment_id>/related", methods=["GET"], strict_slashes=False)
-def get_related_texts_by_segment(segment_id: str) -> tuple[Response, int]:
-    db = Neo4JDatabase()
-
-    aligned = db.find_aligned_segments(segment_id)
-
-    targets_map = {}
-    sources_map = {}
-
-    for related_manifestation_id, segments in aligned["targets"].items():
-        targets_map[related_manifestation_id] = segments
-
-    for related_manifestation_id, segments in aligned["sources"].items():
-        sources_map[related_manifestation_id] = segments
-
-    def build_related_texts(manifestations_map):
-        result = []
-        for related_manifestation_id, segments in manifestations_map.items():
-            manifestation, expression_id = db.get_manifestation(related_manifestation_id)
-            result.append(
-                {
-                    "text": db.get_expression(expression_id).model_dump(),
-                    "instance": manifestation.model_dump(),
-                    "segments": [
-                        {"id": segment.id, "span": {"start": segment.span[0], "end": segment.span[1]}}
-                        for segment in segments
-                    ],
-                }
-            )
-        return result
-
-    return jsonify({"targets": build_related_texts(targets_map), "sources": build_related_texts(sources_map)}), 200
+def get_related(segment_id: str) -> tuple[Response, int]:
+    db = Database()
+    related_segments = db.segment.get_related(segment_id)
+    return jsonify([seg.model_dump() for seg in related_segments]), 200
 
 
-# @segments_bp.route("/<string:segment_id>/content", methods=["GET"], strict_slashes=False)
-# def get_segment_content(segment_id: str) -> tuple[Response, int]:
-#     db = Neo4JDatabase()
+@segments_bp.route("/<string:segment_id>/content", methods=["GET"], strict_slashes=False)
+def get_segment_content(segment_id: str) -> tuple[Response, int]:
+    db = Database()
 
-#     segment, _, expression_id = db.get_segment(segment_id)
+    segment = db.segment.get(segment_id)
 
-#     pecha = Storage().retrieve_pecha(expression_id)
-#     base_text = next(iter(pecha.bases.values()))
+    base_text = Storage().retrieve_base_text(
+        expression_id=segment.text_id,
+        manifestation_id=segment.manifestation_id,
+    )
 
-#     return jsonify({"content": base_text[segment.span[0] : segment.span[1]]}), 200
+    content = base_text[segment.span.start : segment.span.end]
+    return jsonify(content), 200
 
 
 @segments_bp.route("/search", methods=["GET"], strict_slashes=False)
-def search_segments() -> tuple[Response, int]:
+@validate_query_params(SearchQueryParams)
+def search_segments(validated_params: SearchQueryParams) -> tuple[Response, int]:
     """
     Search segments by forwarding request to external search API and enriching results
     with overlapping segmentation annotation segment IDs.
     """
-    # Get query parameters
-    query = request.args.get("query")
-    if not query:
-        raise InvalidRequest("query parameter is required")
-
-    search_type = request.args.get("search_type", "hybrid")
-    limit = request.args.get("limit", 10, type=int)
-    title_filter = request.args.get("title")
-    return_text = request.args.get("return_text", "true").lower() == "true"
-
-    # Build search request model
-    filter_obj = SearchFilterModel(title=title_filter) if title_filter else None
-    search_request = SearchRequestModel(query=query, search_type=search_type, limit=limit, filter=filter_obj)
+    filter_obj = SearchFilterModel(title=validated_params.title) if validated_params.title else None
 
     # Forward request to external search API using GET
     try:
@@ -86,120 +54,81 @@ def search_segments() -> tuple[Response, int]:
 
         # Build query parameters
         params = {
-            "query": search_request.query,
-            "search_type": search_request.search_type,
-            "limit": search_request.limit,
-            "return_text": return_text,
+            "query": validated_params.query,
+            "search_type": validated_params.search_type,
+            "limit": validated_params.limit,
+            "return_text": validated_params.return_text,
         }
-        if search_request.filter and search_request.filter.title:
-            params["title"] = search_request.filter.title
+        if filter_obj and filter_obj.title:
+            params["title"] = filter_obj.title
 
         response = requests.get(f"{SEARCH_API_URL}/search", params=params, timeout=60)
         response.raise_for_status()
         search_response_data = response.json()
-    except requests.exceptions.RequestException as e:
-        logger.error("Error calling search API: %s", str(e))
-        raise InvalidRequest(f"Failed to call search API: {str(e)}") from e
+    except requests.exceptions.RequestException:
+        logger.exception("Error calling search API")
+        raise InvalidRequestError("Failed to call search API") from None
 
     # Process results to add segmentation_ids
-    db = Neo4JDatabase()
+    db = Database()
     enriched_results = []
 
     for result_item in search_response_data.get("results", []):
         segment_id = result_item.get("id")
         if not segment_id:
-            # If no ID, just add the result as-is without segmentation_ids
-            enriched_result = SearchResultModel(
-                id=result_item.get("id", ""),
-                distance=result_item.get("distance", 0.0),
-                entity=result_item.get("entity", {}),
-                segmentation_ids=[],
+            enriched_results.append(
+                SearchResultModel(
+                    id=result_item.get("id", ""),
+                    distance=result_item.get("distance", 0.0),
+                    entity=result_item.get("entity", {}),
+                    segmentation_ids=[],
+                )
             )
-            enriched_results.append(enriched_result)
             continue
 
         try:
-            # Get segment info (span and manifestation_id)
-            segment, manifestation_id, _ = db.get_segment(segment_id)
-
-            # Get overlapping segments from segmentation annotations
-            overlapping_segments = db._get_overlapping_segments(
-                manifestation_id=manifestation_id, start=segment.span.start, end=segment.span.end
+            segment = db.segment.get(segment_id)
+            segmentation_ids = db.segment.find_by_span(
+                manifestation_id=segment.manifestation_id,
+                start=segment.span.start,
+                end=segment.span.end,
+            )
+            enriched_results.append(
+                SearchResultModel(
+                    id=result_item.get("id", ""),
+                    distance=result_item.get("distance", 0.0),
+                    entity=result_item.get("entity", {}),
+                    segmentation_ids=segmentation_ids,
+                )
             )
 
-            # Extract segment IDs
-            segmentation_ids = [seg["segment_id"] for seg in overlapping_segments]
-
-            # Create enriched result
-            enriched_result = SearchResultModel(
-                id=result_item.get("id", ""),
-                distance=result_item.get("distance", 0.0),
-                entity=result_item.get("entity", {}),
-                segmentation_ids=segmentation_ids,
-            )
-            enriched_results.append(enriched_result)
-
-        except DataNotFound:
-            # If segment not found, add result without segmentation_ids
+        except DataNotFoundError:
             logger.warning("Segment %s not found, skipping segmentation mapping", segment_id)
-            enriched_result = SearchResultModel(
-                id=result_item.get("id", ""),
-                distance=result_item.get("distance", 0.0),
-                entity=result_item.get("entity", {}),
-                segmentation_ids=[],
+            enriched_results.append(
+                SearchResultModel(
+                    id=result_item.get("id", ""),
+                    distance=result_item.get("distance", 0.0),
+                    entity=result_item.get("entity", {}),
+                    segmentation_ids=[],
+                )
             )
-            enriched_results.append(enriched_result)
-        except Exception as e:
-            # Log error but continue processing other results
-            logger.error("Error processing segment %s: %s", segment_id, str(e))
-            enriched_result = SearchResultModel(
-                id=result_item.get("id", ""),
-                distance=result_item.get("distance", 0.0),
-                entity=result_item.get("entity", {}),
-                segmentation_ids=[],
+        except Exception:
+            logger.exception("Error processing segment %s", segment_id)
+            enriched_results.append(
+                SearchResultModel(
+                    id=result_item.get("id", ""),
+                    distance=result_item.get("distance", 0.0),
+                    entity=result_item.get("entity", {}),
+                    segmentation_ids=[],
+                )
             )
-            enriched_results.append(enriched_result)
 
     # Create enriched response
     enriched_response = SearchResponseModel(
-        query=search_response_data.get("query", search_request.query),
-        search_type=search_response_data.get("search_type", search_request.search_type),
+        query=search_response_data.get("query", validated_params.query),
+        search_type=search_response_data.get("search_type", validated_params.search_type),
         results=enriched_results,
         count=len(enriched_results),
     )
 
     return jsonify(enriched_response.model_dump()), 200
-
-
-@segments_bp.route("/batch-overlapping", methods=["POST"], strict_slashes=False)
-def get_batch_overlapping_segments() -> tuple[Response, int]:
-    """
-    Get overlapping segments for multiple segment IDs in batch.
-
-    Request body: {"segment_ids": ["SEG001", "SEG002", ...]}
-
-    Returns list of dictionaries with segment_id and overlapping_segments.
-    """
-    # Get JSON body
-    data = request.get_json(force=True, silent=True)
-    if not data:
-        return jsonify({"error": "Request body is required"}), 400
-
-    segment_ids = data.get("segment_ids", [])
-
-    if not isinstance(segment_ids, list):
-        return jsonify({"error": "segment_ids must be a list"}), 400
-
-    if not segment_ids:
-        return jsonify({"error": "segment_ids cannot be empty"}), 400
-
-    # Get overlapping segments in batch
-    db = Neo4JDatabase()
-    overlapping_map = db._get_overlapping_segments_batch(segment_ids)
-
-    # Build response - include all requested segments even if no overlaps
-    result = []
-    for segment_id in segment_ids:
-        result.append({"segment_id": segment_id, "overlapping_segments": overlapping_map.get(segment_id, [])})
-
-    return jsonify(result), 200

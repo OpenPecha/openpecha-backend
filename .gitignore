@@ -179,3 +179,4 @@ firebase-debug.*.log*
 
 storage.rules
 .secret.local
+.windsurf/

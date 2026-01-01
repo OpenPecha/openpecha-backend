@@ -9,7 +9,7 @@ nodes:
         type: string
         required: false
         unique: true
-      
+
   Expression:
     properties:
       wiki:
@@ -95,24 +95,24 @@ nodes:
         cardinality: one
         required: true
 
-  Annotation:
+  Segmentation:
     properties:
       id:
         type: string
         required: true
         unique: true
-      aligned_to:
+      application_id:
         type: string
         required: false
     relationships:
-      HAS_TYPE:
-        target: AnnotationType
-        cardinality: one
-        required: true
-      ANNOTATION_OF:
+      SEGMENTATION_OF:
         target: Manifestation
         cardinality: one
-        required: true
+        required: false
+      HAS_METADATA:
+        target: AnnotationMetadata
+        cardinality: one
+        required: false
 
   Segment:
     properties:
@@ -120,62 +120,181 @@ nodes:
         type: string
         required: true
         unique: true
-      span_start:
-        type: integer
-        required: true
-      span_end:
-        type: integer
-        required: true
     relationships:
-      SEGMENTATION_OF:
-        target: Annotation
+      SEGMENT_OF:
+        target: Segmentation
         cardinality: one
         required: true
       ALIGNED_TO:
         target: Segment
-        cardinality: one
+        cardinality: many
         required: false
-      HAS_REFERENCE:
-        target: Reference
+
+  Span:
+    properties:
+      start:
+        type: integer
+        required: true
+      end:
+        type: integer
+        required: true
+    relationships:
+      SPAN_OF:
+        target: Segment | BibliographicMetadata | Note | Attribute | Page
         cardinality: one
-        required: false
-      HAS_BIBLIOGRAPHY_TYPE:
+        required: true
+
+  BibliographicMetadata:
+    properties:
+      id:
+        type: string
+        required: true
+        unique: true
+    relationships:
+      BIBLIOGRAPHY_OF:
+        target: Manifestation
+        cardinality: one
+        required: true
+      HAS_TYPE:
         target: BibliographyType
         cardinality: one
+        required: true
+      HAS_METADATA:
+        target: AnnotationMetadata
+        cardinality: one
         required: false
 
-  Reference:
+  Note:
     properties:
       id:
         type: string
         required: true
         unique: true
-      name:
+      text:
         type: string
         required: true
-      description:
+    relationships:
+      NOTE_OF:
+        target: Manifestation
+        cardinality: one
+        required: true
+      HAS_TYPE:
+        target: NoteType
+        cardinality: one
+        required: true
+      HAS_METADATA:
+        target: AnnotationMetadata
+        cardinality: one
+        required: false
+
+  Attribute:
+    properties:
+      id:
+        type: string
+        required: true
+        unique: true
+      value:
+        type: any
+        required: true
+    relationships:
+      ATTRIBUTE_OF:
+        target: Manifestation
+        cardinality: one
+        required: true
+      HAS_TYPE:
+        target: AttributeType
+        cardinality: one
+        required: true
+      HAS_METADATA:
+        target: AnnotationMetadata
+        cardinality: one
+        required: false
+
+  Pagination:
+    properties:
+      id:
+        type: string
+        required: true
+        unique: true
+    relationships:
+      PAGINATION_OF:
+        target: Manifestation
+        cardinality: one
+        required: true
+      HAS_METADATA:
+        target: AnnotationMetadata
+        cardinality: one
+        required: false
+
+  Volume:
+    properties:
+      id:
+        type: string
+        required: true
+        unique: true
+      index:
+        type: integer
+        required: false
+        description: "Volume order index"
+    relationships:
+      VOLUME_OF:
+        target: Pagination
+        cardinality: one
+        required: true
+
+  Page:
+    properties:
+      reference:
         type: string
         required: false
     relationships:
-      REFERENCE_OF:
-        target: Segment
+      PAGE_OF:
+        target: Volume
         cardinality: one
-        required: false
+        required: true
+
+  AnnotationMetadata:
+    properties:
+      id:
+        type: string
+        required: true
+        unique: true
 
   BibliographyType:
+    enum: true
     properties:
-      id:
+      name:
         type: string
-        required: true
         unique: true
-      type:
-        type: string
         required: true
-    relationships:
-      BIBLIOGRAPHY_TYPE_OF:
-        target: Segment
-        cardinality: one
-        required: false
+        allowed_values:
+          - colophon
+          - incipit
+          - alt_incipit
+          - alt_title
+          - person
+          - title
+          - author
+
+  NoteType:
+    enum: true
+    properties:
+      name:
+        type: string
+        unique: true
+        required: true
+        allowed_values:
+          - durchen
+
+  AttributeType:
+    enum: true
+    properties:
+      name:
+        type: string
+        unique: true
+        required: true
+        allowed_values:
+          - ocr_confidence
 
   Contribution:
     relationships:
@@ -216,7 +335,11 @@ nodes:
         required: true
 
   Nomen:
-    properties: {}
+    properties:
+      id:
+        type: string
+        required: true
+        unique: true
     relationships:
       HAS_LOCALIZATION:
         target: LocalizedText
@@ -251,7 +374,7 @@ nodes:
       name:
         type: string
         required: true
-  
+
   ManifestationType:
     enum: true
     properties:
@@ -290,6 +413,10 @@ nodes:
           - alignment
           - pagination
           - bibliography
+          - table_of_contents
+          - durchen
+          - search_segmentation
+          - version
 
   RoleType:
     enum: true
@@ -306,4 +433,3 @@ nodes:
         description:
           type: string
           required: false
-  
