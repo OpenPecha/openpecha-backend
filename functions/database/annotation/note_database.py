@@ -1,12 +1,18 @@
-from database.database import Database
+from __future__ import annotations
+
+from typing import TYPE_CHECKING
+
 from exceptions import DataNotFoundError
+
+if TYPE_CHECKING:
+    from database.database import Database
+    from neo4j import ManagedTransaction, Record
 from identifier import generate_id
 from models import (
     NoteInput,
     NoteOutput,
     SpanModel,
 )
-from neo4j import ManagedTransaction, Record
 
 
 class NoteDatabase:
