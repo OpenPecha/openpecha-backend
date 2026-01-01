@@ -1,6 +1,6 @@
 import logging
 
-from exceptions import InvalidRequestError
+from exceptions import DataValidationError, InvalidRequestError
 from models import (
     AnnotationType,
     ContributionInput,
@@ -9,10 +9,6 @@ from models import (
 from neo4j import ManagedTransaction
 
 logger = logging.getLogger(__name__)
-
-
-class DataValidationError(Exception):
-    pass
 
 
 class DatabaseValidator:

@@ -19,11 +19,12 @@ class SegmentDatabase:
         -[:SEGMENTATION_OF]->(manif:Manifestation)
         -[:MANIFESTATION_OF]->(expr:Expression)
     MATCH (span:Span)-[:SPAN_OF]->(seg)
+    WITH seg, manif, expr, span
+    ORDER BY span.start
     RETURN seg.id as segment_id,
         manif.id as manifestation_id,
         expr.id as expression_id,
-        span.start as span_start,
-        span.end as span_end
+        collect({start: span.start, end: span.end}) as lines
     """
 
     GET_RELATED_QUERY = """
@@ -75,7 +76,7 @@ class SegmentDatabase:
                 id=record["segment_id"],
                 manifestation_id=record["manifestation_id"],
                 text_id=record["expression_id"],
-                lines=[SpanModel(start=record["span_start"], end=record["span_end"])],
+                lines=[SpanModel(start=line["start"], end=line["end"]) for line in record["lines"]],
             )
 
     def get_related(self, segment_id: str) -> list[SegmentOutput]:

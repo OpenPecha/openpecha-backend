@@ -4,10 +4,17 @@ from api.decorators import validate_json, validate_query_params
 from api.instances import _trigger_search_segmenter
 from database import Database
 from exceptions import DataNotFoundError
-from flask import Blueprint, Response, jsonify, request
+from flask import Blueprint, Response, jsonify
 from identifier import generate_id
-from models import ExpressionInput, LicenseType
-from request_models import ExpressionFilter, InstanceRequestModel, InstancesQueryParams, TextsQueryParams
+from models import ExpressionInput
+from request_models import (
+    ExpressionFilter,
+    InstanceRequestModel,
+    InstancesQueryParams,
+    TextsQueryParams,
+    UpdateLicenseRequest,
+    UpdateTitleRequest,
+)
 from storage import Storage
 
 texts_bp = Blueprint("texts", __name__)
@@ -20,7 +27,6 @@ logger = logging.getLogger(__name__)
 def get_all_texts(validated_params: TextsQueryParams) -> tuple[Response, int]:
     filters = ExpressionFilter(
         language=validated_params.language,
-        author=validated_params.author,
         title=validated_params.title,
         category_id=validated_params.category_id,
     )
@@ -55,7 +61,7 @@ def get_texts(expression_id: str) -> tuple[Response, int]:
 def post_texts(validated_data: ExpressionInput) -> tuple[Response, int]:
     expression_id = Database().expression.create(validated_data)
     logger.info("Successfully created expression with ID: %s", expression_id)
-    return jsonify({"message": "Text created successfully", "id": expression_id}), 201
+    return jsonify({"id": expression_id}), 201
 
 
 @texts_bp.route("/<string:expression_id>/instances", methods=["GET"], strict_slashes=False)
@@ -88,26 +94,18 @@ def create_instance(expression_id: str, validated_data: InstanceRequestModel) ->
     # Trigger search segmenter API asynchronously
     _trigger_search_segmenter(manifestation_id)
 
-    return jsonify({"message": "Instance created successfully", "id": manifestation_id}), 201
+    return jsonify({"id": manifestation_id}), 201
 
 
 @texts_bp.route("/<string:expression_id>/title", methods=["PUT"], strict_slashes=False)
-def update_title(expression_id: str) -> tuple[Response, int]:
-    data = request.get_json(force=True, silent=True)
-    if not data:
-        return jsonify({"error": "Request body is required"}), 400
+@validate_json(UpdateTitleRequest)
+def update_title(expression_id: str, validated_data: UpdateTitleRequest) -> tuple[Response, int]:
+    logger.info("Received data for updating title: %s", validated_data.model_dump_json())
 
-    logger.info("Received data for updating title: %s", data)
-
-    title = data.get("title")
-    if not title:
-        return jsonify({"error": "Title is required"}), 400
-
-    lang_code = next(iter(title.keys()))
-
+    lang_code = next(iter(validated_data.title.root.keys()))
     title_data = {
         "lang_code": lang_code,
-        "text": title[lang_code],
+        "text": validated_data.title.root[lang_code],
     }
     db = Database()
     db.expression.update_title(expression_id=expression_id, title=title_data)
@@ -115,23 +113,10 @@ def update_title(expression_id: str) -> tuple[Response, int]:
 
 
 @texts_bp.route("/<string:expression_id>/license", methods=["PUT"], strict_slashes=False)
-def update_license(expression_id: str) -> tuple[Response, int]:
-    data = request.get_json(force=True, silent=True)
-    if not data:
-        return jsonify({"error": "Request body is required"}), 400
-
-    logger.info("Received data for updating license: %s", data)
-    license_str = data.get("license")
-    if not license_str:
-        return jsonify({"error": "License is required"}), 400
-
-    # Validate and convert license string to LicenseType enum
-    try:
-        license_type = LicenseType(license_str)
-    except ValueError:
-        valid_licenses = [lt.value for lt in LicenseType]
-        return jsonify({"error": f"Invalid license type. Must be one of: {', '.join(valid_licenses)}"}), 400
+@validate_json(UpdateLicenseRequest)
+def update_license(expression_id: str, validated_data: UpdateLicenseRequest) -> tuple[Response, int]:
+    logger.info("Received data for updating license: %s", validated_data.model_dump_json())
 
     db = Database()
-    db.expression.update_license(expression_id=expression_id, license_type=license_type)
+    db.expression.update_license(expression_id=expression_id, license_type=validated_data.license)
     return jsonify({"message": "License updated successfully"}), 200

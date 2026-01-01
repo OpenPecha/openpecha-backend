@@ -31,4 +31,4 @@ def create_person(validated_data: PersonInput) -> tuple[Response, int]:
 
     person_id = Database().person.create(validated_data)
 
-    return jsonify({"message": "Person created successfully", "_id": person_id}), 201
+    return jsonify({"id": person_id}), 201

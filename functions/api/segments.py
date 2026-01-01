@@ -1,10 +1,12 @@
 import logging
 
 import requests
+from api.decorators import validate_query_params
 from database import Database
 from exceptions import DataNotFoundError, InvalidRequestError
-from flask import Blueprint, Response, jsonify, request
-from models import SearchFilterModel, SearchRequestModel, SearchResponseModel, SearchResultModel
+from flask import Blueprint, Response, jsonify
+from models import SearchFilterModel, SearchResponseModel, SearchResultModel
+from request_models import SearchQueryParams
 from storage import Storage
 
 segments_bp = Blueprint("segments", __name__)
@@ -27,8 +29,6 @@ def get_segment_content(segment_id: str) -> tuple[Response, int]:
     db = Database()
 
     segment = db.segment.get(segment_id)
-    if not segment:
-        raise DataNotFoundError(f"Segment {segment_id} not found")
 
     base_text = Storage().retrieve_base_text(
         expression_id=segment.text_id,
@@ -40,24 +40,13 @@ def get_segment_content(segment_id: str) -> tuple[Response, int]:
 
 
 @segments_bp.route("/search", methods=["GET"], strict_slashes=False)
-def search_segments() -> tuple[Response, int]:
+@validate_query_params(SearchQueryParams)
+def search_segments(validated_params: SearchQueryParams) -> tuple[Response, int]:
     """
     Search segments by forwarding request to external search API and enriching results
     with overlapping segmentation annotation segment IDs.
     """
-    # Get query parameters
-    query = request.args.get("query")
-    if not query:
-        raise InvalidRequestError("query parameter is required")
-
-    search_type = request.args.get("search_type", "hybrid")
-    limit = request.args.get("limit", 10, type=int)
-    title_filter = request.args.get("title")
-    return_text = request.args.get("return_text", "true").lower() == "true"
-
-    # Build search request model
-    filter_obj = SearchFilterModel(title=title_filter) if title_filter else None
-    search_request = SearchRequestModel(query=query, search_type=search_type, limit=limit, filter=filter_obj)
+    filter_obj = SearchFilterModel(title=validated_params.title) if validated_params.title else None
 
     # Forward request to external search API using GET
     try:
@@ -65,13 +54,13 @@ def search_segments() -> tuple[Response, int]:
 
         # Build query parameters
         params = {
-            "query": search_request.query,
-            "search_type": search_request.search_type,
-            "limit": search_request.limit,
-            "return_text": return_text,
+            "query": validated_params.query,
+            "search_type": validated_params.search_type,
+            "limit": validated_params.limit,
+            "return_text": validated_params.return_text,
         }
-        if search_request.filter and search_request.filter.title:
-            params["title"] = search_request.filter.title
+        if filter_obj and filter_obj.title:
+            params["title"] = filter_obj.title
 
         response = requests.get(f"{SEARCH_API_URL}/search", params=params, timeout=60)
         response.raise_for_status()
@@ -136,8 +125,8 @@ def search_segments() -> tuple[Response, int]:
 
     # Create enriched response
     enriched_response = SearchResponseModel(
-        query=search_response_data.get("query", search_request.query),
-        search_type=search_response_data.get("search_type", search_request.search_type),
+        query=search_response_data.get("query", validated_params.query),
+        search_type=search_response_data.get("search_type", validated_params.search_type),
         results=enriched_results,
         count=len(enriched_results),
     )

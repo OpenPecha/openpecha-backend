@@ -1,9 +1,9 @@
+from exceptions import DataValidationError
 from identifier import generate_id
 from models import CategoryListItemModel
 from neo4j import Session
 
 from .database import Database
-from .database_validator import DataValidationError
 
 
 class CategoryDatabase:

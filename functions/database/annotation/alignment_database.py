@@ -1,5 +1,5 @@
 from database.database import Database
-from exceptions import DataNotFoundError
+from exceptions import DataNotFoundError, InvalidRequestError
 from identifier import generate_id
 from models import (
     AlignedSegment,
@@ -245,6 +245,6 @@ class AlignmentDatabase:
 
         aligned_segmentation_id = result["aligned_segmentation_id"]
         if not aligned_segmentation_id:
-            raise ValueError(f"Segmentation '{segmentation_id}' is not an alignment annotation")
+            raise InvalidRequestError(f"Segmentation '{segmentation_id}' is not an alignment annotation")
 
         return aligned_segmentation_id

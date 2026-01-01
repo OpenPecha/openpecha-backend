@@ -140,7 +140,13 @@ class ContributionBase(OpenPechaModel):
 
 
 class ContributionInput(ContributionBase):
-    pass
+    @model_validator(mode="after")
+    def validate_person_reference(self) -> Self:
+        if self.person_id is None and self.person_bdrc_id is None:
+            raise ValueError("Either person_id or person_bdrc_id must be provided")
+        if self.person_id is not None and self.person_bdrc_id is not None:
+            raise ValueError("Only one of person_id or person_bdrc_id can be provided")
+        return self
 
 
 class ContributionOutput(ContributionBase):
@@ -165,7 +171,7 @@ class SpanModel(OpenPechaModel):
 
     @model_validator(mode="after")
     def validate_span_range(self) -> Self:
-        if self.start > self.end:
+        if self.start >= self.end:
             raise ValueError("'start' must be less than 'end'")
         return self
 
@@ -385,16 +391,6 @@ class ExpressionBase(OpenPechaModel):
 class ExpressionInput(ExpressionBase):
     contributions: list[ContributionInput | AIContributionModel]
 
-    @model_validator(mode="after")
-    def validate_contributions(self) -> Self:
-        for i, contribution in enumerate(self.contributions):
-            if isinstance(contribution, ContributionBase):
-                if contribution.person_id is None and contribution.person_bdrc_id is None:
-                    raise ValueError(f"Contribution at index {i}: person_id or person_bdrc_id must be provided")
-                if contribution.person_id is not None and contribution.person_bdrc_id is not None:
-                    raise ValueError(f"Contribution at index {i}: person_id and person_bdrc_id cannot both be provided")
-        return self
-
 
 class ExpressionOutput(ExpressionBase):
     id: NonEmptyStr
@@ -452,13 +448,6 @@ class CategoryListItemModel(OpenPechaModel):
 
 class SearchFilterModel(OpenPechaModel):
     title: str | None = None
-
-
-class SearchRequestModel(OpenPechaModel):
-    query: NonEmptyStr
-    search_type: str = "hybrid"
-    limit: int = Field(default=10, ge=1, le=100)
-    filter: SearchFilterModel | None = None
 
 
 class SearchResultModel(OpenPechaModel):

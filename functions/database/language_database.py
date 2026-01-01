@@ -1,8 +1,7 @@
-from exceptions import DataNotFoundError
+from exceptions import DataNotFoundError, DataValidationError
 from neo4j import Session
 
 from .database import Database
-from .database_validator import DataValidationError
 
 
 class LanguageDatabase:

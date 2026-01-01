@@ -206,10 +206,11 @@ class ManifestationDatabase:
             incipit_nomen_id=incipit_nomen_id,
         )
 
-        if not result.single():
+        record = result.single()
+        if not record:
             raise DataNotFoundError(f"Expression '{expression_id}' not found")
 
-        return str(result.single())
+        return manifestation_id
 
     @staticmethod
     def _validate_create(

@@ -73,7 +73,7 @@ class PaginationDatabase:
         with self._db.get_session() as session:
             result = session.run(
                 PaginationDatabase.GET_QUERY, pagination_id=None, manifestation_id=manifestation_id
-            ).single(strict=True)
+            ).single()
             return self._parse_record(result) if result else None
 
     @staticmethod

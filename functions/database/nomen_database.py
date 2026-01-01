@@ -1,3 +1,4 @@
+from exceptions import DataValidationError
 from identifier import generate_id
 from neo4j import ManagedTransaction, Session
 
@@ -49,7 +50,9 @@ class NomenDatabase:
             primary_nomen_id=None,
             localized_texts=primary_localized_texts,
         )
-        result.single(strict=True)
+        record = result.single()
+        if not record:
+            raise DataValidationError(f"Failed to create Nomen with texts: {list(primary_text.keys())}")
 
         for alt_text in alternative_texts or []:
             localized_texts = [

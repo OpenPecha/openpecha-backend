@@ -1,4 +1,4 @@
-from exceptions import DataNotFoundError
+from exceptions import DataNotFoundError, DataValidationError
 from identifier import generate_id
 from models import (
     AIContributionModel,
@@ -8,7 +8,7 @@ from models import (
     ExpressionOutput,
     LicenseType,
 )
-from neo4j import ManagedTransaction, Record
+from neo4j import ManagedTransaction, Record, Session
 from request_models import ExpressionFilter
 
 from .data_adapter import DataAdapter
@@ -18,6 +18,13 @@ from .nomen_database import NomenDatabase
 
 
 class ExpressionDatabase:
+    def __init__(self, db: Database) -> None:
+        self._db = db
+
+    @property
+    def session(self) -> Session:
+        return self._db.get_session()
+
     _EXPRESSION_RETURN = """
     {
         id: e.id,
@@ -177,23 +184,20 @@ class ExpressionDatabase:
     RETURN elementId(ai) AS ai_element_id
     """
 
-    def __init__(self, db: Database) -> None:
-        self._db = db
-
     @staticmethod
     def _parse_record(record: dict | Record) -> ExpressionOutput:
         data = record.get("expression", record) if isinstance(record, dict) else record.data()["expression"]
         return DataAdapter.expression(data)
 
     def get(self, expression_id: str) -> ExpressionOutput:
-        with self._db.get_session() as session:
+        with self.session as session:
             result = session.run(ExpressionDatabase.GET_QUERY, id=expression_id, bdrc_id=None).single()
             if result is None:
                 raise DataNotFoundError(f"Expression with ID '{expression_id}' not found")
             return self._parse_record(result.data())
 
     def get_by_bdrc(self, bdrc_id: str) -> ExpressionOutput:
-        with self._db.get_session() as session:
+        with self.session as session:
             result = session.run(ExpressionDatabase.GET_QUERY, id=None, bdrc_id=bdrc_id).single()
             if result is None:
                 raise DataNotFoundError(f"Expression with BDRC ID '{bdrc_id}' not found")
@@ -215,11 +219,11 @@ class ExpressionDatabase:
             )
             return [self._parse_record(r.data()) for r in result]
 
-        with self._db.get_session() as session:
+        with self.session as session:
             return session.execute_read(_get_all)
 
     def update_title(self, expression_id: str, title: dict[str, str]) -> None:
-        with self._db.get_session() as session:
+        with self.session as session:
             result = session.execute_write(
                 lambda tx: tx.run(
                     ExpressionDatabase.UPDATE_TITLE_QUERY, expression_id=expression_id, title=title
@@ -229,7 +233,7 @@ class ExpressionDatabase:
                 raise DataNotFoundError(f"Expression with ID '{expression_id}' not found")
 
     def update_license(self, expression_id: str, license_type: LicenseType) -> None:
-        with self._db.get_session() as session:
+        with self.session as session:
             result = session.execute_write(
                 lambda tx: tx.run(
                     ExpressionDatabase.UPDATE_LICENSE_QUERY,
@@ -241,11 +245,11 @@ class ExpressionDatabase:
                 raise DataNotFoundError(f"Expression with ID '{expression_id}' not found")
 
     def create(self, expression: ExpressionInput) -> str:
-        with self._db.get_session() as session:
+        with self.session as session:
             return session.execute_write(lambda tx: ExpressionDatabase.create_with_transaction(tx, expression))
 
     def validate_create(self, expression: ExpressionInput) -> None:
-        with self._db.get_session() as session:
+        with self.session as session:
             session.execute_read(lambda tx: ExpressionDatabase._validate_create(tx, expression))
 
     @staticmethod
@@ -310,9 +314,11 @@ class ExpressionDatabase:
         if not expression.translation_of:
             return
         result = tx.run(ExpressionDatabase.GET_QUERY, id=expression.translation_of, bdrc_id=None).single()
-        target_language = result.data()["expression"]["language"] if result else None
+        if not result:
+            raise DataNotFoundError(f"Target expression '{expression.translation_of}' not found for translation")
+        target_language = result.data()["expression"]["language"]
         if target_language == expression.language:
-            raise ValueError("Translation must have a different language than the target expression")
+            raise DataValidationError("Translation must have a different language than the target expression")
 
     @staticmethod
     def _create_contribution(

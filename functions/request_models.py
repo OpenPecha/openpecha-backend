@@ -6,6 +6,7 @@ from models import (
     AnnotationType,
     BibliographicMetadataInput,
     BibliographicMetadataOutput,
+    LicenseType,
     LocalizedString,
     ManifestationInput,
     ManifestationType,
@@ -18,33 +19,29 @@ from models import (
     SegmentationInput,
     SegmentationOutput,
 )
-from pydantic import BaseModel, Field, model_validator
+from pydantic import Field, model_validator
 
 
-class PaginationParams(BaseModel):
+class PaginationParams(OpenPechaModel):
     limit: int = Field(default=20, ge=1, le=100)
     offset: int = Field(default=0, ge=0)
 
 
-class ExpressionFilter(BaseModel):
+class ExpressionFilter(OpenPechaModel):
     language: str | None = None
-    author: str | None = None
     title: str | None = None
     category_id: str | None = None
 
 
-class TextsQueryParams(PaginationParams):
-    language: str | None = None
-    author: str | None = None
-    title: str | None = None
-    category_id: str | None = None
+class TextsQueryParams(PaginationParams, ExpressionFilter):
+    pass
 
 
-class InstancesQueryParams(BaseModel):
+class InstancesQueryParams(OpenPechaModel):
     instance_type: ManifestationType | None = None
 
 
-class SpanQueryParams(BaseModel):
+class SpanQueryParams(OpenPechaModel):
     span_start: int = Field(..., ge=0)
     span_end: int = Field(..., ge=1)
 
@@ -55,7 +52,7 @@ class SpanQueryParams(BaseModel):
         return self
 
 
-class OptionalSpanQueryParams(BaseModel):
+class OptionalSpanQueryParams(OpenPechaModel):
     span_start: int | None = Field(default=None, ge=0)
     span_end: int | None = Field(default=None, ge=1)
 
@@ -69,7 +66,7 @@ class OptionalSpanQueryParams(BaseModel):
         return self
 
 
-class AnnotationTypeFilter(BaseModel):
+class AnnotationTypeFilter(OpenPechaModel):
     type: list[AnnotationType] = Field(default_factory=lambda: list(AnnotationType))
 
 
@@ -127,8 +124,28 @@ class CategoryRequestModel(OpenPechaModel):
     parent: NonEmptyStr | None = None
 
 
-class CategoryResponseModel(OpenPechaModel):
-    id: NonEmptyStr
-    application: NonEmptyStr
+class UpdateTitleRequest(OpenPechaModel):
     title: LocalizedString
-    parent: NonEmptyStr | None = None
+
+
+class UpdateLicenseRequest(OpenPechaModel):
+    license: LicenseType
+
+
+class CategoriesQueryParams(OpenPechaModel):
+    application: NonEmptyStr
+    parent_id: str | None = None
+    language: str = "bo"
+
+
+class LanguageCreateRequest(OpenPechaModel):
+    code: NonEmptyStr
+    name: NonEmptyStr
+
+
+class SearchQueryParams(OpenPechaModel):
+    query: NonEmptyStr
+    search_type: str = "hybrid"
+    limit: int = Field(default=10, ge=1, le=100)
+    title: str | None = None
+    return_text: bool = True

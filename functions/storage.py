@@ -2,6 +2,7 @@ import logging
 import tempfile
 from pathlib import Path
 
+from exceptions import DataNotFoundError
 from firebase_admin import storage
 from google.cloud.storage.blob import Blob
 
@@ -63,7 +64,7 @@ class Storage:
         ]
 
         if not versions:
-            raise FileNotFoundError(f"File not found in storage: {storage_path}")
+            raise DataNotFoundError(f"File not found in storage: {storage_path}")
 
         if len(versions) < 2:
             logger.warning("No previous version available to rollback for: %s", storage_path)
@@ -88,7 +89,7 @@ class Storage:
         blob.reload()
 
         if not blob.exists():
-            raise FileNotFoundError(f"File not found in storage: {storage_path}")
+            raise DataNotFoundError(f"File not found in storage: {storage_path}")
         logger.info("Retrieving file from storage")
         file_data: bytes = blob.download_as_bytes()
         logger.info("Retrieved from storage: %s, size: %s", storage_path, len(file_data))

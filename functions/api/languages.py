@@ -1,6 +1,7 @@
+from api.decorators import validate_json
 from database import Database
-from exceptions import InvalidRequestError
-from flask import Blueprint, Response, jsonify, request
+from flask import Blueprint, Response, jsonify
+from request_models import LanguageCreateRequest
 
 languages_bp = Blueprint("languages", __name__)
 
@@ -20,17 +21,8 @@ def get_language(code: str) -> tuple[Response, int]:
 
 
 @languages_bp.route("", methods=["POST"], strict_slashes=False)
-def create_language() -> tuple[Response, int]:
-    data = request.get_json(force=True, silent=True)
-    if not data:
-        raise InvalidRequestError("Request body is required")
-
-    code = data.get("code")
-    name = data.get("name")
-
-    if not code or not name:
-        raise InvalidRequestError("Both 'code' and 'name' are required")
-
+@validate_json(LanguageCreateRequest)
+def create_language(validated_data: LanguageCreateRequest) -> tuple[Response, int]:
     db = Database()
-    created_code = db.language.create(code=code, name=name)
-    return jsonify({"code": created_code, "name": name}), 201
+    created_code = db.language.create(code=validated_data.code, name=validated_data.name)
+    return jsonify({"code": created_code, "name": validated_data.name}), 201

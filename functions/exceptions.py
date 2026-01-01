@@ -21,5 +21,5 @@ class DataConflictError(OpenPechaError):
     status_code = 409
 
 
-class ValidationError(OpenPechaError):
+class DataValidationError(OpenPechaError):
     status_code = 422
