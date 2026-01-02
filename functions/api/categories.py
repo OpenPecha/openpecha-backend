@@ -23,11 +23,12 @@ def get_categories(validated_params: CategoriesQueryParams) -> tuple[Response, i
     Returns:
         JSON response with list of categories and HTTP status code 200
     """
-    categories = Database().category.get_all(
-        application=validated_params.application,
-        language=validated_params.language,
-        parent_id=validated_params.parent_id,
-    )
+    with Database() as db:
+        categories = db.category.get_all(
+            application=validated_params.application,
+            language=validated_params.language,
+            parent_id=validated_params.parent_id,
+        )
 
     return jsonify([cat.model_dump() for cat in categories]), 200
 
@@ -41,10 +42,11 @@ def create_category(validated_data: CategoryRequestModel) -> tuple[Response, int
     Returns:
         JSON response with category data and HTTP status code 201
     """
-    category_id = Database().category.create(
-        application=validated_data.application,
-        title=validated_data.title.root,
-        parent_id=validated_data.parent,
-    )
+    with Database() as db:
+        category_id = db.category.create(
+            application=validated_data.application,
+            title=validated_data.title.root,
+            parent_id=validated_data.parent,
+        )
 
     return jsonify({"id": category_id}), 201

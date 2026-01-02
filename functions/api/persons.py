@@ -13,14 +13,16 @@ logger = logging.getLogger(__name__)
 
 @persons_bp.route("/<string:person_id>", methods=["GET"], strict_slashes=False)
 def get_person(person_id: str) -> tuple[Response, int]:
-    person = Database().person.get(person_id)
+    with Database() as db:
+        person = db.person.get(person_id)
     return jsonify(person.model_dump()), 200
 
 
 @persons_bp.route("/", methods=["GET"], strict_slashes=False)
 @validate_query_params(PaginationParams)
 def get_all_persons(validated_params: PaginationParams) -> tuple[Response, int]:
-    persons = Database().person.get_all(offset=validated_params.offset, limit=validated_params.limit)
+    with Database() as db:
+        persons = db.person.get_all(offset=validated_params.offset, limit=validated_params.limit)
     return jsonify([person.model_dump() for person in persons]), 200
 
 
@@ -29,6 +31,7 @@ def get_all_persons(validated_params: PaginationParams) -> tuple[Response, int]:
 def create_person(validated_data: PersonInput) -> tuple[Response, int]:
     logger.info("Successfully parsed person: %s", validated_data.model_dump_json())
 
-    person_id = Database().person.create(validated_data)
+    with Database() as db:
+        person_id = db.person.create(validated_data)
 
     return jsonify({"id": person_id}), 201

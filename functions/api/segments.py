@@ -19,16 +19,15 @@ SEARCH_API_URL = "https://openpecha-search.onrender.com"
 
 @segments_bp.route("/<string:segment_id>/related", methods=["GET"], strict_slashes=False)
 def get_related(segment_id: str) -> tuple[Response, int]:
-    db = Database()
-    related_segments = db.segment.get_related(segment_id)
+    with Database() as db:
+        related_segments = db.segment.get_related(segment_id)
     return jsonify([seg.model_dump() for seg in related_segments]), 200
 
 
 @segments_bp.route("/<string:segment_id>/content", methods=["GET"], strict_slashes=False)
 def get_segment_content(segment_id: str) -> tuple[Response, int]:
-    db = Database()
-
-    segment = db.segment.get(segment_id)
+    with Database() as db:
+        segment = db.segment.get(segment_id)
 
     base_text = Storage().retrieve_base_text(
         expression_id=segment.text_id,
@@ -70,58 +69,58 @@ def search_segments(validated_params: SearchQueryParams) -> tuple[Response, int]
         raise InvalidRequestError("Failed to call search API") from None
 
     # Process results to add segmentation_ids
-    db = Database()
     enriched_results = []
 
-    for result_item in search_response_data.get("results", []):
-        segment_id = result_item.get("id")
-        if not segment_id:
-            enriched_results.append(
-                SearchResultModel(
-                    id=result_item.get("id", ""),
-                    distance=result_item.get("distance", 0.0),
-                    entity=result_item.get("entity", {}),
-                    segmentation_ids=[],
+    with Database() as db:
+        for result_item in search_response_data.get("results", []):
+            segment_id = result_item.get("id")
+            if not segment_id:
+                enriched_results.append(
+                    SearchResultModel(
+                        id=result_item.get("id", ""),
+                        distance=result_item.get("distance", 0.0),
+                        entity=result_item.get("entity", {}),
+                        segmentation_ids=[],
+                    )
                 )
-            )
-            continue
+                continue
 
-        try:
-            segment = db.segment.get(segment_id)
-            segmentation_ids = db.segment.find_by_span(
-                manifestation_id=segment.manifestation_id,
-                start=segment.span.start,
-                end=segment.span.end,
-            )
-            enriched_results.append(
-                SearchResultModel(
-                    id=result_item.get("id", ""),
-                    distance=result_item.get("distance", 0.0),
-                    entity=result_item.get("entity", {}),
-                    segmentation_ids=segmentation_ids,
+            try:
+                segment = db.segment.get(segment_id)
+                segmentation_ids = db.segment.find_by_span(
+                    manifestation_id=segment.manifestation_id,
+                    start=segment.span.start,
+                    end=segment.span.end,
                 )
-            )
+                enriched_results.append(
+                    SearchResultModel(
+                        id=result_item.get("id", ""),
+                        distance=result_item.get("distance", 0.0),
+                        entity=result_item.get("entity", {}),
+                        segmentation_ids=segmentation_ids,
+                    )
+                )
 
-        except DataNotFoundError:
-            logger.warning("Segment %s not found, skipping segmentation mapping", segment_id)
-            enriched_results.append(
-                SearchResultModel(
-                    id=result_item.get("id", ""),
-                    distance=result_item.get("distance", 0.0),
-                    entity=result_item.get("entity", {}),
-                    segmentation_ids=[],
+            except DataNotFoundError:
+                logger.warning("Segment %s not found, skipping segmentation mapping", segment_id)
+                enriched_results.append(
+                    SearchResultModel(
+                        id=result_item.get("id", ""),
+                        distance=result_item.get("distance", 0.0),
+                        entity=result_item.get("entity", {}),
+                        segmentation_ids=[],
+                    )
                 )
-            )
-        except Exception:
-            logger.exception("Error processing segment %s", segment_id)
-            enriched_results.append(
-                SearchResultModel(
-                    id=result_item.get("id", ""),
-                    distance=result_item.get("distance", 0.0),
-                    entity=result_item.get("entity", {}),
-                    segmentation_ids=[],
+            except Exception:
+                logger.exception("Error processing segment %s", segment_id)
+                enriched_results.append(
+                    SearchResultModel(
+                        id=result_item.get("id", ""),
+                        distance=result_item.get("distance", 0.0),
+                        entity=result_item.get("entity", {}),
+                        segmentation_ids=[],
+                    )
                 )
-            )
 
     # Create enriched response
     enriched_response = SearchResponseModel(

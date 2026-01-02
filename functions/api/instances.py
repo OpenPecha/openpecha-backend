@@ -63,7 +63,8 @@ def get_metadata(manifestation_id: str) -> tuple[Response, int]:
     logger.info("Fetching metadata for manifestation %s", manifestation_id)
 
     logger.info("Getting manifestation detail and expression id from Neo4J Database")
-    manifestation = Database().manifestation.get(manifestation_id=manifestation_id)
+    with Database() as db:
+        manifestation = db.manifestation.get(manifestation_id=manifestation_id)
 
     return jsonify(manifestation.model_dump()), 200
 
@@ -71,7 +72,8 @@ def get_metadata(manifestation_id: str) -> tuple[Response, int]:
 @instances_bp.route("/<string:manifestation_id>/content", methods=["GET"], strict_slashes=False)
 @validate_query_params(OptionalSpanQueryParams)
 def get_content(manifestation_id: str, validated_params: OptionalSpanQueryParams) -> tuple[Response, int]:
-    manifestation = Database().manifestation.get(manifestation_id=manifestation_id)
+    with Database() as db:
+        manifestation = db.manifestation.get(manifestation_id=manifestation_id)
     base_text = Storage().retrieve_base_text(expression_id=manifestation.text_id, manifestation_id=manifestation_id)
 
     if validated_params.span_start is not None and validated_params.span_end is not None:
@@ -83,18 +85,17 @@ def get_content(manifestation_id: str, validated_params: OptionalSpanQueryParams
 @instances_bp.route("/<string:manifestation_id>/annotations", methods=["POST"], strict_slashes=False)
 @validate_json(AnnotationRequestInput)
 def post_annotation(manifestation_id: str, validated_data: AnnotationRequestInput) -> tuple[Response, int]:
-    db = Database()
-
-    if validated_data.segmentation is not None:
-        db.annotation.segmentation.add(manifestation_id, validated_data.segmentation)
-    elif validated_data.alignment is not None:
-        db.annotation.alignment.add(manifestation_id, validated_data.alignment)
-    elif validated_data.pagination is not None:
-        db.annotation.pagination.add(manifestation_id, validated_data.pagination)
-    elif validated_data.bibliographic_metadata is not None:
-        db.annotation.bibliographic.add(manifestation_id, validated_data.bibliographic_metadata)
-    elif validated_data.durchen_notes is not None:
-        db.annotation.note.add_durchen(manifestation_id, validated_data.durchen_notes)
+    with Database() as db:
+        if validated_data.segmentation is not None:
+            db.annotation.segmentation.add(manifestation_id, validated_data.segmentation)
+        elif validated_data.alignment is not None:
+            db.annotation.alignment.add(manifestation_id, validated_data.alignment)
+        elif validated_data.pagination is not None:
+            db.annotation.pagination.add(manifestation_id, validated_data.pagination)
+        elif validated_data.bibliographic_metadata is not None:
+            db.annotation.bibliographic.add(manifestation_id, validated_data.bibliographic_metadata)
+        elif validated_data.durchen_notes is not None:
+            db.annotation.note.add_durchen(manifestation_id, validated_data.durchen_notes)
 
     return jsonify({"message": "Annotation added successfully"}), 201
 
@@ -105,21 +106,20 @@ def get_annotations(manifestation_id: str, validated_params: AnnotationTypeFilte
     requested_types = validated_params.type
 
     result = {}
-    db = Database()
-
-    if AnnotationType.SEGMENTATION in requested_types:
-        segmentations = db.annotation.segmentation.get_all(manifestation_id)
-        result["segmentations"] = segmentations if segmentations else None
-    if AnnotationType.ALIGNMENT in requested_types:
-        alignments = db.annotation.alignment.get_all(manifestation_id)
-        result["alignments"] = alignments if alignments else None
-    if AnnotationType.PAGINATION in requested_types:
-        result["pagination"] = db.annotation.pagination.get_all(manifestation_id)
-    if AnnotationType.BIBLIOGRAPHY in requested_types:
-        result["bibliographic"] = db.annotation.bibliographic.get_all(manifestation_id)
-    if AnnotationType.DURCHEN in requested_types:
-        notes = db.annotation.note.get_all(manifestation_id)
-        result["durchen"] = notes if notes else None
+    with Database() as db:
+        if AnnotationType.SEGMENTATION in requested_types:
+            segmentations = db.annotation.segmentation.get_all(manifestation_id)
+            result["segmentations"] = segmentations if segmentations else None
+        if AnnotationType.ALIGNMENT in requested_types:
+            alignments = db.annotation.alignment.get_all(manifestation_id)
+            result["alignments"] = alignments if alignments else None
+        if AnnotationType.PAGINATION in requested_types:
+            result["pagination"] = db.annotation.pagination.get_all(manifestation_id)
+        if AnnotationType.BIBLIOGRAPHY in requested_types:
+            result["bibliographic"] = db.annotation.bibliographic.get_all(manifestation_id)
+        if AnnotationType.DURCHEN in requested_types:
+            notes = db.annotation.note.get_all(manifestation_id)
+            result["durchen"] = notes if notes else None
 
     output = AnnotationRequestOutput.model_validate(result)
     return jsonify(output.model_dump(exclude_none=True)), 200
@@ -128,17 +128,16 @@ def get_annotations(manifestation_id: str, validated_params: AnnotationTypeFilte
 @instances_bp.route("/<string:manifestation_id>/segments/related", methods=["GET"], strict_slashes=False)
 @validate_query_params(SpanQueryParams)
 def get_segment_related(manifestation_id: str, validated_params: SpanQueryParams) -> tuple[Response, int]:
-    db = Database()
+    with Database() as db:
+        segment_ids = db.segment.find_by_span(manifestation_id, validated_params.span_start, validated_params.span_end)
 
-    segment_ids = db.segment.find_by_span(manifestation_id, validated_params.span_start, validated_params.span_end)
+        if not segment_ids:
+            return jsonify([]), 200
 
-    if not segment_ids:
-        return jsonify([]), 200
-
-    # Get related segments for each segment ID and collect all
-    all_segments = []
-    for seg_id in segment_ids:
-        all_segments.extend(db.segment.get_related(seg_id))
+        # Get related segments for each segment ID and collect all
+        all_segments = []
+        for seg_id in segment_ids:
+            all_segments.extend(db.segment.get_related(seg_id))
 
     return jsonify([seg.model_dump() for seg in all_segments]), 200
 
@@ -147,6 +146,7 @@ def get_segment_related(manifestation_id: str, validated_params: SpanQueryParams
 def get_related_instances(manifestation_id: str) -> tuple[Response, int]:
     logger.info("Finding related instances for manifestation ID: %s", manifestation_id)
 
-    related_instances = Database().manifestation.get_related(manifestation_id)
+    with Database() as db:
+        related_instances = db.manifestation.get_related(manifestation_id)
 
     return jsonify([m.model_dump() for m in related_instances]), 200

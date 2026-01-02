@@ -8,6 +8,7 @@ venv = "venv"
 
 [tool.pytest.ini_options]
 testpaths = ["functions/tests"]
+pythonpath = ["functions"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 from logging import getLogger
+from typing import Self
 
 from neo4j import GraphDatabase, Session
 
@@ -80,3 +81,17 @@ class Database:
 
     def get_session(self) -> Session:
         return self.__driver.session()
+
+    def close(self) -> None:
+        self.__driver.close()
+
+    def __enter__(self) -> Self:
+        return self
+
+    def __exit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: object,
+    ) -> None:
+        self.close()
