@@ -92,6 +92,11 @@ def test_database(neo4j_connection):
         session.run("MERGE (c:CopyrightStatus {name: 'public'})")
         session.run("MERGE (c:CopyrightStatus {name: 'copyrighted'})")
 
+        # Create bibliography types
+        session.run("MERGE (b:BibliographyType {name: 'title'})")
+        session.run("MERGE (b:BibliographyType {name: 'colophon'})")
+        session.run("MERGE (b:BibliographyType {name: 'author'})")
+
         # Create role types
         session.run("MERGE (r:RoleType {name: 'translator'})")
         session.run("MERGE (r:RoleType {name: 'author'})")
@@ -123,11 +128,121 @@ def client():
 def test_person_data():
     """Sample person data for testing"""
     return {
-        "name": {"en": "Test Author", "bo": "རྩོམ་པ་པོ།"},
+        "name": {"en": "Test Author", "bo": "སློབ་དཔོན།"},
         "alt_names": [{"en": "Alternative Name", "bo": "མིང་གཞན།"}],
         "bdrc": "P123456",
+        "wiki": "Q123456",
     }
 
+
+@pytest.fixture
+def test_expression_data():
+    """Sample expression data for testing"""
+    return {
+        "type": "root",
+        "title": {"en": "Test Expression", "bo": "བརྟག་དཔྱད་ཚིག་སྒྲུབ།"},
+        "alt_titles": [{"en": "Alternative Title", "bo": "མཚན་བྱང་གཞན།"}],
+        "language": "en",
+        "contributions": [],  # Will be populated with actual person IDs
+        "date": "2024-01-01",
+        "bdrc": "W123456",
+        "wiki": "Q789012",
+    }
+
+@pytest.fixture
+def test_diplomatic_manifestation_data():
+    """Sample diplomatic manifestation data for testing"""
+    return {
+        "metadata": {
+            "bdrc": "W12345",
+            "wiki": "Q123456",
+            "type": "diplomatic",
+            "source": "www.example_source.com",
+            "colophon": "Sample colophon text",
+            "incipit_title": {"en": "Opening words", "bo": "དབུ་ཚིག"},
+            "alt_incipit_titles": [{"en": "Alt incipit 1", "bo": "མཚན་བྱང་གཞན།"}, {"en": "Alt incipit 2", "bo": "མཚན་བྱང་གཞན།"}],
+        },
+        "content": "Sample text content"
+    }
+
+@pytest.fixture
+def test_critical_manifestation_data():
+    """Sample critical manifestation data for testing"""
+    return {
+        "metadata": {
+            "wiki": "Q123456",
+            "type": "critical",
+            "source": "www.example_source.com",
+            "colophon": "Sample colophon text",
+            "incipit_title": {"en": "Opening words", "bo": "དབུ་ཚིག"},
+            "alt_incipit_titles": [{"en": "Alt incipit 1", "bo": "མཚན་བྱང་གཞན།"}, {"en": "Alt incipit 2", "bo": "མཚན་བྱང་གཞན།"}],
+        },
+        "content": "Sample text content"
+    }
+
+@pytest.fixture
+def test_segmentation_annotation_data():
+    return {
+        "content": "This is the text content to be stored for segmentation",
+        "annotation": [
+            {
+                "span": {"start": 0, "end": 10},
+            },
+            {
+                "span": {"start": 10, "end": 20},
+            },
+            {
+                "span": {"start": 20, "end": 30},
+            },
+            {
+                "span": {"start": 30, "end": 55},
+            }
+        ]
+    }
+
+@pytest.fixture
+def test_pagination_annotation_data():
+    return {
+        "content": "This is the text content to be stored for pagination",
+        "annotation": [
+            {
+                "span": {"start": 0, "end": 10},
+                "reference": "IMG001.png",
+            },
+            {
+                "span": {"start": 10, "end": 20},
+                "reference": "IMG002.png",
+            },
+            {
+                "span": {"start": 20, "end": 30},
+                "reference": "IMG003.png",
+            },
+            {
+                "span": {"start": 30, "end": 53},
+                "reference": "IMG004.png",
+            }
+        ]
+    }
+
+@pytest.fixture
+def test_bibliography_annotation_data():
+    return {
+        "content": "This is the text content to be stored for bibliography",
+        "annotation": [
+            {
+                "span": {"start": 0, "end": 10},
+                "type": "title"
+            },
+            {
+                "span": {"start": 10, "end": 20},
+                "type": "colophon"
+            },
+            {
+                "span": {"start": 20, "end": 30},
+                "type": "author"
+            }
+        ]
+    }
 
 @pytest.fixture
 def create_test_zip():
@@ -150,8 +265,7 @@ def create_test_zip():
 
     return _create_zip
 
-
-class TestInstancesV2Endpoints:
+class TestGetInstancesV2Endpoints:
     """Integration test class for v2/instances endpoints using real Neo4j database"""
 
     def _create_test_person(self, db, person_data):

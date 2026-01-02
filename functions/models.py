@@ -361,7 +361,7 @@ class ExpressionBase(OpenPechaModel):
     language: NonEmptyStr
     commentary_of: NonEmptyStr | None = None
     translation_of: NonEmptyStr | None = None
-    category_id: NonEmptyStr | None = None
+    category_id: NonEmptyStr
     copyright: CopyrightStatus = CopyrightStatus.PUBLIC_DOMAIN
     license: LicenseType = LicenseType.PUBLIC_DOMAIN_MARK
 
