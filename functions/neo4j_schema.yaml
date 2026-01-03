@@ -88,10 +88,6 @@ nodes:
         target: Nomen
         cardinality: one
         required: true
-      HAS_COPYRIGHT:
-        target: Copyright
-        cardinality: one
-        required: true
       HAS_LICENSE:
         target: License
         cardinality: one
@@ -390,19 +386,7 @@ nodes:
           - critical
           - collated
 
-  Copyright:
-    enum: true
-    properties:
-      status:
-        type: string
-        unique: true
-        required: true
-        allowed_values:
-          - Unknown
-          - In copyright
-          - Public domain
-
-  License:
+  LicenseType:
     enum: true
     properties:
       name:
@@ -410,15 +394,15 @@ nodes:
         unique: true
         required: true
         allowed_values:
-          - CC0
-          - Public Domain Mark
-          - CC BY
-          - CC BY-SA
-          - CC BY-ND
-          - CC BY-NC
-          - CC BY-NC-SA
-          - CC BY-NC-ND
-          - under copyright
+          - cc0
+          - public
+          - cc-by
+          - cc-by-sa
+          - cc-by-nd
+          - cc-by-nc
+          - cc-by-nc-sa
+          - cc-by-nc-nd
+          - copyrighted
           - unknown
 
   BibliographyType:

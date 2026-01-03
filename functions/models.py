@@ -50,23 +50,17 @@ class ManifestationType(str, Enum):
     COLLATED = "collated"
 
 
-class CopyrightStatus(str, Enum):
-    UNKNOWN = "Unknown"
-    COPYRIGHTED = "In copyright"
-    PUBLIC_DOMAIN = "Public domain"
-
-
 class LicenseType(str, Enum):
     # based on https://creativecommons.org/licenses/
-    CC0 = "CC0"
-    PUBLIC_DOMAIN_MARK = "Public Domain Mark"
-    CC_BY = "CC BY"
-    CC_BY_SA = "CC BY-SA"
-    CC_BY_ND = "CC BY-ND"
-    CC_BY_NC = "CC BY-NC"
-    CC_BY_NC_SA = "CC BY-NC-SA"
-    CC_BY_NC_ND = "CC BY-NC-ND"
-    UNDER_COPYRIGHT = "under copyright"
+    CC0 = "cc0"
+    PUBLIC_DOMAIN_MARK = "public"
+    CC_BY = "cc-by"
+    CC_BY_SA = "cc-by-sa"
+    CC_BY_ND = "cc-by-nd"
+    CC_BY_NC = "cc-by-nc"
+    CC_BY_NC_SA = "cc-by-nc-sa"
+    CC_BY_NC_ND = "cc-by-nc-nd"
+    UNDER_COPYRIGHT = "copyrighted"
     UNKNOWN = "unknown"
 
 
@@ -93,12 +87,6 @@ class OpenPechaModel(BaseModel):
         extra="forbid",
         str_strip_whitespace=True,
     )
-
-
-class Copyright(OpenPechaModel):
-    status: CopyrightStatus = CopyrightStatus.UNKNOWN
-    notice: str = ""
-    info_url: str | None = None
 
 
 class LocalizedString(RootModel[dict[str, NonEmptyStr]]):
@@ -362,7 +350,6 @@ class ExpressionBase(OpenPechaModel):
     commentary_of: NonEmptyStr | None = None
     translation_of: NonEmptyStr | None = None
     category_id: NonEmptyStr
-    copyright: CopyrightStatus = CopyrightStatus.PUBLIC_DOMAIN
     license: LicenseType = LicenseType.PUBLIC_DOMAIN_MARK
 
     @model_validator(mode="after")

@@ -146,7 +146,7 @@ class TestGetAllTextsV2:
             test_expression_data["category_id"] = category_id
             test_expression_data["title"] = {"en": f"Test Expression {i+1}", "bo": f"བརྟག་དཔྱད་ཚིག་སྒྲུབ་{i+1}།"}
             test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
-            expression = ExpressionModelInput.model_validate(test_expression_data)
+            expression = ExpressionInput.model_validate(test_expression_data)
             
             expression_id = test_database.create_expression(expression)
 
@@ -240,7 +240,7 @@ class TestGetAllTextsV2:
             "contributions": [{"person_id": person_id, "role": "author"}],
             "category_id": category_id,
         }
-        commentary_expression = ExpressionModelInput.model_validate(commentary_data)
+        commentary_expression = ExpressionInput.model_validate(commentary_data)
         commentary_id = test_database.create_expression(commentary_expression)
 
         translation_response = client.get("/v2/texts?type=translation")
@@ -312,7 +312,7 @@ class TestGetAllTextsV2:
 
     def test_get_all_metadata_filter_by_title(self, client, test_database, test_person_data):
         """Test filtering by title"""
-        person = PersonModelInput.model_validate(test_person_data)
+        person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
         category_id = test_database.create_category(
@@ -344,7 +344,7 @@ class TestGetAllTextsV2:
                 "category_id": category_id,
                 "contributions": [{"person_id": person_id, "role": "author"}],
             }
-            root_expression = ExpressionModelInput.model_validate(root_data)
+            root_expression = ExpressionInput.model_validate(root_data)
             expression_id = test_database.create_expression(root_expression)
             expression_ids.append(expression_id)
 
@@ -377,7 +377,7 @@ class TestGetAllTextsV2:
 
     def test_get_all_metadata_filter_by_title_with_no_title_present_in_db(self, client, test_database, test_person_data):
         """Test filtering by title with empty title"""
-        person = PersonModelInput.model_validate(test_person_data)
+        person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
         category_id = test_database.create_category(
             application='test_application',
@@ -407,7 +407,7 @@ class TestGetAllTextsV2:
                 "category_id": category_id,
                 "contributions": [{"person_id": person_id, "role": "author"}],
             }
-            root_expression = ExpressionModelInput.model_validate(root_data)
+            root_expression = ExpressionInput.model_validate(root_data)
             expression_id = test_database.create_expression(root_expression)
             expression_ids.append(expression_id)
 
@@ -450,7 +450,7 @@ class TestGetAllTextsV2:
                 "target": root_id,
                 "contributions": [{"person_id": person_id, "role": "translator"}],
             }
-            translation_expression = ExpressionModelInput.model_validate(translation_data)
+            translation_expression = ExpressionInput.model_validate(translation_data)
             test_database.create_expression(translation_expression)
 
         # Filter by type=root AND language=en
@@ -556,7 +556,7 @@ class TestGetSingleTextV2:
         # Create test expression
         test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
         test_expression_data["category_id"] = category_id
-        expression = ExpressionModelInput.model_validate(test_expression_data)
+        expression = ExpressionInput.model_validate(test_expression_data)
         expression_id = test_database.create_expression(expression)
 
         response = client.get(f"/v2/texts/{expression_id}")
@@ -579,7 +579,7 @@ class TestGetSingleTextV2:
         """Test successfully retrieving a single expression"""
 
         # Create test person
-        person = PersonModelInput.model_validate(test_person_data)
+        person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
         category_id = test_database.create_category(
             application='test_application',
@@ -588,7 +588,7 @@ class TestGetSingleTextV2:
         # Create test expression
         test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
         test_expression_data["category_id"] = category_id
-        expression = ExpressionModelInput.model_validate(test_expression_data)
+        expression = ExpressionInput.model_validate(test_expression_data)
         expression_id = test_database.create_expression(expression)
 
         response = client.get(f"/v2/texts/{test_expression_data['bdrc']}")
@@ -610,7 +610,7 @@ class TestGetSingleTextV2:
         """Test successfully retrieving a single expression"""
 
         # Create test person
-        person = PersonModelInput.model_validate(test_person_data)
+        person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
         category_id = test_database.create_category(
             application='test_application',
@@ -851,7 +851,7 @@ class TestPostTextV2:
 
     def test_create_translation_with_valid_root_target_surcess(self, client, test_database, test_person_data):
         """Test successfully creating a TRANSLATION with a valid root target"""
-        person = PersonModelInput.model_validate(test_person_data)
+        person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
         category_id = test_database.create_category(
@@ -867,7 +867,7 @@ class TestPostTextV2:
             "contributions": [{"person_id": person_id, "role": "author"}],
             "category_id": category_id,
         }
-        root_expression = ExpressionModelInput.model_validate(root_data)
+        root_expression = ExpressionInput.model_validate(root_data)
         root_id = test_database.create_expression(root_expression)
 
         # Create TRANSLATION expression
@@ -888,7 +888,7 @@ class TestPostTextV2:
 
     def test_create_commentary_with_valid_root_target_surcess(self, client, test_database, test_person_data):
         """Test successfully creating a TRANSLATION with a valid root target"""
-        person = PersonModelInput.model_validate(test_person_data)
+        person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
         category_id = test_database.create_category(
@@ -904,7 +904,7 @@ class TestPostTextV2:
             "contributions": [{"person_id": person_id, "role": "author"}],
             "category_id": category_id,
         }
-        root_expression = ExpressionModelInput.model_validate(root_data)
+        root_expression = ExpressionInput.model_validate(root_data)
         root_id = test_database.create_expression(root_expression)
 
         # Create COMMENTARY expression
@@ -925,7 +925,7 @@ class TestPostTextV2:
 
     def test_create_translation_with_invalid_root_target(self, client, test_database, test_person_data):
         """Test creating a TRANSLATION with an invalid root target"""
-        person = PersonModelInput.model_validate(test_person_data)
+        person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
         category_id = test_database.create_category(
@@ -948,7 +948,7 @@ class TestPostTextV2:
 
     def test_create_commentary_with_invalid_root_target(self, client, test_database, test_person_data):
         """Test creating a COMMENTARY with an invalid root target"""
-        person = PersonModelInput.model_validate(test_person_data)
+        person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
         category_id = test_database.create_category(
@@ -971,7 +971,7 @@ class TestPostTextV2:
     
     def test_create_text_without_category_id(self, client, test_database, test_person_data):
         """Test creating a text without a category ID"""
-        person = PersonModelInput.model_validate(test_person_data)
+        person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
         root_data = {
@@ -987,7 +987,7 @@ class TestPostTextV2:
 
     def test_create_text_with_invalid_person_role(self, client, test_database, test_person_data):
         """Test creating a text with an invalid person role"""
-        person = PersonModelInput.model_validate(test_person_data)
+        person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
         category_id = test_database.create_category(
@@ -1009,7 +1009,7 @@ class TestPostTextV2:
     
     def test_create_text_with_contributionmodel_both_bdrc_and_person_id(self, client, test_database, test_person_data):
         """Test creating a text with a ContributionModel containing both person_id and person_bdrc_id"""
-        person = PersonModelInput.model_validate(test_person_data)
+        person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
         category_id = test_database.create_category(
@@ -1032,7 +1032,7 @@ class TestPostTextV2:
     def test_create_text_with_existing_bdrc_id(self, client, test_database, test_person_data):
         """Test creating a text with an existing BDRC ID"""
         # Create test person first
-        person = PersonModelInput.model_validate(test_person_data)
+        person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
         category_id = test_database.create_category(
@@ -1076,7 +1076,7 @@ class TestUpdateTitleV2:
     def test_update_title_preserves_other_languages(self, client, test_database, test_person_data):
         """Test that updating a title in one language preserves other language versions"""
         # Create test person
-        person = PersonModelInput.model_validate(test_person_data)
+        person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
         category_id = test_database.create_category(
@@ -1091,7 +1091,7 @@ class TestUpdateTitleV2:
             "contributions": [{"person_id": person_id, "role": "author"}],
             "category_id": category_id
         }
-        expression = ExpressionModelInput.model_validate(expression_data)
+        expression = ExpressionInput.model_validate(expression_data)
         expression_id = test_database.create_expression(expression)
 
         # Verify both language versions exist
@@ -1120,7 +1120,7 @@ class TestUpdateTitleV2:
     def test_update_title_adds_new_language(self, client, test_database, test_person_data):
         """Test that updating a title with a new language adds it without removing existing ones"""
         # Create test person
-        person = PersonModelInput.model_validate(test_person_data)
+        person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
         category_id = test_database.create_category(
             application='test_application',
@@ -1134,7 +1134,7 @@ class TestUpdateTitleV2:
             "contributions": [{"person_id": person_id, "role": "author"}],
             "category_id": category_id
         }
-        expression = ExpressionModelInput.model_validate(expression_data)
+        expression = ExpressionInput.model_validate(expression_data)
         expression_id = test_database.create_expression(expression)
 
         # Add a Tibetan title
@@ -1153,7 +1153,7 @@ class TestUpdateTitleV2:
     def test_update_title_updates_existing_language(self, client, test_database, test_person_data):
         """Test that updating an existing language version modifies it correctly"""
         # Create test person
-        person = PersonModelInput.model_validate(test_person_data)
+        person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
         category_id = test_database.create_category(
@@ -1169,7 +1169,7 @@ class TestUpdateTitleV2:
             "contributions": [{"person_id": person_id, "role": "author"}],
             "category_id": category_id
         }
-        expression = ExpressionModelInput.model_validate(expression_data)
+        expression = ExpressionInput.model_validate(expression_data)
         expression_id = test_database.create_expression(expression)
 
         # Update the English title (same language)
@@ -1202,7 +1202,7 @@ class TestUpdateTitleV2:
     ):
         """PUT with no JSON body should return an error (like POST)."""
         # Create a minimal expression to update
-        person = PersonModelInput.model_validate(test_person_data)
+        person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
         category_id = test_database.create_category(
@@ -1217,7 +1217,7 @@ class TestUpdateTitleV2:
             "contributions": [{"person_id": person_id, "role": "author"}],
             "category_id": category_id
         }
-        expression = ExpressionModelInput.model_validate(expression_data)
+        expression = ExpressionInput.model_validate(expression_data)
         expression_id = test_database.create_expression(expression)
 
         response = client.put(
@@ -1233,7 +1233,7 @@ class TestUpdateLicenseV2:
 
     def test_update_license_success(self, client, test_database, test_person_data):
         """Happy path: updates license and persists it (verify via GET)."""
-        person = PersonModelInput.model_validate(test_person_data)
+        person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
         category_id = test_database.create_category(
@@ -1248,7 +1248,7 @@ class TestUpdateLicenseV2:
             'contributions': [{'person_id': person_id, 'role': 'author'}],
             'category_id': category_id
         }
-        expression = ExpressionModelInput.model_validate(expression_data)
+        expression = ExpressionInput.model_validate(expression_data)
         expression_id = test_database.create_expression(expression)
 
         update_data = {'license': 'CC0'}
@@ -1269,7 +1269,7 @@ class TestUpdateLicenseV2:
 
     def test_update_license_missing_json_body(self, client, test_database, test_person_data):
         """PUT with no JSON body should return 400 + error."""
-        person = PersonModelInput.model_validate(test_person_data)
+        person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
         category_id = test_database.create_category(
@@ -1284,7 +1284,7 @@ class TestUpdateLicenseV2:
             'contributions': [{'person_id': person_id, 'role': 'author'}],
             'category_id': category_id
         }
-        expression = ExpressionModelInput.model_validate(expression_data)
+        expression = ExpressionInput.model_validate(expression_data)
         expression_id = test_database.create_expression(expression)
 
         response = client.put(
@@ -1298,7 +1298,7 @@ class TestUpdateLicenseV2:
 
     def test_update_license_missing_license_field(self, client, test_database, test_person_data):
         """PUT with JSON but no 'license' should return 400 + error."""
-        person = PersonModelInput.model_validate(test_person_data)
+        person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
         category_id = test_database.create_category(
@@ -1313,7 +1313,7 @@ class TestUpdateLicenseV2:
             'contributions': [{'person_id': person_id, 'role': 'author'}],
             'category_id': category_id
         }
-        expression = ExpressionModelInput.model_validate(expression_data)
+        expression = ExpressionInput.model_validate(expression_data)
         expression_id = test_database.create_expression(expression)
 
         response = client.put(
@@ -1328,7 +1328,7 @@ class TestUpdateLicenseV2:
 
     def test_update_license_invalid_license_value(self, client, test_database, test_person_data):
         """PUT with invalid license should return 400 and list valid values."""
-        person = PersonModelInput.model_validate(test_person_data)
+        person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
         category_id = test_database.create_category(
@@ -1343,7 +1343,7 @@ class TestUpdateLicenseV2:
             'contributions': [{'person_id': person_id, 'role': 'author'}],
             'category_id': category_id
         }
-        expression = ExpressionModelInput.model_validate(expression_data)
+        expression = ExpressionInput.model_validate(expression_data)
         expression_id = test_database.create_expression(expression)
 
         response = client.put(

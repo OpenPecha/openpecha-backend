@@ -67,8 +67,7 @@ class ExpressionDatabase:
                 {lang: coalesce(r.bcp47, lang.code), text: lt.text}]],
         language: [(e)-[:HAS_LANGUAGE]->(lang:Language) | lang.code][0],
         category_id: [(e)-[:EXPRESSION_OF]->(work:Work)-[:HAS_CATEGORY]->(cat:Category) | cat.id][0],
-        copyright: [(e)-[:HAS_COPYRIGHT]->(copyright:Copyright) | copyright.name][0],
-        license: [(e)-[:HAS_LICENSE]->(license:License) | license.name][0],
+        license: [(e)-[:HAS_LICENSE]->(license:LicenseType) | license.name][0],
         editions: [(e)<-[:MANIFESTATION_OF]-(m:Manifestation) | m.id]
     } AS expression
     """
@@ -119,20 +118,19 @@ class ExpressionDatabase:
 
     UPDATE_LICENSE_QUERY = """
     MATCH (e:Expression {id: $expression_id})
-    OPTIONAL MATCH (e)-[lc_rel:HAS_LICENSE]->(license:License)
+    OPTIONAL MATCH (e)-[lc_rel:HAS_LICENSE]->(license:LicenseType)
     WITH e, lc_rel
     DELETE lc_rel
-    MATCH (license:License {name: $license})
+    MATCH (license:LicenseType {name: $license})
     MERGE (e)-[:HAS_LICENSE]->(license)
     RETURN e.id as expression_id
     """
 
     _CREATE_EXPRESSION_LINKS = """
     MATCH (n:Nomen {id: $title_nomen_id}), (l:Language {code: $language_code})
-    MATCH (copyright:Copyright {status: $copyright}), (license:License {name: $license})
+    MATCH (license:LicenseType {name: $license})
     MERGE (e)-[:HAS_LANGUAGE {bcp47: $bcp47_tag}]->(l)
     MERGE (e)-[:HAS_TITLE]->(n)
-    MERGE (e)-[:HAS_COPYRIGHT]->(copyright)
     MERGE (e)-[:HAS_LICENSE]->(license)
     RETURN e.id as expression_id
     """
@@ -296,7 +294,6 @@ class ExpressionDatabase:
             "bcp47_tag": expression.language,
             "title_nomen_id": title_nomen_id,
             "target_id": expression.translation_of or expression.commentary_of,
-            "copyright": expression.copyright.value,
             "license": expression.license.value,
         }
 

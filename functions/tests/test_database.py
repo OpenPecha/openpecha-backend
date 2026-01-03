@@ -99,9 +99,8 @@ def test_database(neo4j_connection):
         session.run("MERGE (r:RoleType {name: 'author'})")
         session.run("MERGE (r:RoleType {name: 'reviser'})")
 
-        # Create copyright and license nodes
-        session.run("MERGE (c:Copyright {status: 'Public domain'})")
-        session.run("MERGE (l:License {name: 'Public Domain Mark'})")
+        # Create license type nodes
+        session.run("MERGE (l:LicenseType {name: 'public'})")
 
     yield db
 

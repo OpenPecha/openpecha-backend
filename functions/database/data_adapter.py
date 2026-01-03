@@ -2,7 +2,6 @@ from models import (
     AIContributionModel,
     CategoryOutput,
     ContributionOutput,
-    CopyrightStatus,
     ExpressionOutput,
     LicenseType,
     LocalizedString,
@@ -77,7 +76,6 @@ class DataAdapter:
             or None,
             language=data["language"],
             category_id=data["category_id"],
-            copyright=CopyrightStatus(data.get("copyright") or CopyrightStatus.PUBLIC_DOMAIN.value),
             license=LicenseType(data.get("license") or LicenseType.PUBLIC_DOMAIN_MARK.value),
             editions=data.get("editions") or [],
         )

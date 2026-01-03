@@ -36,8 +36,8 @@ CREATE CONSTRAINT annotation_type_name_unique IF NOT EXISTS FOR (at:AnnotationTy
 // ManifestationType nodes - each manifestation type must have a unique name
 CREATE CONSTRAINT manifestation_type_name_unique IF NOT EXISTS FOR (mt:ManifestationType) REQUIRE mt.name IS UNIQUE;
 
-// CopyrightStatus nodes - each copyright status must have a unique name
-CREATE CONSTRAINT copyright_status_name_unique IF NOT EXISTS FOR (cs:CopyrightStatus) REQUIRE cs.name IS UNIQUE;
+// LicenseType nodes - each license type must have a unique name
+CREATE CONSTRAINT license_type_name_unique IF NOT EXISTS FOR (lt:LicenseType) REQUIRE lt.name IS UNIQUE;
 
 // =============================================================================
 // UNIQUE CONSTRAINTS FOR EXTERNAL IDENTIFIERS (BDRC/WIKI)

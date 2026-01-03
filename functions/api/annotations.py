@@ -37,3 +37,38 @@ def get_bibliographic(bibliographic_id: str) -> tuple[Response, int]:
     with Database() as db:
         bibliographic = db.annotation.bibliographic.get(bibliographic_id)
     return jsonify(bibliographic.model_dump()), 200
+
+
+@annotations_bp.route("/segmentation/<string:segmentation_id>", methods=["DELETE"], strict_slashes=False)
+def delete_segmentation(segmentation_id: str) -> tuple[Response, int]:
+    with Database() as db:
+        db.annotation.segmentation.delete(segmentation_id)
+    return jsonify({"message": "Segmentation deleted successfully"}), 200
+
+
+@annotations_bp.route("/alignment/<string:alignment_id>", methods=["DELETE"], strict_slashes=False)
+def delete_alignment(alignment_id: str) -> tuple[Response, int]:
+    with Database() as db:
+        db.annotation.alignment.delete(alignment_id)
+    return jsonify({"message": "Alignment deleted successfully"}), 200
+
+
+@annotations_bp.route("/pagination/<string:pagination_id>", methods=["DELETE"], strict_slashes=False)
+def delete_pagination(pagination_id: str) -> tuple[Response, int]:
+    with Database() as db:
+        db.annotation.pagination.delete(pagination_id)
+    return jsonify({"message": "Pagination deleted successfully"}), 200
+
+
+@annotations_bp.route("/durchen/<string:note_id>", methods=["DELETE"], strict_slashes=False)
+def delete_durchen(note_id: str) -> tuple[Response, int]:
+    with Database() as db:
+        db.annotation.note.delete(note_id)
+    return jsonify({"message": "Durchen note deleted successfully"}), 200
+
+
+@annotations_bp.route("/bibliographic/<string:bibliographic_id>", methods=["DELETE"], strict_slashes=False)
+def delete_bibliographic(bibliographic_id: str) -> tuple[Response, int]:
+    with Database() as db:
+        db.annotation.bibliographic.delete(bibliographic_id)
+    return jsonify({"message": "Bibliographic metadata deleted successfully"}), 200

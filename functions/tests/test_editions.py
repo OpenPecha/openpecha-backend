@@ -88,9 +88,9 @@ def test_database(neo4j_connection):
         session.run("MERGE (a:AnnotationType {name: 'version'})")
         session.run("MERGE (a:AnnotationType {name: 'segmentation'})")
 
-        # Create test copyright statuses
-        session.run("MERGE (c:CopyrightStatus {name: 'public'})")
-        session.run("MERGE (c:CopyrightStatus {name: 'copyrighted'})")
+        # Create test license types
+        session.run("MERGE (l:LicenseType {name: 'public'})")
+        session.run("MERGE (l:LicenseType {name: 'copyrighted'})")
 
         # Create bibliography types
         session.run("MERGE (b:BibliographyType {name: 'title'})")
@@ -102,9 +102,8 @@ def test_database(neo4j_connection):
         session.run("MERGE (r:RoleType {name: 'author'})")
         session.run("MERGE (r:RoleType {name: 'reviser'})")
 
-        # Create copyright and license nodes
-        session.run("MERGE (c:Copyright {status: 'Public domain'})")
-        session.run("MERGE (l:License {name: 'Public Domain Mark'})")
+        # Create license type nodes
+        session.run("MERGE (l:LicenseType {name: 'public'})")
 
     yield db
 
