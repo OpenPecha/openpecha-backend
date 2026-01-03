@@ -66,7 +66,7 @@ class ExpressionDatabase:
             [(an)-[:HAS_LOCALIZATION]->(lt:LocalizedText)-[r:HAS_LANGUAGE]->(lang:Language) |
                 {lang: coalesce(r.bcp47, lang.code), text: lt.text}]],
         language: [(e)-[:HAS_LANGUAGE]->(lang:Language) | lang.code][0],
-        category_id: [(e)-[:EXPRESSION_OF]->(work:Work)-[:BELONGS_TO]->(cat:Category) | cat.id][0],
+        category_id: [(e)-[:EXPRESSION_OF]->(work:Work)-[:HAS_CATEGORY]->(cat:Category) | cat.id][0],
         copyright: [(e)-[:HAS_COPYRIGHT]->(copyright:Copyright) | copyright.name][0],
         license: [(e)-[:HAS_LICENSE]->(license:License) | license.name][0],
         instances: [(e)<-[:MANIFESTATION_OF]-(m:Manifestation) | m.id]
@@ -95,7 +95,7 @@ class ExpressionDatabase:
         }}
     ))
     AND ($category_id IS NULL OR EXISTS {{
-        MATCH (e)-[:EXPRESSION_OF]->(:Work)-[:BELONGS_TO]->(:Category {{id: $category_id}})
+        MATCH (e)-[:EXPRESSION_OF]->(:Work)-[:HAS_CATEGORY]->(:Category {{id: $category_id}})
     }})
     WITH e
     ORDER BY e.id
@@ -164,7 +164,7 @@ class ExpressionDatabase:
     LINK_WORK_TO_CATEGORY_QUERY = """
     MATCH (w:Work {id: $work_id})
     MATCH (c:Category {id: $category_id})
-    CREATE (w)-[:BELONGS_TO]->(c)
+    CREATE (w)-[:HAS_CATEGORY]->(c)
     """
 
     CREATE_CONTRIBUTION_QUERY = """
@@ -282,8 +282,7 @@ class ExpressionDatabase:
         DatabaseValidator.validate_expression_creation(tx, expression, work_id)
         base_lang_code = expression.language.split("-")[0].lower()
         DatabaseValidator.validate_language_code_exists(tx, base_lang_code)
-        if expression.category_id:
-            DatabaseValidator.validate_category_exists(tx, expression.category_id)
+        DatabaseValidator.validate_category_exists(tx, expression.category_id)
 
         alt_titles = [dict(t.root) for t in expression.alt_titles] if expression.alt_titles else []
         title_nomen_id = NomenDatabase.create_with_transaction(tx, dict(expression.title.root), alt_titles)

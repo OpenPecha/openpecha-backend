@@ -373,13 +373,11 @@ class ExpressionBase(OpenPechaModel):
 
     @model_validator(mode="after")
     def validate_title_language(self) -> Self:
-        # Check that title has an entry matching the language field
         if self.language not in self.title.root:
             raise ValueError(
                 f"Title must include an entry for the expression's language '{self.language}'. "
                 f"Available title languages: {list(self.title.root.keys())}"
             )
-
         return self
 
     @model_validator(mode="after")
@@ -439,11 +437,19 @@ class ManifestationOutput(ManifestationBase):
     text_id: NonEmptyStr
 
 
-class CategoryListItemModel(OpenPechaModel):
+class CategoryBase(OpenPechaModel):
+    application: NonEmptyStr
+    title: LocalizedString
+    parent_id: NonEmptyStr | None = None
+
+
+class CategoryInput(CategoryBase):
+    pass
+
+
+class CategoryOutput(CategoryBase):
     id: NonEmptyStr
-    parent: NonEmptyStr | None = None
-    title: NonEmptyStr
-    has_child: bool = False
+    has_children: bool = False
 
 
 class SearchFilterModel(OpenPechaModel):

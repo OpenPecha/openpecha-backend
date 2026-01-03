@@ -1,5 +1,6 @@
 from models import (
     AIContributionModel,
+    CategoryOutput,
     ContributionOutput,
     CopyrightStatus,
     ExpressionOutput,
@@ -75,7 +76,7 @@ class DataAdapter:
             ]
             or None,
             language=data["language"],
-            category_id=data.get("category_id"),
+            category_id=data["category_id"],
             copyright=CopyrightStatus(data.get("copyright") or CopyrightStatus.PUBLIC_DOMAIN.value),
             license=LicenseType(data.get("license") or LicenseType.PUBLIC_DOMAIN_MARK.value),
             instances=data.get("instances") or [],
@@ -92,4 +93,14 @@ class DataAdapter:
                 LocalizedString(t) for alt in data.get("alt_names", []) if (t := DataAdapter.localized_text(alt))
             ]
             or None,
+        )
+
+    @staticmethod
+    def category(data: dict) -> CategoryOutput:
+        return CategoryOutput(
+            id=data["id"],
+            application=data["application"],
+            title=LocalizedString(DataAdapter.localized_text(data["title"]) or {}),
+            parent_id=data.get("parent_id"),
+            has_children=data.get("has_children", False),
         )

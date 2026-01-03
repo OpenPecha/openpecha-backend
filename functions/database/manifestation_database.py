@@ -42,9 +42,8 @@ class ManifestationDatabase:
 
     _MANIFESTATION_RETURN = """
     RETURN {
-        id: m.id, bdrc: m.bdrc, wiki: m.wiki, colophon: m.colophon,
+        id: m.id, bdrc: m.bdrc, wiki: m.wiki, colophon: m.colophon, source: m.source,
         type: [(m)-[:HAS_TYPE]->(mt:ManifestationType) | mt.name][0],
-        source: [(m)-[:HAS_SOURCE]->(s:Source) | s.name][0],
         incipit_title: [(m)-[:HAS_INCIPIT_TITLE]->(n:Nomen)
             WHERE NOT exists((n)<-[:ALTERNATIVE_OF]-(:Nomen)) |
             [(n)-[:HAS_LOCALIZATION]->(lt:LocalizedText)-[r:HAS_LANGUAGE]->(l:Language) |
@@ -85,10 +84,9 @@ class ManifestationDatabase:
     MATCH (e:Expression {id: $expression_id})
     OPTIONAL MATCH (it:Nomen {id: $incipit_nomen_id})
     MERGE (mt:ManifestationType {name: $type})
-    MERGE (S:Source {name: $source})
-    CREATE (m:Manifestation {id: $manifestation_id, bdrc: $bdrc, wiki: $wiki, colophon: $colophon})
-    WITH m, e, mt, S, it
-    CREATE (m)-[:MANIFESTATION_OF]->(e), (m)-[:HAS_TYPE]->(mt), (m)-[:HAS_SOURCE]->(S)
+    CREATE (m:Manifestation {id: $manifestation_id, bdrc: $bdrc, wiki: $wiki, colophon: $colophon, source: $source})
+    WITH m, e, mt, it
+    CREATE (m)-[:MANIFESTATION_OF]->(e), (m)-[:HAS_TYPE]->(mt)
     CALL (*) { WHEN it IS NOT NULL THEN { CREATE (m)-[:HAS_INCIPIT_TITLE]->(it) } }
     RETURN m.id AS manifestation_id
     """

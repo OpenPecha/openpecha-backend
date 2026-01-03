@@ -1,6 +1,10 @@
 nodes:
   Work:
     properties:
+      id:
+        type: string
+        required: true
+        unique: true
       wiki:
         type: string
         required: false
@@ -9,9 +13,37 @@ nodes:
         type: string
         required: false
         unique: true
+    relationships:
+      HAS_CATEGORY:
+        target: Category
+        cardinality: one
+        required: true
+
+  Category:
+    properties:
+      id:
+        type: string
+        required: true
+        unique: true
+      application:
+        type: string
+        required: true
+    relationships:
+      HAS_TITLE:
+        target: Nomen
+        cardinality: one
+        required: true
+      CHILD_OF:
+        target: Category
+        cardinality: one
+        required: false
 
   Expression:
     properties:
+      id:
+        type: string
+        required: true
+        unique: true
       wiki:
         type: string
         required: false
@@ -20,6 +52,9 @@ nodes:
         type: string
         required: false
         unique: true
+      date:
+        type: string
+        required: false
     relationships:
       EXPRESSION_OF:
         target: Work
@@ -53,6 +88,14 @@ nodes:
         target: Nomen
         cardinality: one
         required: true
+      HAS_COPYRIGHT:
+        target: Copyright
+        cardinality: one
+        required: true
+      HAS_LICENSE:
+        target: License
+        cardinality: one
+        required: true
 
   Manifestation:
     properties:
@@ -63,11 +106,8 @@ nodes:
       colophon:
         type: string
         required: false
-      created:
-        type: datetime
-        required: false
-      modified:
-        type: datetime
+      source:
+        type: string
         required: false
       bdrc:
         type: string
@@ -82,10 +122,6 @@ nodes:
         target: ManifestationType
         cardinality: one
         required: true
-      HAS_COPYRIGHT:
-        target: CopyrightStatus
-        cardinality: one
-        required: false
       HAS_INCIPIT_TITLE:
         target: Nomen
         cardinality: one
@@ -108,7 +144,7 @@ nodes:
       SEGMENTATION_OF:
         target: Manifestation
         cardinality: one
-        required: false
+        required: true
       HAS_METADATA:
         target: AnnotationMetadata
         cardinality: one
@@ -235,7 +271,6 @@ nodes:
       index:
         type: integer
         required: false
-        description: "Volume order index"
     relationships:
       VOLUME_OF:
         target: Pagination
@@ -244,9 +279,13 @@ nodes:
 
   Page:
     properties:
+      id:
+        type: string
+        required: true
+        unique: true
       reference:
         type: string
-        required: false
+        required: true
     relationships:
       PAGE_OF:
         target: Volume
@@ -259,42 +298,6 @@ nodes:
         type: string
         required: true
         unique: true
-
-  BibliographyType:
-    enum: true
-    properties:
-      name:
-        type: string
-        unique: true
-        required: true
-        allowed_values:
-          - colophon
-          - incipit
-          - alt_incipit
-          - alt_title
-          - person
-          - title
-          - author
-
-  NoteType:
-    enum: true
-    properties:
-      name:
-        type: string
-        unique: true
-        required: true
-        allowed_values:
-          - durchen
-
-  AttributeType:
-    enum: true
-    properties:
-      name:
-        type: string
-        unique: true
-        required: true
-        allowed_values:
-          - ocr_confidence
 
   Contribution:
     relationships:
@@ -343,7 +346,7 @@ nodes:
     relationships:
       HAS_LOCALIZATION:
         target: LocalizedText
-        cardinality: one
+        cardinality: many
         required: true
       ALTERNATIVE_OF:
         target: Nomen
@@ -363,7 +366,7 @@ nodes:
         properties:
           bcp47:
             type: string
-            required: true
+            required: false
 
   Language:
     properties:
@@ -381,26 +384,78 @@ nodes:
       name:
         type: string
         unique: true
+        required: true
         allowed_values:
           - diplomatic
           - critical
+          - collated
 
-  CopyrightStatus:
+  Copyright:
     enum: true
     properties:
-      info_url:
+      status:
         type: string
-        required: false
+        unique: true
+        required: true
+        allowed_values:
+          - Unknown
+          - In copyright
+          - Public domain
+
+  License:
+    enum: true
+    properties:
       name:
         type: string
         unique: true
         required: true
         allowed_values:
-          - public
-          - copyrighted
-      description:
+          - CC0
+          - Public Domain Mark
+          - CC BY
+          - CC BY-SA
+          - CC BY-ND
+          - CC BY-NC
+          - CC BY-NC-SA
+          - CC BY-NC-ND
+          - under copyright
+          - unknown
+
+  BibliographyType:
+    enum: true
+    properties:
+      name:
         type: string
-        required: false
+        unique: true
+        required: true
+        allowed_values:
+          - colophon
+          - incipit
+          - alt_incipit
+          - alt_title
+          - person
+          - title
+          - author
+
+  NoteType:
+    enum: true
+    properties:
+      name:
+        type: string
+        unique: true
+        required: true
+        allowed_values:
+          - durchen
+
+  AttributeType:
+    enum: true
+    properties:
+      name:
+        type: string
+        unique: true
+        required: true
+        allowed_values:
+          - ocr_confidence
 
   AnnotationType:
     enum: true
@@ -408,6 +463,7 @@ nodes:
       name:
         type: string
         unique: true
+        required: true
         allowed_values:
           - segmentation
           - alignment
@@ -430,6 +486,3 @@ nodes:
           - author
           - translator
           - scholar
-        description:
-          type: string
-          required: false

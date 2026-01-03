@@ -4,10 +4,13 @@ from typing import TYPE_CHECKING
 
 from exceptions import DataValidationError
 from identifier import generate_id
-from models import CategoryListItemModel
+
+from .data_adapter import DataAdapter
+from .nomen_database import NomenDatabase
 
 if TYPE_CHECKING:
-    from neo4j import Session
+    from models import CategoryInput, CategoryOutput
+    from neo4j import ManagedTransaction, Session
 
     from .database import Database
 
@@ -17,22 +20,20 @@ class CategoryDatabase:
     MATCH (c:Category {application: $application})
     WHERE ($parent_id IS NULL AND NOT (c)-[:HAS_PARENT]->(:Category))
        OR ($parent_id IS NOT NULL AND (c)-[:HAS_PARENT]->(:Category {id: $parent_id}))
-    OPTIONAL MATCH (c)-[:HAS_PARENT]->(parent:Category)
-    OPTIONAL MATCH (c)-[:HAS_TITLE]->(:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
-        -[:HAS_LANGUAGE]->(:Language {code: $language})
-    OPTIONAL MATCH (child:Category)-[:HAS_PARENT]->(c)
-    WITH c, parent, lt, COUNT(DISTINCT child) > 0 AS has_child
-    RETURN c.id AS id, parent.id AS parent, lt.text AS title, has_child
+    RETURN {
+        id: c.id,
+        application: c.application,
+        title: [(c)-[:HAS_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
+            -[:HAS_LANGUAGE]->(l:Language) | {language: l.code, text: lt.text}],
+        parent_id: [(c)-[:HAS_PARENT]->(parent:Category) | parent.id][0],
+        has_children: EXISTS { (child:Category)-[:HAS_PARENT]->(c) }
+    } AS category
     """
 
     CREATE_QUERY = """
+    MATCH (n:Nomen {id: $nomen_id})
     CREATE (c:Category {id: $category_id, application: $application})
-    CREATE (n:Nomen)
     CREATE (c)-[:HAS_TITLE]->(n)
-    FOREACH (lt IN $localized_texts |
-        MERGE (l:Language {code: lt.language})
-        CREATE (n)-[:HAS_LOCALIZATION]->(:LocalizedText {text: lt.text})-[:HAS_LANGUAGE]->(l)
-    )
     WITH c
     OPTIONAL MATCH (parent:Category {id: $parent_id})
     FOREACH (_ IN CASE WHEN parent IS NOT NULL THEN [1] ELSE [] END |
@@ -59,58 +60,49 @@ class CategoryDatabase:
     def session(self) -> Session:
         return self._db.get_session()
 
-    def get_all(self, application: str, language: str, parent_id: str | None = None) -> list[CategoryListItemModel]:
+    def get_all(self, application: str, parent_id: str | None = None) -> list[CategoryOutput]:
         with self.session as session:
             result = session.run(
                 CategoryDatabase.GET_ALL_QUERY,
                 application=application,
                 parent_id=parent_id,
-                language=language,
             )
-            categories = []
-            for record in result:
-                data = record.data()
-                if data.get("title") is not None:
-                    categories.append(
-                        CategoryListItemModel(
-                            id=data["id"],
-                            parent=data.get("parent"),
-                            title=data["title"],
-                            has_child=data.get("has_child", False),
-                        )
-                    )
-            return categories
+            return [DataAdapter.category(record.data()["category"]) for record in result]
 
-    def create(self, application: str, title: dict[str, str], parent_id: str | None = None) -> str:
-        self._validate_not_exists(application, title, parent_id)
+    def create(self, category: CategoryInput) -> str:
+        def create_transaction(tx: ManagedTransaction) -> str:
+            self._validate_not_exists_tx(tx, category.application, category.title.root, category.parent_id)
 
-        category_id = generate_id()
-        localized_texts = [{"language": lang, "text": text} for lang, text in title.items()]
+            category_id = generate_id()
+            nomen_id = NomenDatabase.create_with_transaction(tx, category.title.root, None)
 
-        with self.session as session:
-            result = session.run(
+            result = tx.run(
                 CategoryDatabase.CREATE_QUERY,
                 category_id=category_id,
-                application=application,
-                localized_texts=localized_texts,
-                parent_id=parent_id,
+                application=category.application,
+                nomen_id=nomen_id,
+                parent_id=category.parent_id,
             )
             record = result.single(strict=True)
             return record["category_id"]
 
-    def _validate_not_exists(self, application: str, title: dict[str, str], parent_id: str | None) -> None:
         with self.session as session:
-            for language, title_text in title.items():
-                result = session.run(
-                    CategoryDatabase.FIND_EXISTING_QUERY,
-                    application=application,
-                    parent_id=parent_id,
-                    language=language,
-                    title_text=title_text,
+            return str(session.execute_write(create_transaction))
+
+    def _validate_not_exists_tx(
+        self, tx: ManagedTransaction, application: str, title: dict[str, str], parent_id: str | None
+    ) -> None:
+        for language, title_text in title.items():
+            result = tx.run(
+                CategoryDatabase.FIND_EXISTING_QUERY,
+                application=application,
+                parent_id=parent_id,
+                language=language,
+                title_text=title_text,
+            )
+            record = result.single()
+            if record:
+                raise DataValidationError(
+                    f"Category with title '{title_text}' in language '{language}' "
+                    f"already exists for application '{application}'"
                 )
-                record = result.single()
-                if record:
-                    raise DataValidationError(
-                        f"Category with title '{title_text}' in language '{language}' "
-                        f"already exists for application '{application}'"
-                    )
