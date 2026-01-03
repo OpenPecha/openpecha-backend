@@ -1,11 +1,11 @@
 # pylint: disable=redefined-outer-name
 """
-Integration tests for v2/instances endpoints using real Neo4j test instance.
+Integration tests for v2/editions endpoints using real Neo4j test instance.
 
 Tests endpoints:
-- GET /v2/instances/{instance_id}/content (get instance content)
-- GET /v2/instances/{instance_id}/metadata (get instance metadata)
-- POST /v2/texts/{text_id}/instances (create instance)
+- GET /v2/editions/{edition_id}/content (get edition content)
+- GET /v2/editions/{edition_id}/metadata (get edition metadata)
+- POST /v2/texts/{text_id}/editions (create edition)
 
 Requires environment variables:
 - NEO4J_TEST_URI: Neo4j test instance URI
@@ -265,8 +265,8 @@ def create_test_zip():
 
     return _create_zip
 
-class TestGetInstancesV2Endpoints:
-    """Integration test class for v2/instances endpoints using real Neo4j database"""
+class TestGetEditionsV2Endpoints:
+    """Integration test class for v2/editions endpoints using real Neo4j database"""
 
     def _create_test_person(self, db, person_data):
         """Helper to create a test person in the database"""
@@ -313,7 +313,7 @@ class TestGetInstancesV2Endpoints:
         _, manifestation_id = self._create_test_text(test_database, person_id, create_test_zip)
 
         # Test content endpoint
-        response = client.get(f"/v2/instances/{manifestation_id}/content")
+        response = client.get(f"/v2/editions/{manifestation_id}/content")
 
         assert response.status_code == 200
         data = response.get_json()
@@ -321,7 +321,7 @@ class TestGetInstancesV2Endpoints:
 
     def test_get_text_not_found(self, client, test_database):
         """Test instance retrieval with non-existent manifestation ID"""
-        response = client.get("/v2/instances/non-existent-id/metadata")
+        response = client.get("/v2/editions/non-existent-id/metadata")
 
         assert response.status_code == 404
         response_data = response.get_json()
@@ -359,7 +359,7 @@ class TestGetInstancesV2Endpoints:
             },
         }
 
-        response = client.post(f"/v2/texts/{expression_id}/instances", json=text_data)
+        response = client.post(f"/v2/texts/{expression_id}/editions", json=text_data)
 
         assert response.status_code == 201
         response_data = response.get_json()
@@ -376,7 +376,7 @@ class TestGetInstancesV2Endpoints:
         )
         expression_id = test_database.expression.create(expression_data)
 
-        response = client.post(f"/v2/texts/{expression_id}/instances")
+        response = client.post(f"/v2/texts/{expression_id}/editions")
 
         assert response.status_code == 400
         response_data = response.get_json()
@@ -397,7 +397,7 @@ class TestGetInstancesV2Endpoints:
             # Missing required fields
         }
 
-        response = client.post(f"/v2/texts/{expression_id}/instances", json=invalid_data)
+        response = client.post(f"/v2/texts/{expression_id}/editions", json=invalid_data)
 
         # Empty dict is treated as missing body, returns 400
         assert response.status_code == 400
@@ -437,7 +437,7 @@ class TestGetInstancesV2Endpoints:
         }
 
         # Step 1: Create manifestation via POST
-        post_response = client.post(f"/v2/texts/{expression_id}/instances", json=text_data)
+        post_response = client.post(f"/v2/texts/{expression_id}/editions", json=text_data)
 
         # Verify POST succeeded
         assert post_response.status_code == 201, f"POST failed: {post_response.get_json()}"
@@ -446,7 +446,7 @@ class TestGetInstancesV2Endpoints:
         manifestation_id = post_data["id"]
 
         # Step 2: Retrieve text via GET to verify database content
-        get_response = client.get(f"/v2/instances/{manifestation_id}/content")
+        get_response = client.get(f"/v2/editions/{manifestation_id}/content")
 
         # Step 3: Verify GET response contains the content
         assert get_response.status_code == 200
@@ -466,7 +466,7 @@ class TestGetInstancesV2Endpoints:
         _, manifestation_id = self._create_test_text(test_database, person_id, create_test_zip)
 
         # Test GET content endpoint
-        response = client.get(f"/v2/instances/{manifestation_id}/content")
+        response = client.get(f"/v2/editions/{manifestation_id}/content")
 
         assert response.status_code == 200
         response_data = response.get_json()
@@ -505,7 +505,7 @@ class TestGetInstancesV2Endpoints:
             },
         }
 
-        response = client.post(f"/v2/texts/{expression_id}/instances", json=text_data)
+        response = client.post(f"/v2/texts/{expression_id}/editions", json=text_data)
         # Should return 422 for validation error since author field is not valid for manifestations
         assert response.status_code == 422
         response_data = response.get_json()
@@ -529,7 +529,7 @@ class TestGetInstancesV2Endpoints:
             },
         }
 
-        response = client.post("/v2/texts/non-existent-expression-id/instances", json=text_data)
+        response = client.post("/v2/texts/non-existent-expression-id/editions", json=text_data)
         # API returns 422 for non-existent expression ID (validation error)
         assert response.status_code == 422
         response_data = response.get_json()
@@ -547,7 +547,7 @@ class TestGetInstancesV2Endpoints:
         expression_id = test_database.expression.create(expression_data)
 
         response = client.post(
-            f"/v2/texts/{expression_id}/instances", data="{invalid json}", content_type="application/json"
+            f"/v2/texts/{expression_id}/editions", data="{invalid json}", content_type="application/json"
         )
         assert response.status_code == 400
         response_data = response.get_json()
@@ -555,7 +555,7 @@ class TestGetInstancesV2Endpoints:
 
     def test_get_text_invalid_manifestation_format(self, client):
         """Test instance retrieval with invalid manifestation ID format"""
-        response = client.get("/v2/instances/")
+        response = client.get("/v2/editions/")
         # API currently returns 500 for invalid URL format - this should be improved to 404
         assert response.status_code == 500
 

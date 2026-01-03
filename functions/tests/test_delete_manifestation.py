@@ -1,6 +1,6 @@
 # pylint: disable=redefined-outer-name
 """
-Unit tests for DELETE /v2/instances/{manifestation_id} endpoint using mocks.
+Unit tests for DELETE /v2/editions/{manifestation_id} endpoint using mocks.
 """
 import logging
 from unittest.mock import MagicMock, patch
@@ -22,7 +22,7 @@ def client():
 class TestManifestationDeletion:
     """Unit tests for manifestation deletion"""
 
-    @patch("api.instances.Neo4JDatabase")
+    @patch("api.editions.Neo4JDatabase")
     def test_delete_manifestation_success(self, mock_db_cls, client):
         """Test successful deletion of a manifestation via API"""
         # Setup mock
@@ -31,7 +31,7 @@ class TestManifestationDeletion:
 
         # Call DELETE endpoint
         manifestation_id = "test-manifestation-id"
-        response = client.delete(f"/v2/instances/{manifestation_id}")
+        response = client.delete(f"/v2/editions/{manifestation_id}")
         
         # Verify response
         assert response.status_code == 204
@@ -39,7 +39,7 @@ class TestManifestationDeletion:
         # Verify DB method was called
         mock_db_instance.delete_manifestation.assert_called_once_with(manifestation_id=manifestation_id)
 
-    @patch("api.instances.Neo4JDatabase")
+    @patch("api.editions.Neo4JDatabase")
     def test_delete_manifestation_not_found(self, mock_db_cls, client):
         """Test deletion of non-existent manifestation via API"""
         # Setup mock to raise DataNotFound
@@ -47,7 +47,7 @@ class TestManifestationDeletion:
         mock_db_instance.delete_manifestation.side_effect = DataNotFoundError("Manifestation not found")
 
         # Call DELETE endpoint
-        response = client.delete("/v2/instances/non-existent-id")
+        response = client.delete("/v2/editions/non-existent-id")
         
         # Verify response
         assert response.status_code == 404

@@ -188,7 +188,7 @@ def mock_search_segmenter():
     These helpers are "fire-and-forget" and call external services; tests should never
     hit the network or spawn those background threads.
     """
-    with patch("api.instances._trigger_search_segmenter"), patch("api.instances._trigger_delete_search_segments"):
+    with patch("api.editions._trigger_search_segmenter"), patch("api.editions._trigger_delete_search_segments"):
         yield
 
 

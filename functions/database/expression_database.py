@@ -69,7 +69,7 @@ class ExpressionDatabase:
         category_id: [(e)-[:EXPRESSION_OF]->(work:Work)-[:HAS_CATEGORY]->(cat:Category) | cat.id][0],
         copyright: [(e)-[:HAS_COPYRIGHT]->(copyright:Copyright) | copyright.name][0],
         license: [(e)-[:HAS_LICENSE]->(license:License) | license.name][0],
-        instances: [(e)<-[:MANIFESTATION_OF]-(m:Manifestation) | m.id]
+        editions: [(e)<-[:MANIFESTATION_OF]-(m:Manifestation) | m.id]
     } AS expression
     """
 

@@ -15,7 +15,7 @@ from request_models import (
 )
 from storage import Storage
 
-instances_bp = Blueprint("instances", __name__)
+editions_bp = Blueprint("editions", __name__)
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +58,7 @@ def _trigger_delete_search_segments(segment_ids: list[str]) -> None:
     thread.start()
 
 
-@instances_bp.route("/<string:manifestation_id>/metadata", methods=["GET"], strict_slashes=False)
+@editions_bp.route("/<string:manifestation_id>/metadata", methods=["GET"], strict_slashes=False)
 def get_metadata(manifestation_id: str) -> tuple[Response, int]:
     logger.info("Fetching metadata for manifestation %s", manifestation_id)
 
@@ -69,7 +69,7 @@ def get_metadata(manifestation_id: str) -> tuple[Response, int]:
     return jsonify(manifestation.model_dump()), 200
 
 
-@instances_bp.route("/<string:manifestation_id>/content", methods=["GET"], strict_slashes=False)
+@editions_bp.route("/<string:manifestation_id>/content", methods=["GET"], strict_slashes=False)
 @validate_query_params(OptionalSpanQueryParams)
 def get_content(manifestation_id: str, validated_params: OptionalSpanQueryParams) -> tuple[Response, int]:
     with Database() as db:
@@ -82,7 +82,7 @@ def get_content(manifestation_id: str, validated_params: OptionalSpanQueryParams
     return jsonify(base_text), 200
 
 
-@instances_bp.route("/<string:manifestation_id>/annotations", methods=["POST"], strict_slashes=False)
+@editions_bp.route("/<string:manifestation_id>/annotations", methods=["POST"], strict_slashes=False)
 @validate_json(AnnotationRequestInput)
 def post_annotation(manifestation_id: str, validated_data: AnnotationRequestInput) -> tuple[Response, int]:
     with Database() as db:
@@ -100,7 +100,7 @@ def post_annotation(manifestation_id: str, validated_data: AnnotationRequestInpu
     return jsonify({"message": "Annotation added successfully"}), 201
 
 
-@instances_bp.route("/<string:manifestation_id>/annotations", methods=["GET"], strict_slashes=False)
+@editions_bp.route("/<string:manifestation_id>/annotations", methods=["GET"], strict_slashes=False)
 @validate_query_params(AnnotationTypeFilter)
 def get_annotations(manifestation_id: str, validated_params: AnnotationTypeFilter) -> tuple[Response, int]:
     requested_types = validated_params.type
@@ -125,7 +125,7 @@ def get_annotations(manifestation_id: str, validated_params: AnnotationTypeFilte
     return jsonify(output.model_dump(exclude_none=True)), 200
 
 
-@instances_bp.route("/<string:manifestation_id>/segments/related", methods=["GET"], strict_slashes=False)
+@editions_bp.route("/<string:manifestation_id>/segments/related", methods=["GET"], strict_slashes=False)
 @validate_query_params(SpanQueryParams)
 def get_segment_related(manifestation_id: str, validated_params: SpanQueryParams) -> tuple[Response, int]:
     with Database() as db:
@@ -142,11 +142,11 @@ def get_segment_related(manifestation_id: str, validated_params: SpanQueryParams
     return jsonify([seg.model_dump() for seg in all_segments]), 200
 
 
-@instances_bp.route("/<string:manifestation_id>/related", methods=["GET"], strict_slashes=False)
-def get_related_instances(manifestation_id: str) -> tuple[Response, int]:
-    logger.info("Finding related instances for manifestation ID: %s", manifestation_id)
+@editions_bp.route("/<string:manifestation_id>/related", methods=["GET"], strict_slashes=False)
+def get_related_editions(manifestation_id: str) -> tuple[Response, int]:
+    logger.info("Finding related editions for manifestation ID: %s", manifestation_id)
 
     with Database() as db:
-        related_instances = db.manifestation.get_related(manifestation_id)
+        related_editions = db.manifestation.get_related(manifestation_id)
 
-    return jsonify([m.model_dump() for m in related_instances]), 200
+    return jsonify([m.model_dump() for m in related_editions]), 200

@@ -10,14 +10,12 @@ import os
 import copy
 import pytest
 from dotenv import load_dotenv
-from models import (
-    PersonModelInput,
-    ExpressionModelInput,
-    InstanceRequestModel,
-    AlignedTextRequestModel
+from models import ExpressionInput, PersonInput
+from request_models import (
+    EditionRequestModel,
 )
 from main import create_app
-from neo4j_database import Neo4JDatabase
+from database import Database
 
 load_dotenv()
 
@@ -122,66 +120,66 @@ def all_texts(client, test_database, test_expression_data, test_person_data):
     category_id = creator._create_category(test_database)
     person_id = creator._create_person(test_database, test_person_data)
 
-    text_a_id, instance_a_id = creator._create_expression_and_manifestation_for_text_A(
+    text_a_id, edition_a_id = creator._create_expression_and_manifestation_for_text_A(
         client, copy.deepcopy(test_expression_data), category_id, person_id
     )
-    text_b_id, instance_b_id = creator._create_text_B_translation_target_text_A(
-        client, category_id, person_id, instance_a_id
+    text_b_id, edition_b_id = creator._create_text_B_translation_target_text_A(
+        client, category_id, person_id, edition_a_id
     )
-    text_c_id, instance_c_id = creator._create_text_C_commentary_target_text_A(
-        client, category_id, person_id, instance_a_id
+    text_c_id, edition_c_id = creator._create_text_C_commentary_target_text_A(
+        client, category_id, person_id, edition_a_id
     )
-    text_d_id, instance_d_id = creator._create_text_D_commentary_target_text_B(
-        client, category_id, person_id, instance_b_id
+    text_d_id, edition_d_id = creator._create_text_D_commentary_target_text_B(
+        client, category_id, person_id, edition_b_id
     )
-    text_e_id, instance_e_id = creator._create_text_E_translation_target_text_A(
-        client, category_id, person_id, instance_a_id
+    text_e_id, edition_e_id = creator._create_text_E_translation_target_text_A(
+        client, category_id, person_id, edition_a_id
     )
-    text_f_id, instance_f_id = creator._create_text_F_commentary_target_text_E(
-        client, category_id, person_id, instance_e_id
+    text_f_id, edition_f_id = creator._create_text_F_commentary_target_text_E(
+        client, category_id, person_id, edition_e_id
     )
-    text_g_id, instance_g_id = creator._create_text_G_translation_target_text_C(
-        client, category_id, person_id, instance_c_id
+    text_g_id, edition_g_id = creator._create_text_G_translation_target_text_C(
+        client, category_id, person_id, edition_c_id
     )
-    text_h_id, instance_h_id = creator._create_text_H_commentary_target_text_C(
-        client, category_id, person_id, instance_c_id
+    text_h_id, edition_h_id = creator._create_text_H_commentary_target_text_C(
+        client, category_id, person_id, edition_c_id
     )
-    text_i_id, instance_i_id = creator._create_text_I_commentary_target_text_G(
-        client, category_id, person_id, instance_g_id
+    text_i_id, edition_i_id = creator._create_text_I_commentary_target_text_G(
+        client, category_id, person_id, edition_g_id
     )
-    text_j_id, instance_j_id = creator._create_text_J_translation_target_text_H(
-        client, category_id, person_id, instance_h_id
+    text_j_id, edition_j_id = creator._create_text_J_translation_target_text_H(
+        client, category_id, person_id, edition_h_id
     )
-    text_k_id, instance_k_id = creator._create_text_K_translation_target_text_B(
-        client, category_id, person_id, instance_b_id
+    text_k_id, edition_k_id = creator._create_text_K_translation_target_text_B(
+        client, category_id, person_id, edition_b_id
     )
-    text_l_id, instance_l_id = creator._create_expression_and_manifestation_for_text_L(
+    text_l_id, edition_l_id = creator._create_expression_and_manifestation_for_text_L(
         client, copy.deepcopy(test_expression_data), category_id, person_id
     )
-    text_m_id, instance_m_id = creator._create_text_M_translation_target_text_L(
-        client, category_id, person_id, instance_l_id
+    text_m_id, edition_m_id = creator._create_text_M_translation_target_text_L(
+        client, category_id, person_id, edition_l_id
     )
-    text_n_id, instance_n_id = creator._create_text_N_commentary_target_text_L(
-        client, category_id, person_id, instance_l_id
+    text_n_id, edition_n_id = creator._create_text_N_commentary_target_text_L(
+        client, category_id, person_id, edition_l_id
     )
 
     return {
         "category_id": category_id,
         "person_id": person_id,
-        "A": {"text_id": text_a_id, "instance_id": instance_a_id},
-        "B": {"text_id": text_b_id, "instance_id": instance_b_id},
-        "C": {"text_id": text_c_id, "instance_id": instance_c_id},
-        "D": {"text_id": text_d_id, "instance_id": instance_d_id},
-        "E": {"text_id": text_e_id, "instance_id": instance_e_id},
-        "F": {"text_id": text_f_id, "instance_id": instance_f_id},
-        "G": {"text_id": text_g_id, "instance_id": instance_g_id},
-        "H": {"text_id": text_h_id, "instance_id": instance_h_id},
-        "I": {"text_id": text_i_id, "instance_id": instance_i_id},
-        "J": {"text_id": text_j_id, "instance_id": instance_j_id},
-        "K": {"text_id": text_k_id, "instance_id": instance_k_id},
-        "L": {"text_id": text_l_id, "instance_id": instance_l_id},
-        "M": {"text_id": text_m_id, "instance_id": instance_m_id},
-        "N": {"text_id": text_n_id, "instance_id": instance_n_id},
+        "A": {"text_id": text_a_id, "edition_id": edition_a_id},
+        "B": {"text_id": text_b_id, "edition_id": edition_b_id},
+        "C": {"text_id": text_c_id, "edition_id": edition_c_id},
+        "D": {"text_id": text_d_id, "edition_id": edition_d_id},
+        "E": {"text_id": text_e_id, "edition_id": edition_e_id},
+        "F": {"text_id": text_f_id, "edition_id": edition_f_id},
+        "G": {"text_id": text_g_id, "edition_id": edition_g_id},
+        "H": {"text_id": text_h_id, "edition_id": edition_h_id},
+        "I": {"text_id": text_i_id, "edition_id": edition_i_id},
+        "J": {"text_id": text_j_id, "edition_id": edition_j_id},
+        "K": {"text_id": text_k_id, "edition_id": edition_k_id},
+        "L": {"text_id": text_l_id, "edition_id": edition_l_id},
+        "M": {"text_id": text_m_id, "edition_id": edition_m_id},
+        "N": {"text_id": text_n_id, "edition_id": edition_n_id},
     }
 
 class TestGetSegmentRelationV2:
@@ -196,7 +194,7 @@ class TestGetSegmentRelationV2:
     
     def _create_person(self, test_database, test_person_data) -> str:
         """Create a test person"""
-        person = PersonModelInput.model_validate(test_person_data)
+        person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
         return person_id
 
@@ -216,7 +214,7 @@ class TestGetSegmentRelationV2:
         expression_data["bdrc"] = "W123456"
         expression_data["wiki"] = "Q123456"
         expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
-        expression = ExpressionModelInput.model_validate(expression_data)
+        expression = ExpressionInput.model_validate(expression_data)
         
         expression_response = client.post("/v2/texts", data=json.dumps(expression.model_dump(mode="json")), content_type="application/json")
         
@@ -273,8 +271,8 @@ class TestGetSegmentRelationV2:
             ],
             "content": "This is the text content to be stored"
         }
-        manifestation = InstanceRequestModel.model_validate(manifestation_data)
-        manifestation_response = client.post(f"/v2/texts/{expression_id}/instances", data=json.dumps(manifestation.model_dump(mode="json")), content_type="application/json")
+        manifestation = EditionRequestModel.model_validate(manifestation_data)
+        manifestation_response = client.post(f"/v2/texts/{expression_id}/editions", data=json.dumps(manifestation.model_dump(mode="json")), content_type="application/json")
         
         assert manifestation_response.status_code == 201
         data = json.loads(manifestation_response.data)
@@ -388,15 +386,15 @@ class TestGetSegmentRelationV2:
         translation = AlignedTextRequestModel.model_validate(translation_request)
 
         translation_response = client.post(
-            f"/v2/instances/{target_manifestation_id}/translation",
+            f"/v2/editions/{target_manifestation_id}/translation",
             json=translation.model_dump()
         )
 
         assert translation_response.status_code == 201
         data = translation_response.get_json()
         translation_text_id = data["text_id"]
-        translation_instance_id = data["instance_id"]
-        return translation_text_id, translation_instance_id
+        translation_edition_id = data["edition_id"]
+        return translation_text_id, translation_edition_id
 
     def _create_text_C_commentary_target_text_A(
         self,
@@ -502,13 +500,13 @@ class TestGetSegmentRelationV2:
         }
         commentary = AlignedTextRequestModel.model_validate(commentary_request)
         commentary_response = client.post(
-            f"/v2/instances/{target_manifestation_id}/commentary",
+            f"/v2/editions/{target_manifestation_id}/commentary",
             json=commentary.model_dump()
         )
 
         assert commentary_response.status_code == 201
         data = commentary_response.get_json()
-        return data["text_id"], data["instance_id"]
+        return data["text_id"], data["edition_id"]
     
     def _create_text_D_commentary_target_text_B(
         self,
@@ -598,13 +596,13 @@ class TestGetSegmentRelationV2:
 
         commentary = AlignedTextRequestModel.model_validate(commentary_request)
         commentary_response = client.post(
-            f"/v2/instances/{target_manifestation_id}/commentary",
+            f"/v2/editions/{target_manifestation_id}/commentary",
             json=commentary.model_dump()
         )
 
         assert commentary_response.status_code == 201
         data = commentary_response.get_json()
-        return data["text_id"], data["instance_id"]
+        return data["text_id"], data["edition_id"]
 
     def _create_text_E_translation_target_text_A(
         self,
@@ -710,12 +708,12 @@ class TestGetSegmentRelationV2:
 
         translation = AlignedTextRequestModel.model_validate(translation_request)
         translation_response = client.post(
-            f"/v2/instances/{target_manifestation_id}/translation",
+            f"/v2/editions/{target_manifestation_id}/translation",
             json=translation.model_dump()
         )
         assert translation_response.status_code == 201
         data = translation_response.get_json()
-        return data["text_id"], data["instance_id"]
+        return data["text_id"], data["edition_id"]
 
     def _create_text_F_commentary_target_text_E(
         self,
@@ -820,12 +818,12 @@ class TestGetSegmentRelationV2:
         }
         commentary = AlignedTextRequestModel.model_validate(commentary_request)
         commentary_response = client.post(
-            f"/v2/instances/{target_manifestation_id}/commentary",
+            f"/v2/editions/{target_manifestation_id}/commentary",
             json=commentary.model_dump()
         )
         assert commentary_response.status_code == 201
         data = commentary_response.get_json()
-        return data["text_id"], data["instance_id"]
+        return data["text_id"], data["edition_id"]
     
     def _create_text_G_translation_target_text_C(
         self,
@@ -941,12 +939,12 @@ class TestGetSegmentRelationV2:
         }
         translation = AlignedTextRequestModel.model_validate(translation_request)
         translation_response = client.post(
-            f"/v2/instances/{target_manifestation_id}/translation",
+            f"/v2/editions/{target_manifestation_id}/translation",
             json=translation.model_dump()
         )
         assert translation_response.status_code == 201
         data = translation_response.get_json()
-        return data["text_id"], data["instance_id"]
+        return data["text_id"], data["edition_id"]
 
     def _create_text_H_commentary_target_text_C(
         self,
@@ -1024,12 +1022,12 @@ class TestGetSegmentRelationV2:
             }
         commentary = AlignedTextRequestModel.model_validate(commentary_request)
         commentary_response = client.post(
-            f"/v2/instances/{target_manifestation_id}/commentary",
+            f"/v2/editions/{target_manifestation_id}/commentary",
             json=commentary.model_dump()
         )
         assert commentary_response.status_code == 201
         data = commentary_response.get_json()
-        return data["text_id"], data["instance_id"]
+        return data["text_id"], data["edition_id"]
 
     def _create_text_I_commentary_target_text_G(
         self,
@@ -1105,12 +1103,12 @@ class TestGetSegmentRelationV2:
         }
         commentary = AlignedTextRequestModel.model_validate(commentary_request)
         commentary_response = client.post(
-            f"/v2/instances/{target_manifestation_id}/commentary",
+            f"/v2/editions/{target_manifestation_id}/commentary",
             json=commentary.model_dump()
         )
         assert commentary_response.status_code == 201
         data = commentary_response.get_json()
-        return data["text_id"], data["instance_id"]
+        return data["text_id"], data["edition_id"]
     
     def _create_text_J_translation_target_text_H(
         self,
@@ -1216,12 +1214,12 @@ class TestGetSegmentRelationV2:
         }
         translation = AlignedTextRequestModel.model_validate(translation_request)
         translation_response = client.post(
-            f"/v2/instances/{target_manifestation_id}/translation",
+            f"/v2/editions/{target_manifestation_id}/translation",
             json=translation.model_dump()
         )
         assert translation_response.status_code == 201
         data = translation_response.get_json()
-        return data["text_id"], data["instance_id"]
+        return data["text_id"], data["edition_id"]
 
     def _create_text_K_translation_target_text_B(
         self,
@@ -1320,12 +1318,12 @@ class TestGetSegmentRelationV2:
         }
         translation = AlignedTextRequestModel.model_validate(translation_request)
         translation_response = client.post(
-            f"/v2/instances/{target_manifestation_id}/translation",
+            f"/v2/editions/{target_manifestation_id}/translation",
             json=translation.model_dump()
         )
         assert translation_response.status_code == 201
         data = translation_response.get_json()
-        return data["text_id"], data["instance_id"]
+        return data["text_id"], data["edition_id"]
 
     def _create_expression_and_manifestation_for_text_L(
         self,
@@ -1344,7 +1342,7 @@ class TestGetSegmentRelationV2:
         expression_data["type"] = "translation"
         expression_data["category_id"] = category_id
         expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
-        expression = ExpressionModelInput.model_validate(expression_data)
+        expression = ExpressionInput.model_validate(expression_data)
         
         expression_response = client.post(
             "/v2/texts",
@@ -1411,9 +1409,9 @@ class TestGetSegmentRelationV2:
             ],
             "content": "This is the text content to be stored"
         }
-        manifestation = InstanceRequestModel.model_validate(manifestation_data)
+        manifestation = EditionRequestModel.model_validate(manifestation_data)
         manifestation_response = client.post(
-            f"/v2/texts/{expression_id}/instances",
+            f"/v2/texts/{expression_id}/editions",
             data=json.dumps(manifestation.model_dump(mode="json")),
             content_type="application/json",
         )
@@ -1534,12 +1532,12 @@ class TestGetSegmentRelationV2:
         }
         translation = AlignedTextRequestModel.model_validate(translation_request)
         translation_response = client.post(
-            f"/v2/instances/{target_manifestation_id}/translation",
+            f"/v2/editions/{target_manifestation_id}/translation",
             json=translation.model_dump()
         )
         assert translation_response.status_code == 201
         data = translation_response.get_json()
-        return data["text_id"], data["instance_id"]
+        return data["text_id"], data["edition_id"]
     
     def _create_text_N_commentary_target_text_L(
         self,
@@ -1604,12 +1602,12 @@ class TestGetSegmentRelationV2:
         }
         commentary = AlignedTextRequestModel.model_validate(commentary_request)
         commentary_response = client.post(
-            f"/v2/instances/{target_manifestation_id}/commentary",
+            f"/v2/editions/{target_manifestation_id}/commentary",
             json=commentary.model_dump()
         )
         assert commentary_response.status_code == 201
         data = commentary_response.get_json()
-        return data["text_id"], data["instance_id"]
+        return data["text_id"], data["edition_id"]
 
     def _create_expression_and_manifestation_for_text_O(
         self,
@@ -1628,7 +1626,7 @@ class TestGetSegmentRelationV2:
         expression_data["type"] = "commentary"
         expression_data["category_id"] = category_id
         expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
-        expression = ExpressionModelInput.model_validate(expression_data)
+        expression = ExpressionInput.model_validate(expression_data)
         
         expression_response = client.post(
             "/v2/texts",
@@ -1689,9 +1687,9 @@ class TestGetSegmentRelationV2:
             ],
             "content": "This is the text content to be stored"
         }
-        manifestation = InstanceRequestModel.model_validate(manifestation_data)
+        manifestation = EditionRequestModel.model_validate(manifestation_data)
         manifestation_response = client.post(
-            f"/v2/texts/{expression_id}/instances",
+            f"/v2/texts/{expression_id}/editions",
             data=json.dumps(manifestation.model_dump(mode="json")),
             content_type="application/json",
         )
@@ -1822,12 +1820,12 @@ class TestGetSegmentRelationV2:
         }
         commentary = AlignedTextRequestModel.model_validate(commentary_request)
         commentary_response = client.post(
-            f"/v2/instances/{target_manifestation_id}/commentary",
+            f"/v2/editions/{target_manifestation_id}/commentary",
             json=commentary.model_dump()
         )
         assert commentary_response.status_code == 201
         data = commentary_response.get_json()
-        return data["text_id"], data["instance_id"]
+        return data["text_id"], data["edition_id"]
 
     def _create_text_Q_translation_target_text_O(
         self,
@@ -1916,12 +1914,12 @@ class TestGetSegmentRelationV2:
         }
         translation = AlignedTextRequestModel.model_validate(translation_request)
         translation_response = client.post(
-            f"/v2/instances/{target_manifestation_id}/translation",
+            f"/v2/editions/{target_manifestation_id}/translation",
             json=translation.model_dump()
         )
         assert translation_response.status_code == 201
         data = translation_response.get_json()
-        return data["text_id"], data["instance_id"]
+        return data["text_id"], data["edition_id"]
 
     def test_all_texts_creation(
         self,
@@ -1932,7 +1930,7 @@ class TestGetSegmentRelationV2:
         assert all_texts["person_id"]
         for key in ["A", "B", "C", "D", "E", "F", "G", "H", "I", "J", "K", "L", "M", "N"]:
             assert all_texts[key]["text_id"]
-            assert all_texts[key]["instance_id"]
+            assert all_texts[key]["edition_id"]
 
 
     def test_transformed_segment_mapping_source_text_A(
@@ -1941,21 +1939,21 @@ class TestGetSegmentRelationV2:
         all_texts
     ):
         """Test segment mapping from source text A"""
-        text_a_instance_id = all_texts["A"]["instance_id"]
+        text_a_edition_id = all_texts["A"]["edition_id"]
         text_a_text_id = all_texts["A"]["text_id"]
         start = 0
         end = 7
         transformed = 'true'
         segment_mapping_response = client.get(
-            f"/v2/instances/{text_a_instance_id}/segment-related?span_start={start}&span_end={end}&transform={transformed}"
+            f"/v2/editions/{text_a_edition_id}/segment-related?span_start={start}&span_end={end}&transform={transformed}"
         )
         assert segment_mapping_response.status_code == 200
 
         mapping_dict = {}
         
         for item in segment_mapping_response.get_json():
-            instance_id = item["instance_metadata"]["id"]
-            mapping_dict.setdefault(instance_id, []).extend(item["segments"])
+            edition_id = item["edition_metadata"]["id"]
+            mapping_dict.setdefault(edition_id, []).extend(item["segments"])
 
         print("Texts")
         print(all_texts)
@@ -1963,83 +1961,83 @@ class TestGetSegmentRelationV2:
         print("Mapping dictionary")
         print(mapping_dict)
 
-        text_c_instance_id = all_texts["C"]["instance_id"]
-        assert text_c_instance_id in mapping_dict
-        assert len(mapping_dict[text_c_instance_id]) == 1
-        assert mapping_dict[text_c_instance_id][0]["span"]["start"] == 0
-        assert mapping_dict[text_c_instance_id][0]["span"]["end"] == 16
+        text_c_edition_id = all_texts["C"]["edition_id"]
+        assert text_c_edition_id in mapping_dict
+        assert len(mapping_dict[text_c_edition_id]) == 1
+        assert mapping_dict[text_c_edition_id][0]["span"]["start"] == 0
+        assert mapping_dict[text_c_edition_id][0]["span"]["end"] == 16
 
-        text_b_instance_id = all_texts["B"]["instance_id"]
-        assert text_b_instance_id in mapping_dict
-        assert len(mapping_dict[text_b_instance_id]) == 2
-        assert mapping_dict[text_b_instance_id][0]["span"]["start"] == 0
-        assert mapping_dict[text_b_instance_id][0]["span"]["end"] == 7
-        assert mapping_dict[text_b_instance_id][1]["span"]["start"] == 7
-        assert mapping_dict[text_b_instance_id][1]["span"]["end"] == 17
+        text_b_edition_id = all_texts["B"]["edition_id"]
+        assert text_b_edition_id in mapping_dict
+        assert len(mapping_dict[text_b_edition_id]) == 2
+        assert mapping_dict[text_b_edition_id][0]["span"]["start"] == 0
+        assert mapping_dict[text_b_edition_id][0]["span"]["end"] == 7
+        assert mapping_dict[text_b_edition_id][1]["span"]["start"] == 7
+        assert mapping_dict[text_b_edition_id][1]["span"]["end"] == 17
 
-        text_e_instance_id = all_texts["E"]["instance_id"]
-        assert text_e_instance_id in mapping_dict
-        assert len(mapping_dict[text_e_instance_id]) == 1
-        assert mapping_dict[text_e_instance_id][0]["span"]["start"] == 0
-        assert mapping_dict[text_e_instance_id][0]["span"]["end"] == 7
+        text_e_edition_id = all_texts["E"]["edition_id"]
+        assert text_e_edition_id in mapping_dict
+        assert len(mapping_dict[text_e_edition_id]) == 1
+        assert mapping_dict[text_e_edition_id][0]["span"]["start"] == 0
+        assert mapping_dict[text_e_edition_id][0]["span"]["end"] == 7
 
-        text_h_instance_id = all_texts["H"]["instance_id"]
-        assert text_h_instance_id in mapping_dict
-        assert len(mapping_dict[text_h_instance_id]) == 2
-        assert mapping_dict[text_h_instance_id][0]["span"]["start"] == 0
-        assert mapping_dict[text_h_instance_id][0]["span"]["end"] == 10
-        assert mapping_dict[text_h_instance_id][1]["span"]["start"] == 10
-        assert mapping_dict[text_h_instance_id][1]["span"]["end"] == 20
+        text_h_edition_id = all_texts["H"]["edition_id"]
+        assert text_h_edition_id in mapping_dict
+        assert len(mapping_dict[text_h_edition_id]) == 2
+        assert mapping_dict[text_h_edition_id][0]["span"]["start"] == 0
+        assert mapping_dict[text_h_edition_id][0]["span"]["end"] == 10
+        assert mapping_dict[text_h_edition_id][1]["span"]["start"] == 10
+        assert mapping_dict[text_h_edition_id][1]["span"]["end"] == 20
 
-        text_g_instance_id = all_texts["G"]["instance_id"]
-        assert text_g_instance_id in mapping_dict
-        assert len(mapping_dict[text_g_instance_id]) == 1
-        assert mapping_dict[text_g_instance_id][0]["span"]["start"] == 0
-        assert mapping_dict[text_g_instance_id][0]["span"]["end"] == 50
+        text_g_edition_id = all_texts["G"]["edition_id"]
+        assert text_g_edition_id in mapping_dict
+        assert len(mapping_dict[text_g_edition_id]) == 1
+        assert mapping_dict[text_g_edition_id][0]["span"]["start"] == 0
+        assert mapping_dict[text_g_edition_id][0]["span"]["end"] == 50
 
-        text_d_instance_id = all_texts["D"]["instance_id"]
-        assert text_d_instance_id in mapping_dict
-        assert len(mapping_dict[text_d_instance_id]) == 1
-        assert mapping_dict[text_d_instance_id][0]["span"]["start"] == 0
-        assert mapping_dict[text_d_instance_id][0]["span"]["end"] == 15
+        text_d_edition_id = all_texts["D"]["edition_id"]
+        assert text_d_edition_id in mapping_dict
+        assert len(mapping_dict[text_d_edition_id]) == 1
+        assert mapping_dict[text_d_edition_id][0]["span"]["start"] == 0
+        assert mapping_dict[text_d_edition_id][0]["span"]["end"] == 15
 
-        text_k_instance_id = all_texts["K"]["instance_id"]
-        assert text_k_instance_id in mapping_dict
-        assert len(mapping_dict[text_k_instance_id]) == 2
-        assert mapping_dict[text_k_instance_id][0]["span"]["start"] == 0
-        assert mapping_dict[text_k_instance_id][0]["span"]["end"] == 20
-        assert mapping_dict[text_k_instance_id][1]["span"]["start"] == 20
-        assert mapping_dict[text_k_instance_id][1]["span"]["end"] == 40
+        text_k_edition_id = all_texts["K"]["edition_id"]
+        assert text_k_edition_id in mapping_dict
+        assert len(mapping_dict[text_k_edition_id]) == 2
+        assert mapping_dict[text_k_edition_id][0]["span"]["start"] == 0
+        assert mapping_dict[text_k_edition_id][0]["span"]["end"] == 20
+        assert mapping_dict[text_k_edition_id][1]["span"]["start"] == 20
+        assert mapping_dict[text_k_edition_id][1]["span"]["end"] == 40
 
-        text_f_instance_id = all_texts["F"]["instance_id"]
-        assert text_f_instance_id in mapping_dict
-        assert len(mapping_dict[text_f_instance_id]) == 3
-        assert mapping_dict[text_f_instance_id][0]["span"]["start"] == 0
-        assert mapping_dict[text_f_instance_id][0]["span"]["end"] == 17
-        assert mapping_dict[text_f_instance_id][1]["span"]["start"] == 17
-        assert mapping_dict[text_f_instance_id][1]["span"]["end"] == 35
-        assert mapping_dict[text_f_instance_id][2]["span"]["start"] == 35
-        assert mapping_dict[text_f_instance_id][2]["span"]["end"] == 70
+        text_f_edition_id = all_texts["F"]["edition_id"]
+        assert text_f_edition_id in mapping_dict
+        assert len(mapping_dict[text_f_edition_id]) == 3
+        assert mapping_dict[text_f_edition_id][0]["span"]["start"] == 0
+        assert mapping_dict[text_f_edition_id][0]["span"]["end"] == 17
+        assert mapping_dict[text_f_edition_id][1]["span"]["start"] == 17
+        assert mapping_dict[text_f_edition_id][1]["span"]["end"] == 35
+        assert mapping_dict[text_f_edition_id][2]["span"]["start"] == 35
+        assert mapping_dict[text_f_edition_id][2]["span"]["end"] == 70
 
-        text_j_instance_id = all_texts["J"]["instance_id"]
-        assert text_j_instance_id in mapping_dict
-        assert len(mapping_dict[text_j_instance_id]) == 4
-        assert mapping_dict[text_j_instance_id][0]["span"]["start"] == 0
-        assert mapping_dict[text_j_instance_id][0]["span"]["end"] == 14
-        assert mapping_dict[text_j_instance_id][1]["span"]["start"] == 14
-        assert mapping_dict[text_j_instance_id][1]["span"]["end"] == 30
-        assert mapping_dict[text_j_instance_id][2]["span"]["start"] == 30
-        assert mapping_dict[text_j_instance_id][2]["span"]["end"] == 40
-        assert mapping_dict[text_j_instance_id][3]["span"]["start"] == 40
-        assert mapping_dict[text_j_instance_id][3]["span"]["end"] == 47
+        text_j_edition_id = all_texts["J"]["edition_id"]
+        assert text_j_edition_id in mapping_dict
+        assert len(mapping_dict[text_j_edition_id]) == 4
+        assert mapping_dict[text_j_edition_id][0]["span"]["start"] == 0
+        assert mapping_dict[text_j_edition_id][0]["span"]["end"] == 14
+        assert mapping_dict[text_j_edition_id][1]["span"]["start"] == 14
+        assert mapping_dict[text_j_edition_id][1]["span"]["end"] == 30
+        assert mapping_dict[text_j_edition_id][2]["span"]["start"] == 30
+        assert mapping_dict[text_j_edition_id][2]["span"]["end"] == 40
+        assert mapping_dict[text_j_edition_id][3]["span"]["start"] == 40
+        assert mapping_dict[text_j_edition_id][3]["span"]["end"] == 47
 
-        text_i_instance_id = all_texts["I"]["instance_id"]
-        assert text_i_instance_id in mapping_dict
-        assert len(mapping_dict[text_i_instance_id]) == 2
-        assert mapping_dict[text_i_instance_id][0]["span"]["start"] == 0
-        assert mapping_dict[text_i_instance_id][0]["span"]["end"] == 5
-        assert mapping_dict[text_i_instance_id][1]["span"]["start"] == 5
-        assert mapping_dict[text_i_instance_id][1]["span"]["end"] == 15
+        text_i_edition_id = all_texts["I"]["edition_id"]
+        assert text_i_edition_id in mapping_dict
+        assert len(mapping_dict[text_i_edition_id]) == 2
+        assert mapping_dict[text_i_edition_id][0]["span"]["start"] == 0
+        assert mapping_dict[text_i_edition_id][0]["span"]["end"] == 5
+        assert mapping_dict[text_i_edition_id][1]["span"]["start"] == 5
+        assert mapping_dict[text_i_edition_id][1]["span"]["end"] == 15
 
 
     def test_transformed_segment_mapping_source_text_I(
@@ -2048,130 +2046,130 @@ class TestGetSegmentRelationV2:
         all_texts
     ):
         """Test segment mapping from source text I"""
-        text_i_instance_id = all_texts["I"]["instance_id"]
+        text_i_edition_id = all_texts["I"]["edition_id"]
         text_i_text_id = all_texts["I"]["text_id"]
         start = 0
         end = 10
         transformed = 'true'
         segment_mapping_response = client.get(
-            f"/v2/instances/{text_i_instance_id}/segment-related?span_start={start}&span_end={end}&transform={transformed}"
+            f"/v2/editions/{text_i_edition_id}/segment-related?span_start={start}&span_end={end}&transform={transformed}"
         )
 
         assert segment_mapping_response.status_code == 200
         mapping_dict = {}
         for item in segment_mapping_response.get_json():
-            instance_id = item["instance_metadata"]["id"]
-            mapping_dict.setdefault(instance_id, []).extend(item["segments"])
+            edition_id = item["edition_metadata"]["id"]
+            mapping_dict.setdefault(edition_id, []).extend(item["segments"])
         
-        text_g_instance_id = all_texts["G"]["instance_id"]
-        assert text_g_instance_id in mapping_dict
-        assert len(mapping_dict[text_g_instance_id]) == 3
-        assert mapping_dict[text_g_instance_id][0]["span"]["start"] == 0
-        assert mapping_dict[text_g_instance_id][0]["span"]["end"] == 50
-        assert mapping_dict[text_g_instance_id][1]["span"]["start"] == 50
-        assert mapping_dict[text_g_instance_id][1]["span"]["end"] == 55
-        assert mapping_dict[text_g_instance_id][2]["span"]["start"] == 55
-        assert mapping_dict[text_g_instance_id][2]["span"]["end"] == 100
+        text_g_edition_id = all_texts["G"]["edition_id"]
+        assert text_g_edition_id in mapping_dict
+        assert len(mapping_dict[text_g_edition_id]) == 3
+        assert mapping_dict[text_g_edition_id][0]["span"]["start"] == 0
+        assert mapping_dict[text_g_edition_id][0]["span"]["end"] == 50
+        assert mapping_dict[text_g_edition_id][1]["span"]["start"] == 50
+        assert mapping_dict[text_g_edition_id][1]["span"]["end"] == 55
+        assert mapping_dict[text_g_edition_id][2]["span"]["start"] == 55
+        assert mapping_dict[text_g_edition_id][2]["span"]["end"] == 100
 
-        text_c_instance_id = all_texts["C"]["instance_id"]
-        assert text_c_instance_id in mapping_dict
-        assert len(mapping_dict[text_c_instance_id]) == 4
-        assert mapping_dict[text_c_instance_id][0]["span"]["start"] == 0
-        assert mapping_dict[text_c_instance_id][0]["span"]["end"] == 16
-        assert mapping_dict[text_c_instance_id][1]["span"]["start"] == 16
-        assert mapping_dict[text_c_instance_id][1]["span"]["end"] == 36
-        assert mapping_dict[text_c_instance_id][2]["span"]["start"] == 36
-        assert mapping_dict[text_c_instance_id][2]["span"]["end"] == 54
-        assert mapping_dict[text_c_instance_id][3]["span"]["start"] == 54
-        assert mapping_dict[text_c_instance_id][3]["span"]["end"] == 71
+        text_c_edition_id = all_texts["C"]["edition_id"]
+        assert text_c_edition_id in mapping_dict
+        assert len(mapping_dict[text_c_edition_id]) == 4
+        assert mapping_dict[text_c_edition_id][0]["span"]["start"] == 0
+        assert mapping_dict[text_c_edition_id][0]["span"]["end"] == 16
+        assert mapping_dict[text_c_edition_id][1]["span"]["start"] == 16
+        assert mapping_dict[text_c_edition_id][1]["span"]["end"] == 36
+        assert mapping_dict[text_c_edition_id][2]["span"]["start"] == 36
+        assert mapping_dict[text_c_edition_id][2]["span"]["end"] == 54
+        assert mapping_dict[text_c_edition_id][3]["span"]["start"] == 54
+        assert mapping_dict[text_c_edition_id][3]["span"]["end"] == 71
 
-        text_h_instance_id = all_texts["H"]["instance_id"]
-        assert text_h_instance_id in mapping_dict
-        assert len(mapping_dict[text_h_instance_id]) == 2
-        assert mapping_dict[text_h_instance_id][0]["span"]["start"] == 0
-        assert mapping_dict[text_h_instance_id][0]["span"]["end"] == 10
-        assert mapping_dict[text_h_instance_id][1]["span"]["start"] == 10
-        assert mapping_dict[text_h_instance_id][1]["span"]["end"] == 20
+        text_h_edition_id = all_texts["H"]["edition_id"]
+        assert text_h_edition_id in mapping_dict
+        assert len(mapping_dict[text_h_edition_id]) == 2
+        assert mapping_dict[text_h_edition_id][0]["span"]["start"] == 0
+        assert mapping_dict[text_h_edition_id][0]["span"]["end"] == 10
+        assert mapping_dict[text_h_edition_id][1]["span"]["start"] == 10
+        assert mapping_dict[text_h_edition_id][1]["span"]["end"] == 20
 
-        text_a_instance_id = all_texts["A"]["instance_id"]
-        assert text_a_instance_id in mapping_dict
-        assert len(mapping_dict[text_a_instance_id]) == 4
-        assert mapping_dict[text_a_instance_id][0]["span"]["start"] == 0
-        assert mapping_dict[text_a_instance_id][0]["span"]["end"] == 8
-        assert mapping_dict[text_a_instance_id][1]["span"]["start"] == 8
-        assert mapping_dict[text_a_instance_id][1]["span"]["end"] == 18
-        assert mapping_dict[text_a_instance_id][2]["span"]["start"] == 18
-        assert mapping_dict[text_a_instance_id][2]["span"]["end"] == 26
-        assert mapping_dict[text_a_instance_id][3]["span"]["start"] == 26
-        assert mapping_dict[text_a_instance_id][3]["span"]["end"] == 34
+        text_a_edition_id = all_texts["A"]["edition_id"]
+        assert text_a_edition_id in mapping_dict
+        assert len(mapping_dict[text_a_edition_id]) == 4
+        assert mapping_dict[text_a_edition_id][0]["span"]["start"] == 0
+        assert mapping_dict[text_a_edition_id][0]["span"]["end"] == 8
+        assert mapping_dict[text_a_edition_id][1]["span"]["start"] == 8
+        assert mapping_dict[text_a_edition_id][1]["span"]["end"] == 18
+        assert mapping_dict[text_a_edition_id][2]["span"]["start"] == 18
+        assert mapping_dict[text_a_edition_id][2]["span"]["end"] == 26
+        assert mapping_dict[text_a_edition_id][3]["span"]["start"] == 26
+        assert mapping_dict[text_a_edition_id][3]["span"]["end"] == 34
 
-        text_j_instance_id = all_texts["J"]["instance_id"]
-        assert text_j_instance_id in mapping_dict
-        assert len(mapping_dict[text_j_instance_id]) == 4
-        assert mapping_dict[text_j_instance_id][0]["span"]["start"] == 0
-        assert mapping_dict[text_j_instance_id][0]["span"]["end"] == 14
-        assert mapping_dict[text_j_instance_id][1]["span"]["start"] == 14
-        assert mapping_dict[text_j_instance_id][1]["span"]["end"] == 30
-        assert mapping_dict[text_j_instance_id][2]["span"]["start"] == 30
-        assert mapping_dict[text_j_instance_id][2]["span"]["end"] == 40
-        assert mapping_dict[text_j_instance_id][3]["span"]["start"] == 40
-        assert mapping_dict[text_j_instance_id][3]["span"]["end"] == 47
+        text_j_edition_id = all_texts["J"]["edition_id"]
+        assert text_j_edition_id in mapping_dict
+        assert len(mapping_dict[text_j_edition_id]) == 4
+        assert mapping_dict[text_j_edition_id][0]["span"]["start"] == 0
+        assert mapping_dict[text_j_edition_id][0]["span"]["end"] == 14
+        assert mapping_dict[text_j_edition_id][1]["span"]["start"] == 14
+        assert mapping_dict[text_j_edition_id][1]["span"]["end"] == 30
+        assert mapping_dict[text_j_edition_id][2]["span"]["start"] == 30
+        assert mapping_dict[text_j_edition_id][2]["span"]["end"] == 40
+        assert mapping_dict[text_j_edition_id][3]["span"]["start"] == 40
+        assert mapping_dict[text_j_edition_id][3]["span"]["end"] == 47
 
-        text_b_instance_id = all_texts["B"]["instance_id"]
-        assert text_b_instance_id in mapping_dict
-        assert len(mapping_dict[text_b_instance_id]) == 4
-        assert mapping_dict[text_b_instance_id][0]["span"]["start"] == 0
-        assert mapping_dict[text_b_instance_id][0]["span"]["end"] == 7
-        assert mapping_dict[text_b_instance_id][1]["span"]["start"] == 7
-        assert mapping_dict[text_b_instance_id][1]["span"]["end"] == 17
-        assert mapping_dict[text_b_instance_id][2]["span"]["start"] == 17
-        assert mapping_dict[text_b_instance_id][2]["span"]["end"] == 41
-        assert mapping_dict[text_b_instance_id][3]["span"]["start"] == 41
-        assert mapping_dict[text_b_instance_id][3]["span"]["end"] == 51
+        text_b_edition_id = all_texts["B"]["edition_id"]
+        assert text_b_edition_id in mapping_dict
+        assert len(mapping_dict[text_b_edition_id]) == 4
+        assert mapping_dict[text_b_edition_id][0]["span"]["start"] == 0
+        assert mapping_dict[text_b_edition_id][0]["span"]["end"] == 7
+        assert mapping_dict[text_b_edition_id][1]["span"]["start"] == 7
+        assert mapping_dict[text_b_edition_id][1]["span"]["end"] == 17
+        assert mapping_dict[text_b_edition_id][2]["span"]["start"] == 17
+        assert mapping_dict[text_b_edition_id][2]["span"]["end"] == 41
+        assert mapping_dict[text_b_edition_id][3]["span"]["start"] == 41
+        assert mapping_dict[text_b_edition_id][3]["span"]["end"] == 51
 
-        text_e_instance_id = all_texts["E"]["instance_id"]
-        assert text_e_instance_id in mapping_dict
-        assert len(mapping_dict[text_e_instance_id]) == 4
-        assert mapping_dict[text_e_instance_id][0]["span"]["start"] == 0
-        assert mapping_dict[text_e_instance_id][0]["span"]["end"] == 7
-        assert mapping_dict[text_e_instance_id][1]["span"]["start"] == 7
-        assert mapping_dict[text_e_instance_id][1]["span"]["end"] == 18
-        assert mapping_dict[text_e_instance_id][2]["span"]["start"] == 18
-        assert mapping_dict[text_e_instance_id][2]["span"]["end"] == 44
-        assert mapping_dict[text_e_instance_id][3]["span"]["start"] == 44
-        assert mapping_dict[text_e_instance_id][3]["span"]["end"] == 56
+        text_e_edition_id = all_texts["E"]["edition_id"]
+        assert text_e_edition_id in mapping_dict
+        assert len(mapping_dict[text_e_edition_id]) == 4
+        assert mapping_dict[text_e_edition_id][0]["span"]["start"] == 0
+        assert mapping_dict[text_e_edition_id][0]["span"]["end"] == 7
+        assert mapping_dict[text_e_edition_id][1]["span"]["start"] == 7
+        assert mapping_dict[text_e_edition_id][1]["span"]["end"] == 18
+        assert mapping_dict[text_e_edition_id][2]["span"]["start"] == 18
+        assert mapping_dict[text_e_edition_id][2]["span"]["end"] == 44
+        assert mapping_dict[text_e_edition_id][3]["span"]["start"] == 44
+        assert mapping_dict[text_e_edition_id][3]["span"]["end"] == 56
 
-        text_k_instance_id = all_texts["K"]["instance_id"]
-        assert text_k_instance_id in mapping_dict
-        assert len(mapping_dict[text_k_instance_id]) == 3
-        assert mapping_dict[text_k_instance_id][0]["span"]["start"] == 0
-        assert mapping_dict[text_k_instance_id][0]["span"]["end"] == 20
-        assert mapping_dict[text_k_instance_id][1]["span"]["start"] == 20
-        assert mapping_dict[text_k_instance_id][1]["span"]["end"] == 40
-        assert mapping_dict[text_k_instance_id][2]["span"]["start"] == 40
-        assert mapping_dict[text_k_instance_id][2]["span"]["end"] == 60
+        text_k_edition_id = all_texts["K"]["edition_id"]
+        assert text_k_edition_id in mapping_dict
+        assert len(mapping_dict[text_k_edition_id]) == 3
+        assert mapping_dict[text_k_edition_id][0]["span"]["start"] == 0
+        assert mapping_dict[text_k_edition_id][0]["span"]["end"] == 20
+        assert mapping_dict[text_k_edition_id][1]["span"]["start"] == 20
+        assert mapping_dict[text_k_edition_id][1]["span"]["end"] == 40
+        assert mapping_dict[text_k_edition_id][2]["span"]["start"] == 40
+        assert mapping_dict[text_k_edition_id][2]["span"]["end"] == 60
 
-        text_d_instance_id = all_texts["D"]["instance_id"]
-        assert text_d_instance_id in mapping_dict
-        assert len(mapping_dict[text_d_instance_id]) == 3
-        assert mapping_dict[text_d_instance_id][0]["span"]["start"] == 0
-        assert mapping_dict[text_d_instance_id][0]["span"]["end"] == 15
-        assert mapping_dict[text_d_instance_id][1]["span"]["start"] == 15
-        assert mapping_dict[text_d_instance_id][1]["span"]["end"] == 39
-        assert mapping_dict[text_d_instance_id][2]["span"]["start"] == 39
-        assert mapping_dict[text_d_instance_id][2]["span"]["end"] == 70
+        text_d_edition_id = all_texts["D"]["edition_id"]
+        assert text_d_edition_id in mapping_dict
+        assert len(mapping_dict[text_d_edition_id]) == 3
+        assert mapping_dict[text_d_edition_id][0]["span"]["start"] == 0
+        assert mapping_dict[text_d_edition_id][0]["span"]["end"] == 15
+        assert mapping_dict[text_d_edition_id][1]["span"]["start"] == 15
+        assert mapping_dict[text_d_edition_id][1]["span"]["end"] == 39
+        assert mapping_dict[text_d_edition_id][2]["span"]["start"] == 39
+        assert mapping_dict[text_d_edition_id][2]["span"]["end"] == 70
 
-        text_f_instance_id = all_texts["F"]["instance_id"]
-        assert text_f_instance_id in mapping_dict
-        assert len(mapping_dict[text_f_instance_id]) == 4
-        assert mapping_dict[text_f_instance_id][0]["span"]["start"] == 0
-        assert mapping_dict[text_f_instance_id][0]["span"]["end"] == 17
-        assert mapping_dict[text_f_instance_id][1]["span"]["start"] == 17
-        assert mapping_dict[text_f_instance_id][1]["span"]["end"] == 35
-        assert mapping_dict[text_f_instance_id][2]["span"]["start"] == 35
-        assert mapping_dict[text_f_instance_id][2]["span"]["end"] == 70
-        assert mapping_dict[text_f_instance_id][3]["span"]["start"] == 70
-        assert mapping_dict[text_f_instance_id][3]["span"]["end"] == 91
+        text_f_edition_id = all_texts["F"]["edition_id"]
+        assert text_f_edition_id in mapping_dict
+        assert len(mapping_dict[text_f_edition_id]) == 4
+        assert mapping_dict[text_f_edition_id][0]["span"]["start"] == 0
+        assert mapping_dict[text_f_edition_id][0]["span"]["end"] == 17
+        assert mapping_dict[text_f_edition_id][1]["span"]["start"] == 17
+        assert mapping_dict[text_f_edition_id][1]["span"]["end"] == 35
+        assert mapping_dict[text_f_edition_id][2]["span"]["start"] == 35
+        assert mapping_dict[text_f_edition_id][2]["span"]["end"] == 70
+        assert mapping_dict[text_f_edition_id][3]["span"]["start"] == 70
+        assert mapping_dict[text_f_edition_id][3]["span"]["end"] == 91
 
 
     def test_untransformed_segment_mapping_source_text_A(
@@ -2180,83 +2178,83 @@ class TestGetSegmentRelationV2:
         all_texts
     ):
         """Test segment mapping from source text A"""
-        text_a_instance_id = all_texts["A"]["instance_id"]
+        text_a_edition_id = all_texts["A"]["edition_id"]
         text_a_text_id = all_texts["A"]["text_id"]
         start = 0
         end = 7
         transformed = 'false'
         segment_mapping_response = client.get(
-            f"/v2/instances/{text_a_instance_id}/segment-related?span_start={start}&span_end={end}&transform={transformed}"
+            f"/v2/editions/{text_a_edition_id}/segment-related?span_start={start}&span_end={end}&transform={transformed}"
         )
         assert segment_mapping_response.status_code == 200
 
         mapping_dict = {}
         for item in segment_mapping_response.get_json():
-            instance_id = item["instance_metadata"]["id"]
-            mapping_dict.setdefault(instance_id, []).extend(item["segments"])
+            edition_id = item["edition_metadata"]["id"]
+            mapping_dict.setdefault(edition_id, []).extend(item["segments"])
 
-        text_c_instance_id = all_texts["C"]["instance_id"]
-        assert text_c_instance_id in mapping_dict
-        assert len(mapping_dict[text_c_instance_id]) == 1
-        assert mapping_dict[text_c_instance_id][0]["span"]["start"] == 0
-        assert mapping_dict[text_c_instance_id][0]["span"]["end"] == 16
+        text_c_edition_id = all_texts["C"]["edition_id"]
+        assert text_c_edition_id in mapping_dict
+        assert len(mapping_dict[text_c_edition_id]) == 1
+        assert mapping_dict[text_c_edition_id][0]["span"]["start"] == 0
+        assert mapping_dict[text_c_edition_id][0]["span"]["end"] == 16
 
-        text_b_instance_id = all_texts["B"]["instance_id"]
-        assert text_b_instance_id in mapping_dict
-        assert len(mapping_dict[text_b_instance_id]) == 1
-        assert mapping_dict[text_b_instance_id][0]["span"]["start"] == 0
-        assert mapping_dict[text_b_instance_id][0]["span"]["end"] == 17
+        text_b_edition_id = all_texts["B"]["edition_id"]
+        assert text_b_edition_id in mapping_dict
+        assert len(mapping_dict[text_b_edition_id]) == 1
+        assert mapping_dict[text_b_edition_id][0]["span"]["start"] == 0
+        assert mapping_dict[text_b_edition_id][0]["span"]["end"] == 17
 
-        text_e_instance_id = all_texts["E"]["instance_id"]
-        assert text_e_instance_id in mapping_dict
-        assert len(mapping_dict[text_e_instance_id]) == 1
-        assert mapping_dict[text_e_instance_id][0]["span"]["start"] == 0
-        assert mapping_dict[text_e_instance_id][0]["span"]["end"] == 7
+        text_e_edition_id = all_texts["E"]["edition_id"]
+        assert text_e_edition_id in mapping_dict
+        assert len(mapping_dict[text_e_edition_id]) == 1
+        assert mapping_dict[text_e_edition_id][0]["span"]["start"] == 0
+        assert mapping_dict[text_e_edition_id][0]["span"]["end"] == 7
 
-        text_h_instance_id = all_texts["H"]["instance_id"]
-        assert text_h_instance_id in mapping_dict
-        assert len(mapping_dict[text_h_instance_id]) == 1
-        assert mapping_dict[text_h_instance_id][0]["span"]["start"] == 0
-        assert mapping_dict[text_h_instance_id][0]["span"]["end"] == 15
+        text_h_edition_id = all_texts["H"]["edition_id"]
+        assert text_h_edition_id in mapping_dict
+        assert len(mapping_dict[text_h_edition_id]) == 1
+        assert mapping_dict[text_h_edition_id][0]["span"]["start"] == 0
+        assert mapping_dict[text_h_edition_id][0]["span"]["end"] == 15
 
-        text_g_instance_id = all_texts["G"]["instance_id"]
-        assert text_g_instance_id in mapping_dict
-        assert len(mapping_dict[text_g_instance_id]) == 1
-        assert mapping_dict[text_g_instance_id][0]["span"]["start"] == 0
-        assert mapping_dict[text_g_instance_id][0]["span"]["end"] == 30
+        text_g_edition_id = all_texts["G"]["edition_id"]
+        assert text_g_edition_id in mapping_dict
+        assert len(mapping_dict[text_g_edition_id]) == 1
+        assert mapping_dict[text_g_edition_id][0]["span"]["start"] == 0
+        assert mapping_dict[text_g_edition_id][0]["span"]["end"] == 30
 
-        text_d_instance_id = all_texts["D"]["instance_id"]
-        assert text_d_instance_id in mapping_dict
-        assert len(mapping_dict[text_d_instance_id]) == 1
-        assert mapping_dict[text_d_instance_id][0]["span"]["start"] == 0
-        assert mapping_dict[text_d_instance_id][0]["span"]["end"] == 10
+        text_d_edition_id = all_texts["D"]["edition_id"]
+        assert text_d_edition_id in mapping_dict
+        assert len(mapping_dict[text_d_edition_id]) == 1
+        assert mapping_dict[text_d_edition_id][0]["span"]["start"] == 0
+        assert mapping_dict[text_d_edition_id][0]["span"]["end"] == 10
 
-        text_k_instance_id = all_texts["K"]["instance_id"]
-        assert text_k_instance_id in mapping_dict
-        assert len(mapping_dict[text_k_instance_id]) == 2
-        assert mapping_dict[text_k_instance_id][0]["span"]["start"] == 0
-        assert mapping_dict[text_k_instance_id][0]["span"]["end"] == 20
-        assert mapping_dict[text_k_instance_id][1]["span"]["start"] == 20
-        assert mapping_dict[text_k_instance_id][1]["span"]["end"] == 40
+        text_k_edition_id = all_texts["K"]["edition_id"]
+        assert text_k_edition_id in mapping_dict
+        assert len(mapping_dict[text_k_edition_id]) == 2
+        assert mapping_dict[text_k_edition_id][0]["span"]["start"] == 0
+        assert mapping_dict[text_k_edition_id][0]["span"]["end"] == 20
+        assert mapping_dict[text_k_edition_id][1]["span"]["start"] == 20
+        assert mapping_dict[text_k_edition_id][1]["span"]["end"] == 40
 
-        text_f_instance_id = all_texts["F"]["instance_id"]
-        assert text_f_instance_id in mapping_dict
-        assert len(mapping_dict[text_f_instance_id]) == 1
-        assert mapping_dict[text_f_instance_id][0]["span"]["start"] == 0
-        assert mapping_dict[text_f_instance_id][0]["span"]["end"] == 40
+        text_f_edition_id = all_texts["F"]["edition_id"]
+        assert text_f_edition_id in mapping_dict
+        assert len(mapping_dict[text_f_edition_id]) == 1
+        assert mapping_dict[text_f_edition_id][0]["span"]["start"] == 0
+        assert mapping_dict[text_f_edition_id][0]["span"]["end"] == 40
 
-        text_j_instance_id = all_texts["J"]["instance_id"]
-        assert text_j_instance_id in mapping_dict
-        assert len(mapping_dict[text_j_instance_id]) == 3
-        assert mapping_dict[text_j_instance_id][0]["span"]["start"] == 0
-        assert mapping_dict[text_j_instance_id][0]["span"]["end"] == 30
-        assert mapping_dict[text_j_instance_id][1]["span"]["start"] == 30
-        assert mapping_dict[text_j_instance_id][1]["span"]["end"] == 35
-        assert mapping_dict[text_j_instance_id][2]["span"]["start"] == 35
-        assert mapping_dict[text_j_instance_id][2]["span"]["end"] == 47
+        text_j_edition_id = all_texts["J"]["edition_id"]
+        assert text_j_edition_id in mapping_dict
+        assert len(mapping_dict[text_j_edition_id]) == 3
+        assert mapping_dict[text_j_edition_id][0]["span"]["start"] == 0
+        assert mapping_dict[text_j_edition_id][0]["span"]["end"] == 30
+        assert mapping_dict[text_j_edition_id][1]["span"]["start"] == 30
+        assert mapping_dict[text_j_edition_id][1]["span"]["end"] == 35
+        assert mapping_dict[text_j_edition_id][2]["span"]["start"] == 35
+        assert mapping_dict[text_j_edition_id][2]["span"]["end"] == 47
 
-        text_i_instance_id = all_texts["I"]["instance_id"]
-        assert text_i_instance_id in mapping_dict
-        assert len(mapping_dict[text_i_instance_id]) == 1
-        assert mapping_dict[text_i_instance_id][0]["span"]["start"] == 0
-        assert mapping_dict[text_i_instance_id][0]["span"]["end"] == 7
+        text_i_edition_id = all_texts["I"]["edition_id"]
+        assert text_i_edition_id in mapping_dict
+        assert len(mapping_dict[text_i_edition_id]) == 1
+        assert mapping_dict[text_i_edition_id][0]["span"]["start"] == 0
+        assert mapping_dict[text_i_edition_id][0]["span"]["end"] == 7

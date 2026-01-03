@@ -1,16 +1,16 @@
 import logging
 
 from api.decorators import validate_json, validate_query_params
-from api.instances import _trigger_search_segmenter
+from api.editions import _trigger_search_segmenter
 from database import Database
 from exceptions import DataNotFoundError
 from flask import Blueprint, Response, jsonify
 from identifier import generate_id
 from models import ExpressionInput
 from request_models import (
+    EditionRequestModel,
+    EditionsQueryParams,
     ExpressionFilter,
-    InstanceRequestModel,
-    InstancesQueryParams,
     TextsQueryParams,
     UpdateLicenseRequest,
     UpdateTitleRequest,
@@ -65,20 +65,20 @@ def post_texts(validated_data: ExpressionInput) -> tuple[Response, int]:
     return jsonify({"id": expression_id}), 201
 
 
-@texts_bp.route("/<string:expression_id>/instances", methods=["GET"], strict_slashes=False)
-@validate_query_params(InstancesQueryParams)
-def get_instances(expression_id: str, validated_params: InstancesQueryParams) -> tuple[Response, int]:
+@texts_bp.route("/<string:expression_id>/editions", methods=["GET"], strict_slashes=False)
+@validate_query_params(EditionsQueryParams)
+def get_editions(expression_id: str, validated_params: EditionsQueryParams) -> tuple[Response, int]:
     with Database() as db:
         manifestations = db.manifestation.get_all(
             expression_id=expression_id,
-            manifestation_type=validated_params.instance_type,
+            manifestation_type=validated_params.edition_type,
         )
     return jsonify([m.model_dump() for m in manifestations]), 200
 
 
-@texts_bp.route("/<string:expression_id>/instances", methods=["POST"], strict_slashes=False)
-@validate_json(InstanceRequestModel)
-def create_instance(expression_id: str, validated_data: InstanceRequestModel) -> tuple[Response, int]:
+@texts_bp.route("/<string:expression_id>/editions", methods=["POST"], strict_slashes=False)
+@validate_json(EditionRequestModel)
+def create_edition(expression_id: str, validated_data: EditionRequestModel) -> tuple[Response, int]:
     manifestation_id = generate_id()
 
     Storage().store_base_text(

@@ -37,8 +37,8 @@ class TextsQueryParams(PaginationParams, ExpressionFilter):
     pass
 
 
-class InstancesQueryParams(OpenPechaModel):
-    instance_type: ManifestationType | None = None
+class EditionsQueryParams(OpenPechaModel):
+    edition_type: ManifestationType | None = None
 
 
 class SpanQueryParams(OpenPechaModel):
@@ -96,7 +96,7 @@ class AnnotationRequestOutput(OpenPechaModel):
     durchen_notes: list[NoteOutput] | None = None
 
 
-class InstanceRequestModel(OpenPechaModel):
+class EditionRequestModel(OpenPechaModel):
     metadata: ManifestationInput
     pagination: PaginationInput | None = None
     segmentation: SegmentationInput | None = None

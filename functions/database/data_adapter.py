@@ -79,7 +79,7 @@ class DataAdapter:
             category_id=data["category_id"],
             copyright=CopyrightStatus(data.get("copyright") or CopyrightStatus.PUBLIC_DOMAIN.value),
             license=LicenseType(data.get("license") or LicenseType.PUBLIC_DOMAIN_MARK.value),
-            instances=data.get("instances") or [],
+            editions=data.get("editions") or [],
         )
 
     @staticmethod

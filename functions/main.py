@@ -6,7 +6,7 @@ import firebase_admin
 from api.annotations import annotations_bp
 from api.api import api_bp
 from api.categories import categories_bp
-from api.instances import instances_bp
+from api.editions import editions_bp
 from api.languages import languages_bp
 from api.persons import persons_bp
 from api.schema import schema_bp
@@ -43,7 +43,7 @@ def create_app(*, testing: bool = False) -> Flask:
 
     app.register_blueprint(texts_bp, url_prefix="/v2/texts")
     app.register_blueprint(api_bp, url_prefix="/api")
-    app.register_blueprint(instances_bp, url_prefix="/v2/instances")
+    app.register_blueprint(editions_bp, url_prefix="/v2/editions")
     app.register_blueprint(persons_bp, url_prefix="/v2/persons")
     app.register_blueprint(segments_bp, url_prefix="/v2/segments")
     app.register_blueprint(schema_bp, url_prefix="/v2/schema")

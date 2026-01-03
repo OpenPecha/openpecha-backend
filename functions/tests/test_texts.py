@@ -5,7 +5,7 @@ Tests endpoints:
 - GET /v2/texts/ (get all texts with filtering and pagination)
 - GET /v2/texts/{text_id} (get single text)
 - POST /v2/texts/ (create text)
-- GET /v2/texts/{text_id}/instances/ (get instances of a text)
+- GET /v2/texts/{text_id}/editions/ (get editions of a text)
 
 Requires environment variables:
 - NEO4J_TEST_URI: Neo4j test instance URI

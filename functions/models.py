@@ -395,7 +395,7 @@ class ExpressionOutput(ExpressionBase):
     contributions: list[ContributionOutput | AIContributionModel]
     commentaries: list[str] = []
     translations: list[str] = []
-    instances: list[str] = []
+    editions: list[str] = []
 
 
 class ManifestationBase(OpenPechaModel):
