@@ -1,48 +1,40 @@
 {
-  "functions": {
-    "source": "functions",
-    "runtime": "python312",
-    "codebase": "default",
-    "ignore": [
-      "venv",
-      ".git",
-      "firebase-debug.log",
-      "firebase-debug.*.log",
-      "*.local"
-    ],
-    "predeploy": "./functions_predeploy.sh"
-  },
-  "hosting": {
-    "public": "public",
-    "headers": [
-      {
-        "source": "**",
+    "functions": {
+        "source": "functions",
+        "codebase": "default",
+        "ignore": [
+            "venv",
+            ".git",
+            "firebase-debug.log",
+            "firebase-debug.*.log",
+            "*.local"
+        ],
+        "predeploy": "./functions_predeploy.sh"
+    },
+    "hosting": {
+        "public": "public",
         "headers": [
-          {
-            "key": "Cache-Control",
-            "value": "no-store, no-cache, must-revalidate, max-age=0"
-          }
-        ]
-      }
-    ],
-    "rewrites": [
-      {
-        "source": "/schema/**",
-        "function": "api"
-      }
-    ],
-    "redirects": [
-      {
-        "source": "/api",
-        "destination": "/swagger/",
-        "type": 301
-      }
-    ],
-    "ignore": [
-      "firebase.json",
-      "**/.*",
-      "**/node_modules/**"
-    ],
-    "cleanUrls": true
-  }
+            {
+                "source": "**",
+                "headers": [
+                    {
+                        "key": "Cache-Control",
+                        "value": "no-store, no-cache, must-revalidate, max-age=0"
+                    }
+                ]
+            }
+        ],
+        "rewrites": [
+            {
+                "source": "/schema/**",
+                "function": "api"
+            }
+        ],
+        "ignore": [
+            "firebase.json",
+            "**/.*",
+            "**/node_modules/**"
+        ],
+        "cleanUrls": true
+    }
 }

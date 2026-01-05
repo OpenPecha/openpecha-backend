@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Any
 
 from exceptions import DataNotFoundError, DataValidationError
 from identifier import generate_id
@@ -285,7 +285,7 @@ class ExpressionDatabase:
         alt_titles = [dict(t.root) for t in expression.alt_titles] if expression.alt_titles else []
         title_nomen_id = NomenDatabase.create_with_transaction(tx, dict(expression.title.root), alt_titles)
 
-        params = {
+        params: dict[str, Any] = {
             "expression_id": expression_id,
             "bdrc": expression.bdrc,
             "wiki": expression.wiki,

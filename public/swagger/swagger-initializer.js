@@ -1,33 +1,20 @@
-window.onload = async function() {
+window.onload = function() {
   //<editor-fold desc="Changeable Configuration Block">
 
-  try {
-    // Dynamically load config.js
-    await new Promise((resolve, reject) => {
-      const script = document.createElement('script');
-      script.src = '../config.js';
-      script.onload = resolve;
-      script.onerror = reject;
-      document.head.appendChild(script);
-    });
-    
-    const apiEndpoint = await getApiEndpoint();
-    if (!apiEndpoint) throw new Error("Failed to get API endpoint");
-    
-    const schemaUrl = `${apiEndpoint}/v2/schema/openapi`;
-    console.log("Using schema URL:", schemaUrl);
-    
-    window.ui = SwaggerUIBundle({
-      url: schemaUrl,
-      dom_id: '#swagger-ui',
-      deepLinking: true,
-      presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
-      plugins: [SwaggerUIBundle.plugins.DownloadUrl],
-      layout: "StandaloneLayout"
-    });
-  } catch (error) {
-    console.error('Error initializing Swagger UI:', error);
-  }
+  // the following lines will be replaced by docker/configurator, when it runs in a docker-container
+  window.ui = SwaggerUIBundle({
+    url: "https://petstore.swagger.io/v2/swagger.json",
+    dom_id: '#swagger-ui',
+    deepLinking: true,
+    presets: [
+      SwaggerUIBundle.presets.apis,
+      SwaggerUIStandalonePreset
+    ],
+    plugins: [
+      SwaggerUIBundle.plugins.DownloadUrl
+    ],
+    layout: "StandaloneLayout"
+  });
 
   //</editor-fold>
 };

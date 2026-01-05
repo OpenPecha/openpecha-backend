@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <title>OpenPecha API Documentation</title>
+    <link rel="stylesheet" type="text/css" href="./swagger/swagger-ui.css" />
+    <link rel="stylesheet" type="text/css" href="./swagger/index.css" />
+    <link rel="icon" type="image/png" href="./swagger/favicon-32x32.png" sizes="32x32" />
+    <link rel="icon" type="image/png" href="./swagger/favicon-16x16.png" sizes="16x16" />
+</head>
+
+<body>
+    <div id="swagger-ui"></div>
+    <script src="./swagger/swagger-ui-bundle.js" charset="UTF-8"></script>
+    <script src="./swagger/swagger-ui-standalone-preset.js" charset="UTF-8"></script>
+    <script src="./config.js"></script>
+    <script>
+        window.onload = async function () {
+            try {
+                const apiEndpoint = await getApiEndpoint();
+                if (!apiEndpoint) throw new Error("Failed to get API endpoint");
+
+                const schemaUrl = `${apiEndpoint}/v2/schema/openapi`;
+                console.log("Using schema URL:", schemaUrl);
+
+                window.ui = SwaggerUIBundle({
+                    url: schemaUrl,
+                    dom_id: '#swagger-ui',
+                    deepLinking: true,
+                    presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
+                    plugins: [SwaggerUIBundle.plugins.DownloadUrl],
+                    layout: "StandaloneLayout"
+                });
+            } catch (error) {
+                console.error('Error initializing Swagger UI:', error);
+                document.getElementById('swagger-ui').innerHTML =
+                    '<div style="padding: 20px; color: red;">Error loading API documentation: ' + error.message + '</div>';
+            }
+        };
+    </script>
+</body>
+
+</html>

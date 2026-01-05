@@ -4,3 +4,4 @@ python-dotenv
 ruff
 pre-commit
 pyright
+ty

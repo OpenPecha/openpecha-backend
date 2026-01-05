@@ -32,5 +32,6 @@
     },
     "terminal.integrated.env.osx": {
         "PYTHONPATH": "${workspaceFolder}"
-    }
+    },
+    "ty.inlayHints.variableTypes": false
 }

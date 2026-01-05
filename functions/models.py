@@ -6,16 +6,14 @@ from pydantic import BaseModel, ConfigDict, Field, RootModel, StrictStr, StringC
 
 type NonEmptyStr = Annotated[StrictStr, StringConstraints(min_length=1, strip_whitespace=True)]
 
-T = TypeVar("T")
 
-
-def remove_duplicate_alternatives(primary: T, alternatives: list[T] | None) -> list[T] | None:
-    """Helper to remove alternatives that match the primary value and deduplicate the list"""
-    unique: list[T] = []
-    for alt in alternatives or []:
-        if alt != primary and alt not in unique:
-            unique.append(alt)
-    return unique or None
+def _dedupe[T](items: list[T], exclude: T) -> list[T]:
+    """Remove duplicates and excluded item from list."""
+    seen: list[T] = []
+    for item in items:
+        if item != exclude and item not in seen:
+            seen.append(item)
+    return seen
 
 
 class TextType(str, Enum):
@@ -104,7 +102,8 @@ class PersonBase(OpenPechaModel):
 
     @model_validator(mode="after")
     def remove_duplicate_alt_names(self) -> Self:
-        self.alt_names = remove_duplicate_alternatives(self.name, self.alt_names)
+        if self.alt_names is not None:
+            self.alt_names = _dedupe(list(self.alt_names), self.name) or None
         return self
 
 
@@ -369,7 +368,8 @@ class ExpressionBase(OpenPechaModel):
 
     @model_validator(mode="after")
     def remove_duplicate_alt_titles(self) -> Self:
-        self.alt_titles = remove_duplicate_alternatives(self.title, self.alt_titles)
+        if self.alt_titles is not None:
+            self.alt_titles = _dedupe(list(self.alt_titles), self.title) or None
         return self
 
 
@@ -410,8 +410,8 @@ class ManifestationBase(OpenPechaModel):
 
     @model_validator(mode="after")
     def remove_duplicate_alt_incipit_titles(self) -> Self:
-        if self.incipit_title:
-            self.alt_incipit_titles = remove_duplicate_alternatives(self.incipit_title, self.alt_incipit_titles)
+        if self.incipit_title is not None and self.alt_incipit_titles is not None:
+            self.alt_incipit_titles = _dedupe(list(self.alt_incipit_titles), self.incipit_title) or None
         return self
 
 

@@ -1,5 +1,5 @@
 [tool.pyright]
-pythonVersion = "3.12"
+pythonVersion = "3.13"
 typeCheckingMode = "standard"
 exclude = ["tests", "venv", ".venv"]
 include = ["functions"]
@@ -17,7 +17,13 @@ addopts = "--verbose --log-cli-level=DEBUG"
 [tool.ruff]
 line-length = 120
 exclude = ["functions/tests"]
-target-version = "py312"
+target-version = "py313"
+
+[tool.ty.environment]
+root = ["./functions"]
+
+[tool.ty.src]
+exclude = ["functions/tests/"]
 
 [tool.ruff.lint]
 select = ["ALL"]
