@@ -44,10 +44,9 @@ class ManifestationDatabase:
     RETURN {
         id: m.id, bdrc: m.bdrc, wiki: m.wiki, colophon: m.colophon, source: m.source,
         type: [(m)-[:HAS_TYPE]->(mt:ManifestationType) | mt.name][0],
-        incipit_title: [(m)-[:HAS_INCIPIT_TITLE]->(n:Nomen)
-            WHERE NOT EXISTS { (n)<-[:ALTERNATIVE_OF]-(:Nomen) } |
-            [(n)-[:HAS_LOCALIZATION]->(lt:LocalizedText)-[r:HAS_LANGUAGE]->(l:Language) |
-                {language: coalesce(r.bcp47, l.code), text: lt.text}]],
+        incipit_title: [(m)-[:HAS_INCIPIT_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->
+            (lt:LocalizedText)-[r:HAS_LANGUAGE]->(l:Language) |
+            {language: coalesce(r.bcp47, l.code), text: lt.text}],
         alt_incipit_titles: [(m)-[:HAS_INCIPIT_TITLE]->(:Nomen)<-[:ALTERNATIVE_OF]-(an:Nomen) |
             [(an)-[:HAS_LOCALIZATION]->(lt:LocalizedText)-[r:HAS_LANGUAGE]->(l:Language) |
                 {language: coalesce(r.bcp47, l.code), text: lt.text}]],

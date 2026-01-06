@@ -3,9 +3,12 @@
 Integration tests for v2/editions endpoints using real Neo4j test instance.
 
 Tests endpoints:
-- GET /v2/editions/{edition_id}/content (get edition content)
-- GET /v2/editions/{edition_id}/metadata (get edition metadata)
-- POST /v2/texts/{text_id}/editions (create edition)
+- GET /v2/editions/{edition_id}/content
+- GET /v2/editions/{edition_id}/metadata
+- POST /v2/texts/{text_id}/editions
+- POST /v2/editions/{edition_id}/annotations
+- GET /v2/editions/{edition_id}/annotations
+- GET /v2/editions/{edition_id}/related
 
 Requires environment variables:
 - NEO4J_TEST_URI: Neo4j test instance URI
@@ -13,9 +16,6 @@ Requires environment variables:
 """
 
 import logging
-import tempfile
-import zipfile
-from pathlib import Path
 
 import pytest
 from identifier import generate_id
@@ -38,147 +38,17 @@ def test_person_data():
     """Sample person data for testing"""
     return {
         "name": {"en": "Test Author", "bo": "སློབ་དཔོན།"},
-        "alt_names": [{"en": "Alternative Name", "bo": "མིང་གཞན།"}],
         "bdrc": "P123456",
-        "wiki": "Q123456",
     }
 
 
-@pytest.fixture
-def test_expression_data():
-    """Sample expression data for testing"""
-    return {
-        "type": "root",
-        "title": {"en": "Test Expression", "bo": "བརྟག་དཔྱད་ཚིག་སྒྲུབ།"},
-        "alt_titles": [{"en": "Alternative Title", "bo": "མཚན་བྱང་གཞན།"}],
-        "language": "en",
-        "contributions": [],  # Will be populated with actual person IDs
-        "date": "2024-01-01",
-        "bdrc": "W123456",
-        "wiki": "Q789012",
-    }
+class TestEditionsEndpoints:
+    """Integration tests for v2/editions endpoints"""
 
-@pytest.fixture
-def test_diplomatic_manifestation_data():
-    """Sample diplomatic manifestation data for testing"""
-    return {
-        "metadata": {
-            "bdrc": "W12345",
-            "wiki": "Q123456",
-            "type": "diplomatic",
-            "source": "www.example_source.com",
-            "colophon": "Sample colophon text",
-            "incipit_title": {"en": "Opening words", "bo": "དབུ་ཚིག"},
-            "alt_incipit_titles": [{"en": "Alt incipit 1", "bo": "མཚན་བྱང་གཞན།"}, {"en": "Alt incipit 2", "bo": "མཚན་བྱང་གཞན།"}],
-        },
-        "content": "Sample text content"
-    }
-
-@pytest.fixture
-def test_critical_manifestation_data():
-    """Sample critical manifestation data for testing"""
-    return {
-        "metadata": {
-            "wiki": "Q123456",
-            "type": "critical",
-            "source": "www.example_source.com",
-            "colophon": "Sample colophon text",
-            "incipit_title": {"en": "Opening words", "bo": "དབུ་ཚིག"},
-            "alt_incipit_titles": [{"en": "Alt incipit 1", "bo": "མཚན་བྱང་གཞན།"}, {"en": "Alt incipit 2", "bo": "མཚན་བྱང་གཞན།"}],
-        },
-        "content": "Sample text content"
-    }
-
-@pytest.fixture
-def test_segmentation_annotation_data():
-    return {
-        "content": "This is the text content to be stored for segmentation",
-        "annotation": [
-            {
-                "span": {"start": 0, "end": 10},
-            },
-            {
-                "span": {"start": 10, "end": 20},
-            },
-            {
-                "span": {"start": 20, "end": 30},
-            },
-            {
-                "span": {"start": 30, "end": 55},
-            }
-        ]
-    }
-
-@pytest.fixture
-def test_pagination_annotation_data():
-    return {
-        "content": "This is the text content to be stored for pagination",
-        "annotation": [
-            {
-                "span": {"start": 0, "end": 10},
-                "reference": "IMG001.png",
-            },
-            {
-                "span": {"start": 10, "end": 20},
-                "reference": "IMG002.png",
-            },
-            {
-                "span": {"start": 20, "end": 30},
-                "reference": "IMG003.png",
-            },
-            {
-                "span": {"start": 30, "end": 53},
-                "reference": "IMG004.png",
-            }
-        ]
-    }
-
-@pytest.fixture
-def test_bibliography_annotation_data():
-    return {
-        "content": "This is the text content to be stored for bibliography",
-        "annotation": [
-            {
-                "span": {"start": 0, "end": 10},
-                "type": "title"
-            },
-            {
-                "span": {"start": 10, "end": 20},
-                "type": "colophon"
-            },
-            {
-                "span": {"start": 20, "end": 30},
-                "type": "author"
-            }
-        ]
-    }
-
-@pytest.fixture
-def create_test_zip():
-    """Create a test ZIP file that mimics the structure expected by retrieve_pecha"""
-
-    def _create_zip(pecha_id: str) -> Path:
-        temp_dir = Path(tempfile.gettempdir())
-        zip_path = temp_dir / f"{pecha_id}.zip"
-
-        # Create a proper OPF structure in the ZIP
-        with zipfile.ZipFile(zip_path, "w") as zipf:
-            # Add base text
-            zipf.writestr(f"{pecha_id}/base/26E4.txt", "Sample Tibetan text content")
-            # Add metadata
-            zipf.writestr(f"{pecha_id}/meta.yml", f"id: {pecha_id}\nlanguage: bo")
-            # Add annotation layer
-            zipf.writestr(f"{pecha_id}/layers/26E4/segmentation-test.yml", "annotations: []")
-
-        return zip_path
-
-    return _create_zip
-
-class TestGetEditionsV2Endpoints:
-    """Integration test class for v2/editions endpoints using real Neo4j database"""
-
-    def _create_test_person(self, db, person_data):
+    def _create_test_person(self, db, person_data=None):
         """Helper to create a test person in the database"""
+        if person_data is None:
+            person_data = {"name": {"en": "Test Author"}, "bdrc": "P123456"}
         person_input = PersonInput(
             name=LocalizedString(person_data["name"]),
             alt_names=[LocalizedString(alt) for alt in person_data.get("alt_names", [])],
@@ -186,73 +56,166 @@ class TestGetEditionsV2Endpoints:
         )
         return db.person.create(person_input)
 
-    def _create_test_text(self, db, person_id, create_test_zip):
-        """Helper method to create a test text in the database"""
-        # Create expression
+    def _create_test_expression(self, db, person_id, title=None):
+        """Helper to create a test expression"""
+        if title is None:
+            title = {"en": "Test Expression", "bo": "བརྟག་དཔྱད།"}
         expression_data = ExpressionInput(
             category_id="category",
-            title=LocalizedString({"bo": "དཔེ་ཀ་ཤེར", "en": "Test Expression"}),
+            title=LocalizedString(title),
             language="bo",
             contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
         )
-        expression_id = db.expression.create(expression_data)
+        return db.expression.create(expression_data)
 
-        # Create manifestation
+    def _create_test_manifestation(self, db, expression_id, content="Sample text content", manifestation_type=ManifestationType.DIPLOMATIC):
+        """Helper to create a manifestation with stored content"""
         manifestation_data = ManifestationInput(
-            type=ManifestationType.DIPLOMATIC,
+            type=manifestation_type,
             bdrc="W12345",
             source="Test Source",
         )
-
         manifestation_id = generate_id()
         db.manifestation.create(manifestation_data, manifestation_id, expression_id)
 
-        # Store the base text at the correct path for retrieve_base_text()
-        # Path: base_texts/{expression_id}/{manifestation_id}.txt
         storage_instance = Storage()
-        base_text_content = "Sample Tibetan text content"
         blob = storage_instance.bucket.blob(f"base_texts/{expression_id}/{manifestation_id}.txt")
-        blob.upload_from_string(base_text_content.encode("utf-8"))
+        blob.upload_from_string(content.encode("utf-8"))
 
-        return expression_id, manifestation_id
+        return manifestation_id
 
-    def test_get_text_success(self, client, test_database, test_person_data, create_test_zip):
-        """Test successful instance content retrieval"""
-        # Create test person and text
+
+class TestGetEditionContent(TestEditionsEndpoints):
+    """Tests for GET /v2/editions/{edition_id}/content"""
+
+    def test_get_content_success(self, client, test_database, test_person_data):
+        """Test successful content retrieval"""
         person_id = self._create_test_person(test_database, test_person_data)
-        _, manifestation_id = self._create_test_text(test_database, person_id, create_test_zip)
+        expression_id = self._create_test_expression(test_database, person_id)
+        manifestation_id = self._create_test_manifestation(test_database, expression_id, "Sample Tibetan text content")
 
-        # Test content endpoint
         response = client.get(f"/v2/editions/{manifestation_id}/content")
 
         assert response.status_code == 200
-        data = response.get_json()
-        assert data == "Sample Tibetan text content"
+        assert response.get_json() == "Sample Tibetan text content"
 
-    def test_get_text_not_found(self, client, test_database):
-        """Test instance retrieval with non-existent manifestation ID"""
+    def test_get_content_not_found(self, client, test_database):
+        """Test content retrieval with non-existent manifestation ID"""
+        response = client.get("/v2/editions/non-existent-id/content")
+
+        assert response.status_code == 404
+        assert "error" in response.get_json()
+
+    def test_get_content_with_span(self, client, test_database, test_person_data):
+        """Test content retrieval with span parameters"""
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_id = self._create_test_expression(test_database, person_id)
+        manifestation_id = self._create_test_manifestation(test_database, expression_id, "0123456789ABCDEF")
+
+        response = client.get(f"/v2/editions/{manifestation_id}/content?span_start=5&span_end=10")
+
+        assert response.status_code == 200
+        assert response.get_json() == "56789"
+
+    def test_get_content_tibetan_text(self, client, test_database, test_person_data):
+        """Test content retrieval with Tibetan text"""
+        tibetan_content = "བོད་སྐད་ཀྱི་ཡིག་ཆ།"
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_id = self._create_test_expression(test_database, person_id)
+        manifestation_id = self._create_test_manifestation(test_database, expression_id, tibetan_content)
+
+        response = client.get(f"/v2/editions/{manifestation_id}/content")
+
+        assert response.status_code == 200
+        assert response.get_json() == tibetan_content
+
+
+class TestGetEditionMetadata(TestEditionsEndpoints):
+    """Tests for GET /v2/editions/{edition_id}/metadata"""
+
+    def test_get_metadata_success(self, client, test_database, test_person_data):
+        """Test successful metadata retrieval"""
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_id = self._create_test_expression(test_database, person_id)
+        manifestation_id = self._create_test_manifestation(test_database, expression_id)
+
+        response = client.get(f"/v2/editions/{manifestation_id}/metadata")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["id"] == manifestation_id
+        assert data["text_id"] == expression_id
+        assert data["type"] == "diplomatic"
+        assert data["bdrc"] == "W12345"
+
+    def test_get_metadata_not_found(self, client, test_database):
+        """Test metadata retrieval with non-existent manifestation ID"""
         response = client.get("/v2/editions/non-existent-id/metadata")
 
         assert response.status_code == 404
-        response_data = response.get_json()
-        assert "error" in response_data
+        assert "error" in response.get_json()
 
-    def test_create_text_success(self, client, test_database, test_person_data):
-        """Test successful instance creation with database and storage verification"""
-        # Create test person first
+    def test_get_metadata_with_all_fields(self, client, test_database, test_person_data):
+        """Test metadata retrieval with all optional fields populated"""
         person_id = self._create_test_person(test_database, test_person_data)
+        expression_id = self._create_test_expression(test_database, person_id)
 
-        # Create expression first to get valid text_id
-        expression_data = ExpressionInput(
-            category_id="category",
-            title=LocalizedString({"en": "Test Expression"}),
-            language="en",
-            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
+        manifestation_data = ManifestationInput(
+            type=ManifestationType.DIPLOMATIC,
+            bdrc="W12345",
+            wiki="Q123456",
+            source="Test Source",
+            colophon="Test colophon text",
+            incipit_title=LocalizedString({"en": "Opening words", "bo": "དབུ་ཚིག"}),
+            alt_incipit_titles=[LocalizedString({"en": "Alt incipit", "bo": "མཚན་བྱང་གཞན།"})],
         )
-        expression_id = test_database.expression.create(expression_data)
+        manifestation_id = generate_id()
+        test_database.manifestation.create(manifestation_data, manifestation_id, expression_id)
 
-        text_data = {
-            "content": "This is the English text content.",
+        response = client.get(f"/v2/editions/{manifestation_id}/metadata")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert data["bdrc"] == "W12345"
+        assert data["wiki"] == "Q123456"
+        assert data["colophon"] == "Test colophon text"
+        assert data["incipit_title"]["en"] == "Opening words"
+
+
+class TestCreateEdition(TestEditionsEndpoints):
+    """Tests for POST /v2/texts/{text_id}/editions"""
+
+    def test_create_edition_success(self, client, test_database, test_person_data):
+        """Test successful edition creation"""
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_id = self._create_test_expression(test_database, person_id)
+
+        edition_data = {
+            "content": "This is the text content.",
+            "metadata": {
+                "type": "diplomatic",
+                "bdrc": "W12345",
+                "source": "Test Source",
+            },
+            "pagination": {
+                "volume": {
+                    "pages": [{"reference": "1a", "lines": [{"start": 0, "end": 25}]}]
+                }
+            },
+        }
+
+        response = client.post(f"/v2/texts/{expression_id}/editions", json=edition_data)
+
+        assert response.status_code == 201
+        assert "id" in response.get_json()
+
+    def test_create_edition_with_pagination(self, client, test_database, test_person_data):
+        """Test edition creation with pagination annotation"""
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_id = self._create_test_expression(test_database, person_id)
+
+        edition_data = {
+            "content": "This is the text content for pagination test.",
             "metadata": {
                 "type": "diplomatic",
                 "bdrc": "W12345",
@@ -261,176 +224,44 @@ class TestGetEditionsV2Endpoints:
             "pagination": {
                 "volume": {
                     "pages": [
-                        {
-                            "reference": "1a",
-                            "lines": [{"start": 0, "end": 33}],
-                        }
+                        {"reference": "1a", "lines": [{"start": 0, "end": 20}]},
+                        {"reference": "1b", "lines": [{"start": 20, "end": 46}]},
                     ],
                 }
             },
         }
 
-        response = client.post(f"/v2/texts/{expression_id}/editions", json=text_data)
+        response = client.post(f"/v2/texts/{expression_id}/editions", json=edition_data)
 
         assert response.status_code == 201
-        response_data = response.get_json()
-        assert "id" in response_data
+        manifestation_id = response.get_json()["id"]
 
-    def test_create_text_missing_body(self, client, test_database, test_person_data):
-        """Test instance creation with missing request body"""
-        # Create expression first
+        annotations_response = client.get(f"/v2/editions/{manifestation_id}/annotations")
+        assert annotations_response.status_code == 200
+
+    def test_create_edition_missing_body(self, client, test_database, test_person_data):
+        """Test edition creation with missing request body"""
         person_id = self._create_test_person(test_database, test_person_data)
-        expression_data = ExpressionInput(
-            category_id="category",
-            title=LocalizedString({"en": "Test Expression"}),
-            language="en",
-            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
-        )
-        expression_id = test_database.expression.create(expression_data)
+        expression_id = self._create_test_expression(test_database, person_id)
 
         response = client.post(f"/v2/texts/{expression_id}/editions")
 
         assert response.status_code == 400
-        response_data = response.get_json()
-        assert "error" in response_data
+        assert "error" in response.get_json()
 
-    def test_create_text_invalid_data(self, client, test_database, test_person_data):
-        """Test instance creation with invalid request data"""
-        # Create expression first
+    def test_create_edition_empty_body(self, client, test_database, test_person_data):
+        """Test edition creation with empty request body"""
         person_id = self._create_test_person(test_database, test_person_data)
-        expression_data = ExpressionInput(
-            category_id="category",
-            title=LocalizedString({"en": "Test Expression"}),
-            language="en",
-            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
-        )
-        expression_id = test_database.expression.create(expression_data)
+        expression_id = self._create_test_expression(test_database, person_id)
 
-        invalid_data = {
-            # Missing required fields
-        }
+        response = client.post(f"/v2/texts/{expression_id}/editions", json={})
 
-        response = client.post(f"/v2/texts/{expression_id}/editions", json=invalid_data)
-
-        # Empty dict is treated as missing body, returns 400
         assert response.status_code == 400
-        response_data = response.get_json()
-        assert "error" in response_data
+        assert "error" in response.get_json()
 
-    def test_create_then_get_text_round_trip(self, client, test_database, test_person_data):
-        """Test creating a text via POST then retrieving via GET to verify database content"""
-        # Create test person first
-        person_id = self._create_test_person(test_database, test_person_data)
-
-        # Create expression first to get valid expression_id
-        expression_data = ExpressionInput(
-            category_id="category",
-            title=LocalizedString({"en": "Round Trip Test Expression"}),
-            language="en",
-            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
-        )
-        expression_id = test_database.expression.create(expression_data)
-
-        # Test data for creating manifestation via API
-        text_data = {
-            "content": "This is comprehensive test content for round-trip verification.",
-            "metadata": {
-                "type": "diplomatic",
-                "bdrc": "W12345",
-                "source": "Test Source",
-                "wiki": "Q123456",
-                "colophon": "Test colophon text for verification",
-            },
-            "pagination": {
-                "volume": {
-                    "pages": [
-                        {"reference": "1a", "lines": [{"start": 0, "end": 63}]},
-                    ],
-                }
-            },
-        }
-
-        # Step 1: Create manifestation via POST
-        post_response = client.post(f"/v2/texts/{expression_id}/editions", json=text_data)
-
-        # Verify POST succeeded
-        assert post_response.status_code == 201, f"POST failed: {post_response.get_json()}"
-        post_data = post_response.get_json()
-        assert "id" in post_data
-        manifestation_id = post_data["id"]
-
-        # Step 2: Retrieve text via GET to verify database content
-        get_response = client.get(f"/v2/editions/{manifestation_id}/content")
-
-        # Step 3: Verify GET response contains the content
-        assert get_response.status_code == 200
-        response_data = get_response.get_json()
-        assert response_data == text_data["content"]
-
-        # Step 4: Verify database state by querying directly
-        manifestation = test_database.manifestation.get(manifestation_id)
-        assert manifestation.text_id == expression_id
-        assert manifestation.bdrc == text_data["metadata"]["bdrc"]
-        assert manifestation.wiki == text_data["metadata"]["wiki"]
-        assert manifestation.colophon == text_data["metadata"]["colophon"]
-
-    def test_get_text_content(self, client, test_database, test_person_data, create_test_zip):
-        """Test GET text with aligned=false (default behavior) - uses content endpoint"""
-        person_id = self._create_test_person(test_database, test_person_data)
-        _, manifestation_id = self._create_test_text(test_database, person_id, create_test_zip)
-
-        # Test GET content endpoint
-        response = client.get(f"/v2/editions/{manifestation_id}/content")
-
-        assert response.status_code == 200
-        response_data = response.get_json()
-        assert response_data == "Sample Tibetan text content"
-
-    def test_create_text_invalid_author_field(self, client, test_database):
-        """Test instance creation with invalid author field - manifestations don't have authors"""
-        # Create expression first to get valid text_id
-        person_id = self._create_test_person(
-            test_database,
-            {
-                "name": {"en": "Test Author"},
-                "bdrc": "P123456",
-            },
-        )
-
-        expression_data = ExpressionInput(
-            category_id="category",
-            title=LocalizedString({"en": "Test Expression"}),
-            language="en",
-            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
-        )
-        expression_id = test_database.expression.create(expression_data)
-
-        text_data = {
-            "content": "This is comprehensive test content for round-trip verification.",
-            "author": {"person_id": "some-person-id"},  # This field should not be accepted
-            "metadata": {
-                "type": "diplomatic",
-                "bdrc": "W12345",
-                "source": "Test Source",
-            },
-            "pagination": {
-                "volume": {
-                    "pages": [{"reference": "1a", "lines": [{"start": 0, "end": 63}]}],
-                }
-            },
-        }
-
-        response = client.post(f"/v2/texts/{expression_id}/editions", json=text_data)
-        # Should return 422 for validation error since author field is not valid for manifestations
-        assert response.status_code == 422
-        response_data = response.get_json()
-        assert "error" in response_data
-
-    def test_create_text_invalid_text_id(self, client, test_database, test_person_data):
-        """Test instance creation with non-existent text ID"""
-        _ = self._create_test_person(test_database, test_person_data)
-
-        text_data = {
+    def test_create_edition_invalid_expression_id(self, client, test_database):
+        """Test edition creation with non-existent expression ID"""
+        edition_data = {
             "content": "Test content",
             "metadata": {
                 "type": "diplomatic",
@@ -439,39 +270,237 @@ class TestGetEditionsV2Endpoints:
             },
             "pagination": {
                 "volume": {
-                    "pages": [{"reference": "1a", "lines": [{"start": 0, "end": 12}]}],
+                    "pages": [{"reference": "1a", "lines": [{"start": 0, "end": 12}]}]
                 }
             },
         }
 
-        response = client.post("/v2/texts/non-existent-expression-id/editions", json=text_data)
-        # API returns 422 for non-existent expression ID (validation error)
-        assert response.status_code == 422
-        response_data = response.get_json()
-        assert "error" in response_data
+        response = client.post("/v2/texts/non-existent-id/editions", json=edition_data)
 
-    def test_create_text_malformed_json(self, client, test_database, test_person_data):
-        """Test instance creation with malformed JSON data"""
-        # Create expression first
+        assert response.status_code == 422
+        assert "error" in response.get_json()
+
+    def test_create_edition_malformed_json(self, client, test_database, test_person_data):
+        """Test edition creation with malformed JSON"""
         person_id = self._create_test_person(test_database, test_person_data)
-        expression_data = ExpressionInput(
-            category_id="category",
-            title=LocalizedString({"en": "Test Expression"}),
-            language="en",
-            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
-        )
-        expression_id = test_database.expression.create(expression_data)
+        expression_id = self._create_test_expression(test_database, person_id)
 
         response = client.post(
-            f"/v2/texts/{expression_id}/editions", data="{invalid json}", content_type="application/json"
+            f"/v2/texts/{expression_id}/editions",
+            data="{invalid json}",
+            content_type="application/json"
         )
+
         assert response.status_code == 400
-        response_data = response.get_json()
-        assert "error" in response_data
+        assert "error" in response.get_json()
 
-    def test_get_text_invalid_manifestation_format(self, client):
-        """Test instance retrieval with invalid manifestation ID format"""
-        response = client.get("/v2/editions/")
-        # API currently returns 500 for invalid URL format - this should be improved to 404
-        assert response.status_code == 500
+    def test_create_edition_invalid_extra_field(self, client, test_database, test_person_data):
+        """Test edition creation with invalid extra field (author)"""
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_id = self._create_test_expression(test_database, person_id)
 
+        edition_data = {
+            "content": "Test content",
+            "author": {"person_id": "some-id"},
+            "metadata": {
+                "type": "diplomatic",
+                "bdrc": "W12345",
+                "source": "Test Source",
+            },
+            "pagination": {
+                "volume": {
+                    "pages": [{"reference": "1a", "lines": [{"start": 0, "end": 12}]}]
+                }
+            },
+        }
+
+        response = client.post(f"/v2/texts/{expression_id}/editions", json=edition_data)
+
+        assert response.status_code == 422
+        assert "error" in response.get_json()
+
+    def test_create_critical_edition_success(self, client, test_database, test_person_data):
+        """Test creating a critical edition"""
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_id = self._create_test_expression(test_database, person_id)
+
+        edition_data = {
+            "content": "Critical edition content",
+            "metadata": {
+                "type": "critical",
+                "source": "Test Source",
+            },
+            "segmentation": {
+                "segments": [{"lines": [{"start": 0, "end": 24}]}]
+            },
+        }
+
+        response = client.post(f"/v2/texts/{expression_id}/editions", json=edition_data)
+
+        assert response.status_code == 201
+        manifestation_id = response.get_json()["id"]
+
+        metadata_response = client.get(f"/v2/editions/{manifestation_id}/metadata")
+        assert metadata_response.get_json()["type"] == "critical"
+
+    def test_create_second_critical_edition_fails(self, client, test_database, test_person_data):
+        """Test that only one critical edition is allowed per expression"""
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_id = self._create_test_expression(test_database, person_id)
+
+        edition_data = {
+            "content": "First critical edition",
+            "metadata": {
+                "type": "critical",
+                "source": "Test Source",
+            },
+            "segmentation": {
+                "segments": [{"lines": [{"start": 0, "end": 22}]}]
+            },
+        }
+
+        first_response = client.post(f"/v2/texts/{expression_id}/editions", json=edition_data)
+        assert first_response.status_code == 201
+
+        edition_data["content"] = "Second critical edition"
+        edition_data["segmentation"]["segments"][0]["lines"][0]["end"] = 23
+        second_response = client.post(f"/v2/texts/{expression_id}/editions", json=edition_data)
+
+        assert second_response.status_code == 422
+        assert "error" in second_response.get_json()
+
+    def test_create_edition_round_trip(self, client, test_database, test_person_data):
+        """Test creating an edition and retrieving it"""
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_id = self._create_test_expression(test_database, person_id)
+
+        edition_data = {
+            "content": "Round trip test content",
+            "metadata": {
+                "type": "diplomatic",
+                "bdrc": "W12345",
+                "wiki": "Q123456",
+                "source": "Test Source",
+                "colophon": "Test colophon",
+            },
+            "pagination": {
+                "volume": {
+                    "pages": [{"reference": "1a", "lines": [{"start": 0, "end": 23}]}]
+                }
+            },
+        }
+
+        post_response = client.post(f"/v2/texts/{expression_id}/editions", json=edition_data)
+        assert post_response.status_code == 201
+        manifestation_id = post_response.get_json()["id"]
+
+        content_response = client.get(f"/v2/editions/{manifestation_id}/content")
+        assert content_response.status_code == 200
+        assert content_response.get_json() == edition_data["content"]
+
+        metadata_response = client.get(f"/v2/editions/{manifestation_id}/metadata")
+        assert metadata_response.status_code == 200
+        metadata = metadata_response.get_json()
+        assert metadata["bdrc"] == "W12345"
+        assert metadata["wiki"] == "Q123456"
+        assert metadata["colophon"] == "Test colophon"
+
+
+class TestEditionAnnotations(TestEditionsEndpoints):
+    """Tests for POST/GET /v2/editions/{edition_id}/annotations"""
+
+    def test_post_segmentation_annotation(self, client, test_database, test_person_data):
+        """Test adding segmentation annotation to an edition"""
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_id = self._create_test_expression(test_database, person_id)
+        manifestation_id = self._create_test_manifestation(test_database, expression_id, "0123456789")
+
+        annotation_data = {
+            "segmentation": {
+                "segments": [
+                    {"lines": [{"start": 0, "end": 5}]},
+                    {"lines": [{"start": 5, "end": 10}]},
+                ]
+            }
+        }
+
+        response = client.post(f"/v2/editions/{manifestation_id}/annotations", json=annotation_data)
+
+        assert response.status_code == 201
+        assert "message" in response.get_json()
+
+    def test_post_pagination_annotation(self, client, test_database, test_person_data):
+        """Test adding pagination annotation to an edition"""
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_id = self._create_test_expression(test_database, person_id)
+        manifestation_id = self._create_test_manifestation(test_database, expression_id, "0123456789ABCDEF")
+
+        annotation_data = {
+            "pagination": {
+                "volume": {
+                    "pages": [
+                        {"reference": "1a", "lines": [{"start": 0, "end": 8}]},
+                        {"reference": "1b", "lines": [{"start": 8, "end": 16}]},
+                    ]
+                }
+            }
+        }
+
+        response = client.post(f"/v2/editions/{manifestation_id}/annotations", json=annotation_data)
+
+        assert response.status_code == 201
+
+    def test_get_annotations_all_types(self, client, test_database, test_person_data):
+        """Test getting all annotation types for an edition"""
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_id = self._create_test_expression(test_database, person_id)
+        manifestation_id = self._create_test_manifestation(test_database, expression_id, "0123456789")
+
+        response = client.get(f"/v2/editions/{manifestation_id}/annotations")
+
+        assert response.status_code == 200
+
+    def test_get_annotations_filtered_by_type(self, client, test_database, test_person_data):
+        """Test getting annotations filtered by type"""
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_id = self._create_test_expression(test_database, person_id)
+        manifestation_id = self._create_test_manifestation(test_database, expression_id, "0123456789")
+
+        segmentation_data = {
+            "segmentation": {
+                "segments": [{"lines": [{"start": 0, "end": 10}]}]
+            }
+        }
+        post_response = client.post(f"/v2/editions/{manifestation_id}/annotations", json=segmentation_data)
+        assert post_response.status_code == 201, f"POST failed: {post_response.get_json()}"
+
+        response = client.get(f"/v2/editions/{manifestation_id}/annotations")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert "segmentations" in data
+
+    def test_post_annotation_missing_body(self, client, test_database, test_person_data):
+        """Test posting annotation with missing body"""
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_id = self._create_test_expression(test_database, person_id)
+        manifestation_id = self._create_test_manifestation(test_database, expression_id)
+
+        response = client.post(f"/v2/editions/{manifestation_id}/annotations")
+
+        assert response.status_code == 400
+
+
+class TestRelatedEditions(TestEditionsEndpoints):
+    """Tests for GET /v2/editions/{edition_id}/related"""
+
+    def test_get_related_no_relations(self, client, test_database, test_person_data):
+        """Test getting related editions when none exist"""
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_id = self._create_test_expression(test_database, person_id)
+        manifestation_id = self._create_test_manifestation(test_database, expression_id)
+
+        response = client.get(f"/v2/editions/{manifestation_id}/related")
+
+        assert response.status_code == 200
+        assert response.get_json() == []

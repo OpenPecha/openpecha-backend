@@ -21,7 +21,7 @@ class SegmentationDatabase:
     MATCH (segmentation:Segmentation)-[:SEGMENTATION_OF]->(manifestation:Manifestation)
     WHERE ($segmentation_id IS NOT NULL AND segmentation.id = $segmentation_id)
        OR ($manifestation_id IS NOT NULL AND manifestation.id = $manifestation_id)
-    MATCH (manifestation)<-[:MANIFESTATION_OF]-(expression:Expression)
+    MATCH (manifestation)-[:MANIFESTATION_OF]->(expression:Expression)
     MATCH (segment:Segment)-[:SEGMENT_OF]->(segmentation)
     MATCH (span:Span)-[:SPAN_OF]->(segment)
     WITH segmentation, manifestation, expression, segment,

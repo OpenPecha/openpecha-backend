@@ -27,7 +27,7 @@ class AlignmentDatabase:
            AND EXISTS { (source_segmentation)-[:SEGMENTATION_OF]->(:Manifestation {id: $manifestation_id}) })
     MATCH (source_segmentation)<-[:SEGMENT_OF]-(source_segment:Segment)-[:ALIGNED_TO]->(target_segment:Segment)
           -[:SEGMENT_OF]->(:Segmentation)-[:SEGMENTATION_OF]->(target_manifestation:Manifestation)
-    MATCH (target_manifestation)<-[:MANIFESTATION_OF]-(target_expression:Expression)
+    MATCH (target_manifestation)-[:MANIFESTATION_OF]->(target_expression:Expression)
     MATCH (source_span:Span)-[:SPAN_OF]->(source_segment)
     WITH source_segmentation, source_segment, target_segment, target_manifestation, target_expression,
          min(source_span.start) AS source_min_start,
