@@ -45,7 +45,7 @@ class ManifestationDatabase:
         id: m.id, bdrc: m.bdrc, wiki: m.wiki, colophon: m.colophon, source: m.source,
         type: [(m)-[:HAS_TYPE]->(mt:ManifestationType) | mt.name][0],
         incipit_title: [(m)-[:HAS_INCIPIT_TITLE]->(n:Nomen)
-            WHERE NOT exists((n)<-[:ALTERNATIVE_OF]-(:Nomen)) |
+            WHERE NOT EXISTS { (n)<-[:ALTERNATIVE_OF]-(:Nomen) } |
             [(n)-[:HAS_LOCALIZATION]->(lt:LocalizedText)-[r:HAS_LANGUAGE]->(l:Language) |
                 {language: coalesce(r.bcp47, l.code), text: lt.text}]],
         alt_incipit_titles: [(m)-[:HAS_INCIPIT_TITLE]->(:Nomen)<-[:ALTERNATIVE_OF]-(an:Nomen) |
@@ -60,7 +60,8 @@ class ManifestationDatabase:
     WHERE ($manifestation_id IS NOT NULL AND m.id = $manifestation_id)
        OR ($expression_id IS NOT NULL AND e.id = $expression_id)
     WITH m, e
-    WHERE $manifestation_type IS NULL OR [(m)-[:HAS_TYPE]->(mt:ManifestationType) | mt.name][0] = $manifestation_type
+    WHERE $manifestation_type IS NULL
+       OR EXISTS {{ (m)-[:HAS_TYPE]->(:ManifestationType {{name: $manifestation_type}}) }}
     {_MANIFESTATION_RETURN}
     """
 

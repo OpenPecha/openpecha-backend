@@ -18,8 +18,8 @@ class DatabaseValidator:
     @staticmethod
     def validate_original_expression_uniqueness(tx: ManagedTransaction, work_id: str) -> None:
         query = """
-        MATCH (w:Work {id: $work_id})<-[:EXPRESSION_OF {original: true}]-(e:Expression)
-        RETURN count(e) as existing_count
+        MATCH (w:Work {id: $work_id})
+        RETURN count { (w)<-[:EXPRESSION_OF {original: true}]-(:Expression) } AS existing_count
         """
 
         result = tx.run(query, work_id=work_id)
@@ -88,14 +88,13 @@ class DatabaseValidator:
     @staticmethod
     def validate_expression_exists(tx: ManagedTransaction, expression_id: str) -> None:
         query = """
-        MATCH (e:Expression {id: $expression_id})
-        RETURN count(e) as expression_count
+        RETURN EXISTS { (e:Expression {id: $expression_id}) } AS exists
         """
 
         result = tx.run(query, expression_id=expression_id)
         record = result.single()
 
-        if not record or record["expression_count"] == 0:
+        if not record or not record["exists"]:
             raise DataValidationError(
                 f"Expression {expression_id} does not exist. Cannot create manifestation for non-existent expression."
             )
@@ -152,14 +151,13 @@ class DatabaseValidator:
         Raises DataValidationError if the category does not exist.
         """
         query = """
-        MATCH (c:Category {id: $category_id})
-        RETURN count(c) as count
+        RETURN EXISTS { (c:Category {id: $category_id}) } AS exists
         """
 
         result = tx.run(query, category_id=category_id)
         record = result.single()
 
-        if not record or record["count"] == 0:
+        if not record or not record["exists"]:
             raise DataValidationError(
                 f"Category with ID '{category_id}' does not exist. Please provide a valid category_id."
             )
@@ -170,13 +168,14 @@ class DatabaseValidator:
     ) -> None:
         """Ensure annotation type doesn't already exist for manifestation."""
         query = """
-        MATCH (m:Manifestation {id: $manifestation_id})<-[:ANNOTATION_OF]-(a:Annotation)-[:HAS_TYPE]->
-        (t:AnnotationType {name: $type})
-        RETURN count(a) as count
+        RETURN EXISTS {
+            (m:Manifestation {id: $manifestation_id})
+                <-[:ANNOTATION_OF]-(:Annotation)-[:HAS_TYPE]->(:AnnotationType {name: $type})
+        } AS exists
         """
         result = tx.run(query, manifestation_id=manifestation_id, type=annotation_type.value)
         record = result.single()
-        if record and record["count"] > 0:
+        if record and record["exists"]:
             raise DataValidationError(
                 f"Annotation of type '{annotation_type.value}' already exists for manifestation '{manifestation_id}'"
             )
@@ -187,14 +186,16 @@ class DatabaseValidator:
     ) -> None:
         """Ensure alignment relationship doesn't already exist between manifestations."""
         query = """
-        MATCH (m1:Manifestation {id: $manifestation_id})<-[:ANNOTATION_OF]-(a1:Annotation)-[:HAS_TYPE]->
-        (t:AnnotationType {name: 'alignment'})
-        MATCH (m2:Manifestation {id: $target_manifestation_id})<-[:ANNOTATION_OF]-(a2:Annotation {aligned_to: a1.id})
-        RETURN count(*) as count
+        RETURN EXISTS {
+            (m1:Manifestation {id: $manifestation_id})
+                <-[:ANNOTATION_OF]-(a1:Annotation)-[:HAS_TYPE]->(:AnnotationType {name: 'alignment'}),
+            (m2:Manifestation {id: $target_manifestation_id})
+                <-[:ANNOTATION_OF]-(:Annotation {aligned_to: a1.id})
+        } AS exists
         """
         result = tx.run(query, manifestation_id=manifestation_id, target_manifestation_id=target_manifestation_id)
         record = result.single()
-        if record and record["count"] > 0:
+        if record and record["exists"]:
             raise DataValidationError(
                 f"Alignment relationship already exists between manifestation '{manifestation_id}' "
                 f"and target manifestation '{target_manifestation_id}'"

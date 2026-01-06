@@ -4,83 +4,12 @@ Requires environment variables:
 - NEO4J_TEST_URI: Neo4j test instance URI
 - NEO4J_TEST_PASSWORD: Password for test instance
 """
-import json
-from operator import truediv
-import os
 import copy
+import json
+
 import pytest
-from dotenv import load_dotenv
 from models import ExpressionInput, PersonInput
-from request_models import (
-    EditionRequestModel,
-)
-from main import create_app
-from database import Database
-
-load_dotenv()
-
-@pytest.fixture(scope="session")
-def neo4j_connection():
-    """Get Neo4j connection details from environment variables"""
-    test_uri = os.environ.get("NEO4J_TEST_URI")
-    test_password = os.environ.get("NEO4J_TEST_PASSWORD")
-
-    if not test_uri or not test_password:
-        pytest.skip(
-            "Neo4j test credentials not provided. Set NEO4J_TEST_URI and NEO4J_TEST_PASSWORD environment variables."
-        )
-
-    yield {"uri": test_uri, "auth": ("neo4j", test_password)}
-
-
-@pytest.fixture
-def test_database(neo4j_connection):
-    """Create a Neo4JDatabase instance connected to the test Neo4j instance"""
-    # Set environment variables so API endpoints can connect to test database
-    os.environ["NEO4J_URI"] = neo4j_connection["uri"]
-    os.environ["NEO4J_PASSWORD"] = neo4j_connection["auth"][1]
-
-    # Create Neo4j database with test connection
-    db = Neo4JDatabase(neo4j_uri=neo4j_connection["uri"], neo4j_auth=neo4j_connection["auth"])
-
-    # Setup test schema and basic data
-    with db.get_session() as session:
-        # Clean up any existing data first
-        session.run("MATCH (n) DETACH DELETE n")
-
-        # Create test languages
-        session.run("MERGE (l:Language {code: 'bo', name: 'Tibetan'})")
-        session.run("MERGE (l:Language {code: 'tib', name: 'Spoken Tibetan'})")
-        session.run("MERGE (l:Language {code: 'en', name: 'English'})")
-        session.run("MERGE (l:Language {code: 'sa', name: 'Sanskrit'})")
-        session.run("MERGE (l:Language {code: 'zh', name: 'Chinese'})")
-
-        # Create test text types (TextType enum values)
-        session.run("MERGE (t:TextType {name: 'root'})")
-        session.run("MERGE (t:TextType {name: 'commentary'})")
-        session.run("MERGE (t:TextType {name: 'translation'})")
-
-        # Create test role types (only allowed values per constraints)
-        session.run("MERGE (r:RoleType {name: 'translator'})")
-        session.run("MERGE (r:RoleType {name: 'author'})")
-        session.run("MERGE (r:RoleType {name: 'reviser'})")
-
-        # Create test license type
-        session.run("MERGE (l:License {name: 'CC0'})")
-
-    yield db
-
-    # Cleanup after test
-    with db.get_session() as session:
-        session.run("MATCH (n) DETACH DELETE n")
-
-
-@pytest.fixture
-def client():
-    """Create Flask test client"""
-    app = create_app()
-    app.config["TESTING"] = True
-    return app.test_client()
+from request_models import EditionRequestModel
 
 
 @pytest.fixture
@@ -186,7 +115,7 @@ class TestGetSegmentRelationV2:
 
     def _create_category(self, test_database) -> str:
         """Create a test category"""
-        category_id = test_database.create_category(
+        category_id = test_database.category.create_from_dict(
             application='test_application',
             title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
         )

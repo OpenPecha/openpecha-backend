@@ -20,8 +20,8 @@ class NoteDatabase:
     MATCH (span:Span)-[:SPAN_OF]->(n:Note)
     WHERE ($note_id IS NOT NULL AND n.id = $note_id)
        OR ($manifestation_id IS NOT NULL
-           AND (n)-[:NOTE_OF]->(:Manifestation {id: $manifestation_id})
-           AND (n)-[:HAS_TYPE]->(:NoteType {name: $note_type}))
+           AND EXISTS { (n)-[:NOTE_OF]->(:Manifestation {id: $manifestation_id}) }
+           AND EXISTS { (n)-[:HAS_TYPE]->(:NoteType {name: $note_type}) })
     RETURN n.id AS note_id, n.text AS text, span.start AS span_start, span.end AS span_end
     ORDER BY span.start
     """

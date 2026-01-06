@@ -36,7 +36,9 @@ class SegmentationDatabase:
     WITH segmentation
     UNWIND $segments AS segment_data
     CREATE (segment:Segment {id: segment_data.id})-[:SEGMENT_OF]->(segmentation)
-    FOREACH (line IN segment_data.lines | CREATE (:Span {start: line.start, end: line.end})-[:SPAN_OF]->(segment))
+    WITH segment, segment_data
+    UNWIND segment_data.lines AS line
+    CREATE (:Span {start: line.start, end: line.end})-[:SPAN_OF]->(segment)
     RETURN count(*) AS segment_count
     """
 

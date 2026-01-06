@@ -12,11 +12,9 @@ Environment variables can be set via:
 """
 
 import os
-from pathlib import Path
 
 import pytest
-from dotenv import load_dotenv
-from exceptions import DataNotFoundError
+from exceptions import DataNotFoundError, DataValidationError
 from identifier import generate_id
 from models import (
     ContributionInput,
@@ -27,89 +25,6 @@ from models import (
     ManifestationType,
     PersonInput,
 )
-from database.database import Database
-from exceptions import DataValidationError
-
-# Load .env file if it exists
-load_dotenv()
-
-
-def load_constraints_file():
-    """Load and return the contents of the Neo4j constraints file"""
-    constraints_file = Path(__file__).parent.parent / "neo4j_constraints.cypher"
-    if not constraints_file.exists():
-        raise FileNotFoundError(f"Constraints file not found: {constraints_file}")
-
-    with open(constraints_file, encoding="utf-8") as f:
-        content = f.read()
-
-    # Split by semicolons and filter out empty lines and comments-only lines
-    statements = []
-    for line in content.split(";"):
-        line = line.strip()
-        if line and not line.startswith("//") and "CREATE CONSTRAINT" in line:
-            statements.append(line + ";")
-
-    return statements
-
-
-@pytest.fixture(scope="session")
-def neo4j_connection():
-    """Get Neo4j connection details from environment variables"""
-    test_uri = os.environ.get("NEO4J_TEST_URI")
-    test_password = os.environ.get("NEO4J_TEST_PASSWORD")
-
-    if not test_uri or not test_password:
-        pytest.skip(
-            "Neo4j test credentials not provided. Set NEO4J_TEST_URI and NEO4J_TEST_PASSWORD environment variables."
-        )
-
-    return {"uri": test_uri, "auth": ("neo4j", test_password)}
-
-
-@pytest.fixture
-def test_database(neo4j_connection):
-    """Create a Neo4JDatabase instance connected to the test Neo4j instance"""
-    # Create Neo4j database with test connection
-    db = Database(neo4j_uri=neo4j_connection["uri"], neo4j_auth=neo4j_connection["auth"])
-
-    # Setup test schema and basic data
-    with db.get_session() as session:
-        # Clean up any existing data first
-        session.run("MATCH (n) DETACH DELETE n")
-
-        # Load and apply all constraints from the comprehensive constraints file
-        constraint_statements = load_constraints_file()
-        for statement in constraint_statements:
-            session.run(statement)
-
-        # Create test languages
-        session.run("MERGE (l:Language {code: 'bo', name: 'Tibetan'})")
-        session.run("MERGE (l:Language {code: 'en', name: 'English'})")
-        session.run("MERGE (l:Language {code: 'sa', name: 'Sanskrit'})")
-        session.run("MERGE (l:Language {code: 'zh', name: 'Chinese'})")
-
-        # Create test text types (TextType enum values)
-        session.run("MERGE (t:TextType {name: 'root'})")
-        session.run("MERGE (t:TextType {name: 'commentary'})")
-        session.run("MERGE (t:TextType {name: 'translation'})")
-
-        # Create test role types (only allowed values per constraints)
-        session.run("MERGE (r:RoleType {name: 'translator'})")
-        session.run("MERGE (r:RoleType {name: 'author'})")
-        session.run("MERGE (r:RoleType {name: 'reviser'})")
-
-        # Create license type nodes
-        session.run("MERGE (l:LicenseType {name: 'public'})")
-
-    yield db
-
-    # Cleanup after tests
-    with db.get_session() as session:
-        session.run("MATCH (n) DETACH DELETE n")
-
-    # Close the database driver to avoid deprecation warning
-    db.close()
 
 
 class TestDatabase:
@@ -258,6 +173,7 @@ class TestDatabase:
 
         # Create ROOT expression (no commentary_of or translation_of)
         expression = ExpressionInput(
+            category_id="category",
             bdrc="W789012",
             wiki="Q789012",
             date="2024-01-15",
@@ -303,6 +219,7 @@ class TestDatabase:
         """Test that creating expression with non-existent person fails and rolls back"""
 
         expression = ExpressionInput(
+            category_id="category",
             title=LocalizedString({"en": "Test Expression"}),
             language="en",
             contributions=[ContributionInput(person_id="non-existent-person-id", role=ContributorRole.AUTHOR)],
@@ -333,6 +250,7 @@ class TestDatabase:
 
         for input_lang, title_dict in test_cases:
             expression = ExpressionInput(
+                category_id="category",
                 title=LocalizedString(title_dict),
                 language=input_lang,
                 contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
@@ -360,6 +278,7 @@ class TestDatabase:
         reviser_id = test_database.person.create(reviser)
 
         expression = ExpressionInput(
+            category_id="category",
             title=LocalizedString({"en": "Multi-Contributor Work"}),
             language="en",
             contributions=[
@@ -394,6 +313,7 @@ class TestDatabase:
 
         # Minimal expression (no bdrc, wiki, date, alt_titles)
         expression = ExpressionInput(
+            category_id="category",
             title=LocalizedString({"en": "Minimal Expression"}),
             language="en",
             contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
@@ -421,6 +341,7 @@ class TestDatabase:
 
         # Create expression using person_bdrc_id instead of person_id
         expression = ExpressionInput(
+            category_id="category",
             title=LocalizedString({"en": "Expression with BDRC Contributor"}),
             language="en",
             contributions=[
@@ -449,6 +370,7 @@ class TestDatabase:
     def test_create_root_expression_missing_person_bdrc_id(self, test_database):
         """Test that creating expression with non-existent person_bdrc_id fails"""
         expression = ExpressionInput(
+            category_id="category",
             title=LocalizedString({"en": "Test Expression"}),
             language="en",
             contributions=[
@@ -471,6 +393,7 @@ class TestDatabase:
         person_id = test_database.person.create(person)
 
         root_expression = ExpressionInput(
+            category_id="category",
             title=LocalizedString({"en": "Original Text"}),
             language="en",
             contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
@@ -485,6 +408,7 @@ class TestDatabase:
 
         # Now create a translation expression using translation_of
         translation_expression = ExpressionInput(
+            category_id="category",
             title=LocalizedString({"bo": "བསྒྱུར་བ།"}),
             language="bo",
             translation_of=root_expression_id,
@@ -512,6 +436,7 @@ class TestDatabase:
 
         # Create a root expression first
         root_expression = ExpressionInput(
+            category_id="category",
             title=LocalizedString({"en": "Root Text"}),
             language="en",
             contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
@@ -521,6 +446,7 @@ class TestDatabase:
         # Try to create expression with both commentary_of and translation_of - should fail validation
         with pytest.raises(ValueError, match="Cannot be both a commentary and translation"):
             ExpressionInput(
+                category_id="category",
                 title=LocalizedString({"bo": "བསྒྱུར་བ།"}),
                 language="bo",
                 commentary_of=root_id,
@@ -538,6 +464,7 @@ class TestDatabase:
 
         # Create translation with non-existent target
         translation_expression = ExpressionInput(
+            category_id="category",
             title=LocalizedString({"bo": "བསྒྱུར་བ།"}),
             language="bo",
             translation_of="nonexistent-target-id",
@@ -557,6 +484,7 @@ class TestDatabase:
         person_id = test_database.person.create(person)
 
         root_expression = ExpressionInput(
+            category_id="category",
             title=LocalizedString({"en": "Original Text"}),
             language="en",
             contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
@@ -571,6 +499,7 @@ class TestDatabase:
 
         # Now create a commentary expression using commentary_of
         commentary_expression = ExpressionInput(
+            category_id="category",
             title=LocalizedString({"bo": "འགྲེལ་པ།"}),
             language="bo",
             commentary_of=root_expression_id,
@@ -602,6 +531,7 @@ class TestDatabase:
 
         # Create commentary expression with non-existent target
         commentary_expression = ExpressionInput(
+            category_id="category",
             title=LocalizedString({"bo": "འགྲེལ་པ།"}),
             language="bo",
             commentary_of="nonexistent-target-id",
@@ -621,6 +551,7 @@ class TestDatabase:
         author_id = test_database.person.create(author)
 
         root_expression = ExpressionInput(
+            category_id="category",
             title=LocalizedString({"en": "Original Text"}),
             language="en",
             contributions=[ContributionInput(person_id=author_id, role=ContributorRole.AUTHOR)],
@@ -640,6 +571,7 @@ class TestDatabase:
 
         # Create commentary with multiple contributions
         commentary_expression = ExpressionInput(
+            category_id="category",
             title=LocalizedString({"bo": "འགྲེལ་པ།"}),
             language="bo",
             commentary_of=root_expression_id,
@@ -668,6 +600,7 @@ class TestDatabase:
         person_id = test_database.person.create(person)
 
         expression = ExpressionInput(
+            category_id="category",
             title=LocalizedString({"en": "Test Expression"}),
             language="en",
             contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
@@ -688,6 +621,7 @@ class TestDatabase:
 
         # Test ROOT expression
         root_expression = ExpressionInput(
+            category_id="category",
             title=LocalizedString({"en": "Root Expression"}),
             language="en",
             contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
@@ -698,6 +632,7 @@ class TestDatabase:
 
         # Test TRANSLATION expression
         translation_expression = ExpressionInput(
+            category_id="category",
             title=LocalizedString({"bo": "འགྱུར་བ།"}),
             language="bo",
             translation_of=root_id,
@@ -709,6 +644,7 @@ class TestDatabase:
 
         # Test COMMENTARY expression
         commentary_expression = ExpressionInput(
+            category_id="category",
             title=LocalizedString({"bo": "འགྲེལ་པ།"}),
             language="bo",
             commentary_of=root_id,
@@ -727,6 +663,7 @@ class TestDatabase:
         person_id = test_database.person.create(person)
 
         expression = ExpressionInput(
+            category_id="category",
             title=LocalizedString({"en": "Test Expression"}),
             language="en",
             contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
@@ -758,6 +695,7 @@ class TestDatabase:
         person_id = test_database.person.create(person)
 
         expression = ExpressionInput(
+            category_id="category",
             title=LocalizedString({"en": "Test Expression"}),
             language="en",
             contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
@@ -790,6 +728,7 @@ class TestDatabase:
         person_id = test_database.person.create(person)
 
         expression = ExpressionInput(
+            category_id="category",
             title=LocalizedString({"en": "Test Expression"}),
             language="en",
             contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],

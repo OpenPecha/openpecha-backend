@@ -21,7 +21,7 @@ class BibliographicDatabase:
     MATCH (span:Span)-[:SPAN_OF]->(b:BibliographicMetadata)
     WHERE ($bibliographic_id IS NOT NULL AND b.id = $bibliographic_id)
        OR ($manifestation_id IS NOT NULL
-           AND (b)-[:BIBLIOGRAPHY_OF]->(:Manifestation {id: $manifestation_id}))
+           AND EXISTS { (b)-[:BIBLIOGRAPHY_OF]->(:Manifestation {id: $manifestation_id}) })
     MATCH (b)-[:HAS_TYPE]->(bt:BibliographyType)
     RETURN b.id AS id, bt.name AS type, span.start AS span_start, span.end AS span_end
     ORDER BY span.start

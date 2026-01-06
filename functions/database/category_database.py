@@ -36,9 +36,8 @@ class CategoryDatabase:
     CREATE (c)-[:HAS_TITLE]->(n)
     WITH c
     OPTIONAL MATCH (parent:Category {id: $parent_id})
-    FOREACH (_ IN CASE WHEN parent IS NOT NULL THEN [1] ELSE [] END |
-        CREATE (c)-[:HAS_PARENT]->(parent)
-    )
+    WITH c, parent
+    CALL (*) { WHEN parent IS NOT NULL THEN { CREATE (c)-[:HAS_PARENT]->(parent) } }
     RETURN c.id AS category_id
     """
 

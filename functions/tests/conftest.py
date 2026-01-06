@@ -1,8 +1,89 @@
 # pylint: disable=redefined-outer-name
+import os
+from pathlib import Path
 from unittest.mock import patch
 
 import pytest
+from database.database import Database
+from dotenv import load_dotenv
 from main import create_app
+
+load_dotenv()
+
+
+def load_constraints_file() -> list[str]:
+    constraints_path = Path(__file__).parent.parent / "neo4j_constraints.cypher"
+    if not constraints_path.exists():
+        return []
+    with open(constraints_path) as f:
+        content = f.read()
+    return [stmt.strip() for stmt in content.split(";") if stmt.strip()]
+
+
+def setup_test_schema(session) -> None:
+    """Setup common test schema data needed by all test suites."""
+    session.run("MATCH (n) DETACH DELETE n")
+
+    constraint_statements = load_constraints_file()
+    for statement in constraint_statements:
+        session.run(statement)
+
+    session.run("MERGE (l:Language {code: 'bo', name: 'Tibetan'})")
+    session.run("MERGE (l:Language {code: 'en', name: 'English'})")
+    session.run("MERGE (l:Language {code: 'sa', name: 'Sanskrit'})")
+    session.run("MERGE (l:Language {code: 'zh', name: 'Chinese'})")
+    session.run("MERGE (l:Language {code: 'tib', name: 'Spoken Tibetan'})")
+
+    session.run("MERGE (t:TextType {name: 'root'})")
+    session.run("MERGE (t:TextType {name: 'commentary'})")
+    session.run("MERGE (t:TextType {name: 'translation'})")
+
+    session.run("MERGE (r:RoleType {name: 'translator'})")
+    session.run("MERGE (r:RoleType {name: 'author'})")
+    session.run("MERGE (r:RoleType {name: 'reviser'})")
+
+    session.run("MERGE (l:LicenseType {name: 'public'})")
+    session.run("MERGE (l:License {name: 'CC0'})")
+
+    session.run("MERGE (a:Application {id: 'test_application', name: 'Test Application'})")
+
+    session.run("""
+        MATCH (app:Application {id: 'test_application'})
+        CREATE (c:Category {id: 'category'})-[:BELONGS_TO]->(app)
+    """)
+
+
+@pytest.fixture(scope="session")
+def neo4j_connection():
+    """Get Neo4j connection details from environment variables."""
+    test_uri = os.environ.get("NEO4J_TEST_URI")
+    test_password = os.environ.get("NEO4J_TEST_PASSWORD")
+
+    if not test_uri or not test_password:
+        pytest.skip(
+            "Neo4j test credentials not provided. Set NEO4J_TEST_URI and NEO4J_TEST_PASSWORD."
+        )
+
+    yield {"uri": test_uri, "auth": ("neo4j", test_password)}
+
+
+@pytest.fixture
+def test_database(neo4j_connection):
+    """Create a Database instance with common test schema setup."""
+    os.environ["NEO4J_URI"] = neo4j_connection["uri"]
+    os.environ["NEO4J_PASSWORD"] = neo4j_connection["auth"][1]
+
+    db = Database(neo4j_uri=neo4j_connection["uri"], neo4j_auth=neo4j_connection["auth"])
+
+    with db.get_session() as session:
+        setup_test_schema(session)
+
+    yield db
+
+    with db.get_session() as session:
+        session.run("MATCH (n) DETACH DELETE n")
+
+    db.close()
 
 
 class StorageBucket:

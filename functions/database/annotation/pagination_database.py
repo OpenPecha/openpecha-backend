@@ -22,9 +22,9 @@ class PaginationDatabase:
     MATCH (span:Span)-[:SPAN_OF]->(page:Page)-[:PAGE_OF]->(volume:Volume)-[:VOLUME_OF]->(pagination:Pagination)
     WHERE ($pagination_id IS NOT NULL AND pagination.id = $pagination_id)
        OR ($manifestation_id IS NOT NULL
-           AND (pagination)-[:PAGINATION_OF]->(:Manifestation {id: $manifestation_id}))
+           AND EXISTS { (pagination)-[:PAGINATION_OF]->(:Manifestation {id: $manifestation_id}) })
     WITH pagination, volume, page, span
-    ORDER BY volume.index, min(span.start)
+    ORDER BY volume.index, span.start
     WITH pagination, volume, page, collect({start: span.start, end: span.end}) AS lines
     WITH pagination, volume, collect({reference: page.reference, lines: lines}) AS pages
     RETURN pagination.id AS pagination_id, volume.index AS volume_index, pages

@@ -24,7 +24,7 @@ class AlignmentDatabase:
     MATCH (source_segmentation:Segmentation)
     WHERE ($segmentation_id IS NOT NULL AND source_segmentation.id = $segmentation_id)
        OR ($manifestation_id IS NOT NULL
-           AND (source_segmentation)-[:SEGMENTATION_OF]->(:Manifestation {id: $manifestation_id}))
+           AND EXISTS { (source_segmentation)-[:SEGMENTATION_OF]->(:Manifestation {id: $manifestation_id}) })
     MATCH (source_segmentation)<-[:SEGMENT_OF]-(source_segment:Segment)-[:ALIGNED_TO]->(target_segment:Segment)
           -[:SEGMENT_OF]->(:Segmentation)-[:SEGMENTATION_OF]->(target_manifestation:Manifestation)
     MATCH (target_manifestation)<-[:MANIFESTATION_OF]-(target_expression:Expression)
@@ -56,13 +56,15 @@ class AlignmentDatabase:
     WITH source_segmentation, target_segmentation
     UNWIND $target_segments AS target_segment_data
     CREATE (segment:Segment {id: target_segment_data.id})-[:SEGMENT_OF]->(target_segmentation)
-    FOREACH (line IN target_segment_data.lines |
-        CREATE (:Span {start: line.start, end: line.end})-[:SPAN_OF]->(segment))
-    WITH source_segmentation
+    WITH source_segmentation, segment, target_segment_data
+    UNWIND target_segment_data.lines AS line
+    CREATE (:Span {start: line.start, end: line.end})-[:SPAN_OF]->(segment)
+    WITH DISTINCT source_segmentation
     UNWIND $source_segments AS source_segment_data
     CREATE (segment:Segment {id: source_segment_data.id})-[:SEGMENT_OF]->(source_segmentation)
-    FOREACH (line IN source_segment_data.lines |
-        CREATE (:Span {start: line.start, end: line.end})-[:SPAN_OF]->(segment))
+    WITH segment, source_segment_data
+    UNWIND source_segment_data.lines AS line
+    CREATE (:Span {start: line.start, end: line.end})-[:SPAN_OF]->(segment)
     WITH count(*) AS _
     UNWIND $alignments AS alignment_data
     MATCH (source_segment:Segment {id: alignment_data.source_id}),

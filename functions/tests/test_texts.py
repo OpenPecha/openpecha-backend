@@ -13,80 +13,9 @@ Requires environment variables:
 """
 
 import json
-import os
 
 import pytest
-from dotenv import load_dotenv
-from main import create_app
 from models import ExpressionInput, PersonInput
-from neo4j_database import Neo4JDatabase
-
-# Load .env file if it exists
-load_dotenv()
-
-
-@pytest.fixture(scope="session")
-def neo4j_connection():
-    """Get Neo4j connection details from environment variables"""
-    test_uri = os.environ.get("NEO4J_TEST_URI")
-    test_password = os.environ.get("NEO4J_TEST_PASSWORD")
-
-    if not test_uri or not test_password:
-        pytest.skip(
-            "Neo4j test credentials not provided. Set NEO4J_TEST_URI and NEO4J_TEST_PASSWORD environment variables."
-        )
-
-    return {"uri": test_uri, "auth": ("neo4j", test_password)}
-
-
-@pytest.fixture
-def test_database(neo4j_connection):
-    """Create a Neo4JDatabase instance connected to the test Neo4j instance"""
-    # Set environment variables so API endpoints can connect to test database
-    os.environ["NEO4J_URI"] = neo4j_connection["uri"]
-    os.environ["NEO4J_PASSWORD"] = neo4j_connection["auth"][1]
-
-    # Create Neo4j database with test connection
-    db = Neo4JDatabase(neo4j_uri=neo4j_connection["uri"], neo4j_auth=neo4j_connection["auth"])
-
-    # Setup test schema and basic data
-    with db.get_session() as session:
-        # Clean up any existing data first
-        session.run("MATCH (n) DETACH DELETE n")
-
-        # Create test languages
-        session.run("MERGE (l:Language {code: 'bo', name: 'Tibetan'})")
-        session.run("MERGE (l:Language {code: 'tib', name: 'Spoken Tibetan'})")
-        session.run("MERGE (l:Language {code: 'en', name: 'English'})")
-        session.run("MERGE (l:Language {code: 'sa', name: 'Sanskrit'})")
-        session.run("MERGE (l:Language {code: 'zh', name: 'Chinese'})")
-
-        # Create test text types (TextType enum values)
-        session.run("MERGE (t:TextType {name: 'root'})")
-        session.run("MERGE (t:TextType {name: 'commentary'})")
-        session.run("MERGE (t:TextType {name: 'translation'})")
-
-        # Create test role types (only allowed values per constraints)
-        session.run("MERGE (r:RoleType {name: 'translator'})")
-        session.run("MERGE (r:RoleType {name: 'author'})")
-        session.run("MERGE (r:RoleType {name: 'reviser'})")
-
-        # Create test license type
-        session.run("MERGE (l:License {name: 'CC0'})")
-
-    yield db
-
-    # Cleanup after test
-    with db.get_session() as session:
-        session.run("MATCH (n) DETACH DELETE n")
-
-
-@pytest.fixture
-def client():
-    """Create Flask test client"""
-    app = create_app()
-    app.config["TESTING"] = True
-    return app.test_client()
 
 
 @pytest.fixture
@@ -132,7 +61,7 @@ class TestGetAllTextsV2:
         person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
-        category_id = test_database.create_category(
+        category_id = test_database.category.create_from_dict(
             application='test_application',
             title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
         )
@@ -170,7 +99,7 @@ class TestGetAllTextsV2:
         person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
-        category_id = test_database.create_category(
+        category_id = test_database.category.create_from_dict(
             application='test_application',
             title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
         )
@@ -204,7 +133,7 @@ class TestGetAllTextsV2:
         person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
-        category_id = test_database.create_category(
+        category_id = test_database.category.create_from_dict(
             application='test_application',
             title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
         )
@@ -266,7 +195,7 @@ class TestGetAllTextsV2:
         person_id = test_database.create_person(person)
 
 
-        category_id = test_database.create_category(
+        category_id = test_database.category.create_from_dict(
             application='test_application',
             title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
         )
@@ -315,7 +244,7 @@ class TestGetAllTextsV2:
         person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
-        category_id = test_database.create_category(
+        category_id = test_database.category.create_from_dict(
             application='test_application',
             title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
         )
@@ -379,7 +308,7 @@ class TestGetAllTextsV2:
         """Test filtering by title with empty title"""
         person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
-        category_id = test_database.create_category(
+        category_id = test_database.category.create_from_dict(
             application='test_application',
             title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
         )
@@ -425,7 +354,7 @@ class TestGetAllTextsV2:
         person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
-        category_id = test_database.create_category(
+        category_id = test_database.category.create_from_dict(
             application='test_application',
             title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
         )
@@ -505,7 +434,7 @@ class TestGetAllTextsV2:
         person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
-        category_id = test_database.create_category(
+        category_id = test_database.category.create_from_dict(
             application='test_application',
             title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
         )
@@ -549,7 +478,7 @@ class TestGetSingleTextV2:
         # Create test person
         person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
-        category_id = test_database.create_category(
+        category_id = test_database.category.create_from_dict(
             application='test_application',
             title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
         )
@@ -581,7 +510,7 @@ class TestGetSingleTextV2:
         # Create test person
         person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
-        category_id = test_database.create_category(
+        category_id = test_database.category.create_from_dict(
             application='test_application',
             title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
         )
@@ -612,7 +541,7 @@ class TestGetSingleTextV2:
         # Create test person
         person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
-        category_id = test_database.create_category(
+        category_id = test_database.category.create_from_dict(
             application='test_application',
             title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
         )
@@ -667,7 +596,7 @@ class TestPostTextV2:
         person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
-        category_id = test_database.create_category(
+        category_id = test_database.category.create_from_dict(
             application='test_application',
             title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
         )
@@ -791,7 +720,7 @@ class TestPostTextV2:
         person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
-        category_id = test_database.create_category(
+        category_id = test_database.category.create_from_dict(
             application='test_application',
             title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
         )
@@ -819,7 +748,7 @@ class TestPostTextV2:
         person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
-        category_id = test_database.create_category(
+        category_id = test_database.category.create_from_dict(
             application='test_application',
             title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
         )
@@ -854,7 +783,7 @@ class TestPostTextV2:
         person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
-        category_id = test_database.create_category(
+        category_id = test_database.category.create_from_dict(
             application='test_application',
             title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
         )
@@ -891,7 +820,7 @@ class TestPostTextV2:
         person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
-        category_id = test_database.create_category(
+        category_id = test_database.category.create_from_dict(
             application='test_application',
             title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
         )
@@ -928,7 +857,7 @@ class TestPostTextV2:
         person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
-        category_id = test_database.create_category(
+        category_id = test_database.category.create_from_dict(
             application='test_application',
             title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
         )
@@ -951,7 +880,7 @@ class TestPostTextV2:
         person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
-        category_id = test_database.create_category(
+        category_id = test_database.category.create_from_dict(
             application='test_application',
             title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
         )
@@ -990,7 +919,7 @@ class TestPostTextV2:
         person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
-        category_id = test_database.create_category(
+        category_id = test_database.category.create_from_dict(
             application='test_application',
             title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
         )
@@ -1012,7 +941,7 @@ class TestPostTextV2:
         person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
-        category_id = test_database.create_category(
+        category_id = test_database.category.create_from_dict(
             application='test_application',
             title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
         )
@@ -1035,7 +964,7 @@ class TestPostTextV2:
         person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
-        category_id = test_database.create_category(
+        category_id = test_database.category.create_from_dict(
             application='test_application',
             title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
         )
@@ -1079,7 +1008,7 @@ class TestUpdateTitleV2:
         person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
-        category_id = test_database.create_category(
+        category_id = test_database.category.create_from_dict(
             application='test_application',
             title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
         )
@@ -1122,7 +1051,7 @@ class TestUpdateTitleV2:
         # Create test person
         person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
-        category_id = test_database.create_category(
+        category_id = test_database.category.create_from_dict(
             application='test_application',
             title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
         )
@@ -1156,7 +1085,7 @@ class TestUpdateTitleV2:
         person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
-        category_id = test_database.create_category(
+        category_id = test_database.category.create_from_dict(
             application='test_application',
             title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
         )
@@ -1205,7 +1134,7 @@ class TestUpdateTitleV2:
         person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
-        category_id = test_database.create_category(
+        category_id = test_database.category.create_from_dict(
             application='test_application',
             title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
         )
@@ -1236,7 +1165,7 @@ class TestUpdateLicenseV2:
         person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
-        category_id = test_database.create_category(
+        category_id = test_database.category.create_from_dict(
             application='test_application',
             title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
         )
@@ -1272,7 +1201,7 @@ class TestUpdateLicenseV2:
         person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
-        category_id = test_database.create_category(
+        category_id = test_database.category.create_from_dict(
             application='test_application',
             title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
         )
@@ -1301,7 +1230,7 @@ class TestUpdateLicenseV2:
         person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
-        category_id = test_database.create_category(
+        category_id = test_database.category.create_from_dict(
             application='test_application',
             title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
         )
@@ -1331,7 +1260,7 @@ class TestUpdateLicenseV2:
         person = PersonInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
-        category_id = test_database.create_category(
+        category_id = test_database.category.create_from_dict(
             application='test_application',
             title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
         )

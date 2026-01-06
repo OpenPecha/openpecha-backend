@@ -43,6 +43,7 @@ class PersonDatabase:
     GET_ALL_QUERY = f"""
     MATCH (p:Person)
     RETURN {_PERSON_RETURN} AS person
+    ORDER BY p.id
     SKIP $offset LIMIT $limit
     """
 

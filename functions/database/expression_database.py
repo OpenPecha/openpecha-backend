@@ -46,10 +46,10 @@ class ExpressionDatabase:
                 person_id: person.id,
                 person_bdrc_id: person.bdrc,
                 role: [(contrib)-[:WITH_ROLE]->(role:RoleType) | role.name][0],
-                person_name: [(person)-[:HAS_NAME]->(n:Nomen)
-                    WHERE NOT exists((n)<-[:ALTERNATIVE_OF]-(:Nomen)) |
-                    [(n)-[:HAS_LOCALIZATION]->(lt:LocalizedText)-[r:HAS_LANGUAGE]->(lang:Language) |
-                        {lang: coalesce(r.bcp47, lang.code), text: lt.text}]]
+                person_name: [(person)-[:HAS_NAME]->(n:Nomen)-[:HAS_LOCALIZATION]->
+                    (lt:LocalizedText)-[r:HAS_LANGUAGE]->(lang:Language)
+                    WHERE NOT EXISTS { (n)-[:ALTERNATIVE_OF]->(:Nomen) } |
+                    {language: coalesce(r.bcp47, lang.code), text: lt.text}]
             }]
             +
             [(e)-[:HAS_CONTRIBUTION]->(contrib:Contribution)-[:BY]->(ai:AI) | {
@@ -58,14 +58,13 @@ class ExpressionDatabase:
             }]
         ),
         date: e.date,
-        title: [(e)-[:HAS_TITLE]->(n:Nomen)
-            WHERE NOT exists((n)<-[:ALTERNATIVE_OF]-(:Nomen)) |
-            [(n)-[:HAS_LOCALIZATION]->(lt:LocalizedText)-[r:HAS_LANGUAGE]->(lang:Language) |
-                {lang: coalesce(r.bcp47, lang.code), text: lt.text}]],
+        title: [(e)-[:HAS_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)-[r:HAS_LANGUAGE]->(lang:Language)
+            WHERE NOT EXISTS { (n)-[:ALTERNATIVE_OF]->(:Nomen) } |
+            {language: coalesce(r.bcp47, lang.code), text: lt.text}],
         alt_titles: [(e)-[:HAS_TITLE]->(:Nomen)<-[:ALTERNATIVE_OF]-(an:Nomen) |
             [(an)-[:HAS_LOCALIZATION]->(lt:LocalizedText)-[r:HAS_LANGUAGE]->(lang:Language) |
-                {lang: coalesce(r.bcp47, lang.code), text: lt.text}]],
-        language: [(e)-[:HAS_LANGUAGE]->(lang:Language) | lang.code][0],
+                {language: coalesce(r.bcp47, lang.code), text: lt.text}]],
+        language: [(e)-[r:HAS_LANGUAGE]->(lang:Language) | coalesce(r.bcp47, lang.code)][0],
         category_id: [(e)-[:EXPRESSION_OF]->(work:Work)-[:HAS_CATEGORY]->(cat:Category) | cat.id][0],
         license: [(e)-[:HAS_LICENSE]->(license:LicenseType) | license.name][0],
         editions: [(e)<-[:MANIFESTATION_OF]-(m:Manifestation) | m.id]
@@ -81,20 +80,16 @@ class ExpressionDatabase:
 
     GET_ALL_QUERY = f"""
     MATCH (e:Expression)
-    WHERE ($language IS NULL OR [(e)-[:HAS_LANGUAGE]->(l:Language) | l.code][0] = $language)
-    AND ($title IS NULL OR (
-        EXISTS {{
-            MATCH (e)-[:HAS_TITLE]->(titleNomen:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
-            WHERE toLower(lt.text) CONTAINS toLower($title)
-        }}
-        OR EXISTS {{
-            MATCH (e)-[:HAS_TITLE]->(:Nomen)<-[:ALTERNATIVE_OF]-(altNomen:Nomen)
-                -[:HAS_LOCALIZATION]->(lt:LocalizedText)
-            WHERE toLower(lt.text) CONTAINS toLower($title)
-        }}
-    ))
+    WHERE ($language IS NULL OR EXISTS {{ (e)-[:HAS_LANGUAGE]->(:Language {{code: $language}}) }})
+    AND ($title IS NULL OR EXISTS {{
+        MATCH (e)-[:HAS_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
+        WHERE toLower(lt.text) CONTAINS toLower($title)
+    }} OR EXISTS {{
+        MATCH (e)-[:HAS_TITLE]->(:Nomen)<-[:ALTERNATIVE_OF]-(an:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
+        WHERE toLower(lt.text) CONTAINS toLower($title)
+    }})
     AND ($category_id IS NULL OR EXISTS {{
-        MATCH (e)-[:EXPRESSION_OF]->(:Work)-[:HAS_CATEGORY]->(:Category {{id: $category_id}})
+        (e)-[:EXPRESSION_OF]->(:Work)-[:HAS_CATEGORY]->(:Category {{id: $category_id}})
     }})
     WITH e
     ORDER BY e.id
@@ -107,12 +102,11 @@ class ExpressionDatabase:
     MATCH (e:Expression {id: $expression_id})-[:HAS_TITLE]->(primary_nomen:Nomen)
     MATCH (l:Language {code: $title.lang_code})
     OPTIONAL MATCH (primary_nomen)-[:HAS_LOCALIZATION]->(existing_lt:LocalizedText)-[:HAS_LANGUAGE]->(l)
-    FOREACH (_ IN CASE WHEN existing_lt IS NOT NULL THEN [1] ELSE [] END |
-        SET existing_lt.text = $title.text
-    )
-    FOREACH (_ IN CASE WHEN existing_lt IS NULL THEN [1] ELSE [] END |
-        CREATE (primary_nomen)-[:HAS_LOCALIZATION]->(new_lt:LocalizedText {text: $title.text})-[:HAS_LANGUAGE]->(l)
-    )
+    WITH e, primary_nomen, l, existing_lt
+    CALL (*) {
+        WHEN existing_lt IS NOT NULL THEN { SET existing_lt.text = $title.text }
+        ELSE { CREATE (primary_nomen)-[:HAS_LOCALIZATION]->(:LocalizedText {text: $title.text})-[:HAS_LANGUAGE]->(l) }
+    }
     RETURN e.id as expression_id
     """
 
@@ -177,16 +171,11 @@ class ExpressionDatabase:
 
     CREATE_AI_CONTRIBUTION_QUERY = """
     MATCH (e:Expression {id: $expression_id})
-    MATCH (ai: AI) WHERE elementId(ai) = $ai_element_id
     MATCH (rt:RoleType {name: $role_name})
+    MERGE (ai:AI {id: $ai_id})
     CREATE (e)-[:HAS_CONTRIBUTION]->(c:Contribution)-[:BY]->(ai),
         (c)-[:WITH_ROLE]->(rt)
     RETURN elementId(c) as contribution_element_id
-    """
-
-    FIND_OR_CREATE_AI_QUERY = """
-    MERGE (ai:AI {id: $ai_id})
-    RETURN elementId(ai) AS ai_element_id
     """
 
     @staticmethod
@@ -341,13 +330,10 @@ class ExpressionDatabase:
                     f"bdrc_id={contribution.person_bdrc_id}; Role: {contribution.role.value}"
                 )
         elif isinstance(contribution, AIContributionModel):
-            ai_record = tx.run(ExpressionDatabase.FIND_OR_CREATE_AI_QUERY, ai_id=contribution.ai_id).single()
-            if not ai_record:
-                raise DataNotFoundError("Failed to find or create AI node")
             result = tx.run(
                 ExpressionDatabase.CREATE_AI_CONTRIBUTION_QUERY,
                 expression_id=expression_id,
-                ai_element_id=ai_record["ai_element_id"],
+                ai_id=contribution.ai_id,
                 role_name=contribution.role.value,
             ).single()
             if not result:

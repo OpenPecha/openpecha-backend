@@ -36,7 +36,7 @@ class SegmentDatabase:
     MATCH (source_seg:Segment {id: $segment_id})
         -[:SEGMENT_OF]->(:Segmentation)
         -[:SEGMENTATION_OF]->(source_manif:Manifestation)
-    MATCH (source_seg)-[:ALIGNED_TO*1..10]-(related_seg:Segment)
+    MATCH (source_seg)-[:ALIGNED_TO]-{1,10}(related_seg:Segment)
         -[:SEGMENT_OF]->(:Segmentation)
         -[:SEGMENTATION_OF]->(related_manif:Manifestation)
         -[:MANIFESTATION_OF]->(related_expr:Expression)
