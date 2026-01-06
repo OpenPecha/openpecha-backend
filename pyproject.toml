@@ -13,6 +13,7 @@ python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "--verbose --log-cli-level=DEBUG"
+env_files = ["functions/.env"]
 
 [tool.ruff]
 line-length = 120
@@ -38,3 +39,4 @@ ignore = [
     "TD",
     "PLR2004", # Magic value used in comparison
 ]
+

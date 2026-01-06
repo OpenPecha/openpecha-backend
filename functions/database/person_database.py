@@ -2,8 +2,9 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from exceptions import DataNotFoundError
+from exceptions import DataConflictError, DataNotFoundError
 from identifier import generate_id
+from neo4j.exceptions import ConstraintError
 
 from .data_adapter import DataAdapter
 from .nomen_database import NomenDatabase
@@ -69,10 +70,7 @@ class PersonDatabase:
                 raise DataNotFoundError(f"Person with ID '{person_id}' not found")
 
             person_data = record.data()["person"]
-            person_model = DataAdapter.person(person_data)
-            if person_model is None:
-                raise DataNotFoundError(f"Person with ID '{person_id}' has invalid data and cannot be retrieved")
-            return person_model
+            return DataAdapter.person(person_data)
 
     def get_all(self, offset: int = 0, limit: int = 20) -> list[PersonOutput]:
         with self.session as session:
@@ -100,4 +98,12 @@ class PersonDatabase:
             return person_id
 
         with self.session as session:
-            return str(session.execute_write(create_transaction))
+            try:
+                return str(session.execute_write(create_transaction))
+            except ConstraintError as e:
+                error_msg = str(e).lower()
+                if "bdrc" in error_msg:
+                    raise DataConflictError(f"Person with BDRC ID '{person.bdrc}' already exists") from e
+                if "wiki" in error_msg:
+                    raise DataConflictError(f"Person with Wiki ID '{person.wiki}' already exists") from e
+                raise

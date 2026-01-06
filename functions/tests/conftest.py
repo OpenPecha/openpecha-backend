@@ -1,4 +1,5 @@
 # pylint: disable=redefined-outer-name
+import logging
 import os
 from pathlib import Path
 from unittest.mock import patch
@@ -8,7 +9,13 @@ from database.database import Database
 from dotenv import load_dotenv
 from main import create_app
 
-load_dotenv()
+
+
+# Suppress verbose Neo4j driver logging
+logging.getLogger("neo4j").setLevel(logging.WARNING)
+logging.getLogger("neo4j.io").setLevel(logging.WARNING)
+logging.getLogger("neo4j.pool").setLevel(logging.WARNING)
+logging.getLogger("neo4j.notifications").setLevel(logging.WARNING)
 
 
 def load_constraints_file() -> list[str]:
@@ -22,40 +29,36 @@ def load_constraints_file() -> list[str]:
 
 def setup_test_schema(session) -> None:
     """Setup common test schema data needed by all test suites."""
-    session.run("MATCH (n) DETACH DELETE n")
 
-    constraint_statements = load_constraints_file()
-    for statement in constraint_statements:
-        session.run(statement)
+    session.execute_write(lambda tx: tx.run("MATCH (n) DETACH DELETE n"))
+    
+    def do_seed(tx):
+        tx.run("CREATE (:Language {code: 'bo', name: 'Tibetan'})")
+        tx.run("CREATE (:Language {code: 'en', name: 'English'})")
+        tx.run("CREATE (:Language {code: 'sa', name: 'Sanskrit'})")
+        tx.run("CREATE (:Language {code: 'zh', name: 'Chinese'})")
+        tx.run("CREATE (:Language {code: 'tib', name: 'Spoken Tibetan'})")
+        tx.run("CREATE (:TextType {name: 'root'})")
+        tx.run("CREATE (:TextType {name: 'commentary'})")
+        tx.run("CREATE (:TextType {name: 'translation'})")
+        tx.run("CREATE (:RoleType {name: 'translator'})")
+        tx.run("CREATE (:RoleType {name: 'author'})")
+        tx.run("CREATE (:RoleType {name: 'reviser'})")
+        tx.run("CREATE (:LicenseType {name: 'public'})")
+        tx.run("CREATE (:License {name: 'CC0'})")
+        tx.run("""
+            CREATE (app:Application {id: 'test_application', name: 'Test Application'})
+            CREATE (:Category {id: 'category'})-[:BELONGS_TO]->(app)
+        """)
 
-    session.run("MERGE (l:Language {code: 'bo', name: 'Tibetan'})")
-    session.run("MERGE (l:Language {code: 'en', name: 'English'})")
-    session.run("MERGE (l:Language {code: 'sa', name: 'Sanskrit'})")
-    session.run("MERGE (l:Language {code: 'zh', name: 'Chinese'})")
-    session.run("MERGE (l:Language {code: 'tib', name: 'Spoken Tibetan'})")
-
-    session.run("MERGE (t:TextType {name: 'root'})")
-    session.run("MERGE (t:TextType {name: 'commentary'})")
-    session.run("MERGE (t:TextType {name: 'translation'})")
-
-    session.run("MERGE (r:RoleType {name: 'translator'})")
-    session.run("MERGE (r:RoleType {name: 'author'})")
-    session.run("MERGE (r:RoleType {name: 'reviser'})")
-
-    session.run("MERGE (l:LicenseType {name: 'public'})")
-    session.run("MERGE (l:License {name: 'CC0'})")
-
-    session.run("MERGE (a:Application {id: 'test_application', name: 'Test Application'})")
-
-    session.run("""
-        MATCH (app:Application {id: 'test_application'})
-        CREATE (c:Category {id: 'category'})-[:BELONGS_TO]->(app)
-    """)
+    session.execute_write(do_seed)
 
 
 @pytest.fixture(scope="session")
 def neo4j_connection():
-    """Get Neo4j connection details from environment variables."""
+    """Get Neo4j connection details from environment variables and setup constraints once."""
+    from neo4j import GraphDatabase
+
     test_uri = os.environ.get("NEO4J_TEST_URI")
     test_password = os.environ.get("NEO4J_TEST_PASSWORD")
 
@@ -64,24 +67,51 @@ def neo4j_connection():
             "Neo4j test credentials not provided. Set NEO4J_TEST_URI and NEO4J_TEST_PASSWORD."
         )
 
+    # Setup constraints once per session (they persist, so no need to recreate per test)
+    driver = GraphDatabase.driver(test_uri, auth=("neo4j", test_password))
+    with driver.session() as session:
+        constraint_statements = load_constraints_file()
+        for statement in constraint_statements:
+            try:
+                session.run(statement).consume()  # type: ignore[arg-type]
+            except Exception:
+                pass  # Constraint already exists
+    driver.close()
+
     yield {"uri": test_uri, "auth": ("neo4j", test_password)}
 
 
 @pytest.fixture
 def test_database(neo4j_connection):
     """Create a Database instance with common test schema setup."""
+    from neo4j import GraphDatabase
+
     os.environ["NEO4J_URI"] = neo4j_connection["uri"]
+    os.environ["NEO4J_USERNAME"] = neo4j_connection["auth"][0]
     os.environ["NEO4J_PASSWORD"] = neo4j_connection["auth"][1]
 
-    db = Database(neo4j_uri=neo4j_connection["uri"], neo4j_auth=neo4j_connection["auth"])
+    # Use a direct driver connection for setup to ensure data is committed
+    driver = GraphDatabase.driver(neo4j_connection["uri"], auth=neo4j_connection["auth"])
 
-    with db.get_session() as session:
+    with driver.session() as session:
         setup_test_schema(session)
+
+        # Verify seed data was created in the same session
+        result = session.run("MATCH (l:Language) RETURN count(l) as count").single()
+        lang_count = result["count"] if result else 0
+        if lang_count == 0:
+            raise RuntimeError(f"Seed data not created. Languages: {lang_count}")
+
+    driver.close()
+
+    # Now create the Database instance for tests
+    db = Database(neo4j_uri=neo4j_connection["uri"], neo4j_auth=neo4j_connection["auth"])
 
     yield db
 
+    # Cleanup
     with db.get_session() as session:
-        session.run("MATCH (n) DETACH DELETE n")
+        session.execute_write(lambda tx: tx.run("MATCH (n) DETACH DELETE n").consume())
 
     db.close()
 

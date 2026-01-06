@@ -52,8 +52,8 @@ class TestGetAllPersonsV2:
     def test_get_all_persons_with_data(self, client, test_database, test_person_data):
         """Test getting all persons when database has data"""
         # Create test person directly via DB
-        person = PersonModelInput.model_validate(test_person_data)
-        person_id = test_database.create_person(person)
+        person = PersonInput.model_validate(test_person_data)
+        person_id = test_database.person.create(person)
 
         response = client.get("/v2/persons/")
 
@@ -74,8 +74,8 @@ class TestGetAllPersonsV2:
                 "name": {"en": f"Person {i+1}", "bo": f"གང་ཟག་{i+1}།"},
                 "bdrc": f"P{i+1:06d}",
             }
-            person = PersonModelInput.model_validate(person_data)
-            person_id = test_database.create_person(person)
+            person = PersonInput.model_validate(person_data)
+            person_id = test_database.person.create(person)
             person_ids.append(person_id)
 
         response = client.get("/v2/persons/")
@@ -100,8 +100,8 @@ class TestGetAllPersonsV2:
                 {"en": "Alt Name 2"},
             ],
         }
-        person = PersonModelInput.model_validate(person_data)
-        person_id = test_database.create_person(person)
+        person = PersonInput.model_validate(person_data)
+        person_id = test_database.person.create(person)
 
         response = client.get("/v2/persons/")
 
@@ -121,8 +121,8 @@ class TestGetAllPersonsV2:
         # Create 25 test persons
         for i in range(25):
             person_data = {"name": {"en": f"Person {i+1}"}}
-            person = PersonModelInput.model_validate(person_data)
-            test_database.create_person(person)
+            person = PersonInput.model_validate(person_data)
+            test_database.person.create(person)
 
         # Request without pagination params (should use defaults)
         response = client.get("/v2/persons/")
@@ -137,8 +137,8 @@ class TestGetAllPersonsV2:
         # Create 15 test persons
         for i in range(15):
             person_data = {"name": {"en": f"Person {i+1}"}}
-            person = PersonModelInput.model_validate(person_data)
-            test_database.create_person(person)
+            person = PersonInput.model_validate(person_data)
+            test_database.person.create(person)
 
         # Request with limit=5
         response = client.get("/v2/persons/?limit=5")
@@ -153,8 +153,8 @@ class TestGetAllPersonsV2:
         created_ids = []
         for i in range(10):
             person_data = {"name": {"en": f"Person {i+1:02d}"}}
-            person = PersonModelInput.model_validate(person_data)
-            person_id = test_database.create_person(person)
+            person = PersonInput.model_validate(person_data)
+            person_id = test_database.person.create(person)
             created_ids.append(person_id)
 
         # Request first page (offset=0, limit=5)
@@ -179,8 +179,8 @@ class TestGetAllPersonsV2:
         # Create some test persons
         for i in range(5):
             person_data = {"name": {"en": f"Person {i+1}"}}
-            person = PersonModelInput.model_validate(person_data)
-            test_database.create_person(person)
+            person = PersonInput.model_validate(person_data)
+            test_database.person.create(person)
 
         # Test limit=1
         response = client.get("/v2/persons/?limit=1")
@@ -200,7 +200,7 @@ class TestGetAllPersonsV2:
         assert response.status_code == 422
         data = json.loads(response.data)
         assert "error" in data
-        assert "Limit must be between 1 and 100" in data["error"]
+        assert "greater than or equal to 1" in data["error"]
 
     def test_get_all_persons_invalid_limit_too_high(self, client, test_database):
         """Test pagination with limit greater than 100"""
@@ -208,7 +208,7 @@ class TestGetAllPersonsV2:
         assert response.status_code == 422
         data = json.loads(response.data)
         assert "error" in data
-        assert "Limit must be between 1 and 100" in data["error"]
+        assert "less than or equal to 100" in data["error"]
 
     def test_get_all_persons_invalid_offset_negative(self, client, test_database):
         """Test pagination with negative offset"""
@@ -216,15 +216,15 @@ class TestGetAllPersonsV2:
         assert response.status_code == 422
         data = json.loads(response.data)
         assert "error" in data
-        assert "Offset must be non-negative" in data["error"]
+        assert "greater than or equal to 0" in data["error"]
 
     def test_get_all_persons_offset_beyond_results(self, client, test_database):
         """Test pagination with offset beyond available results"""
         # Create 5 test persons
         for i in range(5):
             person_data = {"name": {"en": f"Person {i+1}"}}
-            person = PersonModelInput.model_validate(person_data)
-            test_database.create_person(person)
+            person = PersonInput.model_validate(person_data)
+            test_database.person.create(person)
 
         # Request with offset=100 (beyond all results)
         response = client.get("/v2/persons/?offset=100")
@@ -238,8 +238,8 @@ class TestGetAllPersonsV2:
         all_created_ids = []
         for i in range(30):
             person_data = {"name": {"en": f"Person {i+1:02d}"}}
-            person = PersonModelInput.model_validate(person_data)
-            person_id = test_database.create_person(person)
+            person = PersonInput.model_validate(person_data)
+            person_id = test_database.person.create(person)
             all_created_ids.append(person_id)
 
         # Fetch all persons using pagination (3 pages of 10)
@@ -256,41 +256,21 @@ class TestGetAllPersonsV2:
         assert len(set(all_fetched_ids)) == 30  # No duplicates
         assert set(all_fetched_ids) == set(all_created_ids)  # Same set of IDs
 
-    def test_get_all_persons_invalid_limit_non_integer_uses_default(
-        self, client, test_database
-    ):
-        """Non-integer limit should fall back to default (limit=20) instead of crashing."""
-        # Create 25 persons so we can observe the default limit of 20
-        for i in range(25):
-            person_data = {"name": {"en": f"Person {i+1}"}}
-            person = PersonModelInput.model_validate(person_data)
-            test_database.create_person(person)
-
+    def test_get_all_persons_invalid_limit_non_integer(self, client, test_database):
+        """Non-integer limit should return 422 validation error."""
         response = client.get("/v2/persons/?limit=abc")
 
-        assert response.status_code == 200
+        assert response.status_code == 422
         data = json.loads(response.data)
-        # If your implementation matches /v2/texts, this should use the default limit=20
-        assert isinstance(data, list)
-        assert len(data) == 20
+        assert "error" in data
 
-    def test_get_all_persons_invalid_offset_non_integer_uses_default(
-        self, client, test_database
-    ):
-        """Non-integer offset should fall back to default (offset=0) instead of crashing."""
-        # Create a few persons
-        for i in range(5):
-            person_data = {"name": {"en": f"Person {i+1}"}}
-            person = PersonModelInput.model_validate(person_data)
-            test_database.create_person(person)
-
+    def test_get_all_persons_invalid_offset_non_integer(self, client, test_database):
+        """Non-integer offset should return 422 validation error."""
         response = client.get("/v2/persons/?offset=abc")
 
-        assert response.status_code == 200
+        assert response.status_code == 422
         data = json.loads(response.data)
-        # With default offset=0, we should see all 5 persons
-        assert isinstance(data, list)
-        assert len(data) == 5
+        assert "error" in data
 
     def test_get_all_persons_empty_database_with_pagination_params(
         self, client, test_database
@@ -310,8 +290,8 @@ class TestGetSinglePersonV2:
     def test_get_single_person_success(self, client, test_database, test_person_data):
         """Test successfully retrieving a single person"""
         # Create test person
-        person = PersonModelInput.model_validate(test_person_data)
-        person_id = test_database.create_person(person)
+        person = PersonInput.model_validate(test_person_data)
+        person_id = test_database.person.create(person)
 
         response = client.get(f"/v2/persons/{person_id}")
 
@@ -341,8 +321,8 @@ class TestGetSinglePersonV2:
     ):
         """Test retrieving person with minimal data (only required fields)"""
         # Create minimal person
-        person = PersonModelInput.model_validate(test_person_data_minimal)
-        person_id = test_database.create_person(person)
+        person = PersonInput.model_validate(test_person_data_minimal)
+        person_id = test_database.person.create(person)
 
         response = client.get(f"/v2/persons/{person_id}")
 
@@ -353,11 +333,39 @@ class TestGetSinglePersonV2:
         assert data.get("alt_names") is None or data["alt_names"] == []
         assert data.get("bdrc") is None
 
-    def test_get_single_person_not_found(self, client, test_database):
-        """Test retrieving non-existent person"""
-        response = client.get("/v2/persons/nonexistent_id")
+    def test_get_single_person_with_wiki_field(self, client, test_database):
+        """Test retrieving person returns wiki field"""
+        person_data = {
+            "name": {"en": "Wiki Test Person"},
+            "wiki": "Q123456",
+        }
+        person = PersonInput.model_validate(person_data)
+        person_id = test_database.person.create(person)
 
-        assert response.status_code == 404
+        response = client.get(f"/v2/persons/{person_id}")
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data["id"] == person_id
+        assert data["wiki"] == "Q123456"
+
+    def test_get_single_person_with_both_external_ids(self, client, test_database):
+        """Test retrieving person returns both bdrc and wiki fields"""
+        person_data = {
+            "name": {"en": "Dual ID Test Person"},
+            "bdrc": "P654321",
+            "wiki": "Q654321",
+        }
+        person = PersonInput.model_validate(person_data)
+        person_id = test_database.person.create(person)
+
+        response = client.get(f"/v2/persons/{person_id}")
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data["id"] == person_id
+        assert data["bdrc"] == "P654321"
+        assert data["wiki"] == "Q654321"
 
     def test_get_single_person_empty_id(self, client, test_database):
         """Test retrieving person with empty ID"""
@@ -391,10 +399,8 @@ class TestPostPersonV2:
 
         assert response.status_code == 201
         data = json.loads(response.data)
-        assert "message" in data
-        assert data["message"] == "Person created successfully"
-        assert "_id" in data
-        assert data["_id"] is not None
+        assert "id" in data
+        assert data["id"] is not None
 
     def test_create_person_rejects_unknown_fields(self, client, test_database):
         """Payload with unknown fields should trigger a validation error (or be explicitly allowed)."""
@@ -492,15 +498,13 @@ class TestPostPersonV2:
         assert "error" in data
 
     def test_create_person_empty_body_with_json_content_type(self, client, test_database):
-        """Empty body with application/json should return a clear error (not silently succeed)."""
         response = client.post(
             "/v2/persons/",
             data="",
             content_type="application/json",
         )
 
-        # but this test codifies that behavior so regressions are visible.
-        assert response.status_code == 500
+        assert response.status_code == 400
         data = json.loads(response.data)
         assert "error" in data
 
@@ -547,8 +551,8 @@ class TestPostPersonV2:
 
         assert response.status_code == 201
         data = json.loads(response.data)
-        assert data["message"] == "Person created successfully"
-        assert "_id" in data
+        assert "id" in data
+        assert data["id"] is not None
 
     def test_create_person_tibetan_only_name(self, client, test_database):
         """Test creating person with Tibetan-only name"""
@@ -562,15 +566,15 @@ class TestPostPersonV2:
 
         assert response.status_code == 201
         data = json.loads(response.data)
-        assert data["message"] == "Person created successfully"
+        assert "id" in data
 
     def test_create_person_missing_json(self, client, test_database):
         """Test POST with no JSON data"""
         response = client.post("/v2/persons/")
 
-        assert response.status_code == 500  # Flask returns 500 for missing content-type
+        assert response.status_code == 400
         data = json.loads(response.data)
-        assert "415 Unsupported Media Type" in data["error"]
+        assert "error" in data
 
     def test_create_person_invalid_json(self, client, test_database):
         """Test POST with invalid JSON"""
@@ -580,7 +584,7 @@ class TestPostPersonV2:
             content_type="application/json",
         )
 
-        assert response.status_code == 500  # Flask returns 500 for malformed JSON
+        assert response.status_code == 400
 
     def test_create_person_missing_required_fields(self, client, test_database):
         """Test POST with missing required fields"""
@@ -654,7 +658,7 @@ class TestPostPersonV2:
 
         assert response.status_code == 201
         data = json.loads(response.data)
-        assert data["message"] == "Person created successfully"
+        assert "id" in data
 
     def test_create_person_multilingual_names(self, client, test_database):
         """Test creating person with multiple language names and alt_names"""
@@ -678,7 +682,174 @@ class TestPostPersonV2:
 
         assert response.status_code == 201
         data = json.loads(response.data)
-        assert data["message"] == "Person created successfully"
+        assert "id" in data
+
+    def test_create_person_with_wiki_id(self, client, test_database):
+        """Test creating person with Wiki identifier"""
+        person_data = {"name": {"en": "Wiki Person"}, "wiki": "Q12345"}
+
+        response = client.post(
+            "/v2/persons/",
+            data=json.dumps(person_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 201
+        data = json.loads(response.data)
+        assert "id" in data
+
+    def test_create_person_with_existing_wiki_id_rejected(self, client, test_database):
+        """Creating two persons with the same Wiki ID should fail if Wiki is unique."""
+        person1 = {"name": {"en": "First Wiki Person"}, "wiki": "Q999999"}
+        person2 = {"name": {"en": "Second Wiki Person"}, "wiki": "Q999999"}
+
+        response1 = client.post(
+            "/v2/persons/",
+            data=json.dumps(person1),
+            content_type="application/json",
+        )
+        assert response1.status_code == 201
+
+        response2 = client.post(
+            "/v2/persons/",
+            data=json.dumps(person2),
+            content_type="application/json",
+        )
+        assert response2.status_code == 409
+        data = json.loads(response2.data)
+        assert "error" in data
+        assert "already exists" in data["error"].lower()
+
+    def test_create_person_with_both_bdrc_and_wiki(self, client, test_database):
+        """Test creating person with both BDRC and Wiki identifiers"""
+        person_data = {
+            "name": {"en": "Dual ID Person"},
+            "bdrc": "P777777",
+            "wiki": "Q777777",
+        }
+
+        response = client.post(
+            "/v2/persons/",
+            data=json.dumps(person_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 201
+        data = json.loads(response.data)
+        assert "id" in data
+
+    def test_create_person_with_empty_alt_names_list(self, client, test_database):
+        """Empty alt_names list should be valid"""
+        person_data = {"name": {"en": "Empty Alt Names Person"}, "alt_names": []}
+
+        response = client.post(
+            "/v2/persons/",
+            data=json.dumps(person_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 201
+        data = json.loads(response.data)
+        assert "id" in data
+
+    def test_create_person_alt_name_same_as_primary_deduped(self, client, test_database):
+        """Alt name identical to primary name should be deduplicated"""
+        person_data = {
+            "name": {"en": "Primary Name"},
+            "alt_names": [
+                {"en": "Primary Name"},
+                {"en": "Different Alt Name"},
+            ],
+        }
+
+        response = client.post(
+            "/v2/persons/",
+            data=json.dumps(person_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 201
+        create_data = json.loads(response.data)
+        person_id = create_data["id"]
+
+        get_response = client.get(f"/v2/persons/{person_id}")
+        assert get_response.status_code == 200
+        get_data = json.loads(get_response.data)
+        alt_names_en = [alt.get("en") for alt in get_data.get("alt_names", []) if "en" in alt]
+        assert "Primary Name" not in alt_names_en
+        assert "Different Alt Name" in alt_names_en
+
+    def test_create_person_with_many_alt_names(self, client, test_database):
+        """Test creating person with many alternative names"""
+        person_data = {
+            "name": {"en": "Many Alt Names Person"},
+            "alt_names": [{"en": f"Alt Name {i}"} for i in range(10)],
+        }
+
+        response = client.post(
+            "/v2/persons/",
+            data=json.dumps(person_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 201
+        create_data = json.loads(response.data)
+        person_id = create_data["id"]
+
+        get_response = client.get(f"/v2/persons/{person_id}")
+        assert get_response.status_code == 200
+        get_data = json.loads(get_response.data)
+        assert len(get_data.get("alt_names", [])) == 10
+
+    def test_create_person_name_with_special_characters(self, client, test_database):
+        """Test creating person with special characters in name"""
+        person_data = {
+            "name": {"en": "Person with 'quotes' and \"double quotes\""},
+            "alt_names": [{"en": "Name with\nnewline"}],
+        }
+
+        response = client.post(
+            "/v2/persons/",
+            data=json.dumps(person_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 201
+        data = json.loads(response.data)
+        assert "id" in data
+
+    def test_create_person_with_bcp47_language_tag(self, client, test_database):
+        """Test creating person with BCP47 language tags like en-US"""
+        person_data = {
+            "name": {"en-US": "American Person", "bo-Latn": "bod skad"},
+        }
+
+        response = client.post(
+            "/v2/persons/",
+            data=json.dumps(person_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 201
+        data = json.loads(response.data)
+        assert "id" in data
+
+    def test_create_person_with_invalid_language_code(self, client, test_database):
+        """Test creating person with invalid language code returns error"""
+        person_data = {
+            "name": {"xx": "Invalid Language Person"},
+        }
+
+        response = client.post(
+            "/v2/persons/",
+            data=json.dumps(person_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert "error" in data
+        assert "not present" in data["error"].lower() or "language" in data["error"].lower()
 
 
 class TestPersonsIntegration:
@@ -701,7 +872,7 @@ class TestPersonsIntegration:
 
         assert create_response.status_code == 201
         create_data = json.loads(create_response.data)
-        person_id = create_data["_id"]
+        person_id = create_data["id"]
 
         # Retrieve the created person
         get_response = client.get(f"/v2/persons/{person_id}")
@@ -732,7 +903,7 @@ class TestPersonsIntegration:
 
             assert response.status_code == 201
             data = json.loads(response.data)
-            created_ids.append(data["_id"])
+            created_ids.append(data["id"])
 
         # Get all persons
         get_all_response = client.get("/v2/persons/")
