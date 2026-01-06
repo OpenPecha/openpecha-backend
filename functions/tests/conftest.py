@@ -66,6 +66,7 @@ def neo4j_connection():
         pytest.skip(
             "Neo4j test credentials not provided. Set NEO4J_TEST_URI and NEO4J_TEST_PASSWORD."
         )
+        return  # unreachable, but helps type checker
 
     # Setup constraints once per session (they persist, so no need to recreate per test)
     driver = GraphDatabase.driver(test_uri, auth=("neo4j", test_password))
@@ -95,12 +96,6 @@ def test_database(neo4j_connection):
 
     with driver.session() as session:
         setup_test_schema(session)
-
-        # Verify seed data was created in the same session
-        result = session.run("MATCH (l:Language) RETURN count(l) as count").single()
-        lang_count = result["count"] if result else 0
-        if lang_count == 0:
-            raise RuntimeError(f"Seed data not created. Languages: {lang_count}")
 
     driver.close()
 

@@ -34,48 +34,41 @@ logger = logging.getLogger(__name__)
 
 
 @pytest.fixture
-def test_person_data():
+def test_person_data() -> PersonInput:
     """Sample person data for testing"""
-    return {
-        "name": {"en": "Test Author", "bo": "སློབ་དཔོན།"},
-        "bdrc": "P123456",
-    }
+    return PersonInput(
+        name=LocalizedString({"en": "Test Author", "bo": "སློབ་དཔོན།"}),
+        bdrc="P123456",
+    )
 
 
 class TestEditionsEndpoints:
     """Integration tests for v2/editions endpoints"""
 
-    def _create_test_person(self, db, person_data=None):
+    def _create_test_person(self, db, person_data: PersonInput) -> str:
         """Helper to create a test person in the database"""
-        if person_data is None:
-            person_data = {"name": {"en": "Test Author"}, "bdrc": "P123456"}
-        person_input = PersonInput(
-            name=LocalizedString(person_data["name"]),
-            alt_names=[LocalizedString(alt) for alt in person_data.get("alt_names", [])],
-            bdrc=person_data.get("bdrc"),
-        )
-        return db.person.create(person_input)
+        return db.person.create(person_data)
 
-    def _create_test_expression(self, db, person_id, title=None):
+    def _create_test_expression(self, db, person_id, title: LocalizedString | None = None):
         """Helper to create a test expression"""
         if title is None:
-            title = {"en": "Test Expression", "bo": "བརྟག་དཔྱད།"}
+            title = LocalizedString({"en": "Test Expression", "bo": "བརྟག་དཔྱད།"})
         expression_data = ExpressionInput(
             category_id="category",
-            title=LocalizedString(title),
+            title=title,
             language="bo",
             contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
         )
         return db.expression.create(expression_data)
 
-    def _create_test_manifestation(self, db, expression_id, content="Sample text content", manifestation_type=ManifestationType.DIPLOMATIC):
+    def _create_test_manifestation(self, db, expression_id, content="Sample text content", manifestation_type=ManifestationType.DIPLOMATIC, bdrc=None):
         """Helper to create a manifestation with stored content"""
+        manifestation_id = generate_id()
         manifestation_data = ManifestationInput(
             type=manifestation_type,
-            bdrc="W12345",
+            bdrc=bdrc or f"W{manifestation_id[:8]}",
             source="Test Source",
         )
-        manifestation_id = generate_id()
         db.manifestation.create(manifestation_data, manifestation_id, expression_id)
 
         storage_instance = Storage()
@@ -348,7 +341,7 @@ class TestCreateEdition(TestEditionsEndpoints):
         person_id = self._create_test_person(test_database, test_person_data)
         expression_id = self._create_test_expression(test_database, person_id)
 
-        edition_data = {
+        first_edition_data = {
             "content": "First critical edition",
             "metadata": {
                 "type": "critical",
@@ -359,12 +352,20 @@ class TestCreateEdition(TestEditionsEndpoints):
             },
         }
 
-        first_response = client.post(f"/v2/texts/{expression_id}/editions", json=edition_data)
+        first_response = client.post(f"/v2/texts/{expression_id}/editions", json=first_edition_data)
         assert first_response.status_code == 201
 
-        edition_data["content"] = "Second critical edition"
-        edition_data["segmentation"]["segments"][0]["lines"][0]["end"] = 23
-        second_response = client.post(f"/v2/texts/{expression_id}/editions", json=edition_data)
+        second_edition_data = {
+            "content": "Second critical edition",
+            "metadata": {
+                "type": "critical",
+                "source": "Test Source",
+            },
+            "segmentation": {
+                "segments": [{"lines": [{"start": 0, "end": 23}]}]
+            },
+        }
+        second_response = client.post(f"/v2/texts/{expression_id}/editions", json=second_edition_data)
 
         assert second_response.status_code == 422
         assert "error" in second_response.get_json()
@@ -504,3 +505,137 @@ class TestRelatedEditions(TestEditionsEndpoints):
 
         assert response.status_code == 200
         assert response.get_json() == []
+
+    def test_get_related_via_translation(self, client, test_database, test_person_data):
+        """Test getting related editions via translation relationship"""
+        person_id = self._create_test_person(test_database, test_person_data)
+
+        original_expression_id = self._create_test_expression(
+            test_database, person_id, title=LocalizedString({"bo": "བོད་སྐད།", "en": "Tibetan Text"})
+        )
+        original_manifestation_id = self._create_test_manifestation(
+            test_database, original_expression_id, "Original content"
+        )
+
+        translation_data = ExpressionInput(
+            category_id="category",
+            title=LocalizedString({"en": "English Translation"}),
+            language="en",
+            translation_of=original_expression_id,
+            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.TRANSLATOR)],
+        )
+        translation_expression_id = test_database.expression.create(translation_data)
+        translation_manifestation_id = self._create_test_manifestation(
+            test_database, translation_expression_id, "Translated content"
+        )
+
+        response = client.get(f"/v2/editions/{original_manifestation_id}/related")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert len(data) == 1
+        assert data[0]["id"] == translation_manifestation_id
+
+    def test_get_related_via_commentary(self, client, test_database, test_person_data):
+        """Test getting related editions via commentary relationship"""
+        person_id = self._create_test_person(test_database, test_person_data)
+
+        root_expression_id = self._create_test_expression(
+            test_database, person_id, title=LocalizedString({"bo": "རྩ་བ།", "en": "Root Text"})
+        )
+        root_manifestation_id = self._create_test_manifestation(
+            test_database, root_expression_id, "Root text content"
+        )
+
+        commentary_data = ExpressionInput(
+            category_id="category",
+            title=LocalizedString({"bo": "འགྲེལ་པ།", "en": "Commentary"}),
+            language="bo",
+            commentary_of=root_expression_id,
+            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
+        )
+        commentary_expression_id = test_database.expression.create(commentary_data)
+        commentary_manifestation_id = self._create_test_manifestation(
+            test_database, commentary_expression_id, "Commentary content"
+        )
+
+        response = client.get(f"/v2/editions/{root_manifestation_id}/related")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert len(data) == 1
+        assert data[0]["id"] == commentary_manifestation_id
+
+    def test_get_related_bidirectional(self, client, test_database, test_person_data):
+        """Test that related editions work bidirectionally (from translation to original)"""
+        person_id = self._create_test_person(test_database, test_person_data)
+
+        original_expression_id = self._create_test_expression(
+            test_database, person_id, title=LocalizedString({"bo": "བོད་སྐད།", "en": "Tibetan Text"})
+        )
+        original_manifestation_id = self._create_test_manifestation(
+            test_database, original_expression_id, "Original content"
+        )
+
+        translation_data = ExpressionInput(
+            category_id="category",
+            title=LocalizedString({"en": "English Translation"}),
+            language="en",
+            translation_of=original_expression_id,
+            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.TRANSLATOR)],
+        )
+        translation_expression_id = test_database.expression.create(translation_data)
+        translation_manifestation_id = self._create_test_manifestation(
+            test_database, translation_expression_id, "Translated content"
+        )
+
+        response = client.get(f"/v2/editions/{translation_manifestation_id}/related")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert len(data) == 1
+        assert data[0]["id"] == original_manifestation_id
+
+    def test_get_related_multiple_relations(self, client, test_database, test_person_data):
+        """Test getting related editions with multiple relations (translation + commentary)"""
+        person_id = self._create_test_person(test_database, test_person_data)
+
+        original_expression_id = self._create_test_expression(
+            test_database, person_id, title=LocalizedString({"bo": "བོད་སྐད།", "en": "Tibetan Text"})
+        )
+        original_manifestation_id = self._create_test_manifestation(
+            test_database, original_expression_id, "Original content"
+        )
+
+        translation_data = ExpressionInput(
+            category_id="category",
+            title=LocalizedString({"en": "English Translation"}),
+            language="en",
+            translation_of=original_expression_id,
+            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.TRANSLATOR)],
+        )
+        translation_expression_id = test_database.expression.create(translation_data)
+        translation_manifestation_id = self._create_test_manifestation(
+            test_database, translation_expression_id, "Translated content"
+        )
+
+        commentary_data = ExpressionInput(
+            category_id="category",
+            title=LocalizedString({"bo": "འགྲེལ་པ།", "en": "Commentary"}),
+            language="bo",
+            commentary_of=original_expression_id,
+            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
+        )
+        commentary_expression_id = test_database.expression.create(commentary_data)
+        commentary_manifestation_id = self._create_test_manifestation(
+            test_database, commentary_expression_id, "Commentary content"
+        )
+
+        response = client.get(f"/v2/editions/{original_manifestation_id}/related")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert len(data) == 2
+        related_ids = {item["id"] for item in data}
+        assert translation_manifestation_id in related_ids
+        assert commentary_manifestation_id in related_ids
