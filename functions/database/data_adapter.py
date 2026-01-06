@@ -97,7 +97,6 @@ class DataAdapter:
     def category(data: dict) -> CategoryOutput:
         return CategoryOutput(
             id=data["id"],
-            application=data["application"],
             title=LocalizedString(DataAdapter.localized_text(data["title"]) or {}),
             parent_id=data.get("parent_id"),
             has_children=data.get("has_children", False),

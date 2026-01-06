@@ -5,6 +5,29 @@ from exceptions import InvalidRequestError
 from flask import Response, request
 from pydantic import BaseModel
 
+APPLICATION_HEADER = "X-Application"
+
+
+def require_application(
+    f: Callable[..., tuple[Response, int]],
+) -> Callable[..., tuple[Response, int]]:
+    """
+    Decorator that requires the X-Application header.
+    Extracts the application ID and injects it as 'application' kwarg.
+    Application existence validation should be done in the endpoint with the existing DB connection.
+    """
+
+    @wraps(f)
+    def decorated(*args: object, **kwargs: object) -> tuple[Response, int]:
+        application_id = request.headers.get(APPLICATION_HEADER)
+        if not application_id:
+            raise InvalidRequestError(f"Missing required header: {APPLICATION_HEADER}")
+
+        kwargs["application"] = application_id
+        return f(*args, **kwargs)
+
+    return decorated
+
 
 def validate_json[T: BaseModel](
     model_class: type[T],

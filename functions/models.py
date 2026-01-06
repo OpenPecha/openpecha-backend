@@ -425,7 +425,6 @@ class ManifestationOutput(ManifestationBase):
 
 
 class CategoryBase(OpenPechaModel):
-    application: NonEmptyStr
     title: LocalizedString
     parent_id: NonEmptyStr | None = None
 

@@ -17,12 +17,11 @@ if TYPE_CHECKING:
 
 class CategoryDatabase:
     GET_ALL_QUERY = """
-    MATCH (c:Category {application: $application})
+    MATCH (c:Category)-[:BELONGS_TO]->(app:Application {id: $application})
     WHERE ($parent_id IS NULL AND NOT (c)-[:HAS_PARENT]->(:Category))
        OR ($parent_id IS NOT NULL AND (c)-[:HAS_PARENT]->(:Category {id: $parent_id}))
     RETURN {
         id: c.id,
-        application: c.application,
         title: [(c)-[:HAS_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
             -[:HAS_LANGUAGE]->(l:Language) | {language: l.code, text: lt.text}],
         parent_id: [(c)-[:HAS_PARENT]->(parent:Category) | parent.id][0],
@@ -32,8 +31,10 @@ class CategoryDatabase:
 
     CREATE_QUERY = """
     MATCH (n:Nomen {id: $nomen_id})
-    CREATE (c:Category {id: $category_id, application: $application})
+    MATCH (app:Application {id: $application})
+    CREATE (c:Category {id: $category_id})
     CREATE (c)-[:HAS_TITLE]->(n)
+    CREATE (c)-[:BELONGS_TO]->(app)
     WITH c
     OPTIONAL MATCH (parent:Category {id: $parent_id})
     WITH c, parent
@@ -42,7 +43,7 @@ class CategoryDatabase:
     """
 
     FIND_EXISTING_QUERY = """
-    MATCH (c:Category {application: $application})
+    MATCH (c:Category)-[:BELONGS_TO]->(app:Application {id: $application})
     WHERE ($parent_id IS NULL AND NOT (c)-[:HAS_PARENT]->(:Category))
        OR ($parent_id IS NOT NULL AND (c)-[:HAS_PARENT]->(:Category {id: $parent_id}))
     MATCH (c)-[:HAS_TITLE]->(:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
@@ -68,9 +69,9 @@ class CategoryDatabase:
             )
             return [DataAdapter.category(record.data()["category"]) for record in result]
 
-    def create(self, category: CategoryInput) -> str:
+    def create(self, category: CategoryInput, application: str) -> str:
         def create_transaction(tx: ManagedTransaction) -> str:
-            self._validate_not_exists_tx(tx, category.application, category.title.root, category.parent_id)
+            self._validate_not_exists_tx(tx, application, category.title.root, category.parent_id)
 
             category_id = generate_id()
             nomen_id = NomenDatabase.create_with_transaction(tx, category.title.root, None)
@@ -78,7 +79,7 @@ class CategoryDatabase:
             result = tx.run(
                 CategoryDatabase.CREATE_QUERY,
                 category_id=category_id,
-                application=category.application,
+                application=application,
                 nomen_id=nomen_id,
                 parent_id=category.parent_id,
             )

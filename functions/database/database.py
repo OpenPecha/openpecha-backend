@@ -12,6 +12,7 @@ from .annotation.bibliographic_database import BibliographicDatabase
 from .annotation.note_database import NoteDatabase
 from .annotation.pagination_database import PaginationDatabase
 from .annotation.segmentation_database import SegmentationDatabase
+from .application_database import ApplicationDatabase
 from .category_database import CategoryDatabase
 from .expression_database import ExpressionDatabase
 from .language_database import LanguageDatabase
@@ -41,6 +42,7 @@ class AnnotationDatabase:
 
 
 class Database:
+    application: ApplicationDatabase
     expression: ExpressionDatabase
     manifestation: ManifestationDatabase
     annotation: AnnotationDatabase
@@ -71,6 +73,7 @@ class Database:
         self.__driver.verify_connectivity()
         logger.info("Connection to neo4j established.")
 
+        self.application = ApplicationDatabase(db=self)
         self.expression = ExpressionDatabase(db=self)
         self.manifestation = ManifestationDatabase(db=self)
         self.annotation = AnnotationDatabase(db=self)

@@ -13,16 +13,12 @@ Requires environment variables:
 """
 
 import logging
-import os
 import tempfile
 import zipfile
 from pathlib import Path
 
 import pytest
-from dotenv import load_dotenv
 from identifier import generate_id
-from main import create_app
-from database import Database
 from models import (
     ContributionInput,
     ContributorRole,
@@ -35,92 +31,6 @@ from models import (
 from storage import Storage
 
 logger = logging.getLogger(__name__)
-
-# Load .env file if it exists
-load_dotenv()
-
-
-@pytest.fixture(scope="session")
-def neo4j_connection():
-    """Get Neo4j connection details from environment variables"""
-    test_uri = os.environ.get("NEO4J_TEST_URI")
-    test_password = os.environ.get("NEO4J_TEST_PASSWORD")
-
-    if not test_uri or not test_password:
-        pytest.skip(
-            "Neo4j test credentials not provided. Set NEO4J_TEST_URI and NEO4J_TEST_PASSWORD environment variables."
-        )
-
-    return {"uri": test_uri, "auth": ("neo4j", test_password)}
-
-
-@pytest.fixture
-def test_database(neo4j_connection):
-    """Create a Neo4JDatabase instance connected to the test Neo4j instance"""
-    # Set environment variables so API endpoints can connect to test database
-
-    os.environ["NEO4J_URI"] = neo4j_connection["uri"]
-    os.environ["NEO4J_PASSWORD"] = neo4j_connection["auth"][1]
-
-    # Create Database with test connection
-    db = Database(neo4j_uri=neo4j_connection["uri"], neo4j_auth=neo4j_connection["auth"])
-
-    # Setup test schema and basic data
-    with db.get_session() as session:
-        # Clean up any existing data first
-        session.run("MATCH (n) DETACH DELETE n")
-
-        # Create basic schema
-        session.run("CREATE CONSTRAINT person_id_unique IF NOT EXISTS FOR (p:Person) REQUIRE p.id IS UNIQUE")
-        session.run("CREATE CONSTRAINT expression_id_unique IF NOT EXISTS FOR (e:Expression) REQUIRE e.id IS UNIQUE")
-        session.run(
-            "CREATE CONSTRAINT manifestation_id_unique IF NOT EXISTS FOR (m:Manifestation) REQUIRE m.id IS UNIQUE"
-        )
-        session.run("CREATE CONSTRAINT work_id_unique IF NOT EXISTS FOR (w:Work) REQUIRE w.id IS UNIQUE")
-        session.run("CREATE CONSTRAINT nomen_id_unique IF NOT EXISTS FOR (n:Nomen) REQUIRE n.id IS UNIQUE")
-        session.run("CREATE CONSTRAINT annotation_id_unique IF NOT EXISTS FOR (a:Annotation) REQUIRE a.id IS UNIQUE")
-
-        # Create basic Language nodes
-        session.run("CREATE (:Language {code: 'en', name: 'English'})")
-        session.run("CREATE (:Language {code: 'bo', name: 'Tibetan'})")
-        session.run("CREATE (:Language {code: 'zh', name: 'Chinese'})")
-        session.run("MERGE (a:AnnotationType {name: 'alignment'})")
-        session.run("MERGE (a:AnnotationType {name: 'version'})")
-        session.run("MERGE (a:AnnotationType {name: 'segmentation'})")
-
-        # Create test license types
-        session.run("MERGE (l:LicenseType {name: 'public'})")
-        session.run("MERGE (l:LicenseType {name: 'copyrighted'})")
-
-        # Create bibliography types
-        session.run("MERGE (b:BibliographyType {name: 'title'})")
-        session.run("MERGE (b:BibliographyType {name: 'colophon'})")
-        session.run("MERGE (b:BibliographyType {name: 'author'})")
-
-        # Create role types
-        session.run("MERGE (r:RoleType {name: 'translator'})")
-        session.run("MERGE (r:RoleType {name: 'author'})")
-        session.run("MERGE (r:RoleType {name: 'reviser'})")
-
-        # Create license type nodes
-        session.run("MERGE (l:LicenseType {name: 'public'})")
-
-    yield db
-
-    # Cleanup after test
-    with db.get_session() as session:
-        session.run("MATCH (n) DETACH DELETE n")
-
-    # Close the database driver to avoid deprecation warning
-    db.close()
-
-
-@pytest.fixture
-def client():
-    """Create Flask test client"""
-    app = create_app()
-    app.config["TESTING"] = True
-    return app.test_client()
 
 
 @pytest.fixture
@@ -280,6 +190,7 @@ class TestGetEditionsV2Endpoints:
         """Helper method to create a test text in the database"""
         # Create expression
         expression_data = ExpressionInput(
+            category_id="category",
             title=LocalizedString({"bo": "དཔེ་ཀ་ཤེར", "en": "Test Expression"}),
             language="bo",
             contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
@@ -333,6 +244,7 @@ class TestGetEditionsV2Endpoints:
 
         # Create expression first to get valid text_id
         expression_data = ExpressionInput(
+            category_id="category",
             title=LocalizedString({"en": "Test Expression"}),
             language="en",
             contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
@@ -369,6 +281,7 @@ class TestGetEditionsV2Endpoints:
         # Create expression first
         person_id = self._create_test_person(test_database, test_person_data)
         expression_data = ExpressionInput(
+            category_id="category",
             title=LocalizedString({"en": "Test Expression"}),
             language="en",
             contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
@@ -386,6 +299,7 @@ class TestGetEditionsV2Endpoints:
         # Create expression first
         person_id = self._create_test_person(test_database, test_person_data)
         expression_data = ExpressionInput(
+            category_id="category",
             title=LocalizedString({"en": "Test Expression"}),
             language="en",
             contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
@@ -410,6 +324,7 @@ class TestGetEditionsV2Endpoints:
 
         # Create expression first to get valid expression_id
         expression_data = ExpressionInput(
+            category_id="category",
             title=LocalizedString({"en": "Round Trip Test Expression"}),
             language="en",
             contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
@@ -483,6 +398,7 @@ class TestGetEditionsV2Endpoints:
         )
 
         expression_data = ExpressionInput(
+            category_id="category",
             title=LocalizedString({"en": "Test Expression"}),
             language="en",
             contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
@@ -539,6 +455,7 @@ class TestGetEditionsV2Endpoints:
         # Create expression first
         person_id = self._create_test_person(test_database, test_person_data)
         expression_data = ExpressionInput(
+            category_id="category",
             title=LocalizedString({"en": "Test Expression"}),
             language="en",
             contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],

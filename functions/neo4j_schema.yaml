@@ -1,4 +1,14 @@
 nodes:
+  Application:
+    properties:
+      id:
+        type: string
+        required: true
+        unique: true
+      name:
+        type: string
+        required: true
+
   Work:
     properties:
       id:
@@ -25,10 +35,11 @@ nodes:
         type: string
         required: true
         unique: true
-      application:
-        type: string
-        required: true
     relationships:
+      BELONGS_TO:
+        target: Application
+        cardinality: one
+        required: true
       HAS_TITLE:
         target: Nomen
         cardinality: one

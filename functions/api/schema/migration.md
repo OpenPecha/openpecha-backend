@@ -3,6 +3,54 @@
 This guide documents the changes made to the OpenPecha API and provides
 migration instructions for application builders.
 
+## Required Headers
+
+### X-Application Header
+
+All API endpoints that interact with application-scoped data now require the
+`X-Application` header. This header identifies which application context the
+request belongs to.
+
+**Required Header:**
+
+```
+X-Application: your-application-id
+```
+
+**Affected Endpoints:**
+
+- `GET /v2/categories` - Returns categories for the specified application
+- `POST /v2/categories` - Creates a category within the specified application
+
+**Error Response (400 Bad Request):**
+
+If the header is missing:
+
+```json
+{
+    "error": "Missing required header: X-Application"
+}
+```
+
+**Error Response (404 Not Found):**
+
+If the application ID doesn't exist:
+
+```json
+{
+    "error": "Application 'invalid-app-id' not found"
+}
+```
+
+**Example Request:**
+
+```bash
+curl -X GET "https://api.openpecha.org/v2/categories" \
+  -H "X-Application: webuddhist"
+```
+
+---
+
 ## Annotations Endpoint Migration
 
 ### Summary of Changes

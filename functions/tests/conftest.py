@@ -273,7 +273,8 @@ def mock_search_segmenter():
         yield
 
 
-@pytest.fixture(autouse=True)
-def client():
+@pytest.fixture
+def client(test_database):
+    """Create Flask test client. Depends on test_database to ensure env vars are set."""
     app = create_app(testing=True)
     return app.test_client()
