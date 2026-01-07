@@ -155,7 +155,7 @@ def get_related_editions(manifestation_id: str) -> tuple[Response, int]:
 
 
 @editions_bp.route("/<string:manifestation_id>", methods=["DELETE"], strict_slashes=False)
-def delete_edition(manifestation_id: str) -> tuple[Response, int]:
+def delete_edition(manifestation_id: str) -> tuple[str, int]:
     logger.info("Deleting edition with manifestation ID: %s", manifestation_id)
 
     with Database() as db:
@@ -163,4 +163,4 @@ def delete_edition(manifestation_id: str) -> tuple[Response, int]:
         db.manifestation.delete(manifestation_id)
         Storage().delete_base_text(expression_id=manifestation.text_id, manifestation_id=manifestation_id)
 
-    return jsonify({"message": "Edition deleted successfully"}), 200
+    return "", 204

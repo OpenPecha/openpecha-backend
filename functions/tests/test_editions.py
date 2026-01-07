@@ -655,8 +655,7 @@ class TestDeleteEdition(TestEditionsEndpoints):
 
         response = client.delete(f"/v2/editions/{manifestation_id}")
 
-        assert response.status_code == 200
-        assert response.get_json()["message"] == "Edition deleted successfully"
+        assert response.status_code == 204
 
         get_response = client.get(f"/v2/editions/{manifestation_id}/metadata")
         assert get_response.status_code == 404
@@ -695,7 +694,7 @@ class TestDeleteEdition(TestEditionsEndpoints):
 
         response = client.delete(f"/v2/editions/{manifestation_id}")
 
-        assert response.status_code == 200
+        assert response.status_code == 204
 
         get_response = client.get(f"/v2/editions/{manifestation_id}/metadata")
         assert get_response.status_code == 404

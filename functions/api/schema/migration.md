@@ -347,15 +347,7 @@ Fields are `null` if no annotations of that type exist or if filtered out.
 | Durchen (Notes) | `DELETE /v2/annotations/durchen/{note_id}`                |
 | Bibliographic   | `DELETE /v2/annotations/bibliographic/{bibliographic_id}` |
 
-**Response (200 OK):**
-
-```json
-{
-    "message": "Segmentation deleted successfully"
-}
-```
-
-**Note:** The message varies based on annotation type.
+**Response:** `204 No Content` (empty body)
 
 ---
 
@@ -808,16 +800,16 @@ POST /v2/texts/T87654321/editions
 
 ### Quick Reference
 
-| Action             | Old                                | New                                         |
-| ------------------ | ---------------------------------- | ------------------------------------------- |
-| Create translation | `POST /instances/{id}/translation` | `POST /texts` + `POST /texts/{id}/editions` |
-| Create commentary  | `POST /instances/{id}/commentary`  | `POST /texts` + `POST /texts/{id}/editions` |
-| Get metadata       | `GET /instances/{id}`              | `GET /editions/{id}/metadata`               |
-| Get content        | N/A                                | `GET /editions/{id}/content`                |
-| Delete edition     | N/A                                | `DELETE /editions/{id}`                     |
-| Path parameter     | `instance_id`                      | `edition_id`                                |
-| Type field         | `instance_type`                    | `edition_type`                              |
-| API tag            | `Instances`                        | `Editions`                                  |
+| Action             | Old                                | New                                              |
+| ------------------ | ---------------------------------- | ------------------------------------------------ |
+| Create translation | `POST /instances/{id}/translation` | `POST /texts` + `POST /texts/{text_id}/editions` |
+| Create commentary  | `POST /instances/{id}/commentary`  | `POST /texts` + `POST /texts/{text_id}/editions` |
+| Get metadata       | `GET /instances/{id}`              | `GET /editions/{edition_id}/metadata`            |
+| Get content        | N/A                                | `GET /editions/{edition_id}/content`             |
+| Delete edition     | N/A                                | `DELETE /editions/{edition_id}`                  |
+| Path parameter     | `instance_id`                      | `edition_id`                                     |
+| Type field         | `instance_type`                    | `edition_type`                                   |
+| API tag            | `Instances`                        | `Editions`                                       |
 
 ---
 
