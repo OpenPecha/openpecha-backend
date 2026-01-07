@@ -45,10 +45,19 @@ def setup_test_schema(session) -> None:
         tx.run("CREATE (:RoleType {name: 'author'})")
         tx.run("CREATE (:RoleType {name: 'reviser'})")
         tx.run("CREATE (:LicenseType {name: 'public'})")
-        tx.run("CREATE (:License {name: 'CC0'})")
+        tx.run("CREATE (:LicenseType {name: 'cc0'})")
         tx.run("""
             CREATE (app:Application {id: 'test_application', name: 'Test Application'})
-            CREATE (:Category {id: 'category'})-[:BELONGS_TO]->(app)
+            CREATE (cat:Category {id: 'category'})-[:BELONGS_TO]->(app)
+            CREATE (nomen:Nomen {id: 'category_nomen'})
+            CREATE (cat)-[:HAS_TITLE]->(nomen)
+            CREATE (lt_en:LocalizedText {text: 'Test Category'})
+            CREATE (lt_bo:LocalizedText {text: 'ཚིག་སྒྲུབ་གསར་པ།'})
+            WITH nomen, lt_en, lt_bo
+            MATCH (lang_en:Language {code: 'en'})
+            MATCH (lang_bo:Language {code: 'bo'})
+            CREATE (nomen)-[:HAS_LOCALIZATION]->(lt_en)-[:HAS_LANGUAGE]->(lang_en)
+            CREATE (nomen)-[:HAS_LOCALIZATION]->(lt_bo)-[:HAS_LANGUAGE]->(lang_bo)
         """)
 
     session.execute_write(do_seed)

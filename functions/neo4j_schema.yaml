@@ -100,7 +100,7 @@ nodes:
         cardinality: one
         required: true
       HAS_LICENSE:
-        target: License
+        target: LicenseType
         cardinality: one
         required: true
 
