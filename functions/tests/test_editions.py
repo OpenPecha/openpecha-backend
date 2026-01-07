@@ -639,3 +639,72 @@ class TestRelatedEditions(TestEditionsEndpoints):
         related_ids = {item["id"] for item in data}
         assert translation_manifestation_id in related_ids
         assert commentary_manifestation_id in related_ids
+
+
+class TestDeleteEdition(TestEditionsEndpoints):
+    """Tests for DELETE /v2/editions/{edition_id}"""
+
+    def test_delete_edition_success(self, client, test_database, test_person_data):
+        """Test successful edition deletion"""
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_id = self._create_test_expression(test_database, person_id)
+        manifestation_id = self._create_test_manifestation(test_database, expression_id)
+
+        metadata_response = client.get(f"/v2/editions/{manifestation_id}/metadata")
+        assert metadata_response.status_code == 200
+
+        response = client.delete(f"/v2/editions/{manifestation_id}")
+
+        assert response.status_code == 200
+        assert response.get_json()["message"] == "Edition deleted successfully"
+
+        get_response = client.get(f"/v2/editions/{manifestation_id}/metadata")
+        assert get_response.status_code == 404
+
+        content_response = client.get(f"/v2/editions/{manifestation_id}/content")
+        assert content_response.status_code == 404
+
+    def test_delete_edition_not_found(self, client, test_database):
+        """Test deleting a non-existent edition"""
+        response = client.delete("/v2/editions/non-existent-id")
+
+        assert response.status_code == 404
+
+    def test_delete_edition_with_annotations(self, client, test_database, test_person_data):
+        """Test deleting an edition that has annotations"""
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_id = self._create_test_expression(test_database, person_id)
+        manifestation_id = self._create_test_manifestation(test_database, expression_id, "0123456789")
+
+        segmentation_data = {
+            "segmentation": {
+                "segments": [{"lines": [{"start": 0, "end": 10}]}]
+            }
+        }
+        post_response = client.post(f"/v2/editions/{manifestation_id}/annotations", json=segmentation_data)
+        assert post_response.status_code == 201
+
+        annotations_response = client.get(f"/v2/editions/{manifestation_id}/annotations")
+        assert annotations_response.status_code == 200
+        annotations_data = annotations_response.get_json()
+        assert "segmentations" in annotations_data
+        segmentation_id = annotations_data["segmentations"][0]["id"]
+
+        segmentation_response = client.get(f"/v2/annotations/segmentation/{segmentation_id}")
+        assert segmentation_response.status_code == 200
+
+        response = client.delete(f"/v2/editions/{manifestation_id}")
+
+        assert response.status_code == 200
+
+        get_response = client.get(f"/v2/editions/{manifestation_id}/metadata")
+        assert get_response.status_code == 404
+
+        content_response = client.get(f"/v2/editions/{manifestation_id}/content")
+        assert content_response.status_code == 404
+
+        annotations_after = client.get(f"/v2/editions/{manifestation_id}/annotations")
+        assert annotations_after.status_code == 404
+
+        segmentation_after = client.get(f"/v2/annotations/segmentation/{segmentation_id}")
+        assert segmentation_after.status_code == 404

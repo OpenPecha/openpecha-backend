@@ -107,6 +107,7 @@ def get_annotations(manifestation_id: str, validated_params: AnnotationTypeFilte
 
     result = {}
     with Database() as db:
+        db.manifestation.get(manifestation_id=manifestation_id)
         if AnnotationType.SEGMENTATION in requested_types:
             segmentations = db.annotation.segmentation.get_all(manifestation_id)
             result["segmentations"] = segmentations if segmentations else None
@@ -151,3 +152,15 @@ def get_related_editions(manifestation_id: str) -> tuple[Response, int]:
         related_editions = db.manifestation.get_related(manifestation_id)
 
     return jsonify([m.model_dump() for m in related_editions]), 200
+
+
+@editions_bp.route("/<string:manifestation_id>", methods=["DELETE"], strict_slashes=False)
+def delete_edition(manifestation_id: str) -> tuple[Response, int]:
+    logger.info("Deleting edition with manifestation ID: %s", manifestation_id)
+
+    with Database() as db:
+        manifestation = db.manifestation.get(manifestation_id=manifestation_id)
+        db.manifestation.delete(manifestation_id)
+        Storage().delete_base_text(expression_id=manifestation.text_id, manifestation_id=manifestation_id)
+
+    return jsonify({"message": "Edition deleted successfully"}), 200

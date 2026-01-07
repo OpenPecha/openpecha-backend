@@ -793,6 +793,7 @@ POST /v2/texts/T87654321/editions
 | `POST /v2/instances/{instance_id}/annotations`     | `POST /v2/editions/{edition_id}/annotations`     |
 | `GET /v2/instances/{instance_id}/related`          | `GET /v2/editions/{edition_id}/related`          |
 | `GET /v2/instances/{instance_id}/segments/related` | `GET /v2/editions/{edition_id}/segments/related` |
+| N/A                                                | `DELETE /v2/editions/{edition_id}`               |
 
 ---
 
@@ -813,6 +814,7 @@ POST /v2/texts/T87654321/editions
 | Create commentary  | `POST /instances/{id}/commentary`  | `POST /texts` + `POST /texts/{id}/editions` |
 | Get metadata       | `GET /instances/{id}`              | `GET /editions/{id}/metadata`               |
 | Get content        | N/A                                | `GET /editions/{id}/content`                |
+| Delete edition     | N/A                                | `DELETE /editions/{id}`                     |
 | Path parameter     | `instance_id`                      | `edition_id`                                |
 | Type field         | `instance_type`                    | `edition_type`                              |
 | API tag            | `Instances`                        | `Editions`                                  |
