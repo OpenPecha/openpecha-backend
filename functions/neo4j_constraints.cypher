@@ -67,9 +67,31 @@ CREATE CONSTRAINT manifestation_bdrc_unique IF NOT EXISTS FOR (m:Manifestation) 
 // Manifestation nodes - Wiki IDs must be unique when present
 CREATE CONSTRAINT manifestation_wiki_unique IF NOT EXISTS FOR (m:Manifestation) REQUIRE m.wiki IS UNIQUE;
 
+// Nomen nodes - each nomen must have a unique ID
+CREATE CONSTRAINT nomen_id_unique IF NOT EXISTS FOR (n:Nomen) REQUIRE n.id IS UNIQUE;
+
+// Category nodes - each category must have a unique ID
+CREATE CONSTRAINT category_id_unique IF NOT EXISTS FOR (c:Category) REQUIRE c.id IS UNIQUE;
 
 // =============================================================================
-// INDEXING FOR FULLTEXT SEARCH ON LOCALIZED TEXT NODES
+// INDEXING
 // =============================================================================
+
+// Fulltext search on LocalizedText nodes (for title/name searches)
 CREATE FULLTEXT INDEX localized_text_fulltext IF NOT EXISTS
 FOR (lt:LocalizedText) ON EACH [lt.text];
+
+// Index on Segmentation id for faster lookups
+CREATE INDEX segmentation_id_index IF NOT EXISTS FOR (seg:Segmentation) ON (seg.id);
+
+// Index on Pagination id for faster lookups
+CREATE INDEX pagination_id_index IF NOT EXISTS FOR (p:Pagination) ON (p.id);
+
+// Index on Note id for faster lookups
+CREATE INDEX note_id_index IF NOT EXISTS FOR (n:Note) ON (n.id);
+
+// Index on Volume index for ordering queries
+CREATE INDEX volume_index_index IF NOT EXISTS FOR (v:Volume) ON (v.index);
+
+// Index on BibliographicMetadata id for faster lookups
+CREATE INDEX bibliographic_id_index IF NOT EXISTS FOR (b:BibliographicMetadata) ON (b.id);

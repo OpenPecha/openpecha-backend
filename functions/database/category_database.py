@@ -18,8 +18,8 @@ if TYPE_CHECKING:
 class CategoryDatabase:
     GET_ALL_QUERY = """
     MATCH (c:Category)-[:BELONGS_TO]->(app:Application {id: $application})
-    WHERE ($parent_id IS NULL AND NOT (c)-[:HAS_PARENT]->(:Category))
-       OR ($parent_id IS NOT NULL AND (c)-[:HAS_PARENT]->(:Category {id: $parent_id}))
+    WHERE ($parent_id IS NULL AND NOT EXISTS { (c)-[:HAS_PARENT]->(:Category) })
+       OR (c)-[:HAS_PARENT]->(:Category {id: $parent_id})
     RETURN {
         id: c.id,
         title: [(c)-[:HAS_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
@@ -44,8 +44,8 @@ class CategoryDatabase:
 
     FIND_EXISTING_QUERY = """
     MATCH (c:Category)-[:BELONGS_TO]->(app:Application {id: $application})
-    WHERE ($parent_id IS NULL AND NOT (c)-[:HAS_PARENT]->(:Category))
-       OR ($parent_id IS NOT NULL AND (c)-[:HAS_PARENT]->(:Category {id: $parent_id}))
+    WHERE ($parent_id IS NULL AND NOT EXISTS { (c)-[:HAS_PARENT]->(:Category) })
+       OR (c)-[:HAS_PARENT]->(:Category {id: $parent_id})
     MATCH (c)-[:HAS_TITLE]->(:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
         -[:HAS_LANGUAGE]->(:Language {code: $language})
     WHERE toLower(lt.text) = toLower($title_text)

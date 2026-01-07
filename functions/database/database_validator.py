@@ -103,13 +103,14 @@ class DatabaseValidator:
     def validate_language_code_exists(tx: ManagedTransaction, language_code: str) -> None:
         """Validate that a given base language code exists.
 
-        Uses a single query to both check existence and obtain the available codes.
+        Uses direct pattern matching for efficiency, only collecting all codes on failure.
         Raises InvalidRequest with the available codes listed if not found.
         """
         query = """
-        MATCH (l:Language)
-        WITH collect(l.code) AS codes
-        RETURN $code IN codes AS exists, codes
+        OPTIONAL MATCH (l:Language {code: $code})
+        CALL () { MATCH (lang:Language) RETURN collect(lang.code) AS all_codes }
+        RETURN l IS NOT NULL AS exists,
+               CASE WHEN l IS NULL THEN all_codes ELSE null END AS codes
         """
 
         record = tx.run(
@@ -117,22 +118,24 @@ class DatabaseValidator:
             code=language_code,
         ).single()
 
-        if not record:
-            raise InvalidRequestError(f"Language '{language_code}' is not present in Neo4j. No languages found.")
-        if not record["exists"]:
+        if not record or not record["exists"]:
+            codes = record["codes"] if record else []
+            if not codes:
+                raise InvalidRequestError(f"Language '{language_code}' is not present in Neo4j. No languages found.")
             raise InvalidRequestError(
-                f"Language '{language_code}' is not present in Neo4j. Available languages: {', '.join(record['codes'])}"
+                f"Language '{language_code}' is not present in Neo4j. Available languages: {', '.join(codes)}"
             )
 
     @staticmethod
     def validate_language_codes_exist(tx: ManagedTransaction, language_codes: list[str]) -> None:
         """Validate that all given base language codes exist. Raises InvalidRequest listing missing and available."""
         query = """
-        MATCH (l:Language)
-        WITH collect(l.code) AS codes
         UNWIND $codes_to_check AS code
-        WITH codes, code, code IN codes AS exists
-        RETURN collect(CASE WHEN exists THEN NULL ELSE code END) AS missing, codes
+        OPTIONAL MATCH (l:Language {code: code})
+        WITH code, l IS NOT NULL AS exists
+        WITH collect(CASE WHEN NOT exists THEN code END) AS missing
+        CALL () { MATCH (lang:Language) RETURN collect(lang.code) AS codes }
+        RETURN missing, codes
         """
         record = tx.run(query, codes_to_check=[c.lower() for c in language_codes]).single()
         if not record:

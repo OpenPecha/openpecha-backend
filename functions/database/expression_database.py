@@ -80,17 +80,12 @@ class ExpressionDatabase:
 
     GET_ALL_QUERY = f"""
     MATCH (e:Expression)
-    WHERE ($language IS NULL OR EXISTS {{ (e)-[:HAS_LANGUAGE]->(:Language {{code: $language}}) }})
+    WHERE ($language IS NULL OR (e)-[:HAS_LANGUAGE]->(:Language {{code: $language}}))
     AND ($title IS NULL OR EXISTS {{
-        MATCH (e)-[:HAS_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
-        WHERE toLower(lt.text) CONTAINS toLower($title)
-    }} OR EXISTS {{
-        MATCH (e)-[:HAS_TITLE]->(:Nomen)<-[:ALTERNATIVE_OF]-(an:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
+        (e)-[:HAS_TITLE]->(:Nomen)-[:HAS_LOCALIZATION|ALTERNATIVE_OF*1..2]->(lt:LocalizedText)
         WHERE toLower(lt.text) CONTAINS toLower($title)
     }})
-    AND ($category_id IS NULL OR EXISTS {{
-        (e)-[:EXPRESSION_OF]->(:Work)-[:HAS_CATEGORY]->(:Category {{id: $category_id}})
-    }})
+    AND ($category_id IS NULL OR (e)-[:EXPRESSION_OF]->(:Work)-[:HAS_CATEGORY]->(:Category {{id: $category_id}}))
     WITH e
     ORDER BY e.id
     SKIP $offset

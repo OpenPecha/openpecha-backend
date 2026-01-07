@@ -21,11 +21,14 @@ class NomenDatabase:
     CALL (*) {
         WHEN primary IS NOT NULL THEN { CREATE (n)-[:ALTERNATIVE_OF]->(primary) }
     }
-    FOREACH (lt IN $localized_texts |
+    WITH n
+    CALL (n) {
+        UNWIND $localized_texts AS lt
         MERGE (l:Language {code: lt.base_lang_code})
         CREATE (n)-[:HAS_LOCALIZATION]->(locText:LocalizedText {text: lt.text})
             -[:HAS_LANGUAGE {bcp47: lt.bcp47_tag}]->(l)
-    )
+        RETURN count(*) AS _
+    }
     RETURN n.id as nomen_id
     """
 
