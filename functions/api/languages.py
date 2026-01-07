@@ -13,13 +13,6 @@ def get_all_languages() -> tuple[Response, int]:
     return jsonify(languages), 200
 
 
-@languages_bp.route("/<string:code>", methods=["GET"], strict_slashes=False)
-def get_language(code: str) -> tuple[Response, int]:
-    with Database() as db:
-        language = db.language.get(code)
-    return jsonify(language), 200
-
-
 @languages_bp.route("", methods=["POST"], strict_slashes=False)
 @validate_json(LanguageCreateRequest)
 def create_language(validated_data: LanguageCreateRequest) -> tuple[Response, int]:

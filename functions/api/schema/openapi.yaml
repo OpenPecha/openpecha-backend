@@ -13,10 +13,10 @@ servers:
     description: Production
 
 paths:
-  /v2/editions/{edition_id}:
+  /v2/editions/{edition_id}/metadata:
     get:
-      summary: Retrieve edition by edition ID
-      description: Fetch edition content for a given edition ID. Optionally include non-alignment annotations using the 'annotation' query parameter.
+      summary: Retrieve edition metadata
+      description: Fetch metadata for a given edition ID
       tags:
         - Editions
       parameters:
@@ -25,335 +25,85 @@ paths:
           required: true
           schema:
             type: string
-          description: The ID of the edition to retrieve
-        - name: annotation
-          in: query
-          required: false
-          schema:
-            type: boolean
-            default: false
-          description: Whether to include annotations (alignment annotations are excluded)
-        - name: content
-          in: query
-          required: false
-          schema:
-            type: boolean
-            default: false
-          description: Whether to include content (base text)
+          description: The ID of the edition to retrieve metadata for
       responses:
         "200":
-          description: Edition retrieved successfully
+          description: Edition metadata retrieved successfully
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  content:
-                    type: string
-                  metadata:
-                    type: object
-                    properties:
-                      id:
-                        type: string
-                      type:
-                        type: string
-                        enum: [diplomatic, critical]
-                      source:
-                        type: string
-                        nullable: true
-                      bdrc:
-                        type: string
-                      wiki:
-                        type: string
-                      colophon:
-                        type: string
-                      incipit_title:
-                        type: object
-                        additionalProperties:
-                          type: string
-                      alt_incipit_titles:
-                        type: array
-                        items:
-                          type: object
-                          additionalProperties:
-                            type: string
-                  annotations:
-                    type: array
-                    items:
-                      type: object
-                      properties:
-                        annotation_id:
-                          type: string
-                        type:
-                          type: string
-                          enum: [segmentation, version]
+                $ref: "#/components/schemas/ManifestationOutput"
               examples:
-                with_annotations_no_content:
-                  summary: Instance with metadata, annotation without content
+                success:
+                  summary: Edition metadata
                   value:
-                    metadata:
-                      id: "I12345678"
-                      type: "critical"
-                      source: "source-name"
-                      bdrc: "W123456"
-                      wiki: "Q123456"
-                      colophon: "colophon text"
-                      incipit_title:
-                        en: "English incipit title"
-                        bo: "Tibetan incipit title"
-                      alt_incipit_titles:
-                        - en: "Alt title 1"
-                        - bo: "Alt title 2"
-                    annotations:
-                      - annotation_id: "A12345678"
-                        type: "segmentation"
-                with_content_no_annotations:
-                  summary: Instance with metadata, content without annotations
-                  value:
-                    content: "This is the base text content"
-                    metadata:
-                      id: "I12345678"
-                      type: "critical"
-                      source: "source-name"
-                      bdrc: "W123456"
-                      wiki: "Q123456"
-                      colophon: "colophon text"
-                      incipit_title:
-                        en: "English incipit title"
-                        bo: "Tibetan incipit title"
-                      alt_incipit_titles:
-                        - en: "Alt title 1"
-                        - bo: "Alt title 2"
-                with_content_and_annotations:
-                  summary: Instance with metadata, annotations and content
-                  value:
-                    content: "This is the base text content"
-                    metadata:
-                      id: "I12345678"
-                      type: "critical"
-                      source: "source-name"
-                      bdrc: "W123456"
-                      wiki: "Q123456"
-                      colophon: "colophon text"
-                      incipit_title:
-                        en: "English incipit title"
-                        bo: "Tibetan incipit title"
-                      alt_incipit_titles:
-                        - en: "Alt title 1"
-                        - bo: "Alt title 2"
-                    annotations:
-                      - annotation_id: "A12345678"
-                        type: "segmentation"
-        "400":
-          $ref: "#/components/responses/InvalidRequest"
-        "404":
-          $ref: "#/components/responses/NotFound"
-        "500":
-          $ref: "#/components/responses/ServerError"
-    put:
-      summary: Update an existing edition
-      description: >-
-        Update an existing edition (manifestation) with new metadata, content, and annotations.
-        This operation replaces all existing annotations and content for the manifestation.
-        All old annotations (segmentation, pagination, bibliography, etc.) will be deleted and replaced with the new ones provided.
-      tags:
-        - Editions
-      parameters:
-        - name: edition_id
-          in: path
-          required: true
-          schema:
-            type: string
-          description: The ID of the edition to update
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - metadata
-                - content
-              properties:
-                metadata:
-                  type: object
-                  required:
-                    - type
-                    - source
-                  properties:
-                    type:
-                      type: string
-                      enum: [diplomatic, critical]
-                      description: Type of manifestation
-                    source:
-                      type: string
-                      nullable: true
-                      description: Source identifier for the manifestation
-                    bdrc:
-                      type: string
-                      description: BDRC identifier
-                    wiki:
-                      type: string
-                      description: Wiki identifier
-                    colophon:
-                      type: string
-                      description: Colophon text
-                    incipit_title:
-                      type: object
-                      additionalProperties:
-                        type: string
-                      description: Localized incipit title
-                    alt_incipit_titles:
-                      type: array
-                      items:
-                        type: object
-                        additionalProperties:
-                          type: string
-                      description: Alternative localized incipit titles
-                annotation:
-                  type: array
-                  items:
-                    oneOf:
-                      - type: object
-                        required: [span]
-                        properties:
-                          span:
-                            type: object
-                            required: [start, end]
-                            properties:
-                              start:
-                                type: integer
-                                minimum: 0
-                                description: Start character position (inclusive)
-                              end:
-                                type: integer
-                                minimum: 1
-                                description: End character position (exclusive)
-                        description: Segmentation annotation (for CRITICAL manifestations)
-                      - type: object
-                        required: [span, reference]
-                        properties:
-                          span:
-                            type: object
-                            required: [start, end]
-                            properties:
-                              start:
-                                type: integer
-                                minimum: 0
-                                description: Start character position (inclusive)
-                              end:
-                                type: integer
-                                minimum: 1
-                                description: End character position (exclusive)
-                          reference:
-                            type: string
-                            description: Page/folio reference for the span
-                        description: Pagination annotation (for DIPLOMATIC manifestations)
-                  description: Segmentation or pagination annotation segments
-                biblography_annotation:
-                  type: array
-                  items:
-                    type: object
-                    required: [span, type]
-                    properties:
-                      span:
-                        type: object
-                        required: [start, end]
-                        properties:
-                          start:
-                            type: integer
-                            minimum: 0
-                            description: Start character position (inclusive)
-                          end:
-                            type: integer
-                            minimum: 1
-                            description: End character position (exclusive)
-                      type:
-                        type: string
-                        enum: [colophon, title, incipit_title, author]
-                        description: Type of bibliography annotation
-                  description: Bibliography annotation segments with bibliography type
-                content:
-                  type: string
-                  description: The updated text content
-            examples:
-              update_critical_instance:
-                summary: Update a critical instance with new segmentation
-                value:
-                  metadata:
-                    type: "critical"
-                    source: "updated-source"
-                    colophon: "Updated colophon text"
-                    incipit_title:
-                      en: "Updated Opening words"
-                      bo: "དབུ་ཚིག་གསར་བ།"
-                  annotation:
-                    - span:
-                        start: 0
-                        end: 15
-                    - span:
-                        start: 15
-                        end: 30
-                  content: "This is the updated text content"
-              update_diplomatic_instance:
-                summary: Update a diplomatic instance with pagination
-                value:
-                  metadata:
-                    type: "diplomatic"
-                    source: "updated-source"
-                    bdrc: "W123456"
-                    colophon: "Updated colophon"
-                  annotation:
-                    - span:
-                        start: 0
-                        end: 10
-                      reference: "https://example.com/updated-image1.png"
-                    - span:
-                        start: 10
-                        end: 20
-                      reference: "https://example.com/updated-image2.png"
-                  content: "Updated text content for diplomatic instance"
-              update_with_bibliography:
-                summary: Update instance with bibliography annotation
-                value:
-                  metadata:
+                    id: "I12345678"
+                    text_id: "E12345678"
                     type: "critical"
                     source: "source-name"
-                  annotation:
-                    - span:
-                        start: 0
-                        end: 50
-                  biblography_annotation:
-                    - span:
-                        start: 0
-                        end: 20
-                      type: "title"
-                    - span:
-                        start: 21
-                        end: 35
-                      type: "author"
-                  content: "Updated content with bibliography information"
+                    bdrc: null
+                    wiki: "Q123456"
+                    colophon: "colophon text"
+                    incipit_title:
+                      en: "English incipit title"
+                      bo: "Tibetan incipit title"
+                    alt_incipit_titles:
+                      - en: "Alt title 1"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /v2/editions/{edition_id}/content:
+    get:
+      summary: Retrieve edition content
+      description: Fetch base text content for a given edition ID. Optionally specify a span to retrieve a portion of the content.
+      tags:
+        - Editions
+      parameters:
+        - name: edition_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the edition to retrieve content for
+        - name: span_start
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+          description: Start character position (inclusive). Must be provided together with span_end.
+        - name: span_end
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 1
+          description: End character position (exclusive). Must be provided together with span_start.
       responses:
         "200":
-          description: Instance updated successfully
+          description: Edition content retrieved successfully
           content:
             application/json:
               schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: "Manifestation updated successfully"
-                  id:
-                    type: string
-                    description: The ID of the updated manifestation
-                    example: "I12345678"
+                type: string
+                description: The base text content (or portion if span specified)
+              examples:
+                full_content:
+                  summary: Full content
+                  value: "This is the complete base text content of the edition."
+                span_content:
+                  summary: Content span
+                  value: "portion of the text"
         "400":
           $ref: "#/components/responses/InvalidRequest"
         "404":
           $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/ServerError"
+
+  /v2/editions/{edition_id}:
     delete:
       summary: Delete an edition
       description: >-
@@ -384,13 +134,77 @@ paths:
           $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/ServerError"
+  /v2/editions/{edition_id}/segments/related:
+    get:
+      summary: Find related segments by span
+      description: >-
+        Find segments that overlap with a given character span in the edition,
+        then return all related (aligned) segments from other manifestations.
+      tags:
+        - Editions
+      parameters:
+        - name: edition_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the edition (manifestation) to search within
+        - name: span_start
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 0
+          description: Start character position (inclusive)
+        - name: span_end
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+          description: End character position (exclusive)
+      responses:
+        "200":
+          description: Related segments retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/SegmentOutput"
+              examples:
+                success:
+                  summary: List of related segments
+                  value:
+                    - id: "SEG001"
+                      manifestation_id: "M12345678"
+                      text_id: "E12345678"
+                      lines:
+                        - start: 0
+                          end: 100
+                    - id: "SEG002"
+                      manifestation_id: "M87654321"
+                      text_id: "E87654321"
+                      lines:
+                        - start: 50
+                          end: 150
+                empty:
+                  summary: No related segments found
+                  value: []
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
   /v2/editions/{edition_id}/related:
     get:
       summary: Find related editions
       description: >-
-        Find all manifestations with alignment relationships to the given edition.
-        Works bidirectionally: returns translations/commentaries for root texts, or root texts for translations/commentaries.
-        Optionally filter by relationship type (translation/commentary).
+        Find all manifestations that are related to the given edition through alignment relationships.
       tags:
         - Editions
       parameters:
@@ -400,13 +214,6 @@ paths:
           schema:
             type: string
           description: The ID of the edition to find related editions for
-        - name: type
-          in: query
-          required: false
-          schema:
-            type: string
-            enum: [translation, commentary, root]
-          description: Optional filter to only return editions of a specific relationship type
       responses:
         "200":
           description: Related editions retrieved successfully
@@ -415,455 +222,45 @@ paths:
               schema:
                 type: array
                 items:
-                  type: object
-                  properties:
-                    edition_id:
-                      type: string
-                      description: The ID of the related manifestation
-                    metadata:
-                      type: object
-                      description: Essential manifestation and expression metadata
-                      properties:
-                        edition_type:
-                          type: string
-                          enum: [diplomatic, critical]
-                          description: Instance type
-                        source:
-                          type: string
-                          description: Source of the manifestation
-                        text_id:
-                          type: string
-                          description: Text ID
-                        title:
-                          type: object
-                          description: Expression title in localized format
-                        alt_titles:
-                          type: array
-                          items:
-                            type: object
-                          description: Alternative titles
-                        language:
-                          type: string
-                          description: Language code
-                        contributions:
-                          type: array
-                          items:
-                            type: object
-                            properties:
-                              person_id:
-                                type: string
-                                description: Person identifier (for person contributions)
-                              ai_id:
-                                type: string
-                                description: AI identifier (for AI contributions)
-                              role:
-                                type: string
-                                enum: [translator, reviser, author, scholar]
-                                description: Contributor role
-                          description: Contributors list
-                    annotation:
-                      type: string
-                      description: The alignment annotation ID (from the source manifestation with aligned_to set)
-                    relationship:
-                      type: string
-                      enum: [translation, commentary, root]
-                      description: The type of relationship between the editions
+                  $ref: "#/components/schemas/ManifestationOutput"
               examples:
-                translation_example:
-                  summary: Translation of a root text
+                success:
+                  summary: List of related manifestations
                   value:
-                    - edition_id: "I87654321"
-                      metadata:
-                        edition_type: "critical"
-                        source: "source-name"
-                        text_id: "E12345678"
-                        title:
-                          en: "Heart Sutra - English Translation"
-                          bo: "ཤེས་རབ་སྙིང་པོ་དབྱིན་སྐད།"
-                        alt_titles:
-                          - en: "Prajnaparamita Heart Sutra"
-                        language: "en"
-                        contributions:
-                          - person_id: "P12345678"
-                            role: "translator"
-                          - person_id: "P87654321"
-                            role: "reviser"
-                      annotation: "A98765432"
-                      relationship: "translation"
-                    - edition_id: "I87654322"
-                      metadata:
-                        edition_type: "critical"
-                        source: "source-name"
-                        text_id: "E12345679"
-                        title:
-                          zh: "心经 - 中文翻译"
-                        alt_titles: []
-                        language: "zh"
-                        contributions:
-                          - person_id: "P23456789"
-                            role: "translator"
-                      annotation: "A98765433"
-                      relationship: "translation"
-                ai_contribution_example:
-                  summary: AI-generated translation
-                  value:
-                    - edition_id: "I87654323"
-                      metadata:
-                        edition_type: "critical"
-                        source: "source-name"
-
-                        text_id: "E12345680"
-                        title:
-                          en: "AI Generated Translation"
-                        alt_titles: []
-                        language: "en"
-                        contributions:
-                          - ai_id: "gpt-4"
-                            role: "translator"
-                      annotation: "A98765434"
-                      relationship: "translation"
-        "400":
-          $ref: "#/components/responses/InvalidRequest"
+                    - id: "I87654321"
+                      text_id: "E12345678"
+                      type: "critical"
+                      source: "source-name"
+                      bdrc: null
+                      wiki: null
+                      colophon: "colophon text"
+                      incipit_title:
+                        en: "English incipit"
+                      alt_incipit_titles: null
+                    - id: "I87654322"
+                      text_id: "E12345679"
+                      type: "diplomatic"
+                      source: "another-source"
+                      bdrc: "W123456"
+                      wiki: null
+                      colophon: null
+                      incipit_title: null
+                      alt_incipit_titles: null
         "404":
           $ref: "#/components/responses/NotFound"
         "500":
           $ref: "#/components/responses/ServerError"
 
-  /v2/editions/{edition_id}/segment-related:
-    get:
-      summary: Find related segments or spans for an edition
-      description: >-
-        Exactly one of `segment_id` or (`span_start` and `span_end`) must be provided.
-        - If `segment_id` is provided, returns related segments across manifestations.
-        - If `span_start` and `span_end` are provided, returns manifestations with merged spans overlapping the given range.
-        - If both are provided, `segment_id` takes precedence.
-      tags:
-        - Editions
-      parameters:
-        - name: edition_id
-          in: path
-          required: true
-          schema:
-            type: string
-          description: The ID of the edition to search within (used when querying by span)
-        - name: segment_id
-          in: query
-          required: false
-          schema:
-            type: string
-          description: Segment ID to find related segments across other manifestations
-        - name: span_start
-          in: query
-          required: false
-          schema:
-            type: integer
-            minimum: 0
-          description: Inclusive start offset when searching by span
-        - name: span_end
-          in: query
-          required: false
-          schema:
-            type: integer
-            minimum: 1
-          description: Exclusive end offset (must be greater than span_start)
-        - name: transform
-          in: query
-          required: false
-          schema:
-            type: boolean
-            default: false
-          description: Whether to transfer alignments to segmentation layer. If false (default), returns alignment annotation segments. If true, returns segmentation annotation segments.
-      responses:
-        "200":
-          description: Related items retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: array
-                description: List of related manifestations with their segments. Same format for both transfer modes - only segment source differs (alignment vs segmentation annotation).
-                items:
-                  type: object
-                  required: [text, instance, segments]
-                  properties:
-                    text:
-                      type: object
-                      description: Expression (text) metadata
-                      additionalProperties: true
-                    instance:
-                      type: object
-                      description: Manifestation (instance) metadata
-                      additionalProperties: true
-                    segments:
-                      type: array
-                      description: Segments from alignment annotation (transfer=false) or segmentation annotation (transfer=true)
-                      items:
-                        type: object
-                        required: [id, span]
-                        properties:
-                          id:
-                            type: string
-                            description: Segment ID
-                          span:
-                            type: object
-                            required: [start, end]
-                            properties:
-                              start:
-                                type: integer
-                                minimum: 0
-                                description: Inclusive start offset
-                              end:
-                                type: integer
-                                minimum: 1
-                                description: Exclusive end offset
-              examples:
-                untransform:
-                  summary: Related segments without transfer (alignment annotation)
-                  value:
-                    - text:
-                        id: "E123"
-                        type: "translation"
-                        language: "en"
-                        title: { en: "English Translation" }
-                      instance:
-                        id: "I456"
-                        type: "critical"
-                        source: "source-name"
-                      segments:
-                        - id: "SEG789"
-                          span: { start: 50, end: 90 }
-                        - id: "SEG790"
-                          span: { start: 90, end: 120 }
-                transform:
-                  summary: Related segments with transfer (segmentation annotation)
-                  value:
-                    - text:
-                        id: "E123"
-                        type: "translation"
-                        language: "en"
-                        title: { en: "English Translation" }
-                      instance:
-                        id: "I456"
-                        type: "critical"
-                        source: "source-name"
-                      segments:
-                        - id: "SEG_S101"
-                          span: { start: 50, end: 75 }
-                        - id: "SEG_S102"
-                          span: { start: 75, end: 100 }
-        "400":
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-              examples:
-                missing_params:
-                  summary: Neither segment_id nor span provided
-                  value:
-                    error: "No segment ID or span provided"
-                segment_mismatch:
-                  summary: Segment does not belong to manifestation
-                  value:
-                    error: "Segment SEG123 does not belong to manifestation M456"
-        "404":
-          description: Not found
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-              examples:
-                no_segments:
-                  summary: No segments found for span
-                  value:
-                    error: "No segments found containing span [0, 100) in instance 'I12345678'"
-        "422":
-          description: Validation error
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-              examples:
-                span_minimum:
-                  summary: Invalid span values
-                  value:
-                    error: "Input should be greater than or equal to 0"
-                invalid_span_type:
-                  summary: Invalid span type in SegmentModel
-                  value:
-                    error: "Input should be a valid dictionary or instance of SpanModel"
-        "500":
-          $ref: "#/components/responses/ServerError"
+  # NOTE: The following endpoints are NOT YET IMPLEMENTED but are planned for future development:
+  # - /v2/editions/{edition_id}/segment-related (complex segment relationship queries)
+  # - /v2/editions/{edition_id}/segment-content (batch segment content retrieval)
+  # - /v2/texts/{texts_id}/group (text grouping by work)
+  # - /v2/texts/{text_id}/related-by-work (related texts by work ID)
+  # - /v2/relations/expressions/{expression_id} (expression relations)
+  # - /v2/categories/{category_id}/texts (texts by category)
+  # - /v2/enum (enum management)
 
-  # /v2/editions/{edition_id}/related:
-
-  /v2/editions/{edition_id}/segment-content:
-    post:
-      summary: Get text content from segments or span
-      description: |
-        Unified endpoint to get text content from either:
-        1. Multiple segments (using segment_ids in request body)
-        2. An instance excerpt (using span_start and span_end)
-
-        **Validation constraints:**
-        - If segment_ids is provided: cannot use span_start or span_end parameters
-        - If using span approach: must provide span_start and span_end, cannot use segment_ids
-        - Must provide either segment_ids OR span_start and span_end (mutually exclusive)
-      tags:
-        - Editions
-      parameters:
-        - name: edition_id
-          in: path
-          required: true
-          schema:
-            type: string
-          description: The ID of the edition to retrieve content from
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                segment_ids:
-                  type: array
-                  items:
-                    type: string
-                  description: List of segment IDs to retrieve content for (alternative to span)
-                  example: ["SEG001", "SEG002", "SEG003"]
-                span_start:
-                  type: integer
-                  minimum: 0
-                  description: Start position for span-based excerpt (alternative to segment_ids)
-                span_end:
-                  type: integer
-                  minimum: 1
-                  description: End position for span-based excerpt (alternative to segment_ids)
-            examples:
-              multiple_segments:
-                summary: Fetch content for multiple segments
-                value:
-                  segment_ids: ["SEG001", "SEG002", "SEG003"]
-              span_excerpt:
-                summary: Fetch content by span range
-                value:
-                  span_start: 0
-                  span_end: 100
-      responses:
-        "200":
-          description: Text content retrieved successfully
-          content:
-            application/json:
-              schema:
-                type: array
-                description: List of segment content dictionaries
-                items:
-                  type: object
-                  properties:
-                    segment_id:
-                      type: string
-                      nullable: true
-                      description: Segment ID (null for span-based content)
-                    content:
-                      type: string
-                      description: The extracted text content
-                  required:
-                    - segment_id
-                    - content
-              examples:
-                segment_content:
-                  summary: Content retrieved by single segment ID
-                  value:
-                    - segment_id: "SEG001"
-                      content: "This is the text content of the segment."
-                multiple_segments_content:
-                  summary: Content retrieved by multiple segment IDs
-                  value:
-                    - segment_id: "SEG001"
-                      content: "This is the first segment content."
-                    - segment_id: "SEG002"
-                      content: "This is the second segment content."
-                    - segment_id: "SEG003"
-                      content: "This is the third segment content."
-                manifestation_excerpt:
-                  summary: Content retrieved by manifestation span
-                  value:
-                    - segment_id: null
-                      content: "This is the text content from the specified span."
-        "400":
-          description: Invalid request
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    description: Error message
-              examples:
-                missing_parameters:
-                  summary: Neither segment_ids nor span parameters provided
-                  value:
-                    error: "Either segment_ids OR span_start and span_end is required"
-                conflicting_parameters:
-                  summary: Both segment_ids and span parameters provided
-                  value:
-                    error: "Cannot provide both segment_ids and span parameters. Use one approach only."
-                invalid_segment_ids_type:
-                  summary: segment_ids is not a list
-                  value:
-                    error: "segment_ids must be a list"
-                missing_body:
-                  summary: Request body is missing
-                  value:
-                    error: "Request body is required"
-                missing_span:
-                  summary: Missing span parameters for span approach
-                  value:
-                    error: "span_start and span_end parameters are required when using span approach"
-                invalid_span:
-                  summary: Invalid span parameters (handled by SpanModel)
-                  value:
-                    error: "Invalid span parameters: 'start' must be less than 'end'"
-                segment_span_exceeds:
-                  summary: Segment span exceeds text length
-                  value:
-                    error: "segment span end (1000) exceeds base text length (500)"
-                instance_span_exceeds:
-                  summary: Instance span exceeds text length
-                  value:
-                    error: "span end (1000) exceeds base text length (500)"
-        "404":
-          description: Resource not found
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    description: Error message
-              examples:
-                segment_not_found:
-                  summary: Segment not found
-                  value:
-                    error: "Failed to retrieve segment content: Segment with ID 'SEG123' not found"
-                instance_not_found:
-                  summary: Instance not found
-                  value:
-                    error: "Failed to retrieve instance content: Instance with ID 'INST123' not found"
-        "500":
-          $ref: "#/components/responses/ServerError"
-
-  /v2/texts/{text_id}/instances:
+  /v2/texts/{text_id}/editions:
     get:
       summary: Get instances for text
       description: Retrieve all instances associated with a text. Optionally filter by instance type (manifestation type).
@@ -2718,12 +2115,12 @@ paths:
   /v2/categories:
     get:
       summary: Retrieve categories
-      description: Get categories filtered by application and optional parent
+      description: Get categories filtered by application (via X-Application header) and optional parent
       tags:
         - Categories
       parameters:
-        - name: application
-          in: query
+        - name: X-Application
+          in: header
           required: true
           schema:
             type: string
@@ -2736,6 +2133,13 @@ paths:
             type: string
             nullable: true
           description: Parent category ID (null or omitted means root categories)
+        - name: language
+          in: query
+          required: false
+          schema:
+            type: string
+            default: "bo"
+          description: Language code for filtering (default is 'bo')
       responses:
         "200":
           description: Categories retrieved successfully
@@ -2776,9 +2180,17 @@ paths:
           $ref: "#/components/responses/ServerError"
     post:
       summary: Create a new category
-      description: Create a category with localized title and optional parent relationship
+      description: Create a category with localized title and optional parent relationship. Application context is provided via X-Application header.
       tags:
         - Categories
+      parameters:
+        - name: X-Application
+          in: header
+          required: true
+          schema:
+            type: string
+          description: Application context for the category
+          example: "webuddhist"
       requestBody:
         required: true
         content:
@@ -2789,14 +2201,12 @@ paths:
               root_category:
                 summary: Root category without parent
                 value:
-                  application: "webuddhist"
                   title:
                     en: "Literature"
                     bo: "རྩོམ་རིག"
               child_category:
                 summary: Child category with parent
                 value:
-                  application: "webuddhist"
                   title:
                     en: "Poetry"
                     bo: "སྙན་ངག"
@@ -3198,6 +2608,110 @@ paths:
         "500":
           $ref: "#/components/responses/ServerError"
 
+  /v2/languages:
+    get:
+      summary: Retrieve all languages
+      description: Fetch all available language codes from the database
+      tags:
+        - Languages
+      responses:
+        "200":
+          description: Languages retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    code:
+                      type: string
+                      description: Language code (e.g., "bo", "en")
+                    name:
+                      type: string
+                      description: Language name
+              examples:
+                success:
+                  summary: List of languages
+                  value:
+                    - code: "bo"
+                      name: "tibetan"
+                    - code: "en"
+                      name: "english"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+    post:
+      summary: Create a new language
+      description: Create a new language entry in the database
+      tags:
+        - Languages
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - code
+                - name
+              properties:
+                code:
+                  type: string
+                  minLength: 1
+                  description: Language code (e.g., "bo", "en")
+                name:
+                  type: string
+                  minLength: 1
+                  description: Language name
+            examples:
+              tibetan:
+                summary: Create Tibetan language
+                value:
+                  code: "bo"
+                  name: "tibetan"
+      responses:
+        "201":
+          description: Language created successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  code:
+                    type: string
+                  name:
+                    type: string
+              examples:
+                created:
+                  summary: Language created
+                  value:
+                    code: "bo"
+                    name: "tibetan"
+        "400":
+          $ref: "#/components/responses/InvalidRequest"
+        "422":
+          $ref: "#/components/responses/ValidationError"
+        "500":
+          $ref: "#/components/responses/ServerError"
+
+  /v2/schema/openapi:
+    get:
+      summary: Get OpenAPI specification
+      description: Returns the OpenAPI specification file for this API
+      tags:
+        - Schema
+      responses:
+        "200":
+          description: OpenAPI specification retrieved successfully
+          content:
+            application/x-yaml:
+              schema:
+                type: string
+                format: binary
+        "500":
+          $ref: "#/components/responses/ServerError"
+
   /api/version:
     get:
       summary: Get API version and Git SHA
@@ -3229,12 +2743,8 @@ components:
     CategoryInput:
       type: object
       required:
-        - application
         - title
       properties:
-        application:
-          type: string
-          description: Application context for the category
         title:
           type: object
           additionalProperties:
@@ -3298,6 +2808,12 @@ components:
         person_bdrc_id:
           type: string
           nullable: true
+        person_name:
+          type: object
+          additionalProperties:
+            type: string
+          nullable: true
+          description: Localized person name (language code to name mapping)
         ai_id:
           type: string
           nullable: true
@@ -3698,7 +3214,8 @@ components:
           $ref: "#/components/schemas/SpanModel"
         type:
           type: string
-          enum: [colophon, title, incipit_title, author]
+          enum:
+            [colophon, title, incipit, alt_incipit, alt_title, person, author]
           description: Type of bibliographic metadata
         metadata:
           type: object
@@ -3771,7 +3288,8 @@ components:
           $ref: "#/components/schemas/SpanModel"
         type:
           type: string
-          enum: [colophon, title, incipit_title, author]
+          enum:
+            [colophon, title, incipit, alt_incipit, alt_title, person, author]
         metadata:
           type: object
           nullable: true
