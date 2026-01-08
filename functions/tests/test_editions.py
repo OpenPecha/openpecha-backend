@@ -411,7 +411,7 @@ class TestEditionAnnotations(TestEditionsEndpoints):
     """Tests for POST/GET /v2/editions/{edition_id}/annotations"""
 
     def test_post_segmentation_annotation(self, client, test_database, test_person_data):
-        """Test adding segmentation annotation to an edition"""
+        """Test adding segmentation annotation and retrieving it"""
         person_id = self._create_test_person(test_database, test_person_data)
         expression_id = self._create_test_expression(test_database, person_id)
         manifestation_id = self._create_test_manifestation(test_database, expression_id, "0123456789")
@@ -425,13 +425,18 @@ class TestEditionAnnotations(TestEditionsEndpoints):
             }
         }
 
-        response = client.post(f"/v2/editions/{manifestation_id}/annotations", json=annotation_data)
+        post_response = client.post(f"/v2/editions/{manifestation_id}/annotations", json=annotation_data)
+        assert post_response.status_code == 201
 
-        assert response.status_code == 201
-        assert "message" in response.get_json()
+        get_response = client.get(f"/v2/editions/{manifestation_id}/annotations?type=segmentation&type=segmentation")
+        assert get_response.status_code == 200
+        data = get_response.get_json()
+        assert "segmentations" in data
+        assert len(data["segmentations"]) == 1
+        assert len(data["segmentations"][0]["segments"]) == 2
 
     def test_post_pagination_annotation(self, client, test_database, test_person_data):
-        """Test adding pagination annotation to an edition"""
+        """Test adding pagination annotation and retrieving it"""
         person_id = self._create_test_person(test_database, test_person_data)
         expression_id = self._create_test_expression(test_database, person_id)
         manifestation_id = self._create_test_manifestation(test_database, expression_id, "0123456789ABCDEF")
@@ -447,9 +452,14 @@ class TestEditionAnnotations(TestEditionsEndpoints):
             }
         }
 
-        response = client.post(f"/v2/editions/{manifestation_id}/annotations", json=annotation_data)
+        post_response = client.post(f"/v2/editions/{manifestation_id}/annotations", json=annotation_data)
+        assert post_response.status_code == 201
 
-        assert response.status_code == 201
+        get_response = client.get(f"/v2/editions/{manifestation_id}/annotations?type=pagination&type=pagination")
+        assert get_response.status_code == 200
+        data = get_response.get_json()
+        assert "pagination" in data
+        assert "volume" in data["pagination"]
 
     def test_get_annotations_all_types(self, client, test_database, test_person_data):
         """Test getting all annotation types for an edition"""
@@ -490,6 +500,113 @@ class TestEditionAnnotations(TestEditionsEndpoints):
         response = client.post(f"/v2/editions/{manifestation_id}/annotations")
 
         assert response.status_code == 400
+
+    def test_post_alignment_annotation(self, client, test_database, test_person_data):
+        """Test adding alignment annotation and retrieving it"""
+        person_id = self._create_test_person(test_database, test_person_data)
+
+        source_expression_id = self._create_test_expression(
+            test_database, person_id, title=LocalizedString({"bo": "རྩ་བ།", "en": "Source"})
+        )
+        source_manifestation_id = self._create_test_manifestation(
+            test_database, source_expression_id, "0123456789"
+        )
+
+        target_expression_id = self._create_test_expression(
+            test_database, person_id, title=LocalizedString({"bo": "དམིགས་བསལ།", "en": "Target"})
+        )
+        target_manifestation_id = self._create_test_manifestation(
+            test_database, target_expression_id, "ABCDEFGHIJ"
+        )
+
+        annotation_data = {
+            "alignment": {
+                "target_id": target_manifestation_id,
+                "target_segments": [
+                    {"lines": [{"start": 0, "end": 10}]},
+                ],
+                "aligned_segments": [
+                    {"lines": [{"start": 0, "end": 10}], "alignment_indices": [0]},
+                ],
+            }
+        }
+
+        post_response = client.post(f"/v2/editions/{source_manifestation_id}/annotations", json=annotation_data)
+        assert post_response.status_code == 201
+
+        get_response = client.get(f"/v2/editions/{source_manifestation_id}/annotations?type=alignment&type=alignment")
+        assert get_response.status_code == 200
+        data = get_response.get_json()
+        assert "alignments" in data
+        assert len(data["alignments"]) == 1
+        assert data["alignments"][0]["target_id"] == target_manifestation_id
+
+    def test_post_bibliographic_metadata_annotation(self, client, test_database, test_person_data):
+        """Test adding bibliographic metadata annotation and retrieving it"""
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_id = self._create_test_expression(test_database, person_id)
+        manifestation_id = self._create_test_manifestation(test_database, expression_id, "0123456789ABCDEF")
+
+        annotation_data = {
+            "bibliographic_metadata": [
+                {"span": {"start": 0, "end": 8}, "type": "colophon"},
+            ]
+        }
+
+        post_response = client.post(f"/v2/editions/{manifestation_id}/annotations", json=annotation_data)
+        assert post_response.status_code == 201
+
+        get_response = client.get(f"/v2/editions/{manifestation_id}/annotations?type=bibliography&type=bibliography")
+        assert get_response.status_code == 200
+        data = get_response.get_json()
+        assert "bibliographic_metadata" in data
+        assert len(data["bibliographic_metadata"]) == 1
+        assert data["bibliographic_metadata"][0]["type"] == "colophon"
+        assert data["bibliographic_metadata"][0]["span"]["start"] == 0
+        assert data["bibliographic_metadata"][0]["span"]["end"] == 8
+
+    def test_post_durchen_notes_annotation(self, client, test_database, test_person_data):
+        """Test adding durchen notes annotation and retrieving it"""
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_id = self._create_test_expression(test_database, person_id)
+        manifestation_id = self._create_test_manifestation(test_database, expression_id, "0123456789ABCDEF")
+
+        annotation_data = {
+            "durchen_notes": [
+                {"span": {"start": 0, "end": 5}, "text": "Test note content"},
+            ]
+        }
+
+        post_response = client.post(f"/v2/editions/{manifestation_id}/annotations", json=annotation_data)
+        assert post_response.status_code == 201
+
+        get_response = client.get(f"/v2/editions/{manifestation_id}/annotations?type=durchen&type=durchen")
+        assert get_response.status_code == 200
+        data = get_response.get_json()
+        assert "durchen_notes" in data
+        assert len(data["durchen_notes"]) == 1
+        assert data["durchen_notes"][0]["text"] == "Test note content"
+        assert data["durchen_notes"][0]["span"]["start"] == 0
+        assert data["durchen_notes"][0]["span"]["end"] == 5
+
+    def test_post_annotation_multiple_types_fails(self, client, test_database, test_person_data):
+        """Test that posting multiple annotation types at once fails"""
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_id = self._create_test_expression(test_database, person_id)
+        manifestation_id = self._create_test_manifestation(test_database, expression_id, "0123456789")
+
+        annotation_data = {
+            "segmentation": {
+                "segments": [{"lines": [{"start": 0, "end": 10}]}]
+            },
+            "durchen_notes": [
+                {"span": {"start": 0, "end": 5}, "text": "Note"}
+            ]
+        }
+
+        response = client.post(f"/v2/editions/{manifestation_id}/annotations", json=annotation_data)
+
+        assert response.status_code == 422
 
 
 class TestRelatedEditions(TestEditionsEndpoints):
@@ -707,3 +824,162 @@ class TestDeleteEdition(TestEditionsEndpoints):
 
         segmentation_after = client.get(f"/v2/annotations/segmentation/{segmentation_id}")
         assert segmentation_after.status_code == 404
+
+
+class TestSegmentsRelated(TestEditionsEndpoints):
+    """Tests for GET /v2/editions/{edition_id}/segments/related"""
+
+    def test_get_segments_related_no_segments(self, client, test_database, test_person_data):
+        """Test getting related segments when no segments exist"""
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_id = self._create_test_expression(test_database, person_id)
+        manifestation_id = self._create_test_manifestation(test_database, expression_id, "0123456789")
+
+        response = client.get(f"/v2/editions/{manifestation_id}/segments/related?span_start=0&span_end=5")
+
+        assert response.status_code == 200
+        assert response.get_json() == []
+
+    def test_get_segments_related_missing_params(self, client, test_database, test_person_data):
+        """Test getting related segments without required query params"""
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_id = self._create_test_expression(test_database, person_id)
+        manifestation_id = self._create_test_manifestation(test_database, expression_id, "0123456789")
+
+        response = client.get(f"/v2/editions/{manifestation_id}/segments/related")
+
+        assert response.status_code == 422
+
+    def test_get_segments_related_invalid_span(self, client, test_database, test_person_data):
+        """Test getting related segments with invalid span (start > end)"""
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_id = self._create_test_expression(test_database, person_id)
+        manifestation_id = self._create_test_manifestation(test_database, expression_id, "0123456789")
+
+        response = client.get(f"/v2/editions/{manifestation_id}/segments/related?span_start=10&span_end=5")
+
+        assert response.status_code == 422
+
+    def test_get_segments_related_with_alignment(self, client, test_database, test_person_data):
+        """Test getting related segments when alignment exists"""
+        person_id = self._create_test_person(test_database, test_person_data)
+
+        source_expression_id = self._create_test_expression(
+            test_database, person_id, title=LocalizedString({"bo": "རྩ་བ།", "en": "Source"})
+        )
+        source_manifestation_id = self._create_test_manifestation(
+            test_database, source_expression_id, "0123456789"
+        )
+
+        target_expression_id = self._create_test_expression(
+            test_database, person_id, title=LocalizedString({"bo": "དམིགས་བསལ།", "en": "Target"})
+        )
+        target_manifestation_id = self._create_test_manifestation(
+            test_database, target_expression_id, "ABCDEFGHIJ"
+        )
+
+        alignment_data = {
+            "alignment": {
+                "target_id": target_manifestation_id,
+                "target_segments": [
+                    {"lines": [{"start": 0, "end": 5}]},
+                    {"lines": [{"start": 5, "end": 10}]},
+                ],
+                "aligned_segments": [
+                    {"lines": [{"start": 0, "end": 5}], "alignment_indices": [0]},
+                    {"lines": [{"start": 5, "end": 10}], "alignment_indices": [1]},
+                ],
+            }
+        }
+
+        post_response = client.post(f"/v2/editions/{source_manifestation_id}/annotations", json=alignment_data)
+        assert post_response.status_code == 201
+
+        response = client.get(f"/v2/editions/{source_manifestation_id}/segments/related?span_start=0&span_end=5")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert isinstance(data, list)
+        if len(data) > 0:
+            assert "manifestation_id" in data[0]
+            assert "text_id" in data[0]
+            assert "lines" in data[0]
+
+    def test_get_segments_related_span_outside_segments(self, client, test_database, test_person_data):
+        """Test getting related segments when span doesn't overlap any segments"""
+        person_id = self._create_test_person(test_database, test_person_data)
+
+        source_expression_id = self._create_test_expression(
+            test_database, person_id, title=LocalizedString({"bo": "རྩ་བ།", "en": "Source"})
+        )
+        source_manifestation_id = self._create_test_manifestation(
+            test_database, source_expression_id, "0123456789ABCDEF"
+        )
+
+        target_expression_id = self._create_test_expression(
+            test_database, person_id, title=LocalizedString({"bo": "དམིགས་བསལ།", "en": "Target"})
+        )
+        target_manifestation_id = self._create_test_manifestation(
+            test_database, target_expression_id, "GHIJKLMNOP"
+        )
+
+        alignment_data = {
+            "alignment": {
+                "target_id": target_manifestation_id,
+                "target_segments": [
+                    {"lines": [{"start": 0, "end": 5}]},
+                ],
+                "aligned_segments": [
+                    {"lines": [{"start": 0, "end": 5}], "alignment_indices": [0]},
+                ],
+            }
+        }
+
+        post_response = client.post(f"/v2/editions/{source_manifestation_id}/annotations", json=alignment_data)
+        assert post_response.status_code == 201
+
+        response = client.get(f"/v2/editions/{source_manifestation_id}/segments/related?span_start=10&span_end=15")
+
+        assert response.status_code == 200
+        assert response.get_json() == []
+
+    def test_get_segments_related_partial_overlap(self, client, test_database, test_person_data):
+        """Test getting related segments when span partially overlaps segments"""
+        person_id = self._create_test_person(test_database, test_person_data)
+
+        source_expression_id = self._create_test_expression(
+            test_database, person_id, title=LocalizedString({"bo": "རྩ་བ།", "en": "Source"})
+        )
+        source_manifestation_id = self._create_test_manifestation(
+            test_database, source_expression_id, "0123456789"
+        )
+
+        target_expression_id = self._create_test_expression(
+            test_database, person_id, title=LocalizedString({"bo": "དམིགས་བསལ།", "en": "Target"})
+        )
+        target_manifestation_id = self._create_test_manifestation(
+            test_database, target_expression_id, "ABCDEFGHIJ"
+        )
+
+        alignment_data = {
+            "alignment": {
+                "target_id": target_manifestation_id,
+                "target_segments": [
+                    {"lines": [{"start": 0, "end": 5}]},
+                    {"lines": [{"start": 5, "end": 10}]},
+                ],
+                "aligned_segments": [
+                    {"lines": [{"start": 0, "end": 5}], "alignment_indices": [0]},
+                    {"lines": [{"start": 5, "end": 10}], "alignment_indices": [1]},
+                ],
+            }
+        }
+
+        post_response = client.post(f"/v2/editions/{source_manifestation_id}/annotations", json=alignment_data)
+        assert post_response.status_code == 201
+
+        response = client.get(f"/v2/editions/{source_manifestation_id}/segments/related?span_start=3&span_end=7")
+
+        assert response.status_code == 200
+        data = response.get_json()
+        assert isinstance(data, list)

@@ -37,6 +37,7 @@ class AlignmentDatabase:
          target_manifestation, target_expression, target_segment,
          min(target_span.start) AS target_min_start,
          collect({start: target_span.start, end: target_span.end}) AS target_lines
+    ORDER BY target_min_start
     WITH source_segmentation, source_min_start, source_lines, target_manifestation, target_expression,
          collect({id: target_segment.id, min_start: target_min_start, lines: target_lines}) AS aligned_targets
     ORDER BY source_min_start

@@ -30,10 +30,9 @@ def load_constraints_file() -> list[str]:
 def setup_test_schema(session) -> None:
     """Setup common test schema data needed by all test suites."""
 
-    session.execute_write(lambda tx: tx.run("MATCH (n) DETACH DELETE n"))
-    
     def do_seed(tx):
-        tx.run("CREATE (:Language {code: 'bo', name: 'Tibetan'})")
+        tx.run("MATCH (n) DETACH DELETE n")
+        tx.run("MERGE (:Language {code: 'bo', name: 'Tibetan'})")
         tx.run("CREATE (:Language {code: 'en', name: 'English'})")
         tx.run("CREATE (:Language {code: 'sa', name: 'Sanskrit'})")
         tx.run("CREATE (:Language {code: 'zh', name: 'Chinese'})")
@@ -46,6 +45,14 @@ def setup_test_schema(session) -> None:
         tx.run("CREATE (:RoleType {name: 'reviser'})")
         tx.run("CREATE (:LicenseType {name: 'public'})")
         tx.run("CREATE (:LicenseType {name: 'cc0'})")
+        tx.run("CREATE (:NoteType {name: 'durchen'})")
+        tx.run("CREATE (:BibliographyType {name: 'colophon'})")
+        tx.run("CREATE (:BibliographyType {name: 'incipit'})")
+        tx.run("CREATE (:BibliographyType {name: 'alt_incipit'})")
+        tx.run("CREATE (:BibliographyType {name: 'alt_title'})")
+        tx.run("CREATE (:BibliographyType {name: 'person'})")
+        tx.run("CREATE (:BibliographyType {name: 'title'})")
+        tx.run("CREATE (:BibliographyType {name: 'author'})")
         tx.run("""
             CREATE (app:Application {id: 'test_application', name: 'Test Application'})
             CREATE (cat:Category {id: 'category'})-[:BELONGS_TO]->(app)
