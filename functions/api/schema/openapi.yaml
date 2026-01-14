@@ -1053,6 +1053,76 @@ paths:
                 "500":
                     $ref: "#/components/responses/ServerError"
 
+        patch:
+            summary: Update a person
+            description: Partially update a person record. Only provided fields will be updated; omitted fields retain their current values.
+            tags:
+                - Persons
+            parameters:
+                - name: person_id
+                  in: path
+                  required: true
+                  schema:
+                      type: string
+                  description: The ID of the person to update
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: "#/components/schemas/PersonPatch"
+                        examples:
+                            update_bdrc:
+                                summary: Update BDRC ID only
+                                value:
+                                    bdrc: "P654321"
+                            update_name:
+                                summary: Update name only
+                                value:
+                                    name:
+                                        en: "Updated Name"
+                                        bo: "གསར་བསྒྱུར་མིང་།"
+                            update_multiple:
+                                summary: Update multiple fields
+                                value:
+                                    name:
+                                        en: "New Name"
+                                    bdrc: "P999999"
+                                    wiki: "Q999999"
+                                    alt_names:
+                                        - en: "Alternative Name"
+                                          bo: "གཞན་མིང་།"
+            responses:
+                "200":
+                    description: Person updated successfully
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/PersonOutput"
+                            examples:
+                                success:
+                                    summary: Updated person
+                                    value:
+                                        id: "P12345678"
+                                        name:
+                                            en: "Updated Name"
+                                            bo: "གསར་བསྒྱུར་མིང་།"
+                                        alt_names:
+                                            - en: "Alternative Name"
+                                              bo: "གཞན་མིང་།"
+                                        bdrc: "P654321"
+                                        wiki: "Q123456"
+                "400":
+                    $ref: "#/components/responses/InvalidRequest"
+                "404":
+                    $ref: "#/components/responses/NotFound"
+                "409":
+                    $ref: "#/components/responses/ConflictError"
+                "422":
+                    $ref: "#/components/responses/ValidationError"
+                "500":
+                    $ref: "#/components/responses/ServerError"
+
     /v2/annotations/segmentation/{segmentation_id}:
         get:
             summary: Retrieve segmentation annotation by ID
@@ -2871,6 +2941,32 @@ components:
                             type: string
                     description: Alternative localized names
 
+        PersonPatch:
+            type: object
+            description: Partial update for a person. At least one field must be provided.
+            properties:
+                bdrc:
+                    type: string
+                    nullable: true
+                    description: BDRC identifier
+                wiki:
+                    type: string
+                    nullable: true
+                    description: Wikidata identifier
+                name:
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: Localized name (language code -> name)
+                alt_names:
+                    type: array
+                    nullable: true
+                    items:
+                        type: object
+                        additionalProperties:
+                            type: string
+                    description: Alternative localized names
+
         PersonOutput:
             type: object
             required:
@@ -2928,6 +3024,21 @@ components:
                                 description: Error message
                                 examples:
                                     - "Resource was not found"
+                        required:
+                            - error
+
+        ConflictError:
+            description: Conflict with existing resource
+            content:
+                application/json:
+                    schema:
+                        type: object
+                        properties:
+                            error:
+                                type: string
+                                description: Error message
+                                examples:
+                                    - "Person with BDRC ID 'P123456' already exists"
                         required:
                             - error
 

@@ -10,7 +10,7 @@ from .data_adapter import DataAdapter
 from .nomen_database import NomenDatabase
 
 if TYPE_CHECKING:
-    from models import PersonInput, PersonOutput
+    from models import PersonInput, PersonOutput, PersonPatch
     from neo4j import ManagedTransaction, Session
 
     from .database import Database
@@ -53,6 +53,25 @@ class PersonDatabase:
     CREATE (p:Person {id: $id, bdrc: $bdrc, wiki: $wiki})
     CREATE (p)-[:HAS_NAME]->(n)
     RETURN p.id as person_id
+    """
+
+    UPDATE_PROPERTIES_QUERY = """
+    MATCH (p:Person {id: $id})
+    SET p.bdrc = $bdrc, p.wiki = $wiki
+    RETURN p.id as person_id
+    """
+
+    DELETE_NAME_QUERY = """
+    MATCH (p:Person {id: $person_id})-[:HAS_NAME]->(n:Nomen)
+    OPTIONAL MATCH (n)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
+    OPTIONAL MATCH (n)<-[:ALTERNATIVE_OF]-(alt:Nomen)-[:HAS_LOCALIZATION]->(alt_lt:LocalizedText)
+    DETACH DELETE n, lt, alt, alt_lt
+    """
+
+    LINK_NAME_QUERY = """
+    MATCH (p:Person {id: $person_id})
+    MATCH (n:Nomen {id: $nomen_id})
+    CREATE (p)-[:HAS_NAME]->(n)
     """
 
     def __init__(self, db: Database) -> None:
@@ -106,4 +125,43 @@ class PersonDatabase:
                     raise DataConflictError(f"Person with BDRC ID '{person.bdrc}' already exists") from e
                 if "wiki" in error_msg:
                     raise DataConflictError(f"Person with Wiki ID '{person.wiki}' already exists") from e
+                raise
+
+    def update(self, person_id: str, patch: PersonPatch) -> PersonOutput:
+        def update_transaction(tx: ManagedTransaction) -> None:
+            existing = self.get(person_id)
+
+            new_bdrc = patch.bdrc if patch.bdrc is not None else existing.bdrc
+            new_wiki = patch.wiki if patch.wiki is not None else existing.wiki
+
+            tx.run(
+                PersonDatabase.UPDATE_PROPERTIES_QUERY,
+                id=person_id,
+                bdrc=new_bdrc,
+                wiki=new_wiki,
+            )
+
+            if patch.name is not None or patch.alt_names is not None:
+                tx.run(PersonDatabase.DELETE_NAME_QUERY, person_id=person_id)
+
+                new_name = patch.name.root if patch.name is not None else existing.name.root
+                new_alt_names = (
+                    [alt.root for alt in patch.alt_names]
+                    if patch.alt_names is not None
+                    else ([alt.root for alt in existing.alt_names] if existing.alt_names else None)
+                )
+
+                primary_nomen_id = NomenDatabase.create_with_transaction(tx, new_name, new_alt_names)
+                tx.run(PersonDatabase.LINK_NAME_QUERY, person_id=person_id, nomen_id=primary_nomen_id)
+
+        with self.session as session:
+            try:
+                session.execute_write(update_transaction)
+                return self.get(person_id)
+            except ConstraintError as e:
+                error_msg = str(e).lower()
+                if "bdrc" in error_msg:
+                    raise DataConflictError(f"Person with BDRC ID '{patch.bdrc}' already exists") from e
+                if "wiki" in error_msg:
+                    raise DataConflictError(f"Person with Wiki ID '{patch.wiki}' already exists") from e
                 raise

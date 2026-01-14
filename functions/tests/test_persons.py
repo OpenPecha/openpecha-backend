@@ -916,3 +916,496 @@ class TestPersonsIntegration:
         returned_ids = [p["id"] for p in all_data]
         for created_id in created_ids:
             assert created_id in returned_ids
+
+
+class TestPatchPersonV2:
+    """Tests for PATCH /v2/persons/{id} endpoint (update person)"""
+
+    def test_patch_person_update_bdrc_only(self, client, test_database):
+        """Test updating only the bdrc field"""
+        person_data = {"name": {"en": "Original Person"}, "bdrc": "P111111"}
+        person = PersonInput.model_validate(person_data)
+        person_id = test_database.person.create(person)
+
+        patch_data = {"bdrc": "P222222"}
+        response = client.patch(
+            f"/v2/persons/{person_id}",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data["id"] == person_id
+        assert data["bdrc"] == "P222222"
+        assert data["name"]["en"] == "Original Person"
+
+        get_response = client.get(f"/v2/persons/{person_id}")
+        assert get_response.status_code == 200
+        get_data = json.loads(get_response.data)
+        assert get_data["bdrc"] == "P222222"
+        assert get_data["name"]["en"] == "Original Person"
+
+    def test_patch_person_update_wiki_only(self, client, test_database):
+        """Test updating only the wiki field"""
+        person_data = {"name": {"en": "Wiki Person"}, "wiki": "Q111111"}
+        person = PersonInput.model_validate(person_data)
+        person_id = test_database.person.create(person)
+
+        patch_data = {"wiki": "Q222222"}
+        response = client.patch(
+            f"/v2/persons/{person_id}",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data["id"] == person_id
+        assert data["wiki"] == "Q222222"
+        assert data["name"]["en"] == "Wiki Person"
+
+        get_response = client.get(f"/v2/persons/{person_id}")
+        assert get_response.status_code == 200
+        get_data = json.loads(get_response.data)
+        assert get_data["wiki"] == "Q222222"
+        assert get_data["name"]["en"] == "Wiki Person"
+
+    def test_patch_person_update_name_only(self, client, test_database):
+        """Test updating only the name field"""
+        person_data = {"name": {"en": "Original Name", "bo": "བོད་མིང་།"}}
+        person = PersonInput.model_validate(person_data)
+        person_id = test_database.person.create(person)
+
+        patch_data = {"name": {"en": "Updated Name", "bo": "གསར་བསྒྱུར་མིང་།"}}
+        response = client.patch(
+            f"/v2/persons/{person_id}",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data["id"] == person_id
+        assert data["name"]["en"] == "Updated Name"
+        assert data["name"]["bo"] == "གསར་བསྒྱུར་མིང་།"
+
+        get_response = client.get(f"/v2/persons/{person_id}")
+        assert get_response.status_code == 200
+        get_data = json.loads(get_response.data)
+        assert get_data["name"]["en"] == "Updated Name"
+        assert get_data["name"]["bo"] == "གསར་བསྒྱུར་མིང་།"
+
+    def test_patch_person_update_alt_names_only(self, client, test_database):
+        """Test updating only the alt_names field"""
+        person_data = {
+            "name": {"en": "Primary Name"},
+            "alt_names": [{"en": "Old Alt Name"}],
+        }
+        person = PersonInput.model_validate(person_data)
+        person_id = test_database.person.create(person)
+
+        patch_data = {"alt_names": [{"en": "New Alt Name 1"}, {"en": "New Alt Name 2"}]}
+        response = client.patch(
+            f"/v2/persons/{person_id}",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data["id"] == person_id
+        assert data["name"]["en"] == "Primary Name"
+        assert len(data["alt_names"]) == 2
+        alt_names_en = [alt.get("en") for alt in data["alt_names"] if "en" in alt]
+        assert "New Alt Name 1" in alt_names_en
+        assert "New Alt Name 2" in alt_names_en
+
+        get_response = client.get(f"/v2/persons/{person_id}")
+        assert get_response.status_code == 200
+        get_data = json.loads(get_response.data)
+        assert get_data["name"]["en"] == "Primary Name"
+        assert len(get_data["alt_names"]) == 2
+        get_alt_names_en = [alt.get("en") for alt in get_data["alt_names"] if "en" in alt]
+        assert "New Alt Name 1" in get_alt_names_en
+        assert "New Alt Name 2" in get_alt_names_en
+
+    def test_patch_person_update_multiple_fields(self, client, test_database):
+        """Test updating multiple fields at once"""
+        person_data = {
+            "name": {"en": "Original"},
+            "bdrc": "P333333",
+            "wiki": "Q333333",
+        }
+        person = PersonInput.model_validate(person_data)
+        person_id = test_database.person.create(person)
+
+        patch_data = {
+            "name": {"en": "Updated"},
+            "bdrc": "P444444",
+            "wiki": "Q444444",
+        }
+        response = client.patch(
+            f"/v2/persons/{person_id}",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data["name"]["en"] == "Updated"
+        assert data["bdrc"] == "P444444"
+        assert data["wiki"] == "Q444444"
+
+        get_response = client.get(f"/v2/persons/{person_id}")
+        assert get_response.status_code == 200
+        get_data = json.loads(get_response.data)
+        assert get_data["name"]["en"] == "Updated"
+        assert get_data["bdrc"] == "P444444"
+        assert get_data["wiki"] == "Q444444"
+
+    def test_patch_person_not_found(self, client, test_database):
+        """Test patching a non-existent person returns 404"""
+        patch_data = {"bdrc": "P555555"}
+        response = client.patch(
+            "/v2/persons/nonexistent_id",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 404
+        data = json.loads(response.data)
+        assert "error" in data
+
+    def test_patch_person_empty_payload_rejected(self, client, test_database):
+        """Test that empty payload is rejected"""
+        person_data = {"name": {"en": "Test Person"}}
+        person = PersonInput.model_validate(person_data)
+        person_id = test_database.person.create(person)
+
+        response = client.patch(
+            f"/v2/persons/{person_id}",
+            data=json.dumps({}),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert "error" in data
+
+    def test_patch_person_unknown_field_rejected(self, client, test_database):
+        """Test that unknown fields are rejected"""
+        person_data = {"name": {"en": "Test Person"}}
+        person = PersonInput.model_validate(person_data)
+        person_id = test_database.person.create(person)
+
+        patch_data = {"unknown_field": "value"}
+        response = client.patch(
+            f"/v2/persons/{person_id}",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 422
+        data = json.loads(response.data)
+        assert "error" in data
+
+    def test_patch_person_duplicate_bdrc_rejected(self, client, test_database):
+        """Test that duplicate BDRC ID is rejected"""
+        person1_data = {"name": {"en": "Person 1"}, "bdrc": "P666666"}
+        person1 = PersonInput.model_validate(person1_data)
+        test_database.person.create(person1)
+
+        person2_data = {"name": {"en": "Person 2"}, "bdrc": "P777777"}
+        person2 = PersonInput.model_validate(person2_data)
+        person2_id = test_database.person.create(person2)
+
+        patch_data = {"bdrc": "P666666"}
+        response = client.patch(
+            f"/v2/persons/{person2_id}",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 409
+        data = json.loads(response.data)
+        assert "error" in data
+        assert "already exists" in data["error"].lower()
+
+        get_response = client.get(f"/v2/persons/{person2_id}")
+        assert get_response.status_code == 200
+        get_data = json.loads(get_response.data)
+        assert get_data["bdrc"] == "P777777"
+
+    def test_patch_person_duplicate_wiki_rejected(self, client, test_database):
+        """Test that duplicate Wiki ID is rejected"""
+        person1_data = {"name": {"en": "Person 1"}, "wiki": "Q888888"}
+        person1 = PersonInput.model_validate(person1_data)
+        test_database.person.create(person1)
+
+        person2_data = {"name": {"en": "Person 2"}, "wiki": "Q999999"}
+        person2 = PersonInput.model_validate(person2_data)
+        person2_id = test_database.person.create(person2)
+
+        patch_data = {"wiki": "Q888888"}
+        response = client.patch(
+            f"/v2/persons/{person2_id}",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 409
+        data = json.loads(response.data)
+        assert "error" in data
+        assert "already exists" in data["error"].lower()
+
+        get_response = client.get(f"/v2/persons/{person2_id}")
+        assert get_response.status_code == 200
+        get_data = json.loads(get_response.data)
+        assert get_data["wiki"] == "Q999999"
+
+    def test_patch_person_invalid_name_structure(self, client, test_database):
+        """Test that invalid name structure is rejected"""
+        person_data = {"name": {"en": "Test Person"}}
+        person = PersonInput.model_validate(person_data)
+        person_id = test_database.person.create(person)
+
+        patch_data = {"name": "not a dict"}
+        response = client.patch(
+            f"/v2/persons/{person_id}",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 422
+        data = json.loads(response.data)
+        assert "error" in data
+
+        get_response = client.get(f"/v2/persons/{person_id}")
+        assert get_response.status_code == 200
+        get_data = json.loads(get_response.data)
+        assert get_data["name"]["en"] == "Test Person"
+
+    def test_patch_person_empty_name_rejected(self, client, test_database):
+        """Test that empty name dict is rejected"""
+        person_data = {"name": {"en": "Test Person"}}
+        person = PersonInput.model_validate(person_data)
+        person_id = test_database.person.create(person)
+
+        patch_data = {"name": {}}
+        response = client.patch(
+            f"/v2/persons/{person_id}",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 422
+        data = json.loads(response.data)
+        assert "error" in data
+
+        get_response = client.get(f"/v2/persons/{person_id}")
+        assert get_response.status_code == 200
+        get_data = json.loads(get_response.data)
+        assert get_data["name"]["en"] == "Test Person"
+
+    def test_patch_person_invalid_alt_names_structure(self, client, test_database):
+        """Test that invalid alt_names structure is rejected"""
+        person_data = {"name": {"en": "Test Person"}}
+        person = PersonInput.model_validate(person_data)
+        person_id = test_database.person.create(person)
+
+        patch_data = {"alt_names": "not a list"}
+        response = client.patch(
+            f"/v2/persons/{person_id}",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 422
+        data = json.loads(response.data)
+        assert "error" in data
+
+        get_response = client.get(f"/v2/persons/{person_id}")
+        assert get_response.status_code == 200
+        get_data = json.loads(get_response.data)
+        assert get_data["name"]["en"] == "Test Person"
+
+    def test_patch_person_preserves_unpatched_fields(self, client, test_database):
+        """Test that fields not in patch are preserved"""
+        person_data = {
+            "name": {"en": "Original Name", "bo": "བོད་མིང་།"},
+            "alt_names": [{"en": "Alt Name"}],
+            "bdrc": "P101010",
+            "wiki": "Q101010",
+        }
+        person = PersonInput.model_validate(person_data)
+        person_id = test_database.person.create(person)
+
+        patch_data = {"bdrc": "P202020"}
+        response = client.patch(
+            f"/v2/persons/{person_id}",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data["bdrc"] == "P202020"
+        assert data["wiki"] == "Q101010"
+        assert data["name"]["en"] == "Original Name"
+        assert data["name"]["bo"] == "བོད་མིང་།"
+        assert len(data["alt_names"]) == 1
+
+        get_response = client.get(f"/v2/persons/{person_id}")
+        assert get_response.status_code == 200
+        get_data = json.loads(get_response.data)
+        assert get_data["bdrc"] == "P202020"
+        assert get_data["wiki"] == "Q101010"
+        assert get_data["name"]["en"] == "Original Name"
+        assert get_data["name"]["bo"] == "བོད་མིང་།"
+        assert len(get_data["alt_names"]) == 1
+
+    def test_patch_person_with_tibetan_name(self, client, test_database):
+        """Test patching with Tibetan name"""
+        person_data = {"name": {"en": "English Name"}}
+        person = PersonInput.model_validate(person_data)
+        person_id = test_database.person.create(person)
+
+        patch_data = {"name": {"bo": "བོད་སྐད་མིང་།"}}
+        response = client.patch(
+            f"/v2/persons/{person_id}",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data["name"]["bo"] == "བོད་སྐད་མིང་།"
+
+        get_response = client.get(f"/v2/persons/{person_id}")
+        assert get_response.status_code == 200
+        get_data = json.loads(get_response.data)
+        assert get_data["name"]["bo"] == "བོད་སྐད་མིང་།"
+
+    def test_patch_person_with_bcp47_language_tag(self, client, test_database):
+        """Test patching with BCP47 language tags"""
+        person_data = {"name": {"en": "English Name"}}
+        person = PersonInput.model_validate(person_data)
+        person_id = test_database.person.create(person)
+
+        patch_data = {"name": {"en-US": "American Name", "bo-Latn": "bod skad"}}
+        response = client.patch(
+            f"/v2/persons/{person_id}",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert "id" in data
+
+        get_response = client.get(f"/v2/persons/{person_id}")
+        assert get_response.status_code == 200
+        get_data = json.loads(get_response.data)
+        assert "id" in get_data
+
+    def test_patch_person_clear_alt_names(self, client, test_database):
+        """Test clearing alt_names by providing empty list"""
+        person_data = {
+            "name": {"en": "Primary Name"},
+            "alt_names": [{"en": "Alt Name 1"}, {"en": "Alt Name 2"}],
+        }
+        person = PersonInput.model_validate(person_data)
+        person_id = test_database.person.create(person)
+
+        patch_data = {"alt_names": []}
+        response = client.patch(
+            f"/v2/persons/{person_id}",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data["alt_names"] is None or data["alt_names"] == []
+
+        get_response = client.get(f"/v2/persons/{person_id}")
+        assert get_response.status_code == 200
+        get_data = json.loads(get_response.data)
+        assert get_data["alt_names"] is None or get_data["alt_names"] == []
+
+    def test_patch_person_invalid_json(self, client, test_database):
+        """Test that invalid JSON is rejected"""
+        person_data = {"name": {"en": "Test Person"}}
+        person = PersonInput.model_validate(person_data)
+        person_id = test_database.person.create(person)
+
+        response = client.patch(
+            f"/v2/persons/{person_id}",
+            data="invalid json",
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400
+
+    def test_patch_person_no_content_type(self, client, test_database):
+        """Test that missing content type is handled"""
+        person_data = {"name": {"en": "Test Person"}}
+        person = PersonInput.model_validate(person_data)
+        person_id = test_database.person.create(person)
+
+        response = client.patch(f"/v2/persons/{person_id}")
+
+        assert response.status_code == 400
+
+    def test_patch_person_alt_name_same_as_primary_deduped(self, client, test_database):
+        """Test that alt_name identical to name is deduplicated"""
+        person_data = {"name": {"en": "Primary Name"}}
+        person = PersonInput.model_validate(person_data)
+        person_id = test_database.person.create(person)
+
+        patch_data = {
+            "name": {"en": "New Primary"},
+            "alt_names": [{"en": "New Primary"}, {"en": "Different Alt"}],
+        }
+        response = client.patch(
+            f"/v2/persons/{person_id}",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        alt_names_en = [alt.get("en") for alt in data.get("alt_names", []) if "en" in alt]
+        assert "New Primary" not in alt_names_en
+        assert "Different Alt" in alt_names_en
+
+        get_response = client.get(f"/v2/persons/{person_id}")
+        assert get_response.status_code == 200
+        get_data = json.loads(get_response.data)
+        assert get_data["name"]["en"] == "New Primary"
+        get_alt_names_en = [alt.get("en") for alt in get_data.get("alt_names", []) if "en" in alt]
+        assert "New Primary" not in get_alt_names_en
+        assert "Different Alt" in get_alt_names_en
+
+    def test_patch_person_with_invalid_language_code(self, client, test_database):
+        """Test patching with invalid language code returns error"""
+        person_data = {"name": {"en": "Test Person"}}
+        person = PersonInput.model_validate(person_data)
+        person_id = test_database.person.create(person)
+
+        patch_data = {"name": {"xx": "Invalid Language"}}
+        response = client.patch(
+            f"/v2/persons/{person_id}",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert "error" in data
+
+        get_response = client.get(f"/v2/persons/{person_id}")
+        assert get_response.status_code == 200
+        get_data = json.loads(get_response.data)
+        assert get_data["name"]["en"] == "Test Person"

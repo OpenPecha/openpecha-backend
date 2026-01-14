@@ -3,7 +3,7 @@ import logging
 from api.decorators import validate_json, validate_query_params
 from database import Database
 from flask import Blueprint, Response, jsonify
-from models import PersonInput
+from models import PersonInput, PersonPatch
 from request_models import PaginationParams
 
 persons_bp = Blueprint("persons", __name__)
@@ -35,3 +35,14 @@ def create_person(validated_data: PersonInput) -> tuple[Response, int]:
         person_id = db.person.create(validated_data)
 
     return jsonify({"id": person_id}), 201
+
+
+@persons_bp.route("/<string:person_id>", methods=["PATCH"], strict_slashes=False)
+@validate_json(PersonPatch)
+def update_person(person_id: str, validated_data: PersonPatch) -> tuple[Response, int]:
+    logger.info("Updating person %s with: %s", person_id, validated_data.model_dump_json())
+
+    with Database() as db:
+        updated_person = db.person.update(person_id, validated_data)
+
+    return jsonify(updated_person.model_dump()), 200
