@@ -704,6 +704,39 @@ Response now only returns the created ID.
 
 ---
 
+### PATCH /v2/texts/{text_id} (NEW)
+
+A new PATCH endpoint has been added for partial updates to texts. This replaces
+the separate `PUT /v2/texts/{text_id}/title` and
+`PUT /v2/texts/{text_id}/license` endpoints which have been **REMOVED**.
+
+**Request Body:**
+
+```json
+{
+    "title": { "en": "Updated Title", "bo": "གསར་བསྒྱུར་མཚན་བྱང་།" },
+    "alt_titles": [{ "en": "Alternative Title" }],
+    "bdrc": "W654321",
+    "wiki": "Q654321",
+    "date": "2025-01-01",
+    "license": "cc0"
+}
+```
+
+All fields are optional, but at least one must be provided. Only provided fields
+will be updated; omitted fields retain their current values.
+
+**Response:** Returns the full updated text object (same as GET response).
+
+**Removed Endpoints:**
+
+| Old Endpoint                 | New Approach                                |
+| ---------------------------- | ------------------------------------------- |
+| `PUT /v2/texts/{id}/title`   | `PATCH /v2/texts/{id}` with `title` field   |
+| `PUT /v2/texts/{id}/license` | `PATCH /v2/texts/{id}` with `license` field |
+
+---
+
 ## Editions Endpoint Migration
 
 ### Summary of Changes

@@ -803,271 +803,809 @@ class TestPostTextV2:
 
         assert response_2.status_code == 500
 
-class TestUpdateTitleV2:
-    """Tests for PUT /v2/texts/{expression_id}/title endpoint (update title)"""
+class TestPatchTextV2:
+    """Tests for PATCH /v2/texts/{text_id} endpoint (update text)"""
 
-    def test_update_title_preserves_other_languages(self, client, test_database, test_person_data):
-        """Test that updating a title in one language preserves other language versions"""
-        # Create test person
+    def test_patch_text_update_bdrc_only(self, client, test_database, test_person_data):
+        """Test updating only the bdrc field"""
         person = PersonInput.model_validate(test_person_data)
         person_id = test_database.person.create(person)
 
-        category_id = 'category'  # Use pre-created category from conftest
-        # Create expression with multiple language titles
-        expression_data = {
-            "title": {"en": "Original English Title", "bo": "བོད་ཡིག་མཚན་བྱང་།"},
+        category_id = 'category'
+        expr_data = {
+            "title": {"en": "Original Title"},
             "language": "en",
+            "category_id": category_id,
             "contributions": [{"person_id": person_id, "role": "author"}],
-            "category_id": category_id
+            "bdrc": "W111111",
         }
-        expression = ExpressionInput.model_validate(expression_data)
+        expression = ExpressionInput.model_validate(expr_data)
         expression_id = test_database.expression.create(expression)
 
-        # Verify both language versions exist
+        patch_data = {"bdrc": "W222222"}
+        response = client.patch(
+            f"/v2/texts/{expression_id}",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data["id"] == expression_id
+        assert data["bdrc"] == "W222222"
+        assert data["title"]["en"] == "Original Title"
+
+        get_response = client.get(f"/v2/texts/{expression_id}")
+        assert get_response.status_code == 200
+        get_data = json.loads(get_response.data)
+        assert get_data["bdrc"] == "W222222"
+        assert get_data["title"]["en"] == "Original Title"
+
+    def test_patch_text_update_wiki_only(self, client, test_database, test_person_data):
+        """Test updating only the wiki field"""
+        person = PersonInput.model_validate(test_person_data)
+        person_id = test_database.person.create(person)
+
+        category_id = 'category'
+        expr_data = {
+            "title": {"en": "Wiki Text"},
+            "language": "en",
+            "category_id": category_id,
+            "contributions": [{"person_id": person_id, "role": "author"}],
+            "wiki": "Q111111",
+        }
+        expression = ExpressionInput.model_validate(expr_data)
+        expression_id = test_database.expression.create(expression)
+
+        patch_data = {"wiki": "Q222222"}
+        response = client.patch(
+            f"/v2/texts/{expression_id}",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data["wiki"] == "Q222222"
+
+        get_response = client.get(f"/v2/texts/{expression_id}")
+        assert get_response.status_code == 200
+        get_data = json.loads(get_response.data)
+        assert get_data["wiki"] == "Q222222"
+
+    def test_patch_text_update_date_only(self, client, test_database, test_person_data):
+        """Test updating only the date field"""
+        person = PersonInput.model_validate(test_person_data)
+        person_id = test_database.person.create(person)
+
+        category_id = 'category'
+        expr_data = {
+            "title": {"en": "Date Text"},
+            "language": "en",
+            "category_id": category_id,
+            "contributions": [{"person_id": person_id, "role": "author"}],
+            "date": "2024-01-01",
+        }
+        expression = ExpressionInput.model_validate(expr_data)
+        expression_id = test_database.expression.create(expression)
+
+        patch_data = {"date": "2025-06-15"}
+        response = client.patch(
+            f"/v2/texts/{expression_id}",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data["date"] == "2025-06-15"
+
+        get_response = client.get(f"/v2/texts/{expression_id}")
+        assert get_response.status_code == 200
+        get_data = json.loads(get_response.data)
+        assert get_data["date"] == "2025-06-15"
+
+    def test_patch_text_update_title_only(self, client, test_database, test_person_data):
+        """Test updating only the title field"""
+        person = PersonInput.model_validate(test_person_data)
+        person_id = test_database.person.create(person)
+
+        category_id = 'category'
+        expr_data = {
+            "title": {"en": "Original Title", "bo": "བོད་མཚན་བྱང་།"},
+            "language": "en",
+            "category_id": category_id,
+            "contributions": [{"person_id": person_id, "role": "author"}],
+        }
+        expression = ExpressionInput.model_validate(expr_data)
+        expression_id = test_database.expression.create(expression)
+
+        patch_data = {"title": {"en": "Updated Title", "bo": "གསར་བསྒྱུར་མཚན་བྱང་།"}}
+        response = client.patch(
+            f"/v2/texts/{expression_id}",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data["title"]["en"] == "Updated Title"
+        assert data["title"]["bo"] == "གསར་བསྒྱུར་མཚན་བྱང་།"
+
+        get_response = client.get(f"/v2/texts/{expression_id}")
+        assert get_response.status_code == 200
+        get_data = json.loads(get_response.data)
+        assert get_data["title"]["en"] == "Updated Title"
+        assert get_data["title"]["bo"] == "གསར་བསྒྱུར་མཚན་བྱང་།"
+
+    def test_patch_text_update_alt_titles_only(self, client, test_database, test_person_data):
+        """Test updating only the alt_titles field"""
+        person = PersonInput.model_validate(test_person_data)
+        person_id = test_database.person.create(person)
+
+        category_id = 'category'
+        expr_data = {
+            "title": {"en": "Primary Title"},
+            "language": "en",
+            "category_id": category_id,
+            "contributions": [{"person_id": person_id, "role": "author"}],
+            "alt_titles": [{"en": "Old Alt Title"}],
+        }
+        expression = ExpressionInput.model_validate(expr_data)
+        expression_id = test_database.expression.create(expression)
+
+        patch_data = {"alt_titles": [{"en": "New Alt Title 1"}, {"en": "New Alt Title 2"}]}
+        response = client.patch(
+            f"/v2/texts/{expression_id}",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data["title"]["en"] == "Primary Title"
+        assert len(data["alt_titles"]) == 2
+        alt_titles_en = [alt.get("en") for alt in data["alt_titles"] if "en" in alt]
+        assert "New Alt Title 1" in alt_titles_en
+        assert "New Alt Title 2" in alt_titles_en
+
+        get_response = client.get(f"/v2/texts/{expression_id}")
+        assert get_response.status_code == 200
+        get_data = json.loads(get_response.data)
+        assert len(get_data["alt_titles"]) == 2
+
+    def test_patch_text_update_license_only(self, client, test_database, test_person_data):
+        """Test updating only the license field"""
+        person = PersonInput.model_validate(test_person_data)
+        person_id = test_database.person.create(person)
+
+        category_id = 'category'
+        expr_data = {
+            "title": {"en": "License Text"},
+            "language": "en",
+            "category_id": category_id,
+            "contributions": [{"person_id": person_id, "role": "author"}],
+            "license": "public",
+        }
+        expression = ExpressionInput.model_validate(expr_data)
+        expression_id = test_database.expression.create(expression)
+
+        patch_data = {"license": "cc0"}
+        response = client.patch(
+            f"/v2/texts/{expression_id}",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data["license"] == "cc0"
+
+        get_response = client.get(f"/v2/texts/{expression_id}")
+        assert get_response.status_code == 200
+        get_data = json.loads(get_response.data)
+        assert get_data["license"] == "cc0"
+
+    def test_patch_text_update_multiple_fields(self, client, test_database, test_person_data):
+        """Test updating multiple fields at once"""
+        person = PersonInput.model_validate(test_person_data)
+        person_id = test_database.person.create(person)
+
+        category_id = 'category'
+        expr_data = {
+            "title": {"en": "Original"},
+            "language": "en",
+            "category_id": category_id,
+            "contributions": [{"person_id": person_id, "role": "author"}],
+            "bdrc": "W333333",
+            "wiki": "Q333333",
+            "license": "public",
+        }
+        expression = ExpressionInput.model_validate(expr_data)
+        expression_id = test_database.expression.create(expression)
+
+        patch_data = {
+            "title": {"en": "Updated"},
+            "bdrc": "W444444",
+            "wiki": "Q444444",
+            "license": "cc-by",
+        }
+        response = client.patch(
+            f"/v2/texts/{expression_id}",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data["title"]["en"] == "Updated"
+        assert data["bdrc"] == "W444444"
+        assert data["wiki"] == "Q444444"
+        assert data["license"] == "cc-by"
+
+        get_response = client.get(f"/v2/texts/{expression_id}")
+        assert get_response.status_code == 200
+        get_data = json.loads(get_response.data)
+        assert get_data["title"]["en"] == "Updated"
+        assert get_data["bdrc"] == "W444444"
+        assert get_data["wiki"] == "Q444444"
+        assert get_data["license"] == "cc-by"
+
+    def test_patch_text_not_found(self, client, test_database):
+        """Test patching a non-existent text returns 404"""
+        patch_data = {"bdrc": "W555555"}
+        response = client.patch(
+            "/v2/texts/nonexistent_id",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 404
+        data = json.loads(response.data)
+        assert "error" in data
+        assert "not found" in data["error"].lower()
+
+    def test_patch_text_empty_payload_rejected(self, client, test_database, test_person_data):
+        """Test that empty payload is rejected"""
+        person = PersonInput.model_validate(test_person_data)
+        person_id = test_database.person.create(person)
+
+        category_id = 'category'
+        expr_data = {
+            "title": {"en": "Test Text"},
+            "language": "en",
+            "category_id": category_id,
+            "contributions": [{"person_id": person_id, "role": "author"}],
+        }
+        expression = ExpressionInput.model_validate(expr_data)
+        expression_id = test_database.expression.create(expression)
+
+        patch_data = {}
+        response = client.patch(
+            f"/v2/texts/{expression_id}",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert "error" in data
+
+    def test_patch_text_unknown_field_rejected(self, client, test_database, test_person_data):
+        """Test that unknown fields are rejected"""
+        person = PersonInput.model_validate(test_person_data)
+        person_id = test_database.person.create(person)
+
+        category_id = 'category'
+        expr_data = {
+            "title": {"en": "Test Text"},
+            "language": "en",
+            "category_id": category_id,
+            "contributions": [{"person_id": person_id, "role": "author"}],
+        }
+        expression = ExpressionInput.model_validate(expr_data)
+        expression_id = test_database.expression.create(expression)
+
+        patch_data = {"unknown_field": "value"}
+        response = client.patch(
+            f"/v2/texts/{expression_id}",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 422
+        data = json.loads(response.data)
+        assert "error" in data
+
+    def test_patch_text_preserves_unpatched_fields(self, client, test_database, test_person_data):
+        """Test that fields not in patch are preserved"""
+        person = PersonInput.model_validate(test_person_data)
+        person_id = test_database.person.create(person)
+
+        category_id = 'category'
+        expr_data = {
+            "title": {"en": "Original Title", "bo": "བོད་མཚན་བྱང་།"},
+            "language": "en",
+            "category_id": category_id,
+            "contributions": [{"person_id": person_id, "role": "author"}],
+            "alt_titles": [{"en": "Alt Title"}],
+            "bdrc": "W101010",
+            "wiki": "Q101010",
+            "date": "2024-01-01",
+            "license": "public",
+        }
+        expression = ExpressionInput.model_validate(expr_data)
+        expression_id = test_database.expression.create(expression)
+
+        patch_data = {"bdrc": "W202020"}
+        response = client.patch(
+            f"/v2/texts/{expression_id}",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data["bdrc"] == "W202020"
+        assert data["wiki"] == "Q101010"
+        assert data["title"]["en"] == "Original Title"
+        assert data["title"]["bo"] == "བོད་མཚན་བྱང་།"
+        assert data["date"] == "2024-01-01"
+        assert data["license"] == "public"
+        assert len(data["alt_titles"]) == 1
+
+        get_response = client.get(f"/v2/texts/{expression_id}")
+        assert get_response.status_code == 200
+        get_data = json.loads(get_response.data)
+        assert get_data["bdrc"] == "W202020"
+        assert get_data["wiki"] == "Q101010"
+        assert get_data["title"]["en"] == "Original Title"
+        assert get_data["date"] == "2024-01-01"
+        assert get_data["license"] == "public"
+
+    def test_patch_text_with_tibetan_title(self, client, test_database, test_person_data):
+        """Test patching with Tibetan title (must include expression's language)"""
+        person = PersonInput.model_validate(test_person_data)
+        person_id = test_database.person.create(person)
+
+        category_id = 'category'
+        expr_data = {
+            "title": {"en": "English Title"},
+            "language": "en",
+            "category_id": category_id,
+            "contributions": [{"person_id": person_id, "role": "author"}],
+        }
+        expression = ExpressionInput.model_validate(expr_data)
+        expression_id = test_database.expression.create(expression)
+
+        patch_data = {"title": {"en": "Updated English", "bo": "བོད་སྐད་མཚན་བྱང་།"}}
+        response = client.patch(
+            f"/v2/texts/{expression_id}",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data["title"]["en"] == "Updated English"
+        assert data["title"]["bo"] == "བོད་སྐད་མཚན་བྱང་།"
+
+        get_response = client.get(f"/v2/texts/{expression_id}")
+        assert get_response.status_code == 200
+        get_data = json.loads(get_response.data)
+        assert get_data["title"]["en"] == "Updated English"
+        assert get_data["title"]["bo"] == "བོད་སྐད་མཚན་བྱང་།"
+
+    def test_patch_text_title_missing_expression_language_rejected(self, client, test_database, test_person_data):
+        """Test that patching title without expression's language is rejected"""
+        person = PersonInput.model_validate(test_person_data)
+        person_id = test_database.person.create(person)
+
+        category_id = 'category'
+        expr_data = {
+            "title": {"en": "English Title"},
+            "language": "en",
+            "category_id": category_id,
+            "contributions": [{"person_id": person_id, "role": "author"}],
+        }
+        expression = ExpressionInput.model_validate(expr_data)
+        expression_id = test_database.expression.create(expression)
+
+        patch_data = {"title": {"bo": "བོད་སྐད་མཚན་བྱང་།"}}
+        response = client.patch(
+            f"/v2/texts/{expression_id}",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 422
+        data = json.loads(response.data)
+        assert "error" in data
+        assert "language" in data["error"].lower()
+
+        get_response = client.get(f"/v2/texts/{expression_id}")
+        assert get_response.status_code == 200
+        get_data = json.loads(get_response.data)
+        assert get_data["title"]["en"] == "English Title"
+
+    def test_patch_text_clear_alt_titles(self, client, test_database, test_person_data):
+        """Test clearing alt_titles by providing empty list"""
+        person = PersonInput.model_validate(test_person_data)
+        person_id = test_database.person.create(person)
+
+        category_id = 'category'
+        expr_data = {
+            "title": {"en": "Primary Title"},
+            "language": "en",
+            "category_id": category_id,
+            "contributions": [{"person_id": person_id, "role": "author"}],
+            "alt_titles": [{"en": "Alt Title 1"}, {"en": "Alt Title 2"}],
+        }
+        expression = ExpressionInput.model_validate(expr_data)
+        expression_id = test_database.expression.create(expression)
+
+        patch_data = {"alt_titles": []}
+        response = client.patch(
+            f"/v2/texts/{expression_id}",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data["alt_titles"] is None or data["alt_titles"] == []
+
+        get_response = client.get(f"/v2/texts/{expression_id}")
+        assert get_response.status_code == 200
+        get_data = json.loads(get_response.data)
+        assert get_data["alt_titles"] is None or get_data["alt_titles"] == []
+
+    def test_patch_text_update_language_with_bcp47(self, client, test_database, test_person_data):
+        """Test updating language with BCP47 code"""
+        person = PersonInput.model_validate(test_person_data)
+        person_id = test_database.person.create(person)
+
+        category_id = 'category'
+        expr_data = {
+            "title": {"en": "English Title", "bo": "བོད་སྐད་མཚན་བྱང་།"},
+            "language": "en",
+            "category_id": category_id,
+            "contributions": [{"person_id": person_id, "role": "author"}],
+        }
+        expression = ExpressionInput.model_validate(expr_data)
+        expression_id = test_database.expression.create(expression)
+
+        patch_data = {"language": "bo-Latn"}
+        response = client.patch(
+            f"/v2/texts/{expression_id}",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data["language"] == "bo-Latn"
+
+        get_response = client.get(f"/v2/texts/{expression_id}")
+        assert get_response.status_code == 200
+        get_data = json.loads(get_response.data)
+        assert get_data["language"] == "bo-Latn"
+
+    def test_patch_text_invalid_json(self, client, test_database, test_person_data):
+        """Test that invalid JSON is rejected"""
+        person = PersonInput.model_validate(test_person_data)
+        person_id = test_database.person.create(person)
+
+        category_id = 'category'
+        expr_data = {
+            "title": {"en": "Test Text"},
+            "language": "en",
+            "category_id": category_id,
+            "contributions": [{"person_id": person_id, "role": "author"}],
+        }
+        expression = ExpressionInput.model_validate(expr_data)
+        expression_id = test_database.expression.create(expression)
+
+        response = client.patch(
+            f"/v2/texts/{expression_id}",
+            data="invalid json",
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert "error" in data
+
+    def test_patch_text_invalid_title_structure(self, client, test_database, test_person_data):
+        """Test that invalid title structure is rejected"""
+        person = PersonInput.model_validate(test_person_data)
+        person_id = test_database.person.create(person)
+
+        category_id = 'category'
+        expr_data = {
+            "title": {"en": "Test Text"},
+            "language": "en",
+            "category_id": category_id,
+            "contributions": [{"person_id": person_id, "role": "author"}],
+        }
+        expression = ExpressionInput.model_validate(expr_data)
+        expression_id = test_database.expression.create(expression)
+
+        patch_data = {"title": "not a dict"}
+        response = client.patch(
+            f"/v2/texts/{expression_id}",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 422
+        data = json.loads(response.data)
+        assert "error" in data
+
+        get_response = client.get(f"/v2/texts/{expression_id}")
+        assert get_response.status_code == 200
+        get_data = json.loads(get_response.data)
+        assert get_data["title"]["en"] == "Test Text"
+
+    def test_patch_text_empty_title_rejected(self, client, test_database, test_person_data):
+        """Test that empty title dict is rejected"""
+        person = PersonInput.model_validate(test_person_data)
+        person_id = test_database.person.create(person)
+
+        category_id = 'category'
+        expr_data = {
+            "title": {"en": "Test Text"},
+            "language": "en",
+            "category_id": category_id,
+            "contributions": [{"person_id": person_id, "role": "author"}],
+        }
+        expression = ExpressionInput.model_validate(expr_data)
+        expression_id = test_database.expression.create(expression)
+
+        patch_data = {"title": {}}
+        response = client.patch(
+            f"/v2/texts/{expression_id}",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 422
+        data = json.loads(response.data)
+        assert "error" in data
+
+        get_response = client.get(f"/v2/texts/{expression_id}")
+        assert get_response.status_code == 200
+        get_data = json.loads(get_response.data)
+        assert get_data["title"]["en"] == "Test Text"
+
+    def test_patch_text_invalid_license_rejected(self, client, test_database, test_person_data):
+        """Test that invalid license value is rejected"""
+        person = PersonInput.model_validate(test_person_data)
+        person_id = test_database.person.create(person)
+
+        category_id = 'category'
+        expr_data = {
+            "title": {"en": "Test Text"},
+            "language": "en",
+            "category_id": category_id,
+            "contributions": [{"person_id": person_id, "role": "author"}],
+        }
+        expression = ExpressionInput.model_validate(expr_data)
+        expression_id = test_database.expression.create(expression)
+
+        patch_data = {"license": "invalid_license"}
+        response = client.patch(
+            f"/v2/texts/{expression_id}",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 422
+        data = json.loads(response.data)
+        assert "error" in data
+
+        get_response = client.get(f"/v2/texts/{expression_id}")
+        assert get_response.status_code == 200
+        get_data = json.loads(get_response.data)
+        assert get_data["license"] == "public"
+
+    def test_patch_text_alt_title_same_as_primary_deduped(self, client, test_database, test_person_data):
+        """Test that alt_title identical to title is deduplicated"""
+        person = PersonInput.model_validate(test_person_data)
+        person_id = test_database.person.create(person)
+
+        category_id = 'category'
+        expr_data = {
+            "title": {"en": "Primary Title"},
+            "language": "en",
+            "category_id": category_id,
+            "contributions": [{"person_id": person_id, "role": "author"}],
+        }
+        expression = ExpressionInput.model_validate(expr_data)
+        expression_id = test_database.expression.create(expression)
+
+        patch_data = {
+            "title": {"en": "New Primary"},
+            "alt_titles": [{"en": "New Primary"}, {"en": "Different Alt"}],
+        }
+        response = client.patch(
+            f"/v2/texts/{expression_id}",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        alt_titles_en = [alt.get("en") for alt in data.get("alt_titles", []) if "en" in alt]
+        assert "New Primary" not in alt_titles_en
+        assert "Different Alt" in alt_titles_en
+
+        get_response = client.get(f"/v2/texts/{expression_id}")
+        assert get_response.status_code == 200
+        get_data = json.loads(get_response.data)
+        assert get_data["title"]["en"] == "New Primary"
+        get_alt_titles_en = [alt.get("en") for alt in get_data.get("alt_titles", []) if "en" in alt]
+        assert "New Primary" not in get_alt_titles_en
+        assert "Different Alt" in get_alt_titles_en
+
+    def test_patch_text_with_invalid_language_code(self, client, test_database, test_person_data):
+        """Test patching with invalid language code returns error"""
+        person = PersonInput.model_validate(test_person_data)
+        person_id = test_database.person.create(person)
+
+        category_id = 'category'
+        expr_data = {
+            "title": {"en": "Test Text"},
+            "language": "en",
+            "category_id": category_id,
+            "contributions": [{"person_id": person_id, "role": "author"}],
+        }
+        expression = ExpressionInput.model_validate(expr_data)
+        expression_id = test_database.expression.create(expression)
+
+        patch_data = {"title": {"xx": "Invalid Language"}}
+        response = client.patch(
+            f"/v2/texts/{expression_id}",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 422
+        data = json.loads(response.data)
+        assert "error" in data
+
+        get_response = client.get(f"/v2/texts/{expression_id}")
+        assert get_response.status_code == 200
+        get_data = json.loads(get_response.data)
+        assert get_data["title"]["en"] == "Test Text"
+
+    def test_patch_text_title_preserves_other_languages(self, client, test_database, test_person_data):
+        """Test that updating a title in one language preserves other language versions"""
+        person = PersonInput.model_validate(test_person_data)
+        person_id = test_database.person.create(person)
+
+        category_id = 'category'
+        expr_data = {
+            "title": {"en": "Original English Title", "bo": "བོད་ཡིག་མཚན་བྱང་།"},
+            "language": "en",
+            "category_id": category_id,
+            "contributions": [{"person_id": person_id, "role": "author"}],
+        }
+        expression = ExpressionInput.model_validate(expr_data)
+        expression_id = test_database.expression.create(expression)
+
         verify_response = client.get(f"/v2/texts/{expression_id}")
         assert verify_response.status_code == 200
         verify_data = json.loads(verify_response.data)
         assert verify_data["title"]["en"] == "Original English Title"
         assert verify_data["title"]["bo"] == "བོད་ཡིག་མཚན་བྱང་།"
 
-        # Update only the English title
-        update_data = {"title": {"en": "Updated English Title"}}
-        response = client.put(f"/v2/texts/{expression_id}/title", data=json.dumps(update_data), content_type="application/json")
+        patch_data = {"title": {"en": "Updated English Title", "bo": "བོད་ཡིག་མཚན་བྱང་།"}}
+        response = client.patch(
+            f"/v2/texts/{expression_id}",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+        )
 
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert "message" in data
-        assert "Title updated successfully" in data["message"]
+        assert data["title"]["en"] == "Updated English Title"
+        assert data["title"]["bo"] == "བོད་ཡིག་མཚན་བྱང་།"
 
-        # Verify the English title was updated AND the Tibetan title was preserved
-        verify_response = client.get(f"/v2/texts/{expression_id}")
-        assert verify_response.status_code == 200
-        verify_data = json.loads(verify_response.data)
-        assert verify_data["title"]["en"] == "Updated English Title"
-        assert verify_data["title"]["bo"] == "བོད་ཡིག་མཚན་བྱང་།"  # Should still be present!
+        get_response = client.get(f"/v2/texts/{expression_id}")
+        assert get_response.status_code == 200
+        get_data = json.loads(get_response.data)
+        assert get_data["title"]["en"] == "Updated English Title"
+        assert get_data["title"]["bo"] == "བོད་ཡིག་མཚན་བྱང་།"
 
-    def test_update_title_adds_new_language(self, client, test_database, test_person_data):
-        """Test that updating a title with a new language adds it without removing existing ones"""
-        # Create test person
+    def test_patch_text_title_adds_new_language(self, client, test_database, test_person_data):
+        """Test that patching title with a new language adds it"""
         person = PersonInput.model_validate(test_person_data)
         person_id = test_database.person.create(person)
-        category_id = 'category'  # Use pre-created category from conftest
-        # Create expression with only English title
-        expression_data = {
+
+        category_id = 'category'
+        expr_data = {
             "title": {"en": "English Title"},
             "language": "en",
+            "category_id": category_id,
             "contributions": [{"person_id": person_id, "role": "author"}],
-            "category_id": category_id
         }
-        expression = ExpressionInput.model_validate(expression_data)
+        expression = ExpressionInput.model_validate(expr_data)
         expression_id = test_database.expression.create(expression)
 
-        # Add a Tibetan title
-        update_data = {"title": {"bo": "བོད་ཡིག་མཚན་བྱང་།"}}
-        response = client.put(f"/v2/texts/{expression_id}/title", data=json.dumps(update_data), content_type="application/json")
-
-        assert response.status_code == 200
-
-        # Verify both titles now exist
-        verify_response = client.get(f"/v2/texts/{expression_id}")
-        assert verify_response.status_code == 200
-        verify_data = json.loads(verify_response.data)
-        assert verify_data["title"]["en"] == "English Title"  # Original should be preserved
-        assert verify_data["title"]["bo"] == "བོད་ཡིག་མཚན་བྱང་།"  # New should be added
-
-    def test_update_title_updates_existing_language(self, client, test_database, test_person_data):
-        """Test that updating an existing language version modifies it correctly"""
-        # Create test person
-        person = PersonInput.model_validate(test_person_data)
-        person_id = test_database.person.create(person)
-
-        category_id = 'category'  # Use pre-created category from conftest
-
-        # Create expression with English title
-        expression_data = {
-            "title": {"en": "Original Title"},
-            "language": "en",
-            "contributions": [{"person_id": person_id, "role": "author"}],
-            "category_id": category_id
-        }
-        expression = ExpressionInput.model_validate(expression_data)
-        expression_id = test_database.expression.create(expression)
-
-        # Update the English title (same language)
-        update_data = {"title": {"en": "Modified Title"}}
-        response = client.put(f"/v2/texts/{expression_id}/title", data=json.dumps(update_data), content_type="application/json")
-
-        assert response.status_code == 200
-
-        # Verify the title was updated
-        verify_response = client.get(f"/v2/texts/{expression_id}")
-        assert verify_response.status_code == 200
-        verify_data = json.loads(verify_response.data)
-        assert verify_data["title"]["en"] == "Modified Title"
-
-    def test_update_title_nonexistent_expression(self, client):
-        """Updating title on a non-existent expression should return 404, not 200 or 500."""
-        fake_id = "nonexistent_expression_id"
-
-        update_data = {"title": {"en": "Should Not Work"}}
-        response = client.put(
-            f"/v2/texts/{fake_id}/title",
-            data=json.dumps(update_data),
+        patch_data = {"title": {"en": "English Title", "bo": "བོད་ཡིག་མཚན་བྱང་།"}}
+        response = client.patch(
+            f"/v2/texts/{expression_id}",
+            data=json.dumps(patch_data),
             content_type="application/json",
-        )
-
-        assert response.status_code == 404  # Nonexistent expression returns 404
-
-    def test_update_title_missing_json_body(
-        self, client, test_database, test_person_data
-    ):
-        """PUT with no JSON body should return an error (like POST)."""
-        # Create a minimal expression to update
-        person = PersonInput.model_validate(test_person_data)
-        person_id = test_database.person.create(person)
-
-        category_id = 'category'  # Use pre-created category from conftest
-
-        expression_data = {
-            "title": {"en": "Original Title"},
-            "language": "en",
-            "contributions": [{"person_id": person_id, "role": "author"}],
-            "category_id": category_id
-        }
-        expression = ExpressionInput.model_validate(expression_data)
-        expression_id = test_database.expression.create(expression)
-
-        response = client.put(
-            f"/v2/texts/{expression_id}/title",
-            content_type="application/json",
-        )
-
-        # Mirror your POST tests (500 + {"error": ...})
-        assert response.status_code == 400
-
-class TestUpdateLicenseV2:
-    """Tests for PUT /v2/texts/{expression_id}/license endpoint (update license)"""
-
-    def test_update_license_success(self, client, test_database, test_person_data):
-        """Happy path: updates license and persists it (verify via GET)."""
-        person = PersonInput.model_validate(test_person_data)
-        person_id = test_database.person.create(person)
-
-        category_id = 'category'  # Use pre-created category from conftest
-
-        expression_data = {
-            'title': {'en': 'License Test Text'},
-            'language': 'en',
-            'contributions': [{'person_id': person_id, 'role': 'author'}],
-            'category_id': category_id
-        }
-        expression = ExpressionInput.model_validate(expression_data)
-        expression_id = test_database.expression.create(expression)
-
-        update_data = {'license': 'cc0'}
-        response = client.put(
-            f'/v2/texts/{expression_id}/license',
-            data=json.dumps(update_data),
-            content_type='application/json',
         )
 
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert data['message'] == 'License updated successfully'
+        assert data["title"]["en"] == "English Title"
+        assert data["title"]["bo"] == "བོད་ཡིག་མཚན་བྱང་།"
 
-        verify_response = client.get(f'/v2/texts/{expression_id}')
-        assert verify_response.status_code == 200
-        verify_data = json.loads(verify_response.data)
-        assert verify_data['license'] == 'cc0'
+        get_response = client.get(f"/v2/texts/{expression_id}")
+        assert get_response.status_code == 200
+        get_data = json.loads(get_response.data)
+        assert get_data["title"]["en"] == "English Title"
+        assert get_data["title"]["bo"] == "བོད་ཡིག་མཚན་བྱང་།"
 
-    def test_update_license_missing_json_body(self, client, test_database, test_person_data):
-        """PUT with no JSON body should return 400 + error."""
+    def test_patch_text_license_all_valid_values(self, client, test_database, test_person_data):
+        """Test that all valid license values work"""
         person = PersonInput.model_validate(test_person_data)
         person_id = test_database.person.create(person)
 
-        category_id = 'category'  # Use pre-created category from conftest
-
-        expression_data = {
-            'title': {'en': 'License Missing Body'},
-            'language': 'en',
-            'contributions': [{'person_id': person_id, 'role': 'author'}],
-            'category_id': category_id
+        category_id = 'category'
+        expr_data = {
+            "title": {"en": "License Test"},
+            "language": "en",
+            "category_id": category_id,
+            "contributions": [{"person_id": person_id, "role": "author"}],
+            "license": "public",
         }
-        expression = ExpressionInput.model_validate(expression_data)
+        expression = ExpressionInput.model_validate(expr_data)
         expression_id = test_database.expression.create(expression)
 
-        response = client.put(
-            f'/v2/texts/{expression_id}/license',
-            content_type='application/json',
+        valid_licenses = ["cc0", "cc-by", "cc-by-sa", "copyrighted", "unknown"]
+        for license_value in valid_licenses:
+            patch_data = {"license": license_value}
+            response = client.patch(
+                f"/v2/texts/{expression_id}",
+                data=json.dumps(patch_data),
+                content_type="application/json",
+            )
+
+            assert response.status_code == 200, f"Failed for license: {license_value}"
+            data = json.loads(response.data)
+            assert data["license"] == license_value
+
+            get_response = client.get(f"/v2/texts/{expression_id}")
+            assert get_response.status_code == 200
+            get_data = json.loads(get_response.data)
+            assert get_data["license"] == license_value
+
+    def test_patch_text_missing_body_returns_400(self, client, test_database, test_person_data):
+        """Test that missing request body returns 400"""
+        person = PersonInput.model_validate(test_person_data)
+        person_id = test_database.person.create(person)
+
+        category_id = 'category'
+        expr_data = {
+            "title": {"en": "Test Text"},
+            "language": "en",
+            "category_id": category_id,
+            "contributions": [{"person_id": person_id, "role": "author"}],
+        }
+        expression = ExpressionInput.model_validate(expr_data)
+        expression_id = test_database.expression.create(expression)
+
+        response = client.patch(
+            f"/v2/texts/{expression_id}",
+            content_type="application/json",
         )
 
         assert response.status_code == 400
         data = json.loads(response.data)
-        assert data['error'] == 'Request body is required'
-
-    def test_update_license_missing_license_field(self, client, test_database, test_person_data):
-        """PUT with JSON but no 'license' should return 400 + error."""
-        person = PersonInput.model_validate(test_person_data)
-        person_id = test_database.person.create(person)
-
-        category_id = 'category'  # Use pre-created category from conftest
-
-        expression_data = {
-            'title': {'en': 'License Missing Field'},
-            'language': 'en',
-            'contributions': [{'person_id': person_id, 'role': 'author'}],
-            'category_id': category_id
-        }
-        expression = ExpressionInput.model_validate(expression_data)
-        expression_id = test_database.expression.create(expression)
-
-        response = client.put(
-            f'/v2/texts/{expression_id}/license',
-            data=json.dumps({'something_else': 'value'}),
-            content_type='application/json',
-        )
-
-        assert response.status_code == 422  # Pydantic validation error
-        data = json.loads(response.data)
-        assert data['error'] == 'Field required'
-
-    def test_update_license_invalid_license_value(self, client, test_database, test_person_data):
-        """PUT with invalid license should return 400 and list valid values."""
-        person = PersonInput.model_validate(test_person_data)
-        person_id = test_database.person.create(person)
-
-        category_id = 'category'  # Use pre-created category from conftest
-
-        expression_data = {
-            'title': {'en': 'License Invalid Value'},
-            'language': 'en',
-            'contributions': [{'person_id': person_id, 'role': 'author'}],
-            'category_id': category_id
-        }
-        expression = ExpressionInput.model_validate(expression_data)
-        expression_id = test_database.expression.create(expression)
-
-        response = client.put(
-            f'/v2/texts/{expression_id}/license',
-            data=json.dumps({'license': 'NOT_A_LICENSE'}),
-            content_type='application/json',
-        )
-
-        assert response.status_code == 422  # Pydantic validation error for invalid enum value
-        data = json.loads(response.data)
-        # Pydantic lists valid enum values in the error message
-        assert 'cc0' in data['error']
-        assert 'public' in data['error']
-
-    def test_update_license_nonexistent_expression_returns_404(self, client, test_database):
-        """Nonexistent expression_id should return 404 (DataNotFound)."""
-        response = client.put(
-            '/v2/texts/nonexistent_expression_id/license',
-            data=json.dumps({'license': 'cc0'}),
-            content_type='application/json',
-        )
-
-        assert response.status_code == 404
-        data = json.loads(response.data)
-        assert 'not found' in data['error'].lower()
+        assert "error" in data
 

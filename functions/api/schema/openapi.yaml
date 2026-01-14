@@ -759,7 +759,7 @@ paths:
             tags:
                 - Texts
             parameters:
-                - name: id
+                - name: text_id
                   in: path
                   required: true
                   schema:
@@ -810,13 +810,9 @@ paths:
                     $ref: "#/components/responses/NotFound"
                 "500":
                     $ref: "#/components/responses/ServerError"
-
-    /v2/texts/{text_id}/title:
-        put:
-            summary: Update text title
-            description: >-
-                Update the title of a text. The title should be provided as a dictionary
-                with language code as the key and the title text as the value.
+        patch:
+            summary: Update a text
+            description: Partially update a text record. Only provided fields will be updated; omitted fields retain their current values.
             tags:
                 - Texts
             parameters:
@@ -825,96 +821,64 @@ paths:
                   required: true
                   schema:
                       type: string
-                  description: The text ID of the text to update
+                  description: The ID of the text to update
             requestBody:
                 required: true
                 content:
                     application/json:
                         schema:
-                            type: object
-                            required:
-                                - title
-                            properties:
-                                title:
-                                    type: object
-                                    description: Dictionary with language code as key and title text as value
-                                    additionalProperties:
-                                        type: string
-                                    example:
-                                        bo: "རྒྱལ་པོ་རབས་ཀྱི་གཏམ་རྒྱུད།"
+                            $ref: "#/components/schemas/ExpressionPatch"
+                        examples:
+                            update_bdrc:
+                                summary: Update BDRC ID only
+                                value:
+                                    bdrc: "W654321"
+                            update_title:
+                                summary: Update title only
+                                value:
+                                    title:
+                                        en: "Updated Title"
+                                        bo: "གསར་བསྒྱུར་མཚན་བྱང་།"
+                            update_multiple:
+                                summary: Update multiple fields
+                                value:
+                                    title:
+                                        en: "New Title"
+                                    bdrc: "W999999"
+                                    wiki: "Q999999"
+                                    license: "cc0"
+                                    alt_titles:
+                                        - en: "Alternative Title"
+                                          bo: "མཚན་བྱང་གཞན།"
             responses:
                 "200":
-                    description: Title updated successfully
+                    description: Text updated successfully
                     content:
                         application/json:
                             schema:
-                                type: object
-                                properties:
-                                    message:
-                                        type: string
-                                        example: "Title updated successfully"
+                                $ref: "#/components/schemas/ExpressionOutput"
+                            examples:
+                                success:
+                                    summary: Updated text
+                                    value:
+                                        id: "T12345678"
+                                        title:
+                                            en: "Updated Title"
+                                            bo: "གསར་བསྒྱུར་མཚན་བྱང་།"
+                                        language: "bo"
+                                        category_id: "CAT12345678"
+                                        contributions:
+                                            - person_id: "P12345678"
+                                              role: "author"
+                                        bdrc: "W654321"
+                                        wiki: "Q123456"
+                                        license: "cc0"
                 "400":
-                    description: Bad request - Invalid input
-                    content:
-                        application/json:
-                            schema:
-                                type: object
-                                properties:
-                                    error:
-                                        type: string
-                                        example: "Title is required"
+                    $ref: "#/components/responses/InvalidRequest"
                 "404":
                     $ref: "#/components/responses/NotFound"
-                "500":
-                    $ref: "#/components/responses/ServerError"
-
-    /v2/texts/{text_id}/license:
-        put:
-            summary: Update text license
-            description: Update the license information for a text
-            tags:
-                - Texts
-            parameters:
-                - name: text_id
-                  in: path
-                  required: true
-                  schema:
-                      type: string
-                  description: The text ID of the text to update
-            requestBody:
-                required: true
-                content:
-                    application/json:
-                        schema:
-                            type: object
-                            required:
-                                - license
-                            properties:
-                                license:
-                                    $ref: "#/components/schemas/LicenseType"
-            responses:
-                "200":
-                    description: License updated successfully
-                    content:
-                        application/json:
-                            schema:
-                                type: object
-                                properties:
-                                    message:
-                                        type: string
-                                        example: "License updated successfully"
-                "400":
-                    description: Bad request - Invalid input
-                    content:
-                        application/json:
-                            schema:
-                                type: object
-                                properties:
-                                    error:
-                                        type: string
-                                        example: "License is required"
-                "404":
-                    $ref: "#/components/responses/NotFound"
+                "422":
+                    $ref: "#/components/responses/ValidationError"
                 "500":
                     $ref: "#/components/responses/ServerError"
 
@@ -2418,6 +2382,46 @@ components:
                     minItems: 1
                     items:
                         $ref: "#/components/schemas/ContributionInput"
+
+        ExpressionPatch:
+            type: object
+            description: Partial update for a text. At least one field must be provided.
+            properties:
+                bdrc:
+                    type: string
+                    nullable: true
+                    description: BDRC identifier
+                wiki:
+                    type: string
+                    nullable: true
+                    description: Wikidata identifier
+                date:
+                    type: string
+                    nullable: true
+                    description: Date of composition
+                title:
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: Localized title (language code to text mapping)
+                alt_titles:
+                    type: array
+                    nullable: true
+                    items:
+                        type: object
+                        additionalProperties:
+                            type: string
+                    description: Alternative localized titles
+                language:
+                    type: string
+                    nullable: true
+                    description: Language code (BCP47 format)
+                category_id:
+                    type: string
+                    nullable: true
+                    description: Category ID
+                license:
+                    $ref: "#/components/schemas/LicenseType"
 
         ExpressionOutput:
             type: object

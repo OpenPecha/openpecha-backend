@@ -10,7 +10,7 @@ from models import (
     ContributionInput,
     ExpressionInput,
     ExpressionOutput,
-    LicenseType,
+    ExpressionPatch,
 )
 from request_models import ExpressionFilter
 
@@ -93,26 +93,53 @@ class ExpressionDatabase:
     RETURN {_EXPRESSION_RETURN}
     """
 
-    UPDATE_TITLE_QUERY = """
-    MATCH (e:Expression {id: $expression_id})-[:HAS_TITLE]->(primary_nomen:Nomen)
-    MATCH (l:Language {code: $title.lang_code})
-    OPTIONAL MATCH (primary_nomen)-[:HAS_LOCALIZATION]->(existing_lt:LocalizedText)-[:HAS_LANGUAGE]->(l)
-    WITH e, primary_nomen, l, existing_lt
-    CALL (*) {
-        WHEN existing_lt IS NOT NULL THEN { SET existing_lt.text = $title.text }
-        ELSE { CREATE (primary_nomen)-[:HAS_LOCALIZATION]->(:LocalizedText {text: $title.text})-[:HAS_LANGUAGE]->(l) }
-    }
-    RETURN e.id as expression_id
-    """
-
     UPDATE_LICENSE_QUERY = """
     MATCH (e:Expression {id: $expression_id})
-    OPTIONAL MATCH (e)-[lc_rel:HAS_LICENSE]->(license:LicenseType)
-    WITH e, lc_rel
-    DELETE lc_rel
+    OPTIONAL MATCH (e)-[r:HAS_LICENSE]->()
+    DELETE r
+    WITH e
     MATCH (license:LicenseType {name: $license})
     MERGE (e)-[:HAS_LICENSE]->(license)
     RETURN e.id as expression_id
+    """
+
+    UPDATE_LANGUAGE_QUERY = """
+    MATCH (e:Expression {id: $expression_id})
+    OPTIONAL MATCH (e)-[r:HAS_LANGUAGE]->()
+    DELETE r
+    WITH e
+    MATCH (lang:Language {code: $language_code})
+    MERGE (e)-[:HAS_LANGUAGE {bcp47: $bcp47_tag}]->(lang)
+    RETURN e.id as expression_id
+    """
+
+    UPDATE_CATEGORY_QUERY = """
+    MATCH (e:Expression {id: $expression_id})-[:EXPRESSION_OF]->(w:Work)
+    OPTIONAL MATCH (w)-[r:HAS_CATEGORY]->()
+    DELETE r
+    WITH w
+    MATCH (cat:Category {id: $category_id})
+    MERGE (w)-[:HAS_CATEGORY]->(cat)
+    RETURN w.id as work_id
+    """
+
+    UPDATE_PROPERTIES_QUERY = """
+    MATCH (e:Expression {id: $expression_id})
+    SET e.bdrc = $bdrc, e.wiki = $wiki, e.date = $date
+    RETURN e.id as expression_id
+    """
+
+    DELETE_TITLE_QUERY = """
+    MATCH (e:Expression {id: $expression_id})-[:HAS_TITLE]->(n:Nomen)
+    OPTIONAL MATCH (n)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
+    OPTIONAL MATCH (n)<-[:ALTERNATIVE_OF]-(alt:Nomen)-[:HAS_LOCALIZATION]->(alt_lt:LocalizedText)
+    DETACH DELETE n, lt, alt, alt_lt
+    """
+
+    LINK_TITLE_QUERY = """
+    MATCH (e:Expression {id: $expression_id})
+    MATCH (n:Nomen {id: $nomen_id})
+    CREATE (e)-[:HAS_TITLE]->(n)
     """
 
     _CREATE_EXPRESSION_LINKS = """
@@ -210,28 +237,6 @@ class ExpressionDatabase:
 
         with self.session as session:
             return session.execute_read(_get_all)
-
-    def update_title(self, expression_id: str, title: dict[str, str]) -> None:
-        with self.session as session:
-            result = session.execute_write(
-                lambda tx: tx.run(
-                    ExpressionDatabase.UPDATE_TITLE_QUERY, expression_id=expression_id, title=title
-                ).single()
-            )
-            if result is None:
-                raise DataNotFoundError(f"Expression with ID '{expression_id}' not found")
-
-    def update_license(self, expression_id: str, license_type: LicenseType) -> None:
-        with self.session as session:
-            result = session.execute_write(
-                lambda tx: tx.run(
-                    ExpressionDatabase.UPDATE_LICENSE_QUERY,
-                    expression_id=expression_id,
-                    license=license_type.value,
-                ).single()
-            )
-            if result is None:
-                raise DataNotFoundError(f"Expression with ID '{expression_id}' not found")
 
     def create(self, expression: ExpressionInput) -> str:
         with self.session as session:
@@ -335,3 +340,60 @@ class ExpressionDatabase:
                 raise DataNotFoundError(
                     f"AI contribution creation failed. AI: {contribution.ai_id}; Role: {contribution.role.value}"
                 )
+
+    def update(self, expression_id: str, patch: ExpressionPatch) -> ExpressionOutput:
+        existing = self.get(expression_id)
+
+        merged = {
+            "id": existing.id,
+            "bdrc": patch.bdrc if patch.bdrc is not None else existing.bdrc,
+            "wiki": patch.wiki if patch.wiki is not None else existing.wiki,
+            "date": patch.date if patch.date is not None else existing.date,
+            "title": dict(patch.title.root) if patch.title is not None else dict(existing.title.root),
+            "alt_titles": [dict(alt.root) for alt in patch.alt_titles]
+            if patch.alt_titles is not None
+            else ([dict(alt.root) for alt in existing.alt_titles] if existing.alt_titles else None),
+            "language": patch.language if patch.language is not None else existing.language,
+            "category_id": patch.category_id if patch.category_id is not None else existing.category_id,
+            "license": patch.license if patch.license is not None else existing.license,
+            "contributions": [c.model_dump() for c in existing.contributions],
+        }
+
+        ExpressionOutput.model_validate(merged)
+
+        def update_transaction(tx: ManagedTransaction) -> None:
+            tx.run(
+                ExpressionDatabase.UPDATE_PROPERTIES_QUERY,
+                expression_id=expression_id,
+                bdrc=merged["bdrc"],
+                wiki=merged["wiki"],
+                date=merged["date"],
+            )
+
+            if patch.title is not None or patch.alt_titles is not None:
+                tx.run(ExpressionDatabase.DELETE_TITLE_QUERY, expression_id=expression_id)
+                title_nomen_id = NomenDatabase.create_with_transaction(tx, merged["title"], merged["alt_titles"])
+                tx.run(ExpressionDatabase.LINK_TITLE_QUERY, expression_id=expression_id, nomen_id=title_nomen_id)
+
+            if patch.license is not None:
+                tx.run(
+                    ExpressionDatabase.UPDATE_LICENSE_QUERY, expression_id=expression_id, license=patch.license.value
+                )
+
+            if patch.language is not None:
+                base_lang_code = patch.language.split("-")[0].lower()
+                tx.run(
+                    ExpressionDatabase.UPDATE_LANGUAGE_QUERY,
+                    expression_id=expression_id,
+                    language_code=base_lang_code,
+                    bcp47_tag=patch.language,
+                )
+
+            if patch.category_id is not None:
+                tx.run(
+                    ExpressionDatabase.UPDATE_CATEGORY_QUERY, expression_id=expression_id, category_id=patch.category_id
+                )
+
+        with self.session as session:
+            session.execute_write(update_transaction)
+            return self.get(expression_id)

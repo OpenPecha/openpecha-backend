@@ -6,14 +6,12 @@ from database import Database
 from exceptions import DataNotFoundError
 from flask import Blueprint, Response, jsonify
 from identifier import generate_id
-from models import ExpressionInput
+from models import ExpressionInput, ExpressionPatch
 from request_models import (
     EditionRequestModel,
     EditionsQueryParams,
     ExpressionFilter,
     TextsQueryParams,
-    UpdateLicenseRequest,
-    UpdateTitleRequest,
 )
 from storage import Storage
 
@@ -100,26 +98,12 @@ def create_edition(expression_id: str, validated_data: EditionRequestModel) -> t
     return jsonify({"id": manifestation_id}), 201
 
 
-@texts_bp.route("/<string:expression_id>/title", methods=["PUT"], strict_slashes=False)
-@validate_json(UpdateTitleRequest)
-def update_title(expression_id: str, validated_data: UpdateTitleRequest) -> tuple[Response, int]:
-    logger.info("Received data for updating title: %s", validated_data.model_dump_json())
-
-    lang_code = next(iter(validated_data.title.root.keys()))
-    title_data = {
-        "lang_code": lang_code,
-        "text": validated_data.title.root[lang_code],
-    }
-    with Database() as db:
-        db.expression.update_title(expression_id=expression_id, title=title_data)
-    return jsonify({"message": "Title updated successfully"}), 200
-
-
-@texts_bp.route("/<string:expression_id>/license", methods=["PUT"], strict_slashes=False)
-@validate_json(UpdateLicenseRequest)
-def update_license(expression_id: str, validated_data: UpdateLicenseRequest) -> tuple[Response, int]:
-    logger.info("Received data for updating license: %s", validated_data.model_dump_json())
+@texts_bp.route("/<string:expression_id>", methods=["PATCH"], strict_slashes=False)
+@validate_json(ExpressionPatch)
+def update_text(expression_id: str, validated_data: ExpressionPatch) -> tuple[Response, int]:
+    logger.info("Updating text %s with: %s", expression_id, validated_data.model_dump_json())
 
     with Database() as db:
-        db.expression.update_license(expression_id=expression_id, license_type=validated_data.license)
-    return jsonify({"message": "License updated successfully"}), 200
+        updated_expression = db.expression.update(expression_id, validated_data)
+
+    return jsonify(updated_expression.model_dump()), 200
