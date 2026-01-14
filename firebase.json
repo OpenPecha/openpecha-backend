@@ -26,6 +26,14 @@
         ],
         "rewrites": [
             {
+                "source": "/swagger",
+                "function": "api"
+            },
+            {
+                "source": "/swagger/**",
+                "function": "api"
+            },
+            {
                 "source": "/schema/**",
                 "function": "api"
             }
