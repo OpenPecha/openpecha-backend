@@ -72,9 +72,7 @@ class ExpressionDatabase:
     """
 
     GET_QUERY = f"""
-    MATCH (e:Expression)
-    WHERE ($id IS NOT NULL AND e.id = $id)
-       OR ($bdrc_id IS NOT NULL AND e.bdrc = $bdrc_id)
+    MATCH (e:Expression {{id: $id}})
     RETURN {_EXPRESSION_RETURN}
     """
 
@@ -82,10 +80,18 @@ class ExpressionDatabase:
     MATCH (e:Expression)
     WHERE ($language IS NULL OR (e)-[:HAS_LANGUAGE]->(:Language {{code: $language}}))
     AND ($title IS NULL OR EXISTS {{
-        (e)-[:HAS_TITLE]->(:Nomen)-[:HAS_LOCALIZATION|ALTERNATIVE_OF*1..2]->(lt:LocalizedText)
-        WHERE toLower(lt.text) CONTAINS toLower($title)
+        (e)-[:HAS_TITLE]->(n:Nomen)
+        WHERE EXISTS {{
+            (n)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
+            WHERE toLower(lt.text) CONTAINS toLower($title)
+        }} OR EXISTS {{
+            (n)<-[:ALTERNATIVE_OF]-(alt:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
+            WHERE toLower(lt.text) CONTAINS toLower($title)
+        }}
     }})
     AND ($category_id IS NULL OR (e)-[:EXPRESSION_OF]->(:Work)-[:HAS_CATEGORY]->(:Category {{id: $category_id}}))
+    AND ($bdrc IS NULL OR e.bdrc = $bdrc)
+    AND ($wiki IS NULL OR e.wiki = $wiki)
     WITH e
     ORDER BY e.id
     SKIP $offset
@@ -207,16 +213,9 @@ class ExpressionDatabase:
 
     def get(self, expression_id: str) -> ExpressionOutput:
         with self.session as session:
-            result = session.run(ExpressionDatabase.GET_QUERY, id=expression_id, bdrc_id=None).single()
+            result = session.run(ExpressionDatabase.GET_QUERY, id=expression_id).single()
             if result is None:
                 raise DataNotFoundError(f"Expression with ID '{expression_id}' not found")
-            return self._parse_record(result.data())
-
-    def get_by_bdrc(self, bdrc_id: str) -> ExpressionOutput:
-        with self.session as session:
-            result = session.run(ExpressionDatabase.GET_QUERY, id=None, bdrc_id=bdrc_id).single()
-            if result is None:
-                raise DataNotFoundError(f"Expression with BDRC ID '{bdrc_id}' not found")
             return self._parse_record(result.data())
 
     def get_all(self, offset: int, limit: int, filters: ExpressionFilter | None = None) -> list[ExpressionOutput]:
@@ -232,6 +231,8 @@ class ExpressionDatabase:
                 language=filters.language,
                 title=filters.title,
                 category_id=filters.category_id,
+                bdrc=filters.bdrc,
+                wiki=filters.wiki,
             )
             return [self._parse_record(r.data()) for r in result]
 

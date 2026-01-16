@@ -462,34 +462,58 @@ class TestGetSingleTextV2:
         assert data["translation_of"] is None
         assert data["category_id"] == category_id
 
-    def test_get_single_metadata_by_bdrc_id_success(self, client, test_database, test_person_data, test_expression_data):
-        """Test successfully retrieving a single expression by BDRC ID"""
+    def test_get_texts_filter_by_bdrc(self, client, test_database, test_person_data, test_expression_data):
+        """Test filtering texts by BDRC ID using query parameter"""
 
         # Create test person
         person = PersonInput.model_validate(test_person_data)
         person_id = test_database.person.create(person)
-        category_id = 'category'  # Use pre-created category from conftest
+        category_id = 'category'
         # Create test expression
         test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
         test_expression_data["category_id"] = category_id
         expression = ExpressionInput.model_validate(test_expression_data)
         expression_id = test_database.expression.create(expression)
 
-        response = client.get(f"/v2/texts/{test_expression_data['bdrc']}")
+        response = client.get(f"/v2/texts?bdrc={test_expression_data['bdrc']}")
 
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert data["bdrc"] == test_expression_data['bdrc']
-        assert data["title"]["en"] == "Test Expression"
-        assert data["title"]["bo"] == "བརྟག་དཔྱད་ཚིག་སྒྲུབ།"
-        assert data["language"] == "en"
-        assert data["date"] == "2024-01-01"
-        assert data["wiki"] == "Q789012"
-        assert len(data["contributions"]) == 1
-        assert data["contributions"][0]["role"] == "author"
-        assert data["commentary_of"] is None
-        assert data["translation_of"] is None
-        assert data["category_id"] == category_id
+        assert len(data) == 1
+        assert data[0]["bdrc"] == test_expression_data['bdrc']
+        assert data[0]["title"]["en"] == "Test Expression"
+        assert data[0]["id"] == expression_id
+
+    def test_get_texts_filter_by_alternative_title(self, client, test_database, test_person_data):
+        """Test filtering texts by alternative title"""
+        person = PersonInput.model_validate(test_person_data)
+        person_id = test_database.person.create(person)
+
+        category_id = 'category'
+        expr_data = {
+            "title": {"en": "Primary Title"},
+            "language": "en",
+            "category_id": category_id,
+            "contributions": [{"person_id": person_id, "role": "author"}],
+            "alt_titles": [{"en": "Unique Alternative Name"}, {"bo": "གཞན་མིང་།"}],
+        }
+        expression = ExpressionInput.model_validate(expr_data)
+        expression_id = test_database.expression.create(expression)
+
+        response = client.get("/v2/texts?title=Unique Alternative")
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 1
+        assert data[0]["id"] == expression_id
+        assert data[0]["title"]["en"] == "Primary Title"
+
+        response_bo = client.get("/v2/texts?title=གཞན་མིང")
+
+        assert response_bo.status_code == 200
+        data_bo = json.loads(response_bo.data)
+        assert len(data_bo) == 1
+        assert data_bo[0]["id"] == expression_id
 
     def test_get_single_translation_metadata_success(self, client, test_database, test_person_data):
         """Test successfully retrieving a translation expression"""

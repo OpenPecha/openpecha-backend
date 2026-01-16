@@ -283,6 +283,146 @@ class TestGetAllPersonsV2:
         assert isinstance(data, list)
         assert len(data) == 0
 
+    def test_get_all_persons_filter_by_name(self, client, test_database):
+        """Test filtering persons by name (primary name)"""
+        person1 = PersonInput.model_validate({"name": {"en": "John Smith"}})
+        person2 = PersonInput.model_validate({"name": {"en": "Jane Doe"}})
+        person1_id = test_database.person.create(person1)
+        test_database.person.create(person2)
+
+        response = client.get("/v2/persons/?name=John")
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 1
+        assert data[0]["id"] == person1_id
+        assert data[0]["name"]["en"] == "John Smith"
+
+    def test_get_all_persons_filter_by_alternative_name(self, client, test_database):
+        """Test filtering persons by alternative name"""
+        person = PersonInput.model_validate({
+            "name": {"en": "Primary Name"},
+            "alt_names": [{"en": "Unique Alternative"}, {"bo": "གཞན་མིང་།"}],
+        })
+        person_id = test_database.person.create(person)
+
+        response = client.get("/v2/persons/?name=Unique Alternative")
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 1
+        assert data[0]["id"] == person_id
+        assert data[0]["name"]["en"] == "Primary Name"
+
+        response_bo = client.get("/v2/persons/?name=གཞན་མིང")
+
+        assert response_bo.status_code == 200
+        data_bo = json.loads(response_bo.data)
+        assert len(data_bo) == 1
+        assert data_bo[0]["id"] == person_id
+
+    def test_get_all_persons_filter_by_bdrc(self, client, test_database):
+        """Test filtering persons by BDRC ID"""
+        person1 = PersonInput.model_validate({"name": {"en": "Person 1"}, "bdrc": "P111111"})
+        person2 = PersonInput.model_validate({"name": {"en": "Person 2"}, "bdrc": "P222222"})
+        person1_id = test_database.person.create(person1)
+        test_database.person.create(person2)
+
+        response = client.get("/v2/persons/?bdrc=P111111")
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 1
+        assert data[0]["id"] == person1_id
+        assert data[0]["bdrc"] == "P111111"
+
+    def test_get_all_persons_filter_by_wiki(self, client, test_database):
+        """Test filtering persons by Wiki ID"""
+        person1 = PersonInput.model_validate({"name": {"en": "Person 1"}, "wiki": "Q111111"})
+        person2 = PersonInput.model_validate({"name": {"en": "Person 2"}, "wiki": "Q222222"})
+        person1_id = test_database.person.create(person1)
+        test_database.person.create(person2)
+
+        response = client.get("/v2/persons/?wiki=Q111111")
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 1
+        assert data[0]["id"] == person1_id
+        assert data[0]["wiki"] == "Q111111"
+
+    def test_get_all_persons_filter_combined(self, client, test_database):
+        """Test filtering persons with multiple filters"""
+        person1 = PersonInput.model_validate({
+            "name": {"en": "Target Person"},
+            "bdrc": "P333333",
+            "wiki": "Q333333",
+        })
+        person2 = PersonInput.model_validate({
+            "name": {"en": "Other Person"},
+            "bdrc": "P444444",
+            "wiki": "Q444444",
+        })
+        person1_id = test_database.person.create(person1)
+        test_database.person.create(person2)
+
+        response = client.get("/v2/persons/?bdrc=P333333&wiki=Q333333")
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 1
+        assert data[0]["id"] == person1_id
+
+    def test_get_all_persons_filter_combined_multiple_results(self, client, test_database):
+        """Test filtering persons with multiple filters returning multiple results"""
+        person1 = PersonInput.model_validate({
+            "name": {"en": "Alice Smith"},
+            "bdrc": "P555555",
+        })
+        person2 = PersonInput.model_validate({
+            "name": {"en": "Bob Smith"},
+            "bdrc": "P666666",
+        })
+        person3 = PersonInput.model_validate({
+            "name": {"en": "Charlie Jones"},
+            "bdrc": "P777777",
+        })
+        person1_id = test_database.person.create(person1)
+        person2_id = test_database.person.create(person2)
+        test_database.person.create(person3)
+
+        response = client.get("/v2/persons/?name=Smith")
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 2
+        returned_ids = [p["id"] for p in data]
+        assert person1_id in returned_ids
+        assert person2_id in returned_ids
+
+    def test_get_all_persons_filter_no_match(self, client, test_database):
+        """Test filtering persons with no matching results"""
+        person = PersonInput.model_validate({"name": {"en": "Existing Person"}})
+        test_database.person.create(person)
+
+        response = client.get("/v2/persons/?name=NonExistent")
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 0
+
+    def test_get_all_persons_filter_case_insensitive(self, client, test_database):
+        """Test that name filter is case-insensitive"""
+        person = PersonInput.model_validate({"name": {"en": "John Smith"}})
+        person_id = test_database.person.create(person)
+
+        response = client.get("/v2/persons/?name=john smith")
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 1
+        assert data[0]["id"] == person_id
+
 
 class TestGetSinglePersonV2:
     """Tests for GET /v2/persons/{id} endpoint (get single person)"""

@@ -491,7 +491,7 @@ class CategoryInput(CategoryBase):
 
 class CategoryOutput(CategoryBase):
     id: NonEmptyStr
-    has_children: bool = False
+    children: list[str] = []
 
 
 class SearchFilterModel(OpenPechaModel):

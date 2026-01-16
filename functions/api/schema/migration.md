@@ -701,6 +701,39 @@ Response now only returns the created ID.
 | Filter by type       | `?type=root`     | **REMOVED**                         |
 | Filter by author     | `?author=name`   | **REMOVED**                         |
 | Filter by category   | N/A              | `?category_id=CAT123`               |
+| Filter by BDRC ID    | N/A              | `?bdrc=W123456`                     |
+| Filter by Wiki ID    | N/A              | `?wiki=Q123456`                     |
+
+---
+
+### GET /v2/texts/{text_id} - BDRC ID Lookup Removed
+
+The `GET /v2/texts/{text_id}` endpoint no longer accepts BDRC IDs as the path
+parameter. Previously, you could pass either an expression ID or a BDRC ID:
+
+**Old Behavior (REMOVED):**
+
+```
+GET /v2/texts/W123456  # Would find text by BDRC ID
+```
+
+**New Behavior:**
+
+To find a text by BDRC ID, use the list endpoint with the `bdrc` filter:
+
+```
+GET /v2/texts?bdrc=W123456
+```
+
+This returns an array of matching texts (typically one result).
+
+**Migration Steps:**
+
+1. If you were using `GET /v2/texts/{bdrc_id}`, change to
+   `GET /v2/texts?bdrc={bdrc_id}`
+2. Update your response handling - the new endpoint returns an array, not a
+   single object
+3. Access the first element of the array: `response[0]`
 
 ---
 

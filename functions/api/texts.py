@@ -3,14 +3,12 @@ import logging
 from api.decorators import validate_json, validate_query_params
 from api.editions import _trigger_search_segmenter
 from database import Database
-from exceptions import DataNotFoundError
 from flask import Blueprint, Response, jsonify
 from identifier import generate_id
 from models import ExpressionInput, ExpressionPatch
 from request_models import (
     EditionRequestModel,
     EditionsQueryParams,
-    ExpressionFilter,
     TextsQueryParams,
 )
 from storage import Storage
@@ -23,16 +21,11 @@ logger = logging.getLogger(__name__)
 @texts_bp.route("", methods=["GET"], strict_slashes=False)
 @validate_query_params(TextsQueryParams)
 def get_all_texts(validated_params: TextsQueryParams) -> tuple[Response, int]:
-    filters = ExpressionFilter(
-        language=validated_params.language,
-        title=validated_params.title,
-        category_id=validated_params.category_id,
-    )
     with Database() as db:
         result = db.expression.get_all(
             offset=validated_params.offset,
             limit=validated_params.limit,
-            filters=filters,
+            filters=validated_params,
         )
     return jsonify([item.model_dump() for item in result]), 200
 
@@ -40,18 +33,8 @@ def get_all_texts(validated_params: TextsQueryParams) -> tuple[Response, int]:
 @texts_bp.route("/<string:expression_id>", methods=["GET"], strict_slashes=False)
 def get_texts(expression_id: str) -> tuple[Response, int]:
     with Database() as db:
-        # Try to get expression by ID first
-        try:
-            expression = db.expression.get(expression_id=expression_id)
-            return jsonify(expression.model_dump()), 200
-        except DataNotFoundError:
-            # If not found by ID, try to get by BDRC ID
-            try:
-                expression = db.expression.get_by_bdrc(bdrc_id=expression_id)
-                return jsonify(expression.model_dump()), 200
-            except DataNotFoundError as exc:
-                # If both fail, return not found
-                raise DataNotFoundError(f"Text with ID or BDRC ID '{expression_id}' not found") from exc
+        expression = db.expression.get(expression_id=expression_id)
+        return jsonify(expression.model_dump()), 200
 
 
 @texts_bp.route("", methods=["POST"], strict_slashes=False)

@@ -4,7 +4,7 @@ from api.decorators import validate_json, validate_query_params
 from database import Database
 from flask import Blueprint, Response, jsonify
 from models import PersonInput, PersonPatch
-from request_models import PaginationParams
+from request_models import PersonsQueryParams
 
 persons_bp = Blueprint("persons", __name__)
 
@@ -19,10 +19,14 @@ def get_person(person_id: str) -> tuple[Response, int]:
 
 
 @persons_bp.route("/", methods=["GET"], strict_slashes=False)
-@validate_query_params(PaginationParams)
-def get_all_persons(validated_params: PaginationParams) -> tuple[Response, int]:
+@validate_query_params(PersonsQueryParams)
+def get_all_persons(validated_params: PersonsQueryParams) -> tuple[Response, int]:
     with Database() as db:
-        persons = db.person.get_all(offset=validated_params.offset, limit=validated_params.limit)
+        persons = db.person.get_all(
+            offset=validated_params.offset,
+            limit=validated_params.limit,
+            filters=validated_params,
+        )
     return jsonify([person.model_dump() for person in persons]), 200
 
 

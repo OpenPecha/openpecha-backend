@@ -12,6 +12,7 @@ from .nomen_database import NomenDatabase
 if TYPE_CHECKING:
     from models import PersonInput, PersonOutput, PersonPatch
     from neo4j import ManagedTransaction, Session
+    from request_models import PersonFilter
 
     from .database import Database
 
@@ -43,9 +44,22 @@ class PersonDatabase:
 
     GET_ALL_QUERY = f"""
     MATCH (p:Person)
-    RETURN {_PERSON_RETURN} AS person
+    WHERE ($name IS NULL OR EXISTS {{
+        (p)-[:HAS_NAME]->(n:Nomen)
+        WHERE EXISTS {{
+            (n)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
+            WHERE toLower(lt.text) CONTAINS toLower($name)
+        }} OR EXISTS {{
+            (n)<-[:ALTERNATIVE_OF]-(alt:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
+            WHERE toLower(lt.text) CONTAINS toLower($name)
+        }}
+    }})
+    AND ($bdrc IS NULL OR p.bdrc = $bdrc)
+    AND ($wiki IS NULL OR p.wiki = $wiki)
+    WITH p
     ORDER BY p.id
     SKIP $offset LIMIT $limit
+    RETURN {_PERSON_RETURN} AS person
     """
 
     CREATE_QUERY = """
@@ -91,9 +105,21 @@ class PersonDatabase:
             person_data = record.data()["person"]
             return DataAdapter.person(person_data)
 
-    def get_all(self, offset: int = 0, limit: int = 20) -> list[PersonOutput]:
+    def get_all(
+        self,
+        offset: int = 0,
+        limit: int = 20,
+        filters: PersonFilter | None = None,
+    ) -> list[PersonOutput]:
         with self.session as session:
-            result = session.run(PersonDatabase.GET_ALL_QUERY, offset=offset, limit=limit)
+            result = session.run(
+                PersonDatabase.GET_ALL_QUERY,
+                offset=offset,
+                limit=limit,
+                name=filters.name if filters else None,
+                bdrc=filters.bdrc if filters else None,
+                wiki=filters.wiki if filters else None,
+            )
             return [
                 person_model
                 for record in result

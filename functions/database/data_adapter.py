@@ -99,5 +99,5 @@ class DataAdapter:
             id=data["id"],
             title=LocalizedString(DataAdapter.localized_text(data["title"]) or {}),
             parent_id=data.get("parent_id"),
-            has_children=data.get("has_children", False),
+            children=data.get("children") or [],
         )

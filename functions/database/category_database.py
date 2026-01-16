@@ -25,7 +25,7 @@ class CategoryDatabase:
         title: [(c)-[:HAS_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
             -[:HAS_LANGUAGE]->(l:Language) | {language: l.code, text: lt.text}],
         parent_id: [(c)-[:HAS_PARENT]->(parent:Category) | parent.id][0],
-        has_children: EXISTS { (child:Category)-[:HAS_PARENT]->(c) }
+        children: [(child:Category)-[:HAS_PARENT]->(c) | child.id]
     } AS category
     """
 

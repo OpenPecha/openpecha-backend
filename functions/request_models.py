@@ -31,9 +31,21 @@ class ExpressionFilter(OpenPechaModel):
     language: str | None = None
     title: str | None = None
     category_id: str | None = None
+    bdrc: str | None = None
+    wiki: str | None = None
 
 
 class TextsQueryParams(PaginationParams, ExpressionFilter):
+    pass
+
+
+class PersonFilter(OpenPechaModel):
+    name: str | None = None
+    bdrc: str | None = None
+    wiki: str | None = None
+
+
+class PersonsQueryParams(PaginationParams, PersonFilter):
     pass
 
 
