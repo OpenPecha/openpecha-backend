@@ -345,35 +345,46 @@ class ExpressionDatabase:
     def update(self, expression_id: str, patch: ExpressionPatch) -> ExpressionOutput:
         existing = self.get(expression_id)
 
-        merged = {
-            "id": existing.id,
-            "bdrc": patch.bdrc if patch.bdrc is not None else existing.bdrc,
-            "wiki": patch.wiki if patch.wiki is not None else existing.wiki,
-            "date": patch.date if patch.date is not None else existing.date,
-            "title": dict(patch.title.root) if patch.title is not None else dict(existing.title.root),
-            "alt_titles": [dict(alt.root) for alt in patch.alt_titles]
+        merged_bdrc = patch.bdrc if patch.bdrc is not None else existing.bdrc
+        merged_wiki = patch.wiki if patch.wiki is not None else existing.wiki
+        merged_date = patch.date if patch.date is not None else existing.date
+        merged_title: dict[str, str] = dict(patch.title.root) if patch.title is not None else dict(existing.title.root)
+        merged_alt_titles: list[dict[str, str]] | None = (
+            [dict(alt.root) for alt in patch.alt_titles]
             if patch.alt_titles is not None
-            else ([dict(alt.root) for alt in existing.alt_titles] if existing.alt_titles else None),
-            "language": patch.language if patch.language is not None else existing.language,
-            "category_id": patch.category_id if patch.category_id is not None else existing.category_id,
-            "license": patch.license if patch.license is not None else existing.license,
-            "contributions": [c.model_dump() for c in existing.contributions],
-        }
+            else ([dict(alt.root) for alt in existing.alt_titles] if existing.alt_titles else None)
+        )
+        merged_language = patch.language if patch.language is not None else existing.language
+        merged_category_id = patch.category_id if patch.category_id is not None else existing.category_id
+        merged_license = patch.license if patch.license is not None else existing.license
 
-        ExpressionOutput.model_validate(merged)
+        ExpressionOutput.model_validate(
+            {
+                "id": existing.id,
+                "bdrc": merged_bdrc,
+                "wiki": merged_wiki,
+                "date": merged_date,
+                "title": merged_title,
+                "alt_titles": merged_alt_titles,
+                "language": merged_language,
+                "category_id": merged_category_id,
+                "license": merged_license,
+                "contributions": [c.model_dump() for c in existing.contributions],
+            }
+        )
 
         def update_transaction(tx: ManagedTransaction) -> None:
             tx.run(
                 ExpressionDatabase.UPDATE_PROPERTIES_QUERY,
                 expression_id=expression_id,
-                bdrc=merged["bdrc"],
-                wiki=merged["wiki"],
-                date=merged["date"],
+                bdrc=merged_bdrc,
+                wiki=merged_wiki,
+                date=merged_date,
             )
 
             if patch.title is not None or patch.alt_titles is not None:
                 tx.run(ExpressionDatabase.DELETE_TITLE_QUERY, expression_id=expression_id)
-                title_nomen_id = NomenDatabase.create_with_transaction(tx, merged["title"], merged["alt_titles"])
+                title_nomen_id = NomenDatabase.create_with_transaction(tx, merged_title, merged_alt_titles)
                 tx.run(ExpressionDatabase.LINK_TITLE_QUERY, expression_id=expression_id, nomen_id=title_nomen_id)
 
             if patch.license is not None:
