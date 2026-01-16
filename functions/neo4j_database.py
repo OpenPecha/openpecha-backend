@@ -32,6 +32,7 @@ from neo4j import GraphDatabase
 from neo4j_database_validator import Neo4JDatabaseValidator
 from neo4j_queries import Queries
 
+
 logger = logging.getLogger(__name__)
 
 
@@ -171,6 +172,7 @@ class Neo4JDatabase:
         self, expression_id: str, manifestation_type: str | None = None
     ) -> list[ManifestationModelBase]:
         with self.get_session() as session:
+            self.__validator.validate_expression_exists(session, expression_id)
             rows = session.execute_read(
                 lambda tx: [
                     r.data()
@@ -768,6 +770,7 @@ class Neo4JDatabase:
 
     def create_person(self, person: PersonModelInput) -> str:
         def create_transaction(tx):
+            self.__validator.validate_person_bdrc_unique(tx, person.bdrc)
             person_id = generate_id()
             alt_names_data = [alt_name.root for alt_name in person.alt_names] if person.alt_names else None
             primary_name_element_id = self._create_nomens(tx, person.name.root, alt_names_data)
@@ -819,7 +822,9 @@ class Neo4JDatabase:
                 self._create_segments(tx, bibliography_annotation.id, bibliography_segments)
                 if bibliography_segments:
                     self._link_segment_and_bibliography_type(tx, bibliography_segments)
-
+            
+            return manifestation_id
+        
         with self.get_session() as session:
             return session.execute_write(transaction_function)
 

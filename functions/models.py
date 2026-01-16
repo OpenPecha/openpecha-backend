@@ -169,7 +169,7 @@ class ExpressionModelBase(OpenPechaModel):
     alt_titles: list[LocalizedString] | None = None
     language: NonEmptyStr
     target: str | None = None
-    category_id: str | None = None
+    category_id: str
     copyright: CopyrightStatus = CopyrightStatus.PUBLIC_DOMAIN
     license: LicenseType = LicenseType.PUBLIC_DOMAIN_MARK
 

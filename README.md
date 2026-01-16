@@ -27,6 +27,26 @@ source venv/bin/activate  # On Windows use: venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
+## Running tests (pytest)
+These integration tests use a real Neo4j instance.
+
+Set these values in `functions/.env`:
+
+```env
+NEO4J_TEST_URI=bolt://localhost:7687
+NEO4J_TEST_PASSWORD=your_password
+```
+
+Then run from the `functions` directory:
+
+```bash
+pytest
+```
+If pytest doesn't work try with
+```bash
+python -m pytest
+```
+
 ## Testing the backend locally
 Run the emulator to test Cloud Functions locally:
 ```

@@ -3,6 +3,7 @@ import logging
 from exceptions import InvalidRequest
 from models import ExpressionModelInput, ManifestationType, TextType
 from neo4j_queries import Queries
+from exceptions import DataConflict
 
 logger = logging.getLogger(__name__)
 
@@ -280,3 +281,15 @@ class Neo4JDatabaseValidator:
                     f"A category with application '{application}', title '{title_text}' in language '{language}', "
                     f"and parent_id '{parent_id}' already exists."
                 )
+
+    def validate_person_bdrc_unique(self, session, bdrc: str) -> None:
+        query = """
+        MATCH (p:Person {bdrc: $bdrc})
+        RETURN count(p) as count
+        """
+
+        result = session.run(query, bdrc=bdrc)
+        record = result.single()
+
+        if record and record["count"] > 0:
+            raise DataConflict(f"Person with BDRC ID '{bdrc}' already exists")
