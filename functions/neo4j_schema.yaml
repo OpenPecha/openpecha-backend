@@ -144,9 +144,6 @@ nodes:
         type: string
         required: true
         unique: true
-      application_id:
-        type: string
-        required: false
     relationships:
       SEGMENTATION_OF:
         target: Manifestation
@@ -451,23 +448,6 @@ nodes:
         required: true
         allowed_values:
           - ocr_confidence
-
-  AnnotationType:
-    enum: true
-    properties:
-      name:
-        type: string
-        unique: true
-        required: true
-        allowed_values:
-          - segmentation
-          - alignment
-          - pagination
-          - bibliography
-          - table_of_contents
-          - durchen
-          - search_segmentation
-          - version
 
   RoleType:
     enum: true
