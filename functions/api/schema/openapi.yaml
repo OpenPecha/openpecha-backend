@@ -307,7 +307,6 @@ paths:
                                     type: object
                                     required:
                                         - type
-                                        - source
                                     properties:
                                         type:
                                             type: string

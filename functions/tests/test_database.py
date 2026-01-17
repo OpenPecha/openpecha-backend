@@ -778,3 +778,64 @@ class TestDatabase:
         # Should raise DataValidationError for non-existent expression
         with pytest.raises(DataValidationError, match="Expression nonexistent-id does not exist"):
             test_database.manifestation.create(manifestation, generate_id(), "nonexistent-id")
+
+    def test_create_manifestation_with_source(self, test_database):
+        """Test that source field is stored in Source node and retrieved correctly."""
+        # Create expression first
+        person = PersonInput(
+            name=LocalizedString({"en": "Test Author"}),
+        )
+        person_id = test_database.person.create(person)
+
+        expression = ExpressionInput(
+            category_id="category",
+            title=LocalizedString({"en": "Test Expression"}),
+            language="en",
+            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
+        )
+        expression_id = test_database.expression.create(expression)
+
+        # Create manifestation with source
+        manifestation = ManifestationInput(
+            type=ManifestationType.CRITICAL,
+            source="BDRC Library",
+            colophon="Test colophon",
+        )
+        manifestation_id = generate_id()
+        test_database.manifestation.create(manifestation, manifestation_id, expression_id)
+
+        # Retrieve and verify source is returned
+        retrieved = test_database.manifestation.get(manifestation_id)
+        assert retrieved.id == manifestation_id
+        assert retrieved.source == "BDRC Library"
+        assert retrieved.colophon == "Test colophon"
+        assert retrieved.type == ManifestationType.CRITICAL
+
+    def test_create_manifestation_without_source(self, test_database):
+        """Test that manifestation without source works correctly."""
+        # Create expression first
+        person = PersonInput(
+            name=LocalizedString({"en": "Test Author"}),
+        )
+        person_id = test_database.person.create(person)
+
+        expression = ExpressionInput(
+            category_id="category",
+            title=LocalizedString({"en": "Test Expression"}),
+            language="en",
+            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
+        )
+        expression_id = test_database.expression.create(expression)
+
+        # Create manifestation without source
+        manifestation = ManifestationInput(
+            type=ManifestationType.CRITICAL,
+        )
+        manifestation_id = generate_id()
+        test_database.manifestation.create(manifestation, manifestation_id, expression_id)
+
+        # Retrieve and verify source is None
+        retrieved = test_database.manifestation.get(manifestation_id)
+        assert retrieved.id == manifestation_id
+        assert retrieved.source is None
+        assert retrieved.type == ManifestationType.CRITICAL

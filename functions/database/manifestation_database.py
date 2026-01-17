@@ -37,12 +37,17 @@ class ManifestationDatabase:
     MATCH (m:Manifestation {id: $manifestation_id})
     OPTIONAL MATCH (m)-[:HAS_INCIPIT_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
     OPTIONAL MATCH (n)<-[:ALTERNATIVE_OF]-(alt:Nomen)-[:HAS_LOCALIZATION]->(alt_lt:LocalizedText)
+    OPTIONAL MATCH (m)-[:HAS_SOURCE]->(s:Source)
+    WITH m, n, lt, alt, alt_lt, s, size([(s)<-[:HAS_SOURCE]-(:Manifestation) | 1]) AS source_refs
     DETACH DELETE m, n, lt, alt, alt_lt
+    WITH s, source_refs WHERE s IS NOT NULL AND source_refs <= 1
+    DELETE s
     """
 
     _MANIFESTATION_RETURN = """
     RETURN {
-        id: m.id, bdrc: m.bdrc, wiki: m.wiki, colophon: m.colophon, source: m.source,
+        id: m.id, bdrc: m.bdrc, wiki: m.wiki, colophon: m.colophon,
+        source: [(m)-[:HAS_SOURCE]->(s:Source) | s.name][0],
         type: [(m)-[:HAS_TYPE]->(mt:ManifestationType) | mt.name][0],
         incipit_title: [(m)-[:HAS_INCIPIT_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->
             (lt:LocalizedText)-[r:HAS_LANGUAGE]->(l:Language) |
@@ -84,10 +89,11 @@ class ManifestationDatabase:
     MATCH (e:Expression {id: $expression_id})
     OPTIONAL MATCH (it:Nomen {id: $incipit_nomen_id})
     MERGE (mt:ManifestationType {name: $type})
-    CREATE (m:Manifestation {id: $manifestation_id, bdrc: $bdrc, wiki: $wiki, colophon: $colophon, source: $source})
+    CREATE (m:Manifestation {id: $manifestation_id, bdrc: $bdrc, wiki: $wiki, colophon: $colophon})
     WITH m, e, mt, it
     CREATE (m)-[:MANIFESTATION_OF]->(e), (m)-[:HAS_TYPE]->(mt)
     CALL (*) { WHEN it IS NOT NULL THEN { CREATE (m)-[:HAS_INCIPIT_TITLE]->(it) } }
+    CALL (*) { WHEN $source IS NOT NULL THEN { MERGE (s:Source {name: $source}) CREATE (m)-[:HAS_SOURCE]->(s) } }
     RETURN m.id AS manifestation_id
     """
 
@@ -206,9 +212,9 @@ class ManifestationDatabase:
             bdrc=manifestation.bdrc,
             wiki=manifestation.wiki,
             type=manifestation.type.value if manifestation.type else None,
-            source=manifestation.source,
             colophon=manifestation.colophon,
             incipit_nomen_id=incipit_nomen_id,
+            source=manifestation.source,
         )
 
         record = result.single()

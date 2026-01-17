@@ -113,9 +113,6 @@ nodes:
       colophon:
         type: string
         required: false
-      source:
-        type: string
-        required: false
       bdrc:
         type: string
         required: false
@@ -136,6 +133,16 @@ nodes:
       MANIFESTATION_OF:
         target: Expression
         cardinality: one
+        required: true
+      HAS_SOURCE:
+        target: Source
+        cardinality: one
+        required: false
+
+  Source:
+    properties:
+      name:
+        type: string
         required: true
 
   Segmentation:
