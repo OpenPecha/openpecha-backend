@@ -1682,6 +1682,63 @@ paths:
                     $ref: "#/components/responses/NotFound"
                 "500":
                     $ref: "#/components/responses/ServerError"
+        put:
+            summary: Update segment text content
+            description: >-
+                Replace the text content of a segment. This operation updates the base text
+                in storage and adjusts all affected spans on the same manifestation.
+                If the new content has a different length than the original, subsequent
+                spans are shifted accordingly. Notes that overlap with the segment are
+                adjusted or deleted if fully encompassed by the change.
+            tags:
+                - Segments
+            parameters:
+                - name: segment_id
+                  in: path
+                  required: true
+                  schema:
+                      type: string
+                  description: The ID of the segment to update
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            type: object
+                            required:
+                                - content
+                            properties:
+                                content:
+                                    type: string
+                                    minLength: 1
+                                    description: The new text content for the segment
+                        examples:
+                            update:
+                                summary: Update segment content
+                                value:
+                                    content: "Updated text content for this segment."
+            responses:
+                "200":
+                    description: Segment content updated successfully
+                    content:
+                        application/json:
+                            schema:
+                                type: object
+                                properties:
+                                    message:
+                                        type: string
+                            examples:
+                                success:
+                                    value:
+                                        message: "Segment content updated"
+                "400":
+                    $ref: "#/components/responses/InvalidRequest"
+                "404":
+                    $ref: "#/components/responses/NotFound"
+                "422":
+                    $ref: "#/components/responses/ValidationError"
+                "500":
+                    $ref: "#/components/responses/ServerError"
 
     /v2/segments/search:
         get:

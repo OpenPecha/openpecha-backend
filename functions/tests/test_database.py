@@ -839,3 +839,323 @@ class TestDatabase:
         assert retrieved.id == manifestation_id
         assert retrieved.source is None
         assert retrieved.type == ManifestationType.CRITICAL
+
+
+class TestSpanDatabase:
+    """Tests for SpanDatabase span adjustment functionality."""
+
+    def _create_test_setup(self, test_database):
+        """Helper to create expression, manifestation, segmentation, and segment for testing."""
+        person = PersonInput(name=LocalizedString({"en": "Test Author"}))
+        person_id = test_database.person.create(person)
+
+        expression = ExpressionInput(
+            category_id="category",
+            title=LocalizedString({"en": "Test Expression"}),
+            language="en",
+            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
+        )
+        expression_id = test_database.expression.create(expression)
+
+        manifestation = ManifestationInput(type=ManifestationType.CRITICAL)
+        manifestation_id = generate_id()
+        test_database.manifestation.create(manifestation, manifestation_id, expression_id)
+
+        segment_id = generate_id()
+        segmentation_id = generate_id()
+        with test_database.get_session() as session:
+            session.execute_write(
+                lambda tx: tx.run(
+                    """
+                    MATCH (m:Manifestation {id: $manifestation_id})
+                    CREATE (segmentation:Segmentation {id: $segmentation_id})-[:SEGMENTATION_OF]->(m)
+                    CREATE (seg:Segment {id: $segment_id})-[:SEGMENT_OF]->(segmentation)
+                    CREATE (span:Span {start: $start, end: $end})-[:SPAN_OF]->(seg)
+                    """,
+                    manifestation_id=manifestation_id,
+                    segmentation_id=segmentation_id,
+                    segment_id=segment_id,
+                    start=0,
+                    end=12,
+                )
+            )
+
+        return {
+            "expression_id": expression_id,
+            "manifestation_id": manifestation_id,
+            "segment_id": segment_id,
+            "segmentation_id": segmentation_id,
+        }
+
+    def _add_note(self, test_database, manifestation_id: str, start: int, end: int) -> str:
+        """Helper to add a note with a span."""
+        note_id = generate_id()
+        with test_database.get_session() as session:
+            session.execute_write(
+                lambda tx: tx.run(
+                    """
+                    MATCH (m:Manifestation {id: $manifestation_id}), (nt:NoteType {name: 'durchen'})
+                    CREATE (span:Span {start: $start, end: $end})-[:SPAN_OF]->(n:Note {id: $note_id, text: 'test'})
+                    CREATE (n)-[:NOTE_OF]->(m)
+                    CREATE (n)-[:HAS_TYPE]->(nt)
+                    """,
+                    manifestation_id=manifestation_id,
+                    note_id=note_id,
+                    start=start,
+                    end=end,
+                )
+            )
+        return note_id
+
+    def _add_second_segment(self, test_database, manifestation_id: str, start: int, end: int) -> str:
+        """Helper to add a second segment."""
+        segment_id = generate_id()
+        with test_database.get_session() as session:
+            session.execute_write(
+                lambda tx: tx.run(
+                    """
+                    MATCH (m:Manifestation {id: $manifestation_id})<-[:SEGMENTATION_OF]-(segmentation:Segmentation)
+                    CREATE (seg:Segment {id: $segment_id})-[:SEGMENT_OF]->(segmentation)
+                    CREATE (span:Span {start: $start, end: $end})-[:SPAN_OF]->(seg)
+                    """,
+                    manifestation_id=manifestation_id,
+                    segment_id=segment_id,
+                    start=start,
+                    end=end,
+                )
+            )
+        return segment_id
+
+    def _get_span(self, test_database, entity_id: str) -> tuple[int, int] | None:
+        """Helper to get span for any entity."""
+        with test_database.get_session() as session:
+            result = session.run(
+                "MATCH (s:Span)-[:SPAN_OF]->(e {id: $id}) RETURN s.start AS start, s.end AS end",
+                id=entity_id,
+            ).single()
+            if result is None:
+                return None
+            return (result["start"], result["end"])
+
+    def test_update_span_end(self, test_database):
+        """Test updating a segment's span end position."""
+        setup = self._create_test_setup(test_database)
+
+        test_database.span.update_span_end(setup["segment_id"], 20)
+
+        span = self._get_span(test_database, setup["segment_id"])
+        assert span == (0, 20)
+
+    def test_adjust_shifts_subsequent_segment(self, test_database):
+        """Test that subsequent segments are shifted when content grows."""
+        setup = self._create_test_setup(test_database)
+        second_segment_id = self._add_second_segment(test_database, setup["manifestation_id"], 13, 28)
+
+        test_database.span.adjust_affected_spans(
+            manifestation_id=setup["manifestation_id"],
+            replace_start=0,
+            replace_end=12,
+            new_length=20,
+            exclude_entity_id=setup["segment_id"],
+        )
+
+        span = self._get_span(test_database, second_segment_id)
+        assert span == (21, 36)
+
+    def test_adjust_shifts_subsequent_note(self, test_database):
+        """Test that subsequent notes are shifted when content grows."""
+        setup = self._create_test_setup(test_database)
+        note_id = self._add_note(test_database, setup["manifestation_id"], 15, 20)
+
+        test_database.span.adjust_affected_spans(
+            manifestation_id=setup["manifestation_id"],
+            replace_start=0,
+            replace_end=12,
+            new_length=20,
+            exclude_entity_id=setup["segment_id"],
+        )
+
+        span = self._get_span(test_database, note_id)
+        assert span == (23, 28)
+
+    def test_adjust_deletes_encompassed_note(self, test_database):
+        """Test that notes fully encompassed by replacement are deleted."""
+        setup = self._create_test_setup(test_database)
+        note_id = self._add_note(test_database, setup["manifestation_id"], 2, 8)
+
+        test_database.span.adjust_affected_spans(
+            manifestation_id=setup["manifestation_id"],
+            replace_start=0,
+            replace_end=12,
+            new_length=5,
+            exclude_entity_id=setup["segment_id"],
+        )
+
+        span = self._get_span(test_database, note_id)
+        assert span is None
+
+    def test_adjust_trims_overlapping_note_end(self, test_database):
+        """Test that notes overlapping the replacement end are trimmed."""
+        setup = self._create_test_setup(test_database)
+        note_id = self._add_note(test_database, setup["manifestation_id"], 5, 15)
+
+        test_database.span.adjust_affected_spans(
+            manifestation_id=setup["manifestation_id"],
+            replace_start=0,
+            replace_end=12,
+            new_length=12,
+            exclude_entity_id=setup["segment_id"],
+        )
+
+        span = self._get_span(test_database, note_id)
+        assert span == (12, 15)
+
+    def test_adjust_no_change_for_span_after_replacement(self, test_database):
+        """Test that spans completely after replacement with same length stay unchanged."""
+        setup = self._create_test_setup(test_database)
+        note_id = self._add_note(test_database, setup["manifestation_id"], 20, 30)
+
+        test_database.span.adjust_affected_spans(
+            manifestation_id=setup["manifestation_id"],
+            replace_start=0,
+            replace_end=12,
+            new_length=12,
+            exclude_entity_id=setup["segment_id"],
+        )
+
+        span = self._get_span(test_database, note_id)
+        assert span == (20, 30)
+
+    def test_adjust_shrinking_content_shifts_left(self, test_database):
+        """Test that subsequent spans shift left when content shrinks."""
+        setup = self._create_test_setup(test_database)
+        note_id = self._add_note(test_database, setup["manifestation_id"], 20, 30)
+
+        test_database.span.adjust_affected_spans(
+            manifestation_id=setup["manifestation_id"],
+            replace_start=0,
+            replace_end=12,
+            new_length=4,
+            exclude_entity_id=setup["segment_id"],
+        )
+
+        span = self._get_span(test_database, note_id)
+        assert span == (12, 22)
+
+    def test_adjust_trims_overlapping_start(self, test_database):
+        """Test that spans overlapping replacement start are adjusted."""
+        setup = self._create_test_setup(test_database)
+        note_id = self._add_note(test_database, setup["manifestation_id"], 5, 20)
+
+        test_database.span.adjust_affected_spans(
+            manifestation_id=setup["manifestation_id"],
+            replace_start=10,
+            replace_end=15,
+            new_length=5,
+            exclude_entity_id=setup["segment_id"],
+        )
+
+        span = self._get_span(test_database, note_id)
+        assert span == (5, 20)
+
+    def test_adjust_inside_span_expands(self, test_database):
+        """Test that replacement inside a span expands it."""
+        setup = self._create_test_setup(test_database)
+        note_id = self._add_note(test_database, setup["manifestation_id"], 0, 30)
+
+        test_database.span.adjust_affected_spans(
+            manifestation_id=setup["manifestation_id"],
+            replace_start=10,
+            replace_end=15,
+            new_length=10,
+            exclude_entity_id=setup["segment_id"],
+        )
+
+        span = self._get_span(test_database, note_id)
+        assert span == (0, 35)
+
+    def _add_page(self, test_database, manifestation_id: str, start: int, end: int) -> str:
+        """Helper to add a page with a span."""
+        page_id = generate_id()
+        with test_database.get_session() as session:
+            session.execute_write(
+                lambda tx: tx.run(
+                    """
+                    MATCH (m:Manifestation {id: $manifestation_id})
+                    CREATE (span:Span {start: $start, end: $end})-[:SPAN_OF]->(p:Page {id: $page_id, index: 1})
+                    CREATE (p)-[:PAGE_OF]->(m)
+                    """,
+                    manifestation_id=manifestation_id,
+                    page_id=page_id,
+                    start=start,
+                    end=end,
+                )
+            )
+        return page_id
+
+    def test_adjust_shifts_page(self, test_database):
+        """Test that pages are shifted when content grows."""
+        setup = self._create_test_setup(test_database)
+        page_id = self._add_page(test_database, setup["manifestation_id"], 15, 40)
+
+        test_database.span.adjust_affected_spans(
+            manifestation_id=setup["manifestation_id"],
+            replace_start=0,
+            replace_end=12,
+            new_length=20,
+            exclude_entity_id=setup["segment_id"],
+        )
+
+        span = self._get_span(test_database, page_id)
+        assert span == (23, 48)
+
+    def _add_bibliographic(self, test_database, manifestation_id: str, start: int, end: int) -> str:
+        """Helper to add bibliographic metadata with a span."""
+        bib_id = generate_id()
+        with test_database.get_session() as session:
+            session.execute_write(
+                lambda tx: tx.run(
+                    """
+                    MATCH (m:Manifestation {id: $manifestation_id})
+                    CREATE (span:Span {start: $start, end: $end})-[:SPAN_OF]->(b:BibliographicMetadata {id: $bib_id})
+                    CREATE (b)-[:BIBLIOGRAPHY_OF]->(m)
+                    """,
+                    manifestation_id=manifestation_id,
+                    bib_id=bib_id,
+                    start=start,
+                    end=end,
+                )
+            )
+        return bib_id
+
+    def test_adjust_shifts_bibliographic(self, test_database):
+        """Test that bibliographic metadata is shifted when content grows."""
+        setup = self._create_test_setup(test_database)
+        bib_id = self._add_bibliographic(test_database, setup["manifestation_id"], 15, 25)
+
+        test_database.span.adjust_affected_spans(
+            manifestation_id=setup["manifestation_id"],
+            replace_start=0,
+            replace_end=12,
+            new_length=20,
+            exclude_entity_id=setup["segment_id"],
+        )
+
+        span = self._get_span(test_database, bib_id)
+        assert span == (23, 33)
+
+    def test_adjust_deletes_encompassed_bibliographic(self, test_database):
+        """Test that bibliographic metadata fully inside replacement is deleted."""
+        setup = self._create_test_setup(test_database)
+        bib_id = self._add_bibliographic(test_database, setup["manifestation_id"], 2, 10)
+
+        test_database.span.adjust_affected_spans(
+            manifestation_id=setup["manifestation_id"],
+            replace_start=0,
+            replace_end=12,
+            new_length=5,
+            exclude_entity_id=setup["segment_id"],
+        )
+
+        span = self._get_span(test_database, bib_id)
+        assert span is None

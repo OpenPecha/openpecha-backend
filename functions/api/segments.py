@@ -1,11 +1,11 @@
 import logging
 
 import requests
-from api.decorators import validate_query_params
+from api.decorators import validate_json, validate_query_params
 from database import Database
 from exceptions import DataNotFoundError, InvalidRequestError
 from flask import Blueprint, Response, jsonify
-from models import SearchFilterModel, SearchResponseModel, SearchResultModel
+from models import SearchFilterModel, SearchResponseModel, SearchResultModel, SegmentContentInput
 from request_models import SearchQueryParams
 from storage import Storage
 
@@ -36,6 +36,36 @@ def get_segment_content(segment_id: str) -> tuple[Response, int]:
 
     content = base_text[segment.span.start : segment.span.end]
     return jsonify(content), 200
+
+
+@segments_bp.route("/<string:segment_id>/content", methods=["PUT"], strict_slashes=False)
+@validate_json(SegmentContentInput)
+def update_segment_content(segment_id: str, validated_data: SegmentContentInput) -> tuple[Response, int]:
+    with Database() as db:
+        segment = db.segment.get(segment_id)
+        old_start = segment.span.start
+        old_end = segment.span.end
+        new_length = len(validated_data.content)
+
+        Storage().update_base_text_range(
+            expression_id=segment.text_id,
+            manifestation_id=segment.manifestation_id,
+            start=old_start,
+            end=old_end,
+            new_content=validated_data.content,
+        )
+
+        db.span.update_span_end(segment_id, new_length)
+
+        db.span.adjust_affected_spans(
+            manifestation_id=segment.manifestation_id,
+            replace_start=old_start,
+            replace_end=old_end,
+            new_length=new_length,
+            exclude_entity_id=segment_id,
+        )
+
+    return jsonify({"message": "Segment content updated"}), 200
 
 
 @segments_bp.route("/search", methods=["GET"], strict_slashes=False)

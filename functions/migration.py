@@ -102,38 +102,33 @@ def migrate_create_license_types(session: Session) -> int:
 
 def migrate_copyright_to_license(session: Session) -> dict[str, int]:
     """Convert HAS_COPYRIGHT→Copyright to HAS_LICENSE→LicenseType based on Copyright.status."""
-    # Map Copyright.status to LicenseType.name
-    # "Public domain" -> "public", "Unknown" -> "unknown"
     result = session.run("""
         MATCH (e:Expression)-[old:HAS_COPYRIGHT]->(c:Copyright)
-        WITH e, old, c,
+        WITH e, c, old,
              CASE c.status
                  WHEN 'Public domain' THEN 'public'
                  WHEN 'Unknown' THEN 'unknown'
                  ELSE 'unknown'
              END AS license_name
         MATCH (lt:LicenseType {name: license_name})
-        CREATE (e)-[:HAS_LICENSE]->(lt)
+        MERGE (e)-[:HAS_LICENSE]->(lt)
         DELETE old
-        WITH e, c
+        WITH c
         WHERE NOT EXISTS { ()-[:HAS_COPYRIGHT]->(c) }
         DELETE c
-        RETURN count(DISTINCT e) AS expressions_updated
+        RETURN count(DISTINCT c) AS count
     """).single()
 
-    stats = {"expressions_updated": 0}
-    if result:
-        stats["expressions_updated"] = result["expressions_updated"]
+    stats = {"expressions_updated": result["count"] if result else 0}
     logger.info("Converted %d Expression HAS_COPYRIGHT to HAS_LICENSE", stats["expressions_updated"])
     return stats
 
 
 def migrate_license_to_license_type(session: Session) -> dict[str, int]:
     """Convert HAS_LICENSE→License to HAS_LICENSE→LicenseType with name mapping."""
-    # Map old License.name to new LicenseType.name
     result = session.run("""
         MATCH (e:Expression)-[old:HAS_LICENSE]->(l:License)
-        WITH e, old, l,
+        WITH e, l, old,
              CASE l.name
                  WHEN 'CC0' THEN 'cc0'
                  WHEN 'Public Domain Mark' THEN 'public'
@@ -147,17 +142,15 @@ def migrate_license_to_license_type(session: Session) -> dict[str, int]:
                  ELSE 'unknown'
              END AS license_type_name
         MATCH (lt:LicenseType {name: license_type_name})
-        CREATE (e)-[:HAS_LICENSE]->(lt)
+        MERGE (e)-[:HAS_LICENSE]->(lt)
         DELETE old
-        WITH e, l
+        WITH l
         WHERE NOT EXISTS { ()-[:HAS_LICENSE]->(l) }
         DELETE l
-        RETURN count(DISTINCT e) AS expressions_updated
+        RETURN count(DISTINCT l) AS count
     """).single()
 
-    stats = {"expressions_updated": 0}
-    if result:
-        stats["expressions_updated"] = result["expressions_updated"]
+    stats = {"expressions_updated": result["count"] if result else 0}
     logger.info("Converted %d Expression HAS_LICENSE→License to HAS_LICENSE→LicenseType", stats["expressions_updated"])
     return stats
 

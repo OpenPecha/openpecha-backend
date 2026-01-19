@@ -510,3 +510,7 @@ class SearchResponseModel(OpenPechaModel):
     search_type: str
     results: list[SearchResultModel]
     count: int
+
+
+class SegmentContentInput(OpenPechaModel):
+    content: str = Field(..., min_length=1)

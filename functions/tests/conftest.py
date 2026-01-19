@@ -30,37 +30,41 @@ def load_constraints_file() -> list[str]:
 def setup_test_schema(session) -> None:
     """Setup common test schema data needed by all test suites."""
 
+    # DELETE must be in separate transaction - constraint checks happen before commit
+    session.execute_write(lambda tx: tx.run("MATCH (n) DETACH DELETE n").consume())
+
     def do_seed(tx):
-        tx.run("MATCH (n) DETACH DELETE n")
-        tx.run("MERGE (:Language {code: 'bo', name: 'Tibetan'})")
-        tx.run("CREATE (:Language {code: 'en', name: 'English'})")
-        tx.run("CREATE (:Language {code: 'sa', name: 'Sanskrit'})")
-        tx.run("CREATE (:Language {code: 'zh', name: 'Chinese'})")
-        tx.run("CREATE (:Language {code: 'tib', name: 'Spoken Tibetan'})")
-        tx.run("CREATE (:TextType {name: 'root'})")
-        tx.run("CREATE (:TextType {name: 'commentary'})")
-        tx.run("CREATE (:TextType {name: 'translation'})")
-        tx.run("CREATE (:RoleType {name: 'translator'})")
-        tx.run("CREATE (:RoleType {name: 'author'})")
-        tx.run("CREATE (:RoleType {name: 'reviser'})")
-        tx.run("CREATE (:LicenseType {name: 'public'})")
-        tx.run("CREATE (:LicenseType {name: 'cc0'})")
-        tx.run("CREATE (:LicenseType {name: 'cc-by'})")
-        tx.run("CREATE (:LicenseType {name: 'cc-by-sa'})")
-        tx.run("CREATE (:LicenseType {name: 'cc-by-nd'})")
-        tx.run("CREATE (:LicenseType {name: 'cc-by-nc'})")
-        tx.run("CREATE (:LicenseType {name: 'cc-by-nc-sa'})")
-        tx.run("CREATE (:LicenseType {name: 'cc-by-nc-nd'})")
-        tx.run("CREATE (:LicenseType {name: 'copyrighted'})")
-        tx.run("CREATE (:LicenseType {name: 'unknown'})")
-        tx.run("CREATE (:NoteType {name: 'durchen'})")
-        tx.run("CREATE (:BibliographyType {name: 'colophon'})")
-        tx.run("CREATE (:BibliographyType {name: 'incipit'})")
-        tx.run("CREATE (:BibliographyType {name: 'alt_incipit'})")
-        tx.run("CREATE (:BibliographyType {name: 'alt_title'})")
-        tx.run("CREATE (:BibliographyType {name: 'person'})")
-        tx.run("CREATE (:BibliographyType {name: 'title'})")
-        tx.run("CREATE (:BibliographyType {name: 'author'})")
+        tx.run("""
+            CREATE (:Language {code: 'bo', name: 'Tibetan'})
+            CREATE (:Language {code: 'en', name: 'English'})
+            CREATE (:Language {code: 'sa', name: 'Sanskrit'})
+            CREATE (:Language {code: 'zh', name: 'Chinese'})
+            CREATE (:Language {code: 'tib', name: 'Spoken Tibetan'})
+            CREATE (:TextType {name: 'root'})
+            CREATE (:TextType {name: 'commentary'})
+            CREATE (:TextType {name: 'translation'})
+            CREATE (:RoleType {name: 'translator'})
+            CREATE (:RoleType {name: 'author'})
+            CREATE (:RoleType {name: 'reviser'})
+            CREATE (:LicenseType {name: 'public'})
+            CREATE (:LicenseType {name: 'cc0'})
+            CREATE (:LicenseType {name: 'cc-by'})
+            CREATE (:LicenseType {name: 'cc-by-sa'})
+            CREATE (:LicenseType {name: 'cc-by-nd'})
+            CREATE (:LicenseType {name: 'cc-by-nc'})
+            CREATE (:LicenseType {name: 'cc-by-nc-sa'})
+            CREATE (:LicenseType {name: 'cc-by-nc-nd'})
+            CREATE (:LicenseType {name: 'copyrighted'})
+            CREATE (:LicenseType {name: 'unknown'})
+            CREATE (:NoteType {name: 'durchen'})
+            CREATE (:BibliographyType {name: 'colophon'})
+            CREATE (:BibliographyType {name: 'incipit'})
+            CREATE (:BibliographyType {name: 'alt_incipit'})
+            CREATE (:BibliographyType {name: 'alt_title'})
+            CREATE (:BibliographyType {name: 'person'})
+            CREATE (:BibliographyType {name: 'title'})
+            CREATE (:BibliographyType {name: 'author'})
+        """).consume()
         tx.run("""
             CREATE (app:Application {id: 'test_application', name: 'Test Application'})
             CREATE (cat:Category {id: 'category'})-[:BELONGS_TO]->(app)
@@ -73,7 +77,7 @@ def setup_test_schema(session) -> None:
             MATCH (lang_bo:Language {code: 'bo'})
             CREATE (nomen)-[:HAS_LOCALIZATION]->(lt_en)-[:HAS_LANGUAGE]->(lang_en)
             CREATE (nomen)-[:HAS_LOCALIZATION]->(lt_bo)-[:HAS_LANGUAGE]->(lang_bo)
-        """)
+        """).consume()
 
     session.execute_write(do_seed)
 
@@ -108,31 +112,23 @@ def neo4j_connection():
 
 @pytest.fixture
 def test_database(neo4j_connection):
-    """Create a Database instance with common test schema setup."""
-    from neo4j import GraphDatabase
-
     os.environ["NEO4J_URI"] = neo4j_connection["uri"]
     os.environ["NEO4J_USERNAME"] = neo4j_connection["auth"][0]
     os.environ["NEO4J_PASSWORD"] = neo4j_connection["auth"][1]
 
-    # Use a direct driver connection for setup to ensure data is committed
-    driver = GraphDatabase.driver(neo4j_connection["uri"], auth=neo4j_connection["auth"])
-
-    with driver.session() as session:
-        setup_test_schema(session)
-
-    driver.close()
-
-    # Now create the Database instance for tests
     db = Database(neo4j_uri=neo4j_connection["uri"], neo4j_auth=neo4j_connection["auth"])
 
-    yield db
+    try:
+        with db.get_session() as session:
+            setup_test_schema(session)
 
-    # Cleanup
-    with db.get_session() as session:
-        session.execute_write(lambda tx: tx.run("MATCH (n) DETACH DELETE n").consume())
+        yield db
 
-    db.close()
+        # Cleanup
+        with db.get_session() as session:
+            session.execute_write(lambda tx: tx.run("MATCH (n) DETACH DELETE n").consume())
+    finally:
+        db.close()
 
 
 class StorageBucket:

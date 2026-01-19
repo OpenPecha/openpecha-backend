@@ -19,6 +19,7 @@ from .language_database import LanguageDatabase
 from .manifestation_database import ManifestationDatabase
 from .person_database import PersonDatabase
 from .segment_database import SegmentDatabase
+from .span_database import SpanDatabase
 
 logger = getLogger(__name__)
 
@@ -50,6 +51,7 @@ class Database:
     person: PersonDatabase
     language: LanguageDatabase
     category: CategoryDatabase
+    span: SpanDatabase
 
     def __init__(self, neo4j_uri: str | None = None, neo4j_auth: tuple | None = None) -> None:
         if neo4j_uri and neo4j_auth:
@@ -81,6 +83,7 @@ class Database:
         self.person = PersonDatabase(db=self)
         self.language = LanguageDatabase(db=self)
         self.category = CategoryDatabase(db=self)
+        self.span = SpanDatabase(db=self)
 
     def get_session(self) -> Session:
         return self.__driver.session()
