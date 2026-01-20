@@ -293,3 +293,18 @@ class Neo4JDatabaseValidator:
 
         if record and record["count"] > 0:
             raise DataConflict(f"Person with BDRC ID '{bdrc}' already exists")
+
+    def validate_segments_exists(self, session, segments: list[str]) -> bool:
+        query = """
+        WITH $segments AS segments
+        UNWIND segments AS segment_id
+        WITH collect(DISTINCT segment_id) AS unique_ids
+        MATCH (s:Segment)
+        WHERE s.id IN unique_ids
+        WITH unique_ids, count(DISTINCT s) AS found_count
+        RETURN found_count = size(unique_ids) AS all_exist
+        """
+
+        result = session.run(query, segments=segments or [])
+        record = result.single()
+        return bool(record and record["all_exist"])

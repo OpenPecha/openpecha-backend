@@ -583,3 +583,35 @@ class SearchResponseModel(OpenPechaModel):
     search_type: str
     results: list[SearchResultModel]
     count: int
+
+
+class UpdateBaseTextSegmentModel(OpenPechaModel):
+    """Model for a segment with updated span in base text update request."""
+
+    id: NonEmptyStr
+    span: SpanModel
+
+
+class UpdateBaseTextRequestModel(OpenPechaModel):
+    """
+    Request model for updating base text content.
+
+    The user provides:
+    - new_content: The full updated base text
+    - segmentation: List of segments with their new spans (same IDs, updated spans)
+
+    The backend will:
+    1. Diff old vs new segment content to find edit positions
+    2. Apply span transformations to all other annotations
+    3. Update segmentation spans directly from user input
+    4. Store the new base text
+    """
+
+    content: NonEmptyStr
+    segmentation: list[UpdateBaseTextSegmentModel]
+
+    @model_validator(mode="after")
+    def validate_segmentation(self):
+        if len(self.segmentation) == 0:
+            raise ValueError("Segmentation cannot be empty")
+        return self

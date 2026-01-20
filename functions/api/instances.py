@@ -23,6 +23,7 @@ from models import (
     SegmentModel,
     SpanModel,
     TextType,
+    UpdateBaseTextRequestModel,
 )
 from neo4j_database import Neo4JDatabase
 from neo4j_database_validator import Neo4JDatabaseValidator
@@ -594,3 +595,90 @@ def _validate_request_parameters(segment_ids: list[str], span_start: str, span_e
         return False, "Either segment_ids OR span_start and span_end is required"
 
     return True, ""
+
+
+def _calculate_base_text_diffs(old_segments: list[dict], new_segments: list) -> list[dict]:
+    """
+    Calculate diffs (coordinate + delta) by comparing old vs new segmentation spans.
+
+    - coordinate: old span_end adjusted by cumulative previous deltas
+    - delta: (new_len - old_len)
+    """
+
+    new_seg_map = {seg.id: seg for seg in new_segments}
+    diffs: list[dict] = []
+
+    # Ensure a stable order for cumulative delta (document order)
+    old_segments_sorted = sorted(old_segments, key=lambda s: int(s["span"]["start"]))
+    cumulative_delta = 0
+
+    for old_seg in old_segments_sorted:
+        seg_id = old_seg["id"]
+        new_seg = new_seg_map.get(seg_id)
+        if not new_seg:
+            continue
+
+        old_start = int(old_seg["span"]["start"])
+        old_end = int(old_seg["span"]["end"])
+        old_len = old_end - old_start
+        new_len = int(new_seg.span.end) - int(new_seg.span.start)
+
+        delta = new_len - old_len
+        if delta != 0:
+            coordinate = old_end + cumulative_delta
+            diffs.append({"segment_id": seg_id, "coordinate": coordinate, "delta": delta})
+            cumulative_delta += delta
+
+    return diffs
+
+
+@instances_bp.route("/<string:manifestation_id>/base-text", methods=["PUT"], strict_slashes=False)
+def update_base_text(manifestation_id: str) -> tuple[Response, int]:
+    """
+    Update base text content and segmentation spans.
+
+    This endpoint will:
+    - calculate diffs (coordinate + delta) between old and new segmentation spans
+    - update segmentation spans in Neo4j (segment IDs must be preserved)
+    - store the new base text in Firebase Storage
+
+    Note: shifting spans for other annotation types is intentionally NOT done yet.
+    """
+
+    data = request.get_json(force=True, silent=True)
+    if not data:
+        return jsonify({"error": "Request body is required"}), 400
+
+    request_model = UpdateBaseTextRequestModel.model_validate(data)
+
+    db = Neo4JDatabase()
+    storage = Storage()
+
+    old_segments = db.get_segmentation_annotation_by_manifestation(manifestation_id=manifestation_id)
+    if not old_segments:
+        return jsonify({"error": f"No segmentation segments found for manifestation '{manifestation_id}'"}), 404
+
+    diffs = _calculate_base_text_diffs(old_segments=old_segments, new_segments=request_model.segmentation)
+
+    # Update segmentation spans (bulk)
+    segments_payload = [
+        {"id": seg.id, "span_start": seg.span.start, "span_end": seg.span.end} for seg in request_model.segmentation
+    ]
+    db.update_segmentation_spans(segments_payload)
+
+    expression_id = db.get_expression_id_by_manifestation_id(manifestation_id=manifestation_id)
+    if not expression_id:
+        raise DataNotFound(f"Expression for manifestation '{manifestation_id}' not found")
+
+    storage.store_base_text(expression_id=expression_id, manifestation_id=manifestation_id, base_text=request_model.content)
+
+    return (
+        jsonify(
+            {
+                "message": "Base text updated successfully",
+                "manifestation_id": manifestation_id,
+                "diffs": diffs,
+            }
+        ),
+        200,
+    )

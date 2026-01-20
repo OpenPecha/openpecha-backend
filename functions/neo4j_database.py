@@ -43,6 +43,11 @@ class Neo4JDatabase:
             self.__driver = GraphDatabase.driver(neo4j_uri, auth=neo4j_auth)
         else:
             # Use environment variables (Firebase secrets or local .env)
+            logger.info(
+                f"Neo4j URI: {os.environ.get('NEO4J_URI')}"
+                f"Neo4j Username: {os.environ.get('NEO4J_USERNAME')}"
+                f"Neo4j Password: {os.environ.get('NEO4J_PASSWORD')}"
+            )
             self.__driver = GraphDatabase.driver(
                 os.environ.get("NEO4J_URI"),
                 auth=(os.environ.get("NEO4J_USERNAME", "neo4j"), os.environ.get("NEO4J_PASSWORD")),
@@ -399,6 +404,31 @@ class Neo4JDatabase:
                 if seg.get("id"):  # Only include segments that have an ID (filter out nulls)
                     segments.append({"id": seg["id"], "span": {"start": seg["span_start"], "end": seg["span_end"]}})
             return segments
+
+    def update_segmentation_spans(self, segments: list[dict]) -> int:
+        """
+        Bulk update existing Segment span positions by segment ID.
+
+        Expected item shape:
+            {"id": "<segment_id>", "span_start": int, "span_end": int}
+        """
+
+        if not segments:
+            return 0
+
+        with self.get_session() as session:
+            segment_ids = [s["id"] for s in segments]
+            all_segment_exists = self.__validator.validate_segments_exists(session, segment_ids)
+            if not all_segment_exists:
+                raise DataNotFound("Segments do not exist or invalid segment IDS")
+            record = session.execute_write(
+                lambda tx: tx.run(Queries.segments["update_segmentation_spans_batch"], segments=segments).single()
+            )
+
+            if not record:
+                raise DataNotFound("Failed to update segmentation spans")
+
+            return int(record["updated_count"])
 
     # ExpressionDatabase
     def get_expression_ids_by_manifestation_ids(self, manifestation_ids: list[str]) -> dict[str, str]:
