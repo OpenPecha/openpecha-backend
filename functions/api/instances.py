@@ -632,8 +632,8 @@ def _calculate_base_text_diffs(old_segments: list[dict], new_segments: list) -> 
     return diffs
 
 
-@instances_bp.route("/<string:manifestation_id>/base-text", methods=["PUT"], strict_slashes=False)
-def update_base_text(manifestation_id: str) -> tuple[Response, int]:
+@instances_bp.route("/<string:instance_id>/base-text", methods=["PUT"], strict_slashes=False)
+def update_base_text(instance_id: str) -> tuple[Response, int]:
     """
     Update base text content and segmentation spans.
 
@@ -654,9 +654,9 @@ def update_base_text(manifestation_id: str) -> tuple[Response, int]:
     db = Neo4JDatabase()
     storage = Storage()
 
-    old_segments = db.get_segmentation_annotation_by_manifestation(manifestation_id=manifestation_id)
+    old_segments = db.get_segmentation_annotation_by_manifestation(manifestation_id=instance_id)
     if not old_segments:
-        return jsonify({"error": f"No segmentation segments found for manifestation '{manifestation_id}'"}), 404
+        return jsonify({"error": f"No segmentation segments found for manifestation '{instance_id}'"}), 404
 
     diffs = _calculate_base_text_diffs(old_segments=old_segments, new_segments=request_model.segmentation)
 
@@ -666,17 +666,17 @@ def update_base_text(manifestation_id: str) -> tuple[Response, int]:
     ]
     db.update_segmentation_spans(segments_payload)
 
-    expression_id = db.get_expression_id_by_manifestation_id(manifestation_id=manifestation_id)
+    expression_id = db.get_expression_id_by_manifestation_id(manifestation_id=instance_id)
     if not expression_id:
-        raise DataNotFound(f"Expression for manifestation '{manifestation_id}' not found")
+        raise DataNotFound(f"Expression for manifestation '{instance_id}' not found")
 
-    storage.store_base_text(expression_id=expression_id, manifestation_id=manifestation_id, base_text=request_model.content)
+    storage.store_base_text(expression_id=expression_id, manifestation_id=instance_id, base_text=request_model.content)
 
     return (
         jsonify(
             {
                 "message": "Base text updated successfully",
-                "manifestation_id": manifestation_id,
+                "manifestation_id": instance_id,
                 "diffs": diffs,
             }
         ),
