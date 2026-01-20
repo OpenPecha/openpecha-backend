@@ -3304,7 +3304,7 @@ class TestUpdateBaseTextV2Endpoint:
         Test PUT /v2/instances/{instance_id}/base-text:
         1. Segment IDs are maintained (preserved)
         2. Spans are updated correctly
-        3. Diffs are calculated correctly for different base text spans
+        3. difference are correctly calculated for old and new updated base text spans
         """
         # Create test person and base expression
         person = PersonModelInput.model_validate(test_person_data)
