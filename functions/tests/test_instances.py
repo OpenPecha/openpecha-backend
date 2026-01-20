@@ -3279,4 +3279,87 @@ class TestPostInstanceV2Endpoints:
         response_data = response.get_json()
         assert "error" in response_data
         assert "manifestation" in response_data["error"]
-        assert "not found" in response_data["error"]    
+        assert "not found" in response_data["error"]   
+
+
+class TestPatchSementsV2Endpoints:
+    def test_patch_segments_v2_endpoints(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data
+    ):
+        """Test PUT v2/instances/{instance_id} validates and persists segmentation spans."""
+        # Create person + expression
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = self._create_test_category(test_database)
+
+        expression_data = test_expression_data
+        expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression_data["category_id"] = category_id
+        expression = ExpressionModelInput.model_validate(expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        # Create initial CRITICAL instance via API
+        initial_content = "This is the initial text content to be stored"
+        instance_request = InstanceRequestModel.model_validate(
+            {
+                "content": initial_content,
+                "annotation": [
+                    # contiguous, end-exclusive spans covering the full content
+                    {"span": {"start": 0, "end": 15}},
+                    {"span": {"start": 15, "end": 30}},
+                    {"span": {"start": 30, "end": len(initial_content)}},
+                ],
+                "metadata": {"type": "critical", "source": "test-source"},
+            }
+        )
+
+        create_response = client.post(
+            f"/v2/texts/{expression_id}/instances",
+            json=instance_request.model_dump(),
+        )
+        assert create_response.status_code == 201
+        instance_id = create_response.get_json()["id"]
+
+        # Malformed payload (common mistake): segmentation nested in an extra list
+        updated_content = "This is the updated text content to be stored"
+        invalid_payload = {
+            "metadata": {"type": "critical", "source": "test-source"},
+            "content": updated_content,
+            "annotation": [
+                [
+                    {"span": {"start": 0, "end": 15}},
+                    {"span": {"start": 15, "end": 30}},
+                    {"span": {"start": 30, "end": len(updated_content)}},
+                ]
+            ],
+        }
+        invalid_response = client.put(f"/v2/instances/{instance_id}", json=invalid_payload)
+        assert invalid_response.status_code == 422
+        assert "error" in invalid_response.get_json()
+
+        # Valid payload: list of span dicts
+        valid_payload = {
+            "metadata": {"type": "critical", "source": "test-source"},
+            "content": "B" * 200,
+            "annotation": [
+                {"span": {"start": 0, "end": 50}},
+                {"span": {"start": 50, "end": 120}},
+                {"span": {"start": 120, "end": 200}},
+            ],
+        }
+        put_response = client.put(f"/v2/instances/{instance_id}", json=valid_payload)
+        assert put_response.status_code == 200
+
+        # Verify spans were persisted in Neo4j
+        segments = test_database.get_segmentation_annotation_by_manifestation(instance_id)
+        spans = [seg["span"] for seg in segments]
+        assert spans == [
+            {"start": 0, "end": 50},
+            {"start": 50, "end": 120},
+            {"start": 120, "end": 200},
+        ]
