@@ -123,6 +123,64 @@ def get_instance(manifestation_id: str):
     return jsonify(json), 200
 
 
+@instances_bp.route("/<string:instance_id>/base-text", methods=["PUT"], strict_slashes=False)
+def update_base_text(instance_id: str) -> tuple[Response, int]:
+    """
+    Update base text content and segmentation spans.
+
+    This endpoint will:
+    - calculate diffs (coordinate + delta) between old and new segmentation spans
+    - update segmentation spans in Neo4j (segment IDs must be preserved)
+    - store the new base text in Firebase Storage
+
+    Note: shifting spans for other annotation types is intentionally NOT done yet.
+    """
+
+    data = request.get_json(force=True, silent=True)
+    if not data:
+        return jsonify({"error": "Request body is required"}), 400
+
+    request_model = UpdateBaseTextRequestModel.model_validate(data)
+
+    db = Neo4JDatabase()
+    storage = Storage()
+
+    expression_id = db.get_expression_id_by_manifestation_id(manifestation_id=instance_id)
+    if not expression_id:
+        raise DataNotFound(f"Expression for manifestation '{instance_id}' not found")
+
+    storage.store_base_text(expression_id=expression_id, manifestation_id=instance_id, base_text=request_model.content)
+
+    old_segments = db.get_segmentation_annotation_by_manifestation(manifestation_id=instance_id)
+    if not old_segments:
+        return jsonify({"error": f"No segmentation segments found for manifestation '{instance_id}'"}), 404
+
+    diffs = _calculate_base_text_diffs(old_segments=old_segments, new_segments=request_model.segmentation)
+
+    # Update segmentation spans (bulk)
+    new_segmentation_segments_payload = [
+        {"id": seg.id, "span_start": seg.span.start, "span_end": seg.span.end} for seg in request_model.segmentation
+    ]
+
+    _update_other_annotations_with_diffs(
+        db=db,
+        instance_id=instance_id,
+        diffs=diffs,
+        new_segmentation_segments_payload=new_segmentation_segments_payload
+    )
+
+    return (
+        jsonify(
+            {
+                "message": "Base text updated successfully",
+                "manifestation_id": instance_id,
+                "diffs": diffs,
+            }
+        ),
+        200,
+    )
+
+
 @instances_bp.route("/<string:manifestation_id>", methods=["PUT"], strict_slashes=False)
 def update_instance(manifestation_id: str):
     """Update a manifestation by ID."""
@@ -632,53 +690,79 @@ def _calculate_base_text_diffs(old_segments: list[dict], new_segments: list) -> 
     return diffs
 
 
-@instances_bp.route("/<string:instance_id>/base-text", methods=["PUT"], strict_slashes=False)
-def update_base_text(instance_id: str) -> tuple[Response, int]:
+def _apply_diffs_to_span(start: int, end: int, diffs: list[dict]) -> tuple[int, int]:
     """
-    Update base text content and segmentation spans.
+    Apply diffs (coordinate + delta) to a span.
 
-    This endpoint will:
-    - calculate diffs (coordinate + delta) between old and new segmentation spans
-    - update segmentation spans in Neo4j (segment IDs must be preserved)
-    - store the new base text in Firebase Storage
-
-    Note: shifting spans for other annotation types is intentionally NOT done yet.
+    Rules (applied in coordinate order):
+    - If span_start >= coordinate => shift start by delta
+    - If span_end > coordinate => shift end by delta
     """
 
-    data = request.get_json(force=True, silent=True)
-    if not data:
-        return jsonify({"error": "Request body is required"}), 400
+    if not diffs:
+        return start, end
 
-    request_model = UpdateBaseTextRequestModel.model_validate(data)
+    # Ensure deterministic application order
+    diffs_sorted = sorted(diffs, key=lambda d: int(d.get("coordinate", 0)))
+    for diff in diffs_sorted:
+        coord = int(diff["coordinate"])
+        delta = int(diff["delta"])
 
-    db = Neo4JDatabase()
-    storage = Storage()
+        if start >= coord:
+            start += delta
+        if end > coord:
+            end += delta
 
-    old_segments = db.get_segmentation_annotation_by_manifestation(manifestation_id=instance_id)
-    if not old_segments:
-        return jsonify({"error": f"No segmentation segments found for manifestation '{instance_id}'"}), 404
+    return start, end
 
-    diffs = _calculate_base_text_diffs(old_segments=old_segments, new_segments=request_model.segmentation)
 
-    # Update segmentation spans (bulk)
-    segments_payload = [
-        {"id": seg.id, "span_start": seg.span.start, "span_end": seg.span.end} for seg in request_model.segmentation
-    ]
-    db.update_segmentation_spans(segments_payload)
+def _update_other_annotations_with_diffs(
+    db: Neo4JDatabase,
+    instance_id: str,
+    diffs: list[dict],
+    new_segmentation_segments_payload: list[dict]
+) -> None:
+    """
+    This function go through all the annotations one by one, and then update each annotation spans
+    based on the diffs.
+    """
 
-    expression_id = db.get_expression_id_by_manifestation_id(manifestation_id=instance_id)
-    if not expression_id:
-        raise DataNotFound(f"Expression for manifestation '{instance_id}' not found")
+    if not diffs:
+        return
 
-    storage.store_base_text(expression_id=expression_id, manifestation_id=instance_id, base_text=request_model.content)
+    manifestation, _ = db.get_manifestation(manifestation_id=instance_id)
 
-    return (
-        jsonify(
-            {
-                "message": "Base text updated successfully",
-                "manifestation_id": instance_id,
-                "diffs": diffs,
-            }
-        ),
-        200,
-    )
+    if not manifestation.annotations:
+        return
+
+    allowed_types = {AnnotationType.ALIGNMENT, AnnotationType.BIBLIOGRAPHY, AnnotationType.DURCHEN}
+    annotations_to_update = [a for a in manifestation.annotations if a.type in allowed_types]
+    if not annotations_to_update:
+        return
+
+    segments_payload: list[dict] = []
+
+    for seg in new_segmentation_segments_payload:
+        segments_payload.append({"id": seg["id"], "span_start": seg["span_start"], "span_end": seg["span_end"]})
+
+    for annotation in annotations_to_update:
+        try:
+            if annotation.type == AnnotationType.DURCHEN:
+                segments = db._get_durchen_annotation(annotation.id)
+            else:
+                segments = db._get_annotation_segments(annotation.id)
+        except Exception as e:
+            logger.warning("Skipping annotation %s (%s): failed to fetch segments (%s)", annotation.id, annotation.type, e)
+            continue
+
+        for seg in segments or []:
+            span = seg.get("span") or {}
+            if "start" not in span or "end" not in span:
+                continue
+
+            start, end = _apply_diffs_to_span(start=int(span["start"]), end=int(span["end"]), diffs=diffs)
+            segments_payload.append({"id": seg["id"], "span_start": start, "span_end": end})
+
+    if segments_payload:
+        db.update_segmentation_spans(segments_payload)
+
