@@ -3279,4 +3279,276 @@ class TestPostInstanceV2Endpoints:
         response_data = response.get_json()
         assert "error" in response_data
         assert "manifestation" in response_data["error"]
-        assert "not found" in response_data["error"]    
+        assert "not found" in response_data["error"]   
+
+
+class TestUpdateBaseTextV2Endpoint:
+    """Test class for PUT /v2/instances/{instance_id}/base-text endpoint"""
+
+    def _create_test_category(self, test_database):
+        """Helper to create a test category in the database"""
+        category_id = test_database.create_category(
+            application='test_application',
+            title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
+        )
+        return category_id
+
+    def test_update_base_text_maintains_segment_ids_and_updates_spans(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data
+    ):
+        """
+        Test PUT /v2/instances/{instance_id}/base-text:
+        1. Segment IDs are maintained (preserved)
+        2. Spans are updated correctly
+        3. difference are correctly calculated for old and new updated base text spans
+        """
+        # Create test person and base expression
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = self._create_test_category(test_database)
+        test_expression_data["category_id"] = category_id
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        # Original content and segmentation
+        original_content = "Hello world. This is test."
+        original_segmentation = [
+            {"span": {"start": 0, "end": 12}},   # "Hello world."
+            {"span": {"start": 13, "end": 26}},  # "This is test."
+        ]
+
+        # Create instance with segmentation
+        instance_request = {
+            "content": original_content,
+            "annotation": original_segmentation,
+            "metadata": {
+                "wiki": "Q123456",
+                "type": "critical",
+                "source": "www.example_source.com",
+                "colophon": "Sample colophon",
+                "incipit_title": {"en": "Opening words", "bo": "དབུ་ཚིག"},
+            },
+        }
+        instance = InstanceRequestModel.model_validate(instance_request)
+        post_response = client.post(
+            f"/v2/texts/{expression_id}/instances/", json=instance.model_dump()
+        )
+        assert post_response.status_code == 201
+        post_data = post_response.get_json()
+        instance_id = post_data["id"]
+
+        # Get original segments to capture their IDs
+        original_segments = test_database.get_segmentation_annotation_by_manifestation(
+            manifestation_id=instance_id
+        )
+        assert len(original_segments) == 2
+        original_segment_ids = [seg["id"] for seg in original_segments]
+
+        # New content with expanded first segment (added " expanded")
+        # "Hello world expanded. This is test."
+        new_content = "Hello world expanded. This is test."
+        new_segmentation = [
+            {"id": original_segment_ids[0], "span": {"start": 0, "end": 21}},   # "Hello world expanded."
+            {"id": original_segment_ids[1], "span": {"start": 22, "end": 35}},  # "This is test."
+        ]
+
+        # Call update base text endpoint
+        update_request = {
+            "content": new_content,
+            "segmentation": new_segmentation,
+        }
+        update_response = client.put(
+            f"/v2/instances/{instance_id}/base-text",
+            json=update_request
+        )
+
+        assert update_response.status_code == 200
+        response_data = update_response.get_json()
+
+        # Verify response message
+        assert response_data["message"] == "Base text updated successfully"
+        assert response_data["manifestation_id"] == instance_id
+
+        # Verify diffs are calculated correctly
+        # First segment: old_len = 12, new_len = 21, delta = 9
+        # coordinate = old_end + cumulative_delta = 12 + 0 = 12
+        diffs = response_data["diffs"]
+        assert len(diffs) == 1  # Only first segment changed
+        assert diffs[0]["segment_id"] == original_segment_ids[0]
+        assert diffs[0]["delta"] == 9  # 21 - 12 = 9
+        assert diffs[0]["coordinate"] == 12  # old_end (12) + cumulative_delta (0)
+
+        # Verify segments in database have updated spans but same IDs
+        updated_segments = test_database.get_segmentation_annotation_by_manifestation(
+            manifestation_id=instance_id
+        )
+        assert len(updated_segments) == 2
+
+        # Check segment IDs are maintained
+        updated_segment_ids = [seg["id"] for seg in updated_segments]
+        assert set(updated_segment_ids) == set(original_segment_ids)
+
+        # Verify updated spans
+        updated_seg_map = {seg["id"]: seg for seg in updated_segments}
+        assert updated_seg_map[original_segment_ids[0]]["span"]["start"] == 0
+        assert updated_seg_map[original_segment_ids[0]]["span"]["end"] == 21
+        assert updated_seg_map[original_segment_ids[1]]["span"]["start"] == 22
+        assert updated_seg_map[original_segment_ids[1]]["span"]["end"] == 35
+
+    def test_update_base_text_multiple_segments_with_different_span_changes(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data
+    ):
+        """
+        Test update_base_text with multiple segments having different span changes:
+        - Some segments expand
+        - Some segments contract
+        - Some segments remain the same size
+        """
+        # Create test person and base expression
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = self._create_test_category(test_database)
+        test_expression_data["category_id"] = category_id
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        # Original content: "AAAA BBBB CCCC DDDD"
+        original_content = "AAAA BBBB CCCC DDDD"
+        original_segmentation = [
+            {"span": {"start": 0, "end": 4}},    # "AAAA"
+            {"span": {"start": 5, "end": 9}},    # "BBBB"
+            {"span": {"start": 10, "end": 14}},  # "CCCC"
+            {"span": {"start": 15, "end": 19}},  # "DDDD"
+        ]
+
+        # Create instance
+        instance_request = {
+            "content": original_content,
+            "annotation": original_segmentation,
+            "metadata": {
+                "wiki": "Q123456",
+                "type": "critical",
+                "source": "www.example_source.com",
+                "colophon": "Sample colophon",
+                "incipit_title": {"en": "Opening words", "bo": "དབུ་ཚིག"},
+            },
+        }
+        instance = InstanceRequestModel.model_validate(instance_request)
+        post_response = client.post(
+            f"/v2/texts/{expression_id}/instances/", json=instance.model_dump()
+        )
+        assert post_response.status_code == 201
+        instance_id = post_response.get_json()["id"]
+
+        # Get original segment IDs
+        original_segments = test_database.get_segmentation_annotation_by_manifestation(
+            manifestation_id=instance_id
+        )
+        original_segment_ids = [seg["id"] for seg in sorted(original_segments, key=lambda s: s["span"]["start"])]
+
+        # New content: "AAAAAA BB CCCC DDDDDD" (segment 0 expanded, segment 1 contracted, segment 2 same, segment 3 expanded)
+        new_content = "AAAAAA BB CCCC DDDDDD"
+        new_segmentation = [
+            {"id": original_segment_ids[0], "span": {"start": 0, "end": 6}},    # "AAAAAA" (+2)
+            {"id": original_segment_ids[1], "span": {"start": 7, "end": 9}},    # "BB" (-2)
+            {"id": original_segment_ids[2], "span": {"start": 10, "end": 14}},  # "CCCC" (same)
+            {"id": original_segment_ids[3], "span": {"start": 15, "end": 21}},  # "DDDDDD" (+2)
+        ]
+
+        # Call update base text endpoint
+        update_request = {
+            "content": new_content,
+            "segmentation": new_segmentation,
+        }
+        update_response = client.put(
+            f"/v2/instances/{instance_id}/base-text",
+            json=update_request
+        )
+
+        assert update_response.status_code == 200
+        response_data = update_response.get_json()
+
+        # Verify diffs are calculated correctly for old and new base text spans
+        # Diff calculation formula:
+        #   delta = new_len - old_len
+        #   coordinate = old_end + cumulative_delta (cumulative delta from previous segments)
+        diffs = response_data["diffs"]
+        # Should have 3 diffs (segments 0, 1, 3 changed; segment 2 unchanged)
+        assert len(diffs) == 3
+
+        # Create a map for easier verification
+        diffs_map = {d["segment_id"]: d for d in diffs}
+
+        # Segment 0: expanded by 2 (old_len=4, new_len=6)
+        # coordinate = old_end(4) + cumulative_delta(0) = 4
+        assert original_segment_ids[0] in diffs_map
+        assert diffs_map[original_segment_ids[0]]["delta"] == 2
+        assert diffs_map[original_segment_ids[0]]["coordinate"] == 4
+
+        # Segment 1: contracted by 2 (old_len=4, new_len=2)
+        # coordinate = old_end(9) + cumulative_delta(2) = 11
+        assert original_segment_ids[1] in diffs_map
+        assert diffs_map[original_segment_ids[1]]["delta"] == -2
+        assert diffs_map[original_segment_ids[1]]["coordinate"] == 11
+
+        # Segment 2: no change (old_len=4, new_len=4), should not be in diffs
+        assert original_segment_ids[2] not in diffs_map
+
+        # Segment 3: expanded by 2 (old_len=4, new_len=6)
+        # coordinate = old_end(19) + cumulative_delta(2 + (-2) = 0) = 19
+        assert original_segment_ids[3] in diffs_map
+        assert diffs_map[original_segment_ids[3]]["delta"] == 2
+        assert diffs_map[original_segment_ids[3]]["coordinate"] == 19
+
+        # Verify all segment IDs are preserved in database
+        updated_segments = test_database.get_segmentation_annotation_by_manifestation(
+            manifestation_id=instance_id
+        )
+        updated_segment_ids = [seg["id"] for seg in updated_segments]
+        assert set(updated_segment_ids) == set(original_segment_ids)
+
+    def test_update_base_text_no_segmentation_found_returns_404(
+        self,
+        client,
+        test_database
+    ):
+        """Test that updating base text for non-existent instance returns 404"""
+        update_request = {
+            "content": "New content",
+            "segmentation": [
+                {"id": "nonexistent-segment-id", "span": {"start": 0, "end": 10}},
+            ],
+        }
+        update_response = client.put(
+            "/v2/instances/nonexistent-instance-id/base-text",
+            json=update_request
+        )
+
+        assert update_response.status_code == 404
+        response_data = update_response.get_json()
+        assert "error" in response_data
+        assert "No segmentation segments found" in response_data["error"]
+
+    def test_update_base_text_missing_body_returns_400(
+        self,
+        client
+    ):
+        """Test that updating base text without request body returns 400"""
+        update_response = client.put("/v2/instances/some-instance-id/base-text")
+
+        assert update_response.status_code == 400
+        response_data = update_response.get_json()
+        assert "error" in response_data
+        assert response_data["error"] == "Request body is required"
