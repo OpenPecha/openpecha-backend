@@ -3,7 +3,8 @@ import logging
 import requests
 from exceptions import DataNotFound, InvalidRequest
 from flask import Blueprint, Response, jsonify, request
-from models import SearchFilterModel, SearchRequestModel, SearchResponseModel, SearchResultModel
+from models import SearchFilterModel, SearchRequestModel, SearchResponseModel, SearchResultModel, SegmentContentInput
+from storage import Storage
 from neo4j_database import Neo4JDatabase
 
 segments_bp = Blueprint("segments", __name__)
@@ -203,3 +204,37 @@ def get_batch_overlapping_segments() -> tuple[Response, int]:
         result.append({"segment_id": segment_id, "overlapping_segments": overlapping_map.get(segment_id, [])})
 
     return jsonify(result), 200
+
+
+@segments_bp.route("/<string:segment_id>/content", methods=["PUT"], strict_slashes=False)
+@validate_json(SegmentContentInput)
+def update_segment_content(segment_id: str, validated_data: SegmentContentInput) -> tuple[Response, int]:
+
+    db = Neo4JDatabase()
+    storage = Storage()
+
+    with Database() as db:
+        segment = db.segment.get(segment_id)
+        old_start = segment.span.start
+        old_end = segment.span.end
+        new_length = len(validated_data.content)
+
+        Storage().update_base_text_range(
+            expression_id=segment.text_id,
+            manifestation_id=segment.manifestation_id,
+            start=old_start,
+            end=old_end,
+            new_content=validated_data.content,
+        )
+
+        db.span.update_span_end(segment_id, new_length)
+
+        db.span.adjust_affected_spans(
+            manifestation_id=segment.manifestation_id,
+            replace_start=old_start,
+            replace_end=old_end,
+            new_length=new_length,
+            exclude_entity_id=segment_id,
+        )
+
+    return jsonify({"message": "Segment content updated"}), 200
