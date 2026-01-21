@@ -1,5 +1,6 @@
 import logging
 import threading
+from difflib import SequenceMatcher
 
 import requests
 from api.annotations import _alignment_annotation_mapping
@@ -12,7 +13,6 @@ from models import (
     AlignedTextRequestModel,
     AnnotationModel,
     AnnotationType,
-    ContributionModel,
     ContributionModelInput,
     ContributorRole,
     ExpressionModelInput,
@@ -149,14 +149,23 @@ def update_base_text(instance_id: str) -> tuple[Response, int]:
     if not expression_id:
         raise DataNotFound(f"Expression for manifestation '{instance_id}' not found")
 
+    old_content = storage.retrieve_base_text(expression_id=expression_id, manifestation_id=instance_id)
+
     storage.store_base_text(expression_id=expression_id, manifestation_id=instance_id, base_text=request_model.content)
 
     old_segments = db.get_segmentation_annotation_by_manifestation(manifestation_id=instance_id)
     if not old_segments:
         return jsonify({"error": f"No segmentation segments found for manifestation '{instance_id}'"}), 404
 
-    diffs = _calculate_base_text_diffs(old_segments=old_segments, new_segments=request_model.segmentation)
-
+    
+    diffs = calculate_text_diffs(
+        old_segmentation=old_segments,
+        new_segmentation=request_model.segmentation,
+        old_content=old_content,
+        new_content=request_model.content
+    )
+    print("Diffs")
+    print(diffs)
     # Update segmentation spans (bulk)
     new_segmentation_segments_payload = [
         {"id": seg.id, "span_start": seg.span.start, "span_end": seg.span.end} for seg in request_model.segmentation
@@ -165,8 +174,7 @@ def update_base_text(instance_id: str) -> tuple[Response, int]:
     _update_other_annotations_with_diffs(
         db=db,
         instance_id=instance_id,
-        diffs=diffs,
-        new_segmentation_segments_payload=new_segmentation_segments_payload
+        diffs=diffs
     )
 
     return (
@@ -655,40 +663,78 @@ def _validate_request_parameters(segment_ids: list[str], span_start: str, span_e
     return True, ""
 
 
-def _calculate_base_text_diffs(old_segments: list[dict], new_segments: list) -> list[dict]:
+def calculate_text_diffs(
+    old_segmentation,
+    new_segmentation,
+    old_content: str,
+    new_content: str
+) -> list[dict]:
     """
-    Calculate diffs (coordinate + delta) by comparing old vs new segmentation spans.
+    Returns a list of diffs:
+      [
+        {"coord": <int>, "delta": <int>, "op": "insert|delete|replace"},
+        ...
+      ]
 
-    - coordinate: old span_end adjusted by cumulative previous deltas
-    - delta: (new_len - old_len)
+    coord is in OLD string coordinate space.
+    delta is the net length shift at that coordinate.
     """
 
-    new_seg_map = {seg.id: seg for seg in new_segments}
-    diffs: list[dict] = []
+    def calculate_text_diffs_for_content(old_content: str, new_content: str):
+        sm = SequenceMatcher(None, old_content, new_content)
+        diffs = []
 
-    # Ensure a stable order for cumulative delta (document order)
-    old_segments_sorted = sorted(old_segments, key=lambda s: int(s["span"]["start"]))
-    cumulative_delta = 0
+        for tag, i1, i2, j1, j2 in sm.get_opcodes():
+            if tag == "equal":
+                continue
 
-    for old_seg in old_segments_sorted:
-        seg_id = old_seg["id"]
-        new_seg = new_seg_map.get(seg_id)
-        if not new_seg:
-            continue
+            if tag == "insert":
+                diffs.append({
+                    "coord": i1 + 1,
+                    "delta": j2 - j1,   # inserted length
+                    "op": "insert"
+                })
 
-        old_start = int(old_seg["span"]["start"])
-        old_end = int(old_seg["span"]["end"])
-        old_len = old_end - old_start
-        new_len = int(new_seg.span.end) - int(new_seg.span.start)
+            elif tag == "delete":
+                diffs.append({
+                    "coord": i1 + 1,
+                    "delta": -(i2 - i1),  # deleted length (negative)
+                    "op": "delete"
+                })
 
-        delta = new_len - old_len
-        if delta != 0:
-            coordinate = old_end + cumulative_delta
-            diffs.append({"segment_id": seg_id, "coordinate": coordinate, "delta": delta})
-            cumulative_delta += delta
+            elif tag == "replace":
+                diffs.append({
+                    "coord": i1 + 1,
+                    "delta": (j2 - j1) - (i2 - i1),  # net shift
+                    "op": "replace"
+                })
+
+        return diffs
+
+    diffs = []
+
+    new_segmentation_dict = {}
+    old_segmentation_dict = {}
+
+    for segment in new_segmentation:
+        new_segmentation_dict[segment.id] = {"start": segment.span.start, "end": segment.span.end}
+
+    for segment in old_segmentation:
+        old_segmentation_dict[segment["id"]] = {"start": segment["span"]["start"], "end": segment["span"]["end"]}
+
+    for segment_id in old_segmentation_dict.keys():
+        old_content = old_content[old_segmentation_dict[segment_id]["start"] : old_segmentation_dict[segment_id]["end"]]
+        new_content = new_content[new_segmentation_dict[segment_id]["start"] : new_segmentation_dict[segment_id]["end"]]
+        diffs = calculate_text_diffs_for_content(old_content=old_content, new_content=new_content)
+        for diff in diffs:
+            diffs.append({
+                "segment_id": segment_id,
+                "coord": old_segmentation_dict[segment_id]["start"] + diff["coord"],
+                "delta": diff["delta"],
+                "op": diff["op"]
+            })
 
     return diffs
-
 
 def _apply_diffs_to_span(start: int, end: int, diffs: list[dict]) -> tuple[int, int]:
     """
@@ -703,9 +749,9 @@ def _apply_diffs_to_span(start: int, end: int, diffs: list[dict]) -> tuple[int, 
         return start, end
 
     # Ensure deterministic application order
-    diffs_sorted = sorted(diffs, key=lambda d: int(d.get("coordinate", 0)))
+    diffs_sorted = sorted(diffs, key=lambda d: int(d.get("coord", 0)))
     for diff in diffs_sorted:
-        coord = int(diff["coordinate"])
+        coord = int(diff["coord"])
         delta = int(diff["delta"])
 
         if start >= coord:
@@ -719,8 +765,7 @@ def _apply_diffs_to_span(start: int, end: int, diffs: list[dict]) -> tuple[int, 
 def _update_other_annotations_with_diffs(
     db: Neo4JDatabase,
     instance_id: str,
-    diffs: list[dict],
-    new_segmentation_segments_payload: list[dict]
+    diffs: list[dict]
 ) -> None:
     """
     This function go through all the annotations one by one, and then update each annotation spans
@@ -735,15 +780,10 @@ def _update_other_annotations_with_diffs(
     if not manifestation.annotations:
         return
 
-    allowed_types = {AnnotationType.ALIGNMENT, AnnotationType.BIBLIOGRAPHY, AnnotationType.DURCHEN}
+    allowed_types = {AnnotationType.ALIGNMENT, AnnotationType.BIBLIOGRAPHY, AnnotationType.DURCHEN, AnnotationType.SEGMENTATION}
     annotations_to_update = [a for a in manifestation.annotations if a.type in allowed_types]
-    if not annotations_to_update:
-        return
 
     segments_payload: list[dict] = []
-
-    for seg in new_segmentation_segments_payload:
-        segments_payload.append({"id": seg["id"], "span_start": seg["span_start"], "span_end": seg["span_end"]})
 
     for annotation in annotations_to_update:
         try:

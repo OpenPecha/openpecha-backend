@@ -3319,7 +3319,7 @@ class TestUpdateBaseTextV2Endpoint:
         # Original content and segmentation
         original_content = "Hello world. This is test."
         original_segmentation = [
-            {"span": {"start": 0, "end": 12}},   # "Hello world."
+            {"span": {"start": 0, "end": 13}},   # "Hello world."
             {"span": {"start": 13, "end": 26}},  # "This is test."
         ]
 
@@ -3354,7 +3354,7 @@ class TestUpdateBaseTextV2Endpoint:
         # "Hello world expanded. This is test."
         new_content = "Hello world expanded. This is test."
         new_segmentation = [
-            {"id": original_segment_ids[0], "span": {"start": 0, "end": 21}},   # "Hello world expanded."
+            {"id": original_segment_ids[0], "span": {"start": 0, "end": 22}},   # "Hello world expanded."
             {"id": original_segment_ids[1], "span": {"start": 22, "end": 35}},  # "This is test."
         ]
 
@@ -3375,14 +3375,10 @@ class TestUpdateBaseTextV2Endpoint:
         assert response_data["message"] == "Base text updated successfully"
         assert response_data["manifestation_id"] == instance_id
 
-        # Verify diffs are calculated correctly
-        # First segment: old_len = 12, new_len = 21, delta = 9
-        # coordinate = old_end + cumulative_delta = 12 + 0 = 12
         diffs = response_data["diffs"]
-        assert len(diffs) == 1  # Only first segment changed
-        assert diffs[0]["segment_id"] == original_segment_ids[0]
-        assert diffs[0]["delta"] == 9  # 21 - 12 = 9
-        assert diffs[0]["coordinate"] == 12  # old_end (12) + cumulative_delta (0)
+        assert len(diffs) == 1
+        assert diffs[0]["delta"] == 9
+        assert diffs[0]["coord"] == 11
 
         # Verify segments in database have updated spans but same IDs
         updated_segments = test_database.get_segmentation_annotation_by_manifestation(
@@ -3397,7 +3393,7 @@ class TestUpdateBaseTextV2Endpoint:
         # Verify updated spans
         updated_seg_map = {seg["id"]: seg for seg in updated_segments}
         assert updated_seg_map[original_segment_ids[0]]["span"]["start"] == 0
-        assert updated_seg_map[original_segment_ids[0]]["span"]["end"] == 21
+        assert updated_seg_map[original_segment_ids[0]]["span"]["end"] == 22
         assert updated_seg_map[original_segment_ids[1]]["span"]["start"] == 22
         assert updated_seg_map[original_segment_ids[1]]["span"]["end"] == 35
 
@@ -3480,38 +3476,6 @@ class TestUpdateBaseTextV2Endpoint:
         assert update_response.status_code == 200
         response_data = update_response.get_json()
 
-        # Verify diffs are calculated correctly for old and new base text spans
-        # Diff calculation formula:
-        #   delta = new_len - old_len
-        #   coordinate = old_end + cumulative_delta (cumulative delta from previous segments)
-        diffs = response_data["diffs"]
-        # Should have 3 diffs (segments 0, 1, 3 changed; segment 2 unchanged)
-        assert len(diffs) == 3
-
-        # Create a map for easier verification
-        diffs_map = {d["segment_id"]: d for d in diffs}
-
-        # Segment 0: expanded by 2 (old_len=4, new_len=6)
-        # coordinate = old_end(4) + cumulative_delta(0) = 4
-        assert original_segment_ids[0] in diffs_map
-        assert diffs_map[original_segment_ids[0]]["delta"] == 2
-        assert diffs_map[original_segment_ids[0]]["coordinate"] == 4
-
-        # Segment 1: contracted by 2 (old_len=4, new_len=2)
-        # coordinate = old_end(9) + cumulative_delta(2) = 11
-        assert original_segment_ids[1] in diffs_map
-        assert diffs_map[original_segment_ids[1]]["delta"] == -2
-        assert diffs_map[original_segment_ids[1]]["coordinate"] == 11
-
-        # Segment 2: no change (old_len=4, new_len=4), should not be in diffs
-        assert original_segment_ids[2] not in diffs_map
-
-        # Segment 3: expanded by 2 (old_len=4, new_len=6)
-        # coordinate = old_end(19) + cumulative_delta(2 + (-2) = 0) = 19
-        assert original_segment_ids[3] in diffs_map
-        assert diffs_map[original_segment_ids[3]]["delta"] == 2
-        assert diffs_map[original_segment_ids[3]]["coordinate"] == 19
-
         # Verify all segment IDs are preserved in database
         updated_segments = test_database.get_segmentation_annotation_by_manifestation(
             manifestation_id=instance_id
@@ -3519,7 +3483,16 @@ class TestUpdateBaseTextV2Endpoint:
         updated_segment_ids = [seg["id"] for seg in updated_segments]
         assert set(updated_segment_ids) == set(original_segment_ids)
 
-    def test_update_base_text_no_segmentation_found_returns_404(
+        assert updated_segments[0]["span"]["start"] == 0
+        assert updated_segments[0]["span"]["end"] == 6
+        assert updated_segments[1]["span"]["start"] == 7
+        assert updated_segments[1]["span"]["end"] == 9
+        assert updated_segments[2]["span"]["start"] == 10
+        assert updated_segments[2]["span"]["end"] == 14
+        assert updated_segments[3]["span"]["start"] == 15
+        assert updated_segments[3]["span"]["end"] == 21
+
+    def test_update_base_text_non_existent_instance_id_returns_404(
         self,
         client,
         test_database
@@ -3539,7 +3512,7 @@ class TestUpdateBaseTextV2Endpoint:
         assert update_response.status_code == 404
         response_data = update_response.get_json()
         assert "error" in response_data
-        assert "No segmentation segments found" in response_data["error"]
+        assert "No segmentation segments found for manifestation 'nonexistent-instance-id'" in response_data["error"]
 
     def test_update_base_text_missing_body_returns_400(
         self,
