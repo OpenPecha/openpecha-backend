@@ -686,6 +686,12 @@ RETURN s.id as id,
        aligned_segments
 ORDER BY s.span_start
 """,
+    "get_annotation_segments": """
+    MATCH (a:Annotation {id: $annotation_id})
+    <-[:SEGMENTATION_OF]-(s:Segment)
+    RETURN s.id as id, s.span_start as start, s.span_end as end
+    ORDER BY s.span_start
+""",
     "get_sections": """
 MATCH (a:Annotation {id: $annotation_id})
 <-[:SECTION_OF]-(s:Section)
