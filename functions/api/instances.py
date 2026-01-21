@@ -23,7 +23,6 @@ from models import (
     SegmentModel,
     SpanModel,
     TextType,
-    UpdateBaseTextRequestModel,
 )
 from neo4j_database import Neo4JDatabase
 from neo4j_database_validator import Neo4JDatabaseValidator

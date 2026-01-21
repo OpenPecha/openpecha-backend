@@ -22,6 +22,7 @@ from dotenv import load_dotenv
 from identifier import generate_id
 from main import create_app
 from models import (
+    SegmentContentInput,
     AnnotationModel,
     AnnotationType,
     CopyrightStatus,
@@ -3525,3 +3526,299 @@ class TestUpdateBaseTextV2Endpoint:
         response_data = update_response.get_json()
         assert "error" in response_data
         assert response_data["error"] == "Request body is required"
+
+
+class TestUpdateSegmentContentEndpoint:
+    """Test class for PUT /v2/segments/{segment_id}/content endpoint"""
+
+    def _create_test_category(self, test_database):
+        """Helper to create a test category in the database"""
+        category_id = test_database.create_category(
+            application='test_application',
+            title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
+        )
+        return category_id
+
+    def _create_instance_with_segments(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data,
+        content: str,
+        segmentation: list[dict]
+    ) -> tuple[str, str, list[str]]:
+        """
+        Helper to create an instance with segments.
+        Returns (expression_id, instance_id, segment_ids)
+        """
+        # Create test person
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        # Create category and expression
+        category_id = self._create_test_category(test_database)
+        test_expression_data["category_id"] = category_id
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        # Create instance with segmentation
+        instance_request = {
+            "content": content,
+            "annotation": segmentation,
+            "metadata": {
+                "wiki": "Q123456",
+                "type": "critical",
+                "source": "www.example_source.com",
+                "colophon": "Sample colophon",
+                "incipit_title": {"en": "Opening words", "bo": "དབུ་ཚིག"},
+            },
+        }
+        instance = InstanceRequestModel.model_validate(instance_request)
+        post_response = client.post(
+            f"/v2/texts/{expression_id}/instances/", json=instance.model_dump()
+        )
+        assert post_response.status_code == 201
+        instance_id = post_response.get_json()["id"]
+
+        # Get segment IDs
+        segments = test_database.get_segmentation_annotation_by_manifestation(
+            manifestation_id=instance_id
+        )
+        segment_ids = [seg["id"] for seg in sorted(segments, key=lambda s: s["span"]["start"])]
+
+        return expression_id, instance_id, segment_ids
+
+    def test_update_segment_content_success(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data
+    ):
+        """
+        Test PUT /v2/segments/{segment_id}/content:
+        - Successfully updates segment content
+        - Returns success message
+        """
+        # Create instance with segments
+        original_content = "Hello world. This is test."
+        original_segmentation = [
+            {"span": {"start": 0, "end": 12}},   # "Hello world."
+            {"span": {"start": 12, "end": 26}},  # " This is test."
+        ]
+
+        expression_id, instance_id, segment_ids = self._create_instance_with_segments(
+            client, test_database, test_person_data, test_expression_data,
+            original_content, original_segmentation
+        )
+
+        # Update the first segment's content
+        new_content = "Hello universe."
+        update_response = client.put(
+            f"/v2/segments/{segment_ids[0]}/content",
+            json={"content": new_content}
+        )
+
+        assert update_response.status_code == 200
+        response_data = update_response.get_json()
+        assert response_data["message"] == "Segment content updated"
+
+    def test_update_segment_content_with_expansion(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data
+    ):
+        """
+        Test updating segment content that expands the segment size.
+        Original: "AAAA" -> New: "AAAAAA" (expansion by 2 chars)
+        """
+        original_content = "AAAA BBBB CCCC"
+        original_segmentation = [
+            {"span": {"start": 0, "end": 4}},   # "AAAA"
+            {"span": {"start": 5, "end": 9}},   # "BBBB"
+            {"span": {"start": 10, "end": 14}}, # "CCCC"
+        ]
+
+        expression_id, instance_id, segment_ids = self._create_instance_with_segments(
+            client, test_database, test_person_data, test_expression_data,
+            original_content, original_segmentation
+        )
+
+        # Expand first segment
+        new_content = "AAAAAA"  # 6 chars instead of 4
+        update_response = client.put(
+            f"/v2/segments/{segment_ids[0]}/content",
+            json={"content": new_content}
+        )
+
+        assert update_response.status_code == 200
+        response_data = update_response.get_json()
+        assert response_data["message"] == "Segment content updated"
+
+    def test_update_segment_content_with_contraction(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data
+    ):
+        """
+        Test updating segment content that contracts the segment size.
+        Original: "BBBB" -> New: "BB" (contraction by 2 chars)
+        """
+        original_content = "AAAA BBBB CCCC"
+        original_segmentation = [
+            {"span": {"start": 0, "end": 4}},   # "AAAA"
+            {"span": {"start": 5, "end": 9}},   # "BBBB"
+            {"span": {"start": 10, "end": 14}}, # "CCCC"
+        ]
+
+        expression_id, instance_id, segment_ids = self._create_instance_with_segments(
+            client, test_database, test_person_data, test_expression_data,
+            original_content, original_segmentation
+        )
+
+        # Contract second segment
+        new_content = "BB"  # 2 chars instead of 4
+        update_response = client.put(
+            f"/v2/segments/{segment_ids[1]}/content",
+            json={"content": new_content}
+        )
+
+        assert update_response.status_code == 200
+        response_data = update_response.get_json()
+        assert response_data["message"] == "Segment content updated"
+
+    def test_update_segment_content_middle_segment(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data
+    ):
+        """
+        Test updating content of a middle segment.
+        This tests that spans before and after are handled correctly.
+        """
+        original_content = "First segment. Middle segment. Last segment."
+        original_segmentation = [
+            {"span": {"start": 0, "end": 14}},   # "First segment."
+            {"span": {"start": 15, "end": 30}},  # "Middle segment."
+            {"span": {"start": 31, "end": 44}},  # "Last segment."
+        ]
+
+        expression_id, instance_id, segment_ids = self._create_instance_with_segments(
+            client, test_database, test_person_data, test_expression_data,
+            original_content, original_segmentation
+        )
+
+        # Update middle segment with different content
+        new_content = "Updated middle content here."
+        update_response = client.put(
+            f"/v2/segments/{segment_ids[1]}/content",
+            json={"content": new_content}
+        )
+
+        assert update_response.status_code == 200
+        response_data = update_response.get_json()
+        assert response_data["message"] == "Segment content updated"
+
+    def test_update_segment_content_non_existent_segment_returns_404(
+        self,
+        client
+    ):
+        """Test that updating content for non-existent segment returns 404"""
+        update_response = client.put(
+            "/v2/segments/nonexistent-segment-id/content",
+            json={"content": "New content"}
+        )
+
+        assert update_response.status_code == 404
+        response_data = update_response.get_json()
+        assert "error" in response_data
+
+    def test_update_segment_content_missing_body_returns_400(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data
+    ):
+        """Test that updating segment content without request body returns 400"""
+        # Create an instance with segments first to have a valid segment ID
+        original_content = "Test content."
+        original_segmentation = [{"span": {"start": 0, "end": 13}}]
+
+        expression_id, instance_id, segment_ids = self._create_instance_with_segments(
+            client, test_database, test_person_data, test_expression_data,
+            original_content, original_segmentation
+        )
+
+        # Call without body
+        update_response = client.put(f"/v2/segments/{segment_ids[0]}/content")
+
+        assert update_response.status_code == 400
+        response_data = update_response.get_json()
+        assert "error" in response_data
+        assert response_data["error"] == "Request body is required"
+
+    def test_update_segment_content_empty_content_returns_400(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data
+    ):
+        """Test that updating segment with empty content returns validation error"""
+        original_content = "Test content."
+        original_segmentation = [{"span": {"start": 0, "end": 13}}]
+
+        expression_id, instance_id, segment_ids = self._create_instance_with_segments(
+            client, test_database, test_person_data, test_expression_data,
+            original_content, original_segmentation
+        )
+
+        # Call with empty content
+        update_response = client.put(
+            f"/v2/segments/{segment_ids[0]}/content",
+            json={"content": ""}
+        )
+
+        assert update_response.status_code == 400
+
+    def test_update_segment_content_verifies_storage_update(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data
+    ):
+        """
+        Test that segment content update actually modifies the stored base text.
+        After update, fetching the base text should reflect the change.
+        """
+        original_content = "Hello world."
+        original_segmentation = [{"span": {"start": 0, "end": 12}}]
+
+        expression_id, instance_id, segment_ids = self._create_instance_with_segments(
+            client, test_database, test_person_data, test_expression_data,
+            original_content, original_segmentation
+        )
+
+        # Update segment content
+        new_content = "Hello universe!"
+        update_response = client.put(
+            f"/v2/segments/{segment_ids[0]}/content",
+            json={"content": new_content}
+        )
+
+        assert update_response.status_code == 200
+
+        # Verify the base text was actually updated in storage
+        storage = Storage()
+        updated_base_text = storage.retrieve_base_text(expression_id, instance_id)
+        assert updated_base_text == new_content

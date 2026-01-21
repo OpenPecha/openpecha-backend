@@ -1438,6 +1438,25 @@ class Neo4JDatabase:
 
         return segments
 
+    def get_annotation_segments(self, annotation_id: str) -> list[dict]:
+        """
+        Get all segments for an annotation with minimal data - only ID and span.
+
+        Returns:
+            List of dicts with 'id', 'span' (containing 'start' and 'end')
+        """
+        with self.get_session() as session:
+            result = session.run(Queries.annotations["get_annotation_segments"], annotation_id=annotation_id)
+
+            segments = []
+            for record in result:
+                segments.append({
+                    "id": record["id"],
+                    "span": {"start": record["start"], "end": record["end"]}
+                })
+
+            return segments
+
     def get_annotation_type(self, annotation_id: str) -> str | None:
         """
         Get the annotation type for a given annotation ID.
