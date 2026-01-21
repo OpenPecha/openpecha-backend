@@ -3279,7 +3279,7 @@ class TestPostInstanceV2Endpoints:
         response_data = response.get_json()
         assert "error" in response_data
         assert "manifestation" in response_data["error"]
-        assert "not found" in response_data["error"]    
+        assert "not found" in response_data["error"]   
 
 
 class TestUpdateBaseTextV2Endpoint:
