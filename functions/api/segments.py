@@ -1,3 +1,4 @@
+from difflib import diff_bytes
 import logging
 
 import requests
@@ -6,6 +7,7 @@ from flask import Blueprint, Response, jsonify, request
 from models import SearchFilterModel, SearchRequestModel, SearchResponseModel, SearchResultModel, SegmentContentInput
 from storage import Storage
 from neo4j_database import Neo4JDatabase
+from diff_match_patch import diff_match_patch
 
 segments_bp = Blueprint("segments", __name__)
 
@@ -211,30 +213,54 @@ def get_batch_overlapping_segments() -> tuple[Response, int]:
 def update_segment_content(segment_id: str, validated_data: SegmentContentInput) -> tuple[Response, int]:
 
     db = Neo4JDatabase()
-    storage = Storage()
 
-    with Database() as db:
-        segment = db.segment.get(segment_id)
-        old_start = segment.span.start
-        old_end = segment.span.end
-        new_length = len(validated_data.content)
+    segment = db.get_segment(segment_id)
+    old_start = segment.span.start
+    old_end = segment.span.end
 
-        Storage().update_base_text_range(
-            expression_id=segment.text_id,
-            manifestation_id=segment.manifestation_id,
-            start=old_start,
-            end=old_end,
-            new_content=validated_data.content,
-        )
+    old_content = Storage().fetch_base_text_range(
+        expression_id=segment.expression_id,
+        manifestation_id=segment.manifestation_id,
+        start=old_start,
+        end=old_end,
+    )
 
-        db.span.update_span_end(segment_id, new_length)
+    diffs = get_coord_delta_with_patches(old_content, validated_data.content)
 
-        db.span.adjust_affected_spans(
-            manifestation_id=segment.manifestation_id,
-            replace_start=old_start,
-            replace_end=old_end,
-            new_length=new_length,
-            exclude_entity_id=segment_id,
-        )
+    print("Diffs")
+    print(diffs)
+
+
+    Storage().update_base_text_range(
+        expression_id=segment.text_id,
+        manifestation_id=segment.manifestation_id,
+        start=old_start,
+        end=old_end,
+        new_content=validated_data.content,
+    )
+
+
+    # db.span.adjust_affected_spans(
+    #     manifestation_id=segment.manifestation_id,
+    #     replace_start=old_start,
+    #     replace_end=old_end,
+    #     new_length=new_length,
+    #     exclude_entity_id=segment_id,
+    # )
 
     return jsonify({"message": "Segment content updated"}), 200
+
+
+def get_coord_delta_with_patches(old_text: str, new_text: str):
+    dmp = diff_match_patch()
+    patches = dmp.patch_make(old_text, new_text)
+
+    result = []
+    for p in patches:
+        result.append({
+            "coord": p.start1,
+            "delta": p.length2 - p.length1,
+            "old_len": p.length1,
+            "new_len": p.length2,
+        })
+    return result
