@@ -3822,3 +3822,728 @@ class TestUpdateSegmentContentEndpoint:
         storage = Storage()
         updated_base_text = storage.retrieve_base_text(expression_id, instance_id)
         assert updated_base_text == new_content
+
+    def test_update_segment_content_updates_alignment_annotations_and_preserves_ids(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data
+    ):
+        """
+        Test that updating segment content on a source instance with alignment:
+        1. Updates alignment annotation segment spans correctly
+        2. Preserves all segment IDs (including alignment segments)
+        3. Updates target annotation segment spans on the source manifestation
+        """
+        # Create test person
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        # Create category and expression for root text
+        category_id = self._create_test_category(test_database)
+        test_expression_data["category_id"] = category_id
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        # Create root instance with segmentation
+        root_content = "First segment. Second segment. Third segment."
+        root_segmentation = [
+            {"span": {"start": 0, "end": 14}},    # "First segment."
+            {"span": {"start": 15, "end": 30}},   # "Second segment."
+            {"span": {"start": 31, "end": 45}},   # "Third segment."
+        ]
+
+        root_instance_request = {
+            "content": root_content,
+            "annotation": root_segmentation,
+            "metadata": {
+                "wiki": "Q123456",
+                "type": "critical",
+                "source": "www.example_source.com",
+                "colophon": "Sample colophon",
+                "incipit_title": {"en": "Opening words", "bo": "དབུ་ཚིག"},
+            },
+        }
+        root_instance = InstanceRequestModel.model_validate(root_instance_request)
+        post_response = client.post(
+            f"/v2/texts/{expression_id}/instances/", json=root_instance.model_dump()
+        )
+        assert post_response.status_code == 201
+        root_instance_id = post_response.get_json()["id"]
+
+        # Get root segmentation segment IDs
+        root_segments = test_database.get_segmentation_annotation_by_manifestation(
+            manifestation_id=root_instance_id
+        )
+        root_segment_ids = [seg["id"] for seg in sorted(root_segments, key=lambda s: s["span"]["start"])]
+
+        # Create translation with alignment annotation pointing to root instance
+        translation_request = {
+            "language": "bo",
+            "content": "Translation first. Translation second. Translation third.",
+            "title": "Translated Title",
+            "category_id": category_id,
+            "source": "Source of the translation",
+            "author": {
+                "person_id": person_id
+            },
+            "segmentation": [
+                {"span": {"start": 0, "end": 18}},    # "Translation first."
+                {"span": {"start": 19, "end": 38}},   # "Translation second."
+                {"span": {"start": 39, "end": 57}},   # "Translation third."
+            ],
+            "target_annotation": [
+                {"span": {"start": 0, "end": 14}, "index": 0},     # Points to root segment 0
+                {"span": {"start": 15, "end": 30}, "index": 1},    # Points to root segment 1
+                {"span": {"start": 31, "end": 45}, "index": 2},    # Points to root segment 2
+            ],
+            "alignment_annotation": [
+                {"span": {"start": 0, "end": 18}, "index": 0, "alignment_index": [0]},
+                {"span": {"start": 19, "end": 38}, "index": 1, "alignment_index": [1]},
+                {"span": {"start": 39, "end": 57}, "index": 2, "alignment_index": [2]},
+            ],
+            "copyright": "Public domain",
+            "license": "CC0"
+        }
+
+        translation = AlignedTextRequestModel.model_validate(translation_request)
+        translation_response = client.post(
+            f"/v2/instances/{root_instance_id}/translation",
+            json=translation.model_dump()
+        )
+        assert translation_response.status_code == 201
+        translation_data = translation_response.get_json()
+        translation_instance_id = translation_data["instance_id"]
+
+        # Get the root manifestation to find the target annotation (alignment type)
+        root_manifestation, _ = test_database.get_manifestation(root_instance_id)
+        target_annotation = None
+        for annotation in root_manifestation.annotations:
+            if annotation.type == AnnotationType.ALIGNMENT:
+                target_annotation = annotation
+                break
+        
+        assert target_annotation is not None, "Target annotation should exist on root manifestation"
+
+        # Get original target annotation segments
+        original_target_segments = test_database.get_annotation_segments(target_annotation.id)
+        original_target_segment_ids = [seg["id"] for seg in original_target_segments]
+        assert len(original_target_segments) == 3
+
+        # Verify original spans
+        sorted_target_segments = sorted(original_target_segments, key=lambda s: s["span"]["start"])
+        assert sorted_target_segments[0]["span"]["start"] == 0
+        assert sorted_target_segments[0]["span"]["end"] == 14
+        assert sorted_target_segments[1]["span"]["start"] == 15
+        assert sorted_target_segments[1]["span"]["end"] == 30
+        assert sorted_target_segments[2]["span"]["start"] == 31
+        assert sorted_target_segments[2]["span"]["end"] == 45
+
+        # Now update the first segment's content on the root instance (expand it)
+        # Original: "First segment." (14 chars) -> New: "First expanded segment." (23 chars, +9 chars)
+        new_content = "First expanded segment."
+        update_response = client.put(
+            f"/v2/segments/{root_segment_ids[0]}/content",
+            json={"content": new_content}
+        )
+
+        assert update_response.status_code == 200
+
+        # Verify that target annotation segments are updated with correct spans
+        updated_target_segments = test_database.get_annotation_segments(target_annotation.id)
+        updated_target_segment_ids = [seg["id"] for seg in updated_target_segments]
+
+        # All segment IDs should be preserved
+        assert set(updated_target_segment_ids) == set(original_target_segment_ids), \
+            "All target annotation segment IDs should be preserved"
+
+        # Verify updated spans (first segment expanded by 9 chars, subsequent segments shifted)
+        sorted_updated_target = sorted(updated_target_segments, key=lambda s: s["span"]["start"])
+        
+        # First segment: 0-14 -> 0-23 (expanded by 9)
+        assert sorted_updated_target[0]["span"]["start"] == 0
+        assert sorted_updated_target[0]["span"]["end"] == 23  # 14 + 9 = 23
+        
+        # Second segment: 15-30 -> 24-39 (shifted by 9)
+        assert sorted_updated_target[1]["span"]["start"] == 24  # 15 + 9 = 24
+        assert sorted_updated_target[1]["span"]["end"] == 39    # 30 + 9 = 39
+        
+        # Third segment: 31-45 -> 40-54 (shifted by 9)
+        assert sorted_updated_target[2]["span"]["start"] == 40  # 31 + 9 = 40
+        assert sorted_updated_target[2]["span"]["end"] == 54    # 45 + 9 = 54
+
+    def test_update_segment_content_updates_alignment_on_translation_manifestation(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data
+    ):
+        """
+        Test that updating segment content on a translation instance:
+        1. Updates the alignment annotation segments on the translation manifestation
+        2. Preserves all alignment segment IDs
+        """
+        # Create test person
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        # Create category and expression for root text
+        category_id = self._create_test_category(test_database)
+        test_expression_data["category_id"] = category_id
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        # Create root instance with segmentation
+        root_content = "AAAA BBBB CCCC"
+        root_segmentation = [
+            {"span": {"start": 0, "end": 4}},    # "AAAA"
+            {"span": {"start": 5, "end": 9}},    # "BBBB"
+            {"span": {"start": 10, "end": 14}},  # "CCCC"
+        ]
+
+        root_instance_request = {
+            "content": root_content,
+            "annotation": root_segmentation,
+            "metadata": {
+                "wiki": "Q654321",
+                "type": "critical",
+                "source": "www.example_source.com",
+                "colophon": "Sample colophon",
+                "incipit_title": {"en": "Opening words", "bo": "དབུ་ཚིག"},
+            },
+        }
+        root_instance = InstanceRequestModel.model_validate(root_instance_request)
+        post_response = client.post(
+            f"/v2/texts/{expression_id}/instances/", json=root_instance.model_dump()
+        )
+        assert post_response.status_code == 201
+        root_instance_id = post_response.get_json()["id"]
+
+        # Create translation with alignment annotation
+        translation_content = "XXXX YYYY ZZZZ"
+        translation_request = {
+            "language": "bo",
+            "content": translation_content,
+            "title": "Translated Title",
+            "category_id": category_id,
+            "source": "Source of the translation",
+            "author": {
+                "person_id": person_id
+            },
+            "segmentation": [
+                {"span": {"start": 0, "end": 4}},    # "XXXX"
+                {"span": {"start": 5, "end": 9}},    # "YYYY"
+                {"span": {"start": 10, "end": 14}},  # "ZZZZ"
+            ],
+            "target_annotation": [
+                {"span": {"start": 0, "end": 4}, "index": 0},
+                {"span": {"start": 5, "end": 9}, "index": 1},
+                {"span": {"start": 10, "end": 14}, "index": 2},
+            ],
+            "alignment_annotation": [
+                {"span": {"start": 0, "end": 4}, "index": 0, "alignment_index": [0]},
+                {"span": {"start": 5, "end": 9}, "index": 1, "alignment_index": [1]},
+                {"span": {"start": 10, "end": 14}, "index": 2, "alignment_index": [2]},
+            ],
+            "copyright": "Public domain",
+            "license": "CC0"
+        }
+
+        translation = AlignedTextRequestModel.model_validate(translation_request)
+        translation_response = client.post(
+            f"/v2/instances/{root_instance_id}/translation",
+            json=translation.model_dump()
+        )
+        assert translation_response.status_code == 201
+        translation_data = translation_response.get_json()
+        translation_instance_id = translation_data["instance_id"]
+
+        # Get the translation manifestation to find the alignment annotation
+        translation_manifestation, _ = test_database.get_manifestation(translation_instance_id)
+        alignment_annotation = None
+        for annotation in translation_manifestation.annotations:
+            if annotation.type == AnnotationType.ALIGNMENT:
+                alignment_annotation = annotation
+                break
+        
+        assert alignment_annotation is not None, "Alignment annotation should exist on translation manifestation"
+
+        # Get original alignment annotation segments
+        original_alignment_segments = test_database.get_annotation_segments(alignment_annotation.id)
+        original_alignment_segment_ids = [seg["id"] for seg in original_alignment_segments]
+        assert len(original_alignment_segments) == 3
+
+        # Get translation segmentation segments for update
+        translation_segments = test_database.get_segmentation_annotation_by_manifestation(
+            manifestation_id=translation_instance_id
+        )
+        translation_segment_ids = [seg["id"] for seg in sorted(translation_segments, key=lambda s: s["span"]["start"])]
+
+        # Update the first segment's content on the translation instance (expand it)
+        # Original: "XXXX" (4 chars) -> New: "XXXXXX" (6 chars, +2 chars)
+        new_content = "XXXXXX"
+        update_response = client.put(
+            f"/v2/segments/{translation_segment_ids[0]}/content",
+            json={"content": new_content}
+        )
+
+        assert update_response.status_code == 200
+
+        # Verify that alignment annotation segments are updated
+        updated_alignment_segments = test_database.get_annotation_segments(alignment_annotation.id)
+        updated_alignment_segment_ids = [seg["id"] for seg in updated_alignment_segments]
+
+        # All alignment segment IDs should be preserved
+        assert set(updated_alignment_segment_ids) == set(original_alignment_segment_ids), \
+            "All alignment annotation segment IDs should be preserved"
+
+        # Verify updated spans
+        sorted_updated_alignment = sorted(updated_alignment_segments, key=lambda s: s["span"]["start"])
+        
+        # First segment: 0-4 -> 0-6 (expanded by 2)
+        assert sorted_updated_alignment[0]["span"]["start"] == 0
+        assert sorted_updated_alignment[0]["span"]["end"] == 6  # 4 + 2 = 6
+        
+        # Second segment: 5-9 -> 7-11 (shifted by 2)
+        assert sorted_updated_alignment[1]["span"]["start"] == 7   # 5 + 2 = 7
+        assert sorted_updated_alignment[1]["span"]["end"] == 11    # 9 + 2 = 11
+        
+        # Third segment: 10-14 -> 12-16 (shifted by 2)
+        assert sorted_updated_alignment[2]["span"]["start"] == 12  # 10 + 2 = 12
+        assert sorted_updated_alignment[2]["span"]["end"] == 16    # 14 + 2 = 16
+
+    def test_update_segment_content_with_contraction_updates_alignment(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data
+    ):
+        """
+        Test that contracting segment content properly updates alignment annotations:
+        1. Alignment segment spans are correctly contracted
+        2. Subsequent segment spans are shifted correctly (negative delta)
+        3. All segment IDs are preserved
+        """
+        # Create test person
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        # Create category and expression for root text
+        category_id = self._create_test_category(test_database)
+        test_expression_data["category_id"] = category_id
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        # Create root instance with segmentation
+        root_content = "AAAAAA BBBBBB CCCCCC"
+        root_segmentation = [
+            {"span": {"start": 0, "end": 6}},     # "AAAAAA"
+            {"span": {"start": 7, "end": 13}},    # "BBBBBB"
+            {"span": {"start": 14, "end": 20}},   # "CCCCCC"
+        ]
+
+        root_instance_request = {
+            "content": root_content,
+            "annotation": root_segmentation,
+            "metadata": {
+                "wiki": "Q111222",
+                "type": "critical",
+                "source": "www.example_source.com",
+                "colophon": "Sample colophon",
+                "incipit_title": {"en": "Opening words", "bo": "དབུ་ཚིག"},
+            },
+        }
+        root_instance = InstanceRequestModel.model_validate(root_instance_request)
+        post_response = client.post(
+            f"/v2/texts/{expression_id}/instances/", json=root_instance.model_dump()
+        )
+        assert post_response.status_code == 201
+        root_instance_id = post_response.get_json()["id"]
+
+        # Get root segmentation segment IDs
+        root_segments = test_database.get_segmentation_annotation_by_manifestation(
+            manifestation_id=root_instance_id
+        )
+        root_segment_ids = [seg["id"] for seg in sorted(root_segments, key=lambda s: s["span"]["start"])]
+
+        # Create translation with alignment annotation
+        translation_request = {
+            "language": "bo",
+            "content": "XXXX YYYY ZZZZ",
+            "title": "Translated Title",
+            "category_id": category_id,
+            "source": "Source of the translation",
+            "author": {
+                "person_id": person_id
+            },
+            "segmentation": [
+                {"span": {"start": 0, "end": 4}},
+                {"span": {"start": 5, "end": 9}},
+                {"span": {"start": 10, "end": 14}},
+            ],
+            "target_annotation": [
+                {"span": {"start": 0, "end": 6}, "index": 0},
+                {"span": {"start": 7, "end": 13}, "index": 1},
+                {"span": {"start": 14, "end": 20}, "index": 2},
+            ],
+            "alignment_annotation": [
+                {"span": {"start": 0, "end": 4}, "index": 0, "alignment_index": [0]},
+                {"span": {"start": 5, "end": 9}, "index": 1, "alignment_index": [1]},
+                {"span": {"start": 10, "end": 14}, "index": 2, "alignment_index": [2]},
+            ],
+            "copyright": "Public domain",
+            "license": "CC0"
+        }
+
+        translation = AlignedTextRequestModel.model_validate(translation_request)
+        translation_response = client.post(
+            f"/v2/instances/{root_instance_id}/translation",
+            json=translation.model_dump()
+        )
+        assert translation_response.status_code == 201
+
+        # Get the root manifestation to find the target annotation
+        root_manifestation, _ = test_database.get_manifestation(root_instance_id)
+        target_annotation = None
+        for annotation in root_manifestation.annotations:
+            if annotation.type == AnnotationType.ALIGNMENT:
+                target_annotation = annotation
+                break
+        
+        assert target_annotation is not None
+
+        # Get original target annotation segments
+        original_target_segments = test_database.get_annotation_segments(target_annotation.id)
+        original_target_segment_ids = [seg["id"] for seg in original_target_segments]
+
+        # Contract the first segment: "AAAAAA" (6 chars) -> "AA" (2 chars, -4 chars)
+        new_content = "AA"
+        update_response = client.put(
+            f"/v2/segments/{root_segment_ids[0]}/content",
+            json={"content": new_content}
+        )
+
+        assert update_response.status_code == 200
+
+        # Verify that target annotation segments are updated with correct spans
+        updated_target_segments = test_database.get_annotation_segments(target_annotation.id)
+        updated_target_segment_ids = [seg["id"] for seg in updated_target_segments]
+
+        # All segment IDs should be preserved
+        assert set(updated_target_segment_ids) == set(original_target_segment_ids), \
+            "All target annotation segment IDs should be preserved after contraction"
+
+        # Verify updated spans (first segment contracted by 4 chars, subsequent segments shifted back)
+        sorted_updated_target = sorted(updated_target_segments, key=lambda s: s["span"]["start"])
+        
+        # First segment: 0-6 -> 0-2 (contracted by 4)
+        assert sorted_updated_target[0]["span"]["start"] == 0
+        assert sorted_updated_target[0]["span"]["end"] == 2  # 6 - 4 = 2
+        
+        # Second segment: 7-13 -> 3-9 (shifted by -4)
+        assert sorted_updated_target[1]["span"]["start"] == 3   # 7 - 4 = 3
+        assert sorted_updated_target[1]["span"]["end"] == 9     # 13 - 4 = 9
+        
+        # Third segment: 14-20 -> 10-16 (shifted by -4)
+        assert sorted_updated_target[2]["span"]["start"] == 10  # 14 - 4 = 10
+        assert sorted_updated_target[2]["span"]["end"] == 16    # 20 - 4 = 16
+
+    def test_update_middle_segment_content_updates_alignment_correctly(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data
+    ):
+        """
+        Test that updating a middle segment's content:
+        1. Does NOT affect segments before the update
+        2. Updates the modified segment's span correctly
+        3. Shifts segments after the update correctly
+        4. Preserves all alignment segment IDs
+        """
+        # Create test person
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        # Create category and expression for root text
+        category_id = self._create_test_category(test_database)
+        test_expression_data["category_id"] = category_id
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        # Create root instance with segmentation
+        root_content = "AAA BBB CCC DDD"
+        root_segmentation = [
+            {"span": {"start": 0, "end": 3}},     # "AAA"
+            {"span": {"start": 4, "end": 7}},     # "BBB"
+            {"span": {"start": 8, "end": 11}},    # "CCC"
+            {"span": {"start": 12, "end": 15}},   # "DDD"
+        ]
+
+        root_instance_request = {
+            "content": root_content,
+            "annotation": root_segmentation,
+            "metadata": {
+                "wiki": "Q333444",
+                "type": "critical",
+                "source": "www.example_source.com",
+                "colophon": "Sample colophon",
+                "incipit_title": {"en": "Opening words", "bo": "དབུ་ཚིག"},
+            },
+        }
+        root_instance = InstanceRequestModel.model_validate(root_instance_request)
+        post_response = client.post(
+            f"/v2/texts/{expression_id}/instances/", json=root_instance.model_dump()
+        )
+        assert post_response.status_code == 201
+        root_instance_id = post_response.get_json()["id"]
+
+        # Get root segmentation segment IDs
+        root_segments = test_database.get_segmentation_annotation_by_manifestation(
+            manifestation_id=root_instance_id
+        )
+        root_segment_ids = [seg["id"] for seg in sorted(root_segments, key=lambda s: s["span"]["start"])]
+
+        # Create translation with alignment annotation
+        translation_request = {
+            "language": "bo",
+            "content": "XXX YYY ZZZ WWW",
+            "title": "Translated Title",
+            "category_id": category_id,
+            "source": "Source of the translation",
+            "author": {
+                "person_id": person_id
+            },
+            "segmentation": [
+                {"span": {"start": 0, "end": 3}},
+                {"span": {"start": 4, "end": 7}},
+                {"span": {"start": 8, "end": 11}},
+                {"span": {"start": 12, "end": 15}},
+            ],
+            "target_annotation": [
+                {"span": {"start": 0, "end": 3}, "index": 0},
+                {"span": {"start": 4, "end": 7}, "index": 1},
+                {"span": {"start": 8, "end": 11}, "index": 2},
+                {"span": {"start": 12, "end": 15}, "index": 3},
+            ],
+            "alignment_annotation": [
+                {"span": {"start": 0, "end": 3}, "index": 0, "alignment_index": [0]},
+                {"span": {"start": 4, "end": 7}, "index": 1, "alignment_index": [1]},
+                {"span": {"start": 8, "end": 11}, "index": 2, "alignment_index": [2]},
+                {"span": {"start": 12, "end": 15}, "index": 3, "alignment_index": [3]},
+            ],
+            "copyright": "Public domain",
+            "license": "CC0"
+        }
+
+        translation = AlignedTextRequestModel.model_validate(translation_request)
+        translation_response = client.post(
+            f"/v2/instances/{root_instance_id}/translation",
+            json=translation.model_dump()
+        )
+        assert translation_response.status_code == 201
+
+        # Get the root manifestation to find the target annotation
+        root_manifestation, _ = test_database.get_manifestation(root_instance_id)
+        target_annotation = None
+        for annotation in root_manifestation.annotations:
+            if annotation.type == AnnotationType.ALIGNMENT:
+                target_annotation = annotation
+                break
+        
+        assert target_annotation is not None
+
+        # Get original target annotation segments
+        original_target_segments = test_database.get_annotation_segments(target_annotation.id)
+        original_target_segment_ids = [seg["id"] for seg in original_target_segments]
+
+        # Update the SECOND (middle) segment: "BBB" (3 chars) -> "BBBBB" (5 chars, +2 chars)
+        new_content = "BBBBB"
+        update_response = client.put(
+            f"/v2/segments/{root_segment_ids[1]}/content",
+            json={"content": new_content}
+        )
+
+        assert update_response.status_code == 200
+
+        # Verify that target annotation segments are updated correctly
+        updated_target_segments = test_database.get_annotation_segments(target_annotation.id)
+        updated_target_segment_ids = [seg["id"] for seg in updated_target_segments]
+
+        # All segment IDs should be preserved
+        assert set(updated_target_segment_ids) == set(original_target_segment_ids), \
+            "All target annotation segment IDs should be preserved"
+
+        # Verify updated spans
+        sorted_updated_target = sorted(updated_target_segments, key=lambda s: s["span"]["start"])
+        
+        # First segment: 0-3 -> 0-3 (unchanged - before the update)
+        assert sorted_updated_target[0]["span"]["start"] == 0
+        assert sorted_updated_target[0]["span"]["end"] == 3
+        
+        # Second segment: 4-7 -> 4-9 (expanded by 2)
+        assert sorted_updated_target[1]["span"]["start"] == 4
+        assert sorted_updated_target[1]["span"]["end"] == 9   # 7 + 2 = 9
+        
+        # Third segment: 8-11 -> 10-13 (shifted by 2)
+        assert sorted_updated_target[2]["span"]["start"] == 10  # 8 + 2 = 10
+        assert sorted_updated_target[2]["span"]["end"] == 13    # 11 + 2 = 13
+        
+        # Fourth segment: 12-15 -> 14-17 (shifted by 2)
+        assert sorted_updated_target[3]["span"]["start"] == 14  # 12 + 2 = 14
+        assert sorted_updated_target[3]["span"]["end"] == 17    # 15 + 2 = 17
+
+    def test_update_segment_content_preserves_all_annotation_segment_ids(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data
+    ):
+        """
+        Comprehensive test to verify ALL segment IDs are preserved across:
+        1. Segmentation annotation segments
+        2. Alignment annotation segments (on translation)
+        3. Target annotation segments (on root)
+        """
+        # Create test person
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        # Create category and expression for root text
+        category_id = self._create_test_category(test_database)
+        test_expression_data["category_id"] = category_id
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        # Create root instance with segmentation
+        root_content = "First. Second."
+        root_segmentation = [
+            {"span": {"start": 0, "end": 6}},     # "First."
+            {"span": {"start": 7, "end": 14}},    # "Second."
+        ]
+
+        root_instance_request = {
+            "content": root_content,
+            "annotation": root_segmentation,
+            "metadata": {
+                "wiki": "Q555666",
+                "type": "critical",
+                "source": "www.example_source.com",
+                "colophon": "Sample colophon",
+                "incipit_title": {"en": "Opening words", "bo": "དབུ་ཚིག"},
+            },
+        }
+        root_instance = InstanceRequestModel.model_validate(root_instance_request)
+        post_response = client.post(
+            f"/v2/texts/{expression_id}/instances/", json=root_instance.model_dump()
+        )
+        assert post_response.status_code == 201
+        root_instance_id = post_response.get_json()["id"]
+
+        # Get root segmentation segment IDs
+        original_root_segmentation = test_database.get_segmentation_annotation_by_manifestation(
+            manifestation_id=root_instance_id
+        )
+        original_root_seg_ids = [seg["id"] for seg in original_root_segmentation]
+
+        # Create translation with alignment annotation
+        translation_request = {
+            "language": "bo",
+            "content": "Trans1. Trans2.",
+            "title": "Translated Title",
+            "category_id": category_id,
+            "source": "Source of the translation",
+            "author": {
+                "person_id": person_id
+            },
+            "segmentation": [
+                {"span": {"start": 0, "end": 7}},
+                {"span": {"start": 8, "end": 15}},
+            ],
+            "target_annotation": [
+                {"span": {"start": 0, "end": 6}, "index": 0},
+                {"span": {"start": 7, "end": 14}, "index": 1},
+            ],
+            "alignment_annotation": [
+                {"span": {"start": 0, "end": 7}, "index": 0, "alignment_index": [0]},
+                {"span": {"start": 8, "end": 15}, "index": 1, "alignment_index": [1]},
+            ],
+            "copyright": "Public domain",
+            "license": "CC0"
+        }
+
+        translation = AlignedTextRequestModel.model_validate(translation_request)
+        translation_response = client.post(
+            f"/v2/instances/{root_instance_id}/translation",
+            json=translation.model_dump()
+        )
+        assert translation_response.status_code == 201
+        translation_data = translation_response.get_json()
+        translation_instance_id = translation_data["instance_id"]
+
+        # Get all original segment IDs
+        root_manifestation, _ = test_database.get_manifestation(root_instance_id)
+        translation_manifestation, _ = test_database.get_manifestation(translation_instance_id)
+
+        target_annotation = None
+        for annotation in root_manifestation.annotations:
+            if annotation.type == AnnotationType.ALIGNMENT:
+                target_annotation = annotation
+                break
+
+        alignment_annotation = None
+        segmentation_annotation = None
+        for annotation in translation_manifestation.annotations:
+            if annotation.type == AnnotationType.ALIGNMENT:
+                alignment_annotation = annotation
+            elif annotation.type == AnnotationType.SEGMENTATION:
+                segmentation_annotation = annotation
+
+        assert target_annotation is not None
+        assert alignment_annotation is not None
+        assert segmentation_annotation is not None
+
+        # Collect all original segment IDs
+        original_target_seg_ids = [seg["id"] for seg in test_database.get_annotation_segments(target_annotation.id)]
+        original_alignment_seg_ids = [seg["id"] for seg in test_database.get_annotation_segments(alignment_annotation.id)]
+        original_trans_segmentation_ids = [seg["id"] for seg in test_database.get_annotation_segments(segmentation_annotation.id)]
+
+        # Update root segment content
+        root_segment_ids = [seg["id"] for seg in sorted(original_root_segmentation, key=lambda s: s["span"]["start"])]
+        new_content = "First expanded."
+        update_response = client.put(
+            f"/v2/segments/{root_segment_ids[0]}/content",
+            json={"content": new_content}
+        )
+
+        assert update_response.status_code == 200
+
+        # Verify ALL segment IDs are preserved
+        updated_root_segmentation = test_database.get_segmentation_annotation_by_manifestation(
+            manifestation_id=root_instance_id
+        )
+        updated_root_seg_ids = [seg["id"] for seg in updated_root_segmentation]
+        assert set(updated_root_seg_ids) == set(original_root_seg_ids), \
+            "Root segmentation segment IDs should be preserved"
+
+        updated_target_seg_ids = [seg["id"] for seg in test_database.get_annotation_segments(target_annotation.id)]
+        assert set(updated_target_seg_ids) == set(original_target_seg_ids), \
+            "Target annotation segment IDs should be preserved"
+
+        updated_alignment_seg_ids = [seg["id"] for seg in test_database.get_annotation_segments(alignment_annotation.id)]
+        assert set(updated_alignment_seg_ids) == set(original_alignment_seg_ids), \
+            "Alignment annotation segment IDs should be preserved"
+
+        updated_trans_segmentation_ids = [seg["id"] for seg in test_database.get_annotation_segments(segmentation_annotation.id)]
+        assert set(updated_trans_segmentation_ids) == set(original_trans_segmentation_ids), \
+            "Translation segmentation segment IDs should be preserved"
