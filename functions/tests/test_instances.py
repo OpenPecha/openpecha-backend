@@ -4547,3 +4547,327 @@ class TestUpdateSegmentContentEndpoint:
         updated_trans_segmentation_ids = [seg["id"] for seg in test_database.get_annotation_segments(segmentation_annotation.id)]
         assert set(updated_trans_segmentation_ids) == set(original_trans_segmentation_ids), \
             "Translation segmentation segment IDs should be preserved"
+
+    def test_update_segment_content_updates_bibliography_annotation(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data
+    ):
+        """
+        Test that updating segment content on an instance also updates
+        bibliography annotation segments correctly:
+        1. Bibliography annotation segment spans are adjusted
+        2. All bibliography segment IDs are preserved
+        """
+        # Create test person
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        # Create category and expression
+        category_id = self._create_test_category(test_database)
+        test_expression_data["category_id"] = category_id
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        # Create instance with both segmentation and bibliography annotations
+        # Content: "AAAA BBBB CCCC DDDD EEEE" (25 chars total)
+        content = "AAAA BBBB CCCC DDDD EEEE"
+        segmentation = [
+            {"span": {"start": 0, "end": 4}},    # "AAAA"
+            {"span": {"start": 5, "end": 9}},    # "BBBB"
+            {"span": {"start": 10, "end": 14}},  # "CCCC"
+            {"span": {"start": 15, "end": 19}},  # "DDDD"
+            {"span": {"start": 20, "end": 24}},  # "EEEE"
+        ]
+        bibliography_annotation = [
+            {"span": {"start": 0, "end": 9}, "type": "title"},      # "AAAA BBBB"
+            {"span": {"start": 10, "end": 19}, "type": "colophon"}, # "CCCC DDDD"
+            {"span": {"start": 20, "end": 24}, "type": "author"},   # "EEEE"
+        ]
+
+        instance_request = {
+            "content": content,
+            "annotation": segmentation,
+            "biblography_annotation": bibliography_annotation,
+            "metadata": {
+                "wiki": "Q777888",
+                "type": "critical",
+                "source": "www.example_source.com",
+                "colophon": "Sample colophon",
+                "incipit_title": {"en": "Opening words", "bo": "དབུ་ཚིག"},
+            },
+        }
+        instance = InstanceRequestModel.model_validate(instance_request)
+        post_response = client.post(
+            f"/v2/texts/{expression_id}/instances/", json=instance.model_dump()
+        )
+        assert post_response.status_code == 201
+        instance_id = post_response.get_json()["id"]
+
+        # Get the manifestation to find the bibliography annotation
+        manifestation, _ = test_database.get_manifestation(instance_id)
+        bibliography_annot = None
+        for annotation in manifestation.annotations:
+            if annotation.type == AnnotationType.BIBLIOGRAPHY:
+                bibliography_annot = annotation
+                break
+
+        assert bibliography_annot is not None, "Bibliography annotation should exist"
+
+        # Get original bibliography annotation segments
+        original_bibliography_segments = test_database.get_annotation_segments(bibliography_annot.id)
+        original_bibliography_segment_ids = [seg["id"] for seg in original_bibliography_segments]
+        assert len(original_bibliography_segments) == 3
+
+        # Get segmentation segments for update
+        segmentation_segments = test_database.get_segmentation_annotation_by_manifestation(
+            manifestation_id=instance_id
+        )
+        segment_ids = [seg["id"] for seg in sorted(segmentation_segments, key=lambda s: s["span"]["start"])]
+
+        # Update the first segment's content: "AAAA" (4 chars) -> "AAAAAA" (6 chars, +2 chars)
+        new_content = "AAAAAA"
+        update_response = client.put(
+            f"/v2/segments/{segment_ids[0]}/content",
+            json={"content": new_content}
+        )
+
+        assert update_response.status_code == 200
+
+        # Verify that bibliography annotation segments are updated
+        updated_bibliography_segments = test_database.get_annotation_segments(bibliography_annot.id)
+        updated_bibliography_segment_ids = [seg["id"] for seg in updated_bibliography_segments]
+
+        # All bibliography segment IDs should be preserved
+        assert set(updated_bibliography_segment_ids) == set(original_bibliography_segment_ids), \
+            "All bibliography annotation segment IDs should be preserved"
+
+        # Verify updated spans
+        sorted_updated_bibliography = sorted(updated_bibliography_segments, key=lambda s: s["span"]["start"])
+
+        # First segment (title): 0-9 -> 0-11 (end expanded by 2)
+        assert sorted_updated_bibliography[0]["span"]["start"] == 0
+        assert sorted_updated_bibliography[0]["span"]["end"] == 11  # 9 + 2 = 11
+
+        # Second segment (colophon): 10-19 -> 12-21 (shifted by 2)
+        assert sorted_updated_bibliography[1]["span"]["start"] == 12  # 10 + 2 = 12
+        assert sorted_updated_bibliography[1]["span"]["end"] == 21    # 19 + 2 = 21
+
+        # Third segment (author): 20-24 -> 22-26 (shifted by 2)
+        assert sorted_updated_bibliography[2]["span"]["start"] == 22  # 20 + 2 = 22
+        assert sorted_updated_bibliography[2]["span"]["end"] == 26    # 24 + 2 = 26
+
+    def test_update_segment_content_with_contraction_updates_bibliography(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data
+    ):
+        """
+        Test that contracting segment content properly updates bibliography annotations:
+        1. Bibliography segment spans are correctly contracted
+        2. Subsequent segment spans are shifted correctly (negative delta)
+        3. All bibliography segment IDs are preserved
+        """
+        # Create test person
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        # Create category and expression
+        category_id = self._create_test_category(test_database)
+        test_expression_data["category_id"] = category_id
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        # Create instance with segmentation and bibliography annotations
+        # Content: "AAAAAA BBBB CCCC DDDD" (21 chars total)
+        content = "AAAAAA BBBB CCCC DDDD"
+        segmentation = [
+            {"span": {"start": 0, "end": 6}},    # "AAAAAA"
+            {"span": {"start": 7, "end": 11}},   # "BBBB"
+            {"span": {"start": 12, "end": 16}},  # "CCCC"
+            {"span": {"start": 17, "end": 21}},  # "DDDD"
+        ]
+        bibliography_annotation = [
+            {"span": {"start": 0, "end": 11}, "type": "title"},     # "AAAAAA BBBB"
+            {"span": {"start": 12, "end": 21}, "type": "colophon"}, # "CCCC DDDD"
+        ]
+
+        instance_request = {
+            "content": content,
+            "annotation": segmentation,
+            "biblography_annotation": bibliography_annotation,
+            "metadata": {
+                "wiki": "Q888999",
+                "type": "critical",
+                "source": "www.example_source.com",
+                "colophon": "Sample colophon",
+                "incipit_title": {"en": "Opening words", "bo": "དབུ་ཚིག"},
+            },
+        }
+        instance = InstanceRequestModel.model_validate(instance_request)
+        post_response = client.post(
+            f"/v2/texts/{expression_id}/instances/", json=instance.model_dump()
+        )
+        assert post_response.status_code == 201
+        instance_id = post_response.get_json()["id"]
+
+        # Get the manifestation to find the bibliography annotation
+        manifestation, _ = test_database.get_manifestation(instance_id)
+        bibliography_annot = None
+        for annotation in manifestation.annotations:
+            if annotation.type == AnnotationType.BIBLIOGRAPHY:
+                bibliography_annot = annotation
+                break
+
+        assert bibliography_annot is not None, "Bibliography annotation should exist"
+
+        # Get original bibliography annotation segments
+        original_bibliography_segments = test_database.get_annotation_segments(bibliography_annot.id)
+        original_bibliography_segment_ids = [seg["id"] for seg in original_bibliography_segments]
+
+        # Get segmentation segments for update
+        segmentation_segments = test_database.get_segmentation_annotation_by_manifestation(
+            manifestation_id=instance_id
+        )
+        segment_ids = [seg["id"] for seg in sorted(segmentation_segments, key=lambda s: s["span"]["start"])]
+
+        # Contract the first segment: "AAAAAA" (6 chars) -> "AA" (2 chars, -4 chars)
+        new_content = "AA"
+        update_response = client.put(
+            f"/v2/segments/{segment_ids[0]}/content",
+            json={"content": new_content}
+        )
+
+        assert update_response.status_code == 200
+
+        # Verify that bibliography annotation segments are updated
+        updated_bibliography_segments = test_database.get_annotation_segments(bibliography_annot.id)
+        updated_bibliography_segment_ids = [seg["id"] for seg in updated_bibliography_segments]
+
+        # All bibliography segment IDs should be preserved
+        assert set(updated_bibliography_segment_ids) == set(original_bibliography_segment_ids), \
+            "All bibliography annotation segment IDs should be preserved after contraction"
+
+        # Verify updated spans
+        sorted_updated_bibliography = sorted(updated_bibliography_segments, key=lambda s: s["span"]["start"])
+
+        # First segment (title): 0-11 -> 0-7 (contracted by 4)
+        assert sorted_updated_bibliography[0]["span"]["start"] == 0
+        assert sorted_updated_bibliography[0]["span"]["end"] == 7  # 11 - 4 = 7
+
+        # Second segment (colophon): 12-21 -> 8-17 (shifted by -4)
+        assert sorted_updated_bibliography[1]["span"]["start"] == 8   # 12 - 4 = 8
+        assert sorted_updated_bibliography[1]["span"]["end"] == 17    # 21 - 4 = 17
+
+    def test_update_middle_segment_content_updates_bibliography_correctly(
+        self,
+        client,
+        test_database,
+        test_person_data,
+        test_expression_data
+    ):
+        """
+        Test that updating a middle segment's content:
+        1. Does NOT affect bibliography segments before the update
+        2. Updates the modified segment's span correctly if it's within a bibliography segment
+        3. Shifts bibliography segments after the update correctly
+        4. Preserves all bibliography segment IDs
+        """
+        # Create test person
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        # Create category and expression
+        category_id = self._create_test_category(test_database)
+        test_expression_data["category_id"] = category_id
+        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        expression = ExpressionModelInput.model_validate(test_expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        # Create instance with segmentation and bibliography annotations
+        # Content: "AAA BBB CCC DDD" (15 chars total)
+        content = "AAA BBB CCC DDD"
+        segmentation = [
+            {"span": {"start": 0, "end": 3}},    # "AAA"
+            {"span": {"start": 4, "end": 7}},    # "BBB"
+            {"span": {"start": 8, "end": 11}},   # "CCC"
+            {"span": {"start": 12, "end": 15}},  # "DDD"
+        ]
+        bibliography_annotation = [
+            {"span": {"start": 0, "end": 7}, "type": "title"},      # "AAA BBB"
+            {"span": {"start": 8, "end": 15}, "type": "colophon"},  # "CCC DDD"
+        ]
+
+        instance_request = {
+            "content": content,
+            "annotation": segmentation,
+            "biblography_annotation": bibliography_annotation,
+            "metadata": {
+                "wiki": "Q999000",
+                "type": "critical",
+                "source": "www.example_source.com",
+                "colophon": "Sample colophon",
+                "incipit_title": {"en": "Opening words", "bo": "དབུ་ཚིག"},
+            },
+        }
+        instance = InstanceRequestModel.model_validate(instance_request)
+        post_response = client.post(
+            f"/v2/texts/{expression_id}/instances/", json=instance.model_dump()
+        )
+        assert post_response.status_code == 201
+        instance_id = post_response.get_json()["id"]
+
+        # Get the manifestation to find the bibliography annotation
+        manifestation, _ = test_database.get_manifestation(instance_id)
+        bibliography_annot = None
+        for annotation in manifestation.annotations:
+            if annotation.type == AnnotationType.BIBLIOGRAPHY:
+                bibliography_annot = annotation
+                break
+
+        assert bibliography_annot is not None, "Bibliography annotation should exist"
+
+        # Get original bibliography annotation segments
+        original_bibliography_segments = test_database.get_annotation_segments(bibliography_annot.id)
+        original_bibliography_segment_ids = [seg["id"] for seg in original_bibliography_segments]
+
+        # Get segmentation segments for update
+        segmentation_segments = test_database.get_segmentation_annotation_by_manifestation(
+            manifestation_id=instance_id
+        )
+        segment_ids = [seg["id"] for seg in sorted(segmentation_segments, key=lambda s: s["span"]["start"])]
+
+        # Update the SECOND (middle) segment: "BBB" (3 chars) -> "BBBBB" (5 chars, +2 chars)
+        # This segment is within the first bibliography segment (title: 0-7)
+        new_content = "BBBBB"
+        update_response = client.put(
+            f"/v2/segments/{segment_ids[1]}/content",
+            json={"content": new_content}
+        )
+
+        assert update_response.status_code == 200
+
+        # Verify that bibliography annotation segments are updated
+        updated_bibliography_segments = test_database.get_annotation_segments(bibliography_annot.id)
+        updated_bibliography_segment_ids = [seg["id"] for seg in updated_bibliography_segments]
+
+        # All bibliography segment IDs should be preserved
+        assert set(updated_bibliography_segment_ids) == set(original_bibliography_segment_ids), \
+            "All bibliography annotation segment IDs should be preserved"
+
+        # Verify updated spans
+        sorted_updated_bibliography = sorted(updated_bibliography_segments, key=lambda s: s["span"]["start"])
+
+        # First segment (title): 0-7 -> 0-9 (expanded by 2, since the edit was within this segment)
+        assert sorted_updated_bibliography[0]["span"]["start"] == 0
+        assert sorted_updated_bibliography[0]["span"]["end"] == 9  # 7 + 2 = 9
+
+        # Second segment (colophon): 8-15 -> 10-17 (shifted by 2)
+        assert sorted_updated_bibliography[1]["span"]["start"] == 10  # 8 + 2 = 10
+        assert sorted_updated_bibliography[1]["span"]["end"] == 17    # 15 + 2 = 17
