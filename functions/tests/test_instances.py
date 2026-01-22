@@ -3788,7 +3788,7 @@ class TestUpdateSegmentContentEndpoint:
             json={"content": ""}
         )
 
-        assert update_response.status_code == 400
+        assert update_response.status_code == 422 # unprocessable entity
 
     def test_update_segment_content_verifies_storage_update(
         self,
