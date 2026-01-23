@@ -3606,7 +3606,7 @@ class TestUpdateSegmentContentEndpoint:
         original_content = "Hello world. This is test."
         original_segmentation = [
             {"span": {"start": 0, "end": 12}},   # "Hello world."
-            {"span": {"start": 12, "end": 26}},  # " This is test."
+            {"span": {"start": 12, "end": 25}},  # " This is test."
         ]
 
         expression_id, instance_id, segment_ids = self._create_instance_with_segments(
@@ -3639,9 +3639,9 @@ class TestUpdateSegmentContentEndpoint:
         original_content = "AAAA BBBB CCCC"
         original_segmentation = [
             {"span": {"start": 0, "end": 4}},   # "AAAA"
-            {"span": {"start": 5, "end": 9}},   # "BBBB"
-            {"span": {"start": 10, "end": 14}}, # "CCCC"
-        ]
+            {"span": {"start": 4, "end": 8}},   # "BBBB"    
+            {"span": {"start": 8, "end": 12}}, # "CCCC"
+        ]   
 
         expression_id, instance_id, segment_ids = self._create_instance_with_segments(
             client, test_database, test_person_data, test_expression_data,
@@ -3673,8 +3673,8 @@ class TestUpdateSegmentContentEndpoint:
         original_content = "AAAA BBBB CCCC"
         original_segmentation = [
             {"span": {"start": 0, "end": 4}},   # "AAAA"
-            {"span": {"start": 5, "end": 9}},   # "BBBB"
-            {"span": {"start": 10, "end": 14}}, # "CCCC"
+            {"span": {"start": 4, "end": 8}},   # "BBBB"
+            {"span": {"start": 8, "end": 12}}, # "CCCC"
         ]
 
         expression_id, instance_id, segment_ids = self._create_instance_with_segments(
@@ -3704,11 +3704,11 @@ class TestUpdateSegmentContentEndpoint:
         Test updating content of a middle segment.
         This tests that spans before and after are handled correctly.
         """
-        original_content = "First segment. Middle segment. Last segment."
+        original_content = -"First segment. Middle segment. Last segment."
         original_segmentation = [
             {"span": {"start": 0, "end": 14}},   # "First segment."
-            {"span": {"start": 15, "end": 30}},  # "Middle segment."
-            {"span": {"start": 31, "end": 44}},  # "Last segment."
+            {"span": {"start": 14, "end": 29}},  # "Middle segment."
+            {"span": {"start": 29, "end": 41}},  # "Last segment."
         ]
 
         expression_id, instance_id, segment_ids = self._create_instance_with_segments(
@@ -3851,8 +3851,8 @@ class TestUpdateSegmentContentEndpoint:
         root_content = "First segment. Second segment. Third segment."
         root_segmentation = [
             {"span": {"start": 0, "end": 14}},    # "First segment."
-            {"span": {"start": 15, "end": 30}},   # "Second segment."
-            {"span": {"start": 31, "end": 45}},   # "Third segment."
+            {"span": {"start": 14, "end": 29}},   # "Second segment."
+            {"span": {"start": 29, "end": 43}},   # "Third segment."
         ]
 
         root_instance_request = {
@@ -3891,18 +3891,18 @@ class TestUpdateSegmentContentEndpoint:
             },
             "segmentation": [
                 {"span": {"start": 0, "end": 18}},    # "Translation first."
-                {"span": {"start": 19, "end": 38}},   # "Translation second."
-                {"span": {"start": 39, "end": 57}},   # "Translation third."
+                {"span": {"start": 18, "end": 37}},   # "Translation second."
+                {"span": {"start": 37, "end": 55}},   # "Translation third."
             ],
             "target_annotation": [
                 {"span": {"start": 0, "end": 14}, "index": 0},     # Points to root segment 0
-                {"span": {"start": 15, "end": 30}, "index": 1},    # Points to root segment 1
-                {"span": {"start": 31, "end": 45}, "index": 2},    # Points to root segment 2
+                {"span": {"start": 14, "end": 29}, "index": 1},    # Points to root segment 1
+                {"span": {"start": 29, "end": 43}, "index": 2},    # Points to root segment 2
             ],
             "alignment_annotation": [
                 {"span": {"start": 0, "end": 18}, "index": 0, "alignment_index": [0]},
-                {"span": {"start": 19, "end": 38}, "index": 1, "alignment_index": [1]},
-                {"span": {"start": 39, "end": 57}, "index": 2, "alignment_index": [2]},
+                {"span": {"start": 18, "end": 37}, "index": 1, "alignment_index": [1]},
+                {"span": {"start": 37, "end": 55}, "index": 2, "alignment_index": [2]},
             ],
             "copyright": "Public domain",
             "license": "CC0"
@@ -3936,10 +3936,10 @@ class TestUpdateSegmentContentEndpoint:
         sorted_target_segments = sorted(original_target_segments, key=lambda s: s["span"]["start"])
         assert sorted_target_segments[0]["span"]["start"] == 0
         assert sorted_target_segments[0]["span"]["end"] == 14
-        assert sorted_target_segments[1]["span"]["start"] == 15
-        assert sorted_target_segments[1]["span"]["end"] == 30
-        assert sorted_target_segments[2]["span"]["start"] == 31
-        assert sorted_target_segments[2]["span"]["end"] == 45
+        assert sorted_target_segments[1]["span"]["start"] == 14
+        assert sorted_target_segments[1]["span"]["end"] == 29
+        assert sorted_target_segments[2]["span"]["start"] == 29
+        assert sorted_target_segments[2]["span"]["end"] == 43
 
         # Now update the first segment's content on the root instance (expand it)
         # Original: "First segment." (14 chars) -> New: "First expanded segment." (23 chars, +9 chars)
@@ -3964,15 +3964,15 @@ class TestUpdateSegmentContentEndpoint:
         
         # First segment: 0-14 -> 0-23 (expanded by 9)
         assert sorted_updated_target[0]["span"]["start"] == 0
-        assert sorted_updated_target[0]["span"]["end"] == 23  # 14 + 9 = 23
+        assert sorted_updated_target[0]["span"]["end"] == 23  
         
-        # Second segment: 15-30 -> 24-39 (shifted by 9)
-        assert sorted_updated_target[1]["span"]["start"] == 24  # 15 + 9 = 24
-        assert sorted_updated_target[1]["span"]["end"] == 39    # 30 + 9 = 39
+        # Second segment: 14-29 -> 23-38 (shifted by 9)
+        assert sorted_updated_target[1]["span"]["start"] == 23  
+        assert sorted_updated_target[1]["span"]["end"] == 38    
         
-        # Third segment: 31-45 -> 40-54 (shifted by 9)
-        assert sorted_updated_target[2]["span"]["start"] == 40  # 31 + 9 = 40
-        assert sorted_updated_target[2]["span"]["end"] == 54    # 45 + 9 = 54
+        # Third segment: 29-43 -> 38-52 (shifted by 9)
+        assert sorted_updated_target[2]["span"]["start"] == 38  
+        assert sorted_updated_target[2]["span"]["end"] == 52   
 
     def test_update_segment_content_updates_alignment_on_translation_manifestation(
         self,
@@ -4001,8 +4001,8 @@ class TestUpdateSegmentContentEndpoint:
         root_content = "AAAA BBBB CCCC"
         root_segmentation = [
             {"span": {"start": 0, "end": 4}},    # "AAAA"
-            {"span": {"start": 5, "end": 9}},    # "BBBB"
-            {"span": {"start": 10, "end": 14}},  # "CCCC"
+            {"span": {"start": 4, "end": 8}},    # "BBBB"
+            {"span": {"start": 8, "end": 12}},  # "CCCC"
         ]
 
         root_instance_request = {
@@ -4036,18 +4036,18 @@ class TestUpdateSegmentContentEndpoint:
             },
             "segmentation": [
                 {"span": {"start": 0, "end": 4}},    # "XXXX"
-                {"span": {"start": 5, "end": 9}},    # "YYYY"
-                {"span": {"start": 10, "end": 14}},  # "ZZZZ"
+                {"span": {"start": 4, "end": 8}},    # "YYYY"
+                {"span": {"start": 8, "end": 12}},  # "ZZZZ"
             ],
             "target_annotation": [
                 {"span": {"start": 0, "end": 4}, "index": 0},
-                {"span": {"start": 5, "end": 9}, "index": 1},
-                {"span": {"start": 10, "end": 14}, "index": 2},
+                {"span": {"start": 4, "end": 8}, "index": 1},
+                {"span": {"start": 8, "end": 12}, "index": 2},
             ],
             "alignment_annotation": [
                 {"span": {"start": 0, "end": 4}, "index": 0, "alignment_index": [0]},
-                {"span": {"start": 5, "end": 9}, "index": 1, "alignment_index": [1]},
-                {"span": {"start": 10, "end": 14}, "index": 2, "alignment_index": [2]},
+                {"span": {"start": 4, "end": 8}, "index": 1, "alignment_index": [1]},
+                {"span": {"start": 8, "end": 12}, "index": 2, "alignment_index": [2]},
             ],
             "copyright": "Public domain",
             "license": "CC0"
@@ -4108,13 +4108,13 @@ class TestUpdateSegmentContentEndpoint:
         assert sorted_updated_alignment[0]["span"]["start"] == 0
         assert sorted_updated_alignment[0]["span"]["end"] == 6  # 4 + 2 = 6
         
-        # Second segment: 5-9 -> 7-11 (shifted by 2)
-        assert sorted_updated_alignment[1]["span"]["start"] == 7   # 5 + 2 = 7
-        assert sorted_updated_alignment[1]["span"]["end"] == 11    # 9 + 2 = 11
+        # Second segment: 4-8 -> 6-10 (shifted by 2)
+        assert sorted_updated_alignment[1]["span"]["start"] == 6   # 4 + 2 = 6
+        assert sorted_updated_alignment[1]["span"]["end"] == 10    # 8 + 2 = 10
         
-        # Third segment: 10-14 -> 12-16 (shifted by 2)
-        assert sorted_updated_alignment[2]["span"]["start"] == 12  # 10 + 2 = 12
-        assert sorted_updated_alignment[2]["span"]["end"] == 16    # 14 + 2 = 16
+        # Third segment: 8-12 -> 10-14 (shifted by 2)
+        assert sorted_updated_alignment[2]["span"]["start"] == 10  # 8 + 2 = 10
+        assert sorted_updated_alignment[2]["span"]["end"] == 14    # 12 + 2 = 14
 
     def test_update_segment_content_with_contraction_updates_alignment(
         self,
@@ -4144,8 +4144,8 @@ class TestUpdateSegmentContentEndpoint:
         root_content = "AAAAAA BBBBBB CCCCCC"
         root_segmentation = [
             {"span": {"start": 0, "end": 6}},     # "AAAAAA"
-            {"span": {"start": 7, "end": 13}},    # "BBBBBB"
-            {"span": {"start": 14, "end": 20}},   # "CCCCCC"
+            {"span": {"start": 6, "end": 12}},    # "BBBBBB"
+            {"span": {"start": 12, "end": 18}},   # "CCCCCC"
         ]
 
         root_instance_request = {
@@ -4184,18 +4184,18 @@ class TestUpdateSegmentContentEndpoint:
             },
             "segmentation": [
                 {"span": {"start": 0, "end": 4}},
-                {"span": {"start": 5, "end": 9}},
-                {"span": {"start": 10, "end": 14}},
+                {"span": {"start": 4, "end": 8}},
+                {"span": {"start": 8, "end": 12}},
             ],
             "target_annotation": [
                 {"span": {"start": 0, "end": 6}, "index": 0},
-                {"span": {"start": 7, "end": 13}, "index": 1},
-                {"span": {"start": 14, "end": 20}, "index": 2},
+                {"span": {"start": 6, "end": 12}, "index": 1},
+                {"span": {"start": 12, "end": 18}, "index": 2},
             ],
             "alignment_annotation": [
                 {"span": {"start": 0, "end": 4}, "index": 0, "alignment_index": [0]},
-                {"span": {"start": 5, "end": 9}, "index": 1, "alignment_index": [1]},
-                {"span": {"start": 10, "end": 14}, "index": 2, "alignment_index": [2]},
+                {"span": {"start": 4, "end": 8}, "index": 1, "alignment_index": [1]},
+                {"span": {"start": 8, "end": 12}, "index": 2, "alignment_index": [2]},
             ],
             "copyright": "Public domain",
             "license": "CC0"
@@ -4246,13 +4246,13 @@ class TestUpdateSegmentContentEndpoint:
         assert sorted_updated_target[0]["span"]["start"] == 0
         assert sorted_updated_target[0]["span"]["end"] == 2  # 6 - 4 = 2
         
-        # Second segment: 7-13 -> 3-9 (shifted by -4)
-        assert sorted_updated_target[1]["span"]["start"] == 3   # 7 - 4 = 3
-        assert sorted_updated_target[1]["span"]["end"] == 9     # 13 - 4 = 9
+        # Second segment: 6-12 -> 2-8 (shifted by -4)
+        assert sorted_updated_target[1]["span"]["start"] == 2   # 6 - 4 = 2
+        assert sorted_updated_target[1]["span"]["end"] == 8     # 12 - 4 = 8
         
-        # Third segment: 14-20 -> 10-16 (shifted by -4)
-        assert sorted_updated_target[2]["span"]["start"] == 10  # 14 - 4 = 10
-        assert sorted_updated_target[2]["span"]["end"] == 16    # 20 - 4 = 16
+        # Third segment: 12-18 -> 8-14 (shifted by -4)
+        assert sorted_updated_target[2]["span"]["start"] == 8   # 12 - 4 = 8
+        assert sorted_updated_target[2]["span"]["end"] == 14    # 18 - 4 = 14
 
     def test_update_middle_segment_content_updates_alignment_correctly(
         self,
@@ -4283,9 +4283,9 @@ class TestUpdateSegmentContentEndpoint:
         root_content = "AAA BBB CCC DDD"
         root_segmentation = [
             {"span": {"start": 0, "end": 3}},     # "AAA"
-            {"span": {"start": 4, "end": 7}},     # "BBB"
-            {"span": {"start": 8, "end": 11}},    # "CCC"
-            {"span": {"start": 12, "end": 15}},   # "DDD"
+            {"span": {"start": 3, "end": 6}},     # "BBB"
+            {"span": {"start": 6, "end": 9}},    # "CCC"
+            {"span": {"start": 9, "end": 12}},   # "DDD"
         ]
 
         root_instance_request = {
@@ -4324,21 +4324,21 @@ class TestUpdateSegmentContentEndpoint:
             },
             "segmentation": [
                 {"span": {"start": 0, "end": 3}},
-                {"span": {"start": 4, "end": 7}},
-                {"span": {"start": 8, "end": 11}},
-                {"span": {"start": 12, "end": 15}},
+                {"span": {"start": 3, "end": 6}},
+                {"span": {"start": 6, "end": 9}},
+                {"span": {"start": 9, "end": 12}},
             ],
             "target_annotation": [
                 {"span": {"start": 0, "end": 3}, "index": 0},
-                {"span": {"start": 4, "end": 7}, "index": 1},
-                {"span": {"start": 8, "end": 11}, "index": 2},
-                {"span": {"start": 12, "end": 15}, "index": 3},
+                {"span": {"start": 3, "end": 6}, "index": 1},
+                {"span": {"start": 6, "end": 9}, "index": 2},
+                {"span": {"start": 9, "end": 12}, "index": 3},
             ],
             "alignment_annotation": [
                 {"span": {"start": 0, "end": 3}, "index": 0, "alignment_index": [0]},
-                {"span": {"start": 4, "end": 7}, "index": 1, "alignment_index": [1]},
-                {"span": {"start": 8, "end": 11}, "index": 2, "alignment_index": [2]},
-                {"span": {"start": 12, "end": 15}, "index": 3, "alignment_index": [3]},
+                {"span": {"start": 3, "end": 6}, "index": 1, "alignment_index": [1]},
+                {"span": {"start": 6, "end": 9}, "index": 2, "alignment_index": [2]},
+                {"span": {"start": 9, "end": 12}, "index": 3, "alignment_index": [3]},
             ],
             "copyright": "Public domain",
             "license": "CC0"
@@ -4389,17 +4389,17 @@ class TestUpdateSegmentContentEndpoint:
         assert sorted_updated_target[0]["span"]["start"] == 0
         assert sorted_updated_target[0]["span"]["end"] == 3
         
-        # Second segment: 4-7 -> 4-9 (expanded by 2)
-        assert sorted_updated_target[1]["span"]["start"] == 4
-        assert sorted_updated_target[1]["span"]["end"] == 9   # 7 + 2 = 9
+        # Second segment: 3-6 -> 3-8 (expanded by 2)
+        assert sorted_updated_target[1]["span"]["start"] == 3
+        assert sorted_updated_target[1]["span"]["end"] == 8   # 6 + 2 = 8
         
-        # Third segment: 8-11 -> 10-13 (shifted by 2)
-        assert sorted_updated_target[2]["span"]["start"] == 10  # 8 + 2 = 10
-        assert sorted_updated_target[2]["span"]["end"] == 13    # 11 + 2 = 13
+        # Third segment: 6-9 -> 8-11 (shifted by 2)
+        assert sorted_updated_target[2]["span"]["start"] == 8   # 6 + 2 = 8
+        assert sorted_updated_target[2]["span"]["end"] == 11    # 9 + 2 = 11
         
-        # Fourth segment: 12-15 -> 14-17 (shifted by 2)
-        assert sorted_updated_target[3]["span"]["start"] == 14  # 12 + 2 = 14
-        assert sorted_updated_target[3]["span"]["end"] == 17    # 15 + 2 = 17
+        # Fourth segment: 9-12 -> 11-14 (shifted by 2)
+        assert sorted_updated_target[3]["span"]["start"] == 11  # 9 + 2 = 11
+        assert sorted_updated_target[3]["span"]["end"] == 14    # 12 + 2 = 14
 
     def test_update_segment_content_preserves_all_annotation_segment_ids(
         self,
@@ -4429,7 +4429,7 @@ class TestUpdateSegmentContentEndpoint:
         root_content = "First. Second."
         root_segmentation = [
             {"span": {"start": 0, "end": 6}},     # "First."
-            {"span": {"start": 7, "end": 14}},    # "Second."
+            {"span": {"start": 6, "end": 12}},    # "Second."
         ]
 
         root_instance_request = {
@@ -4468,15 +4468,15 @@ class TestUpdateSegmentContentEndpoint:
             },
             "segmentation": [
                 {"span": {"start": 0, "end": 7}},
-                {"span": {"start": 8, "end": 15}},
+                {"span": {"start": 7, "end": 14}},
             ],
             "target_annotation": [
                 {"span": {"start": 0, "end": 6}, "index": 0},
-                {"span": {"start": 7, "end": 14}, "index": 1},
+                {"span": {"start": 6, "end": 12}, "index": 1},
             ],
             "alignment_annotation": [
-                {"span": {"start": 0, "end": 7}, "index": 0, "alignment_index": [0]},
-                {"span": {"start": 8, "end": 15}, "index": 1, "alignment_index": [1]},
+                {"span": {"start": 0, "end": 6}, "index": 0, "alignment_index": [0]},
+                {"span": {"start": 6, "end": 12}, "index": 1, "alignment_index": [1]},
             ],
             "copyright": "Public domain",
             "license": "CC0"
@@ -4577,15 +4577,15 @@ class TestUpdateSegmentContentEndpoint:
         content = "AAAA BBBB CCCC DDDD EEEE"
         segmentation = [
             {"span": {"start": 0, "end": 4}},    # "AAAA"
-            {"span": {"start": 5, "end": 9}},    # "BBBB"
-            {"span": {"start": 10, "end": 14}},  # "CCCC"
-            {"span": {"start": 15, "end": 19}},  # "DDDD"
-            {"span": {"start": 20, "end": 24}},  # "EEEE"
+            {"span": {"start": 4, "end": 8}},    # "BBBB"
+            {"span": {"start": 8, "end": 12}},  # "CCCC"
+            {"span": {"start": 12, "end": 16}},  # "DDDD"
+            {"span": {"start": 16, "end": 20}},  # "EEEE"
         ]
         bibliography_annotation = [
             {"span": {"start": 0, "end": 9}, "type": "title"},      # "AAAA BBBB"
-            {"span": {"start": 10, "end": 19}, "type": "colophon"}, # "CCCC DDDD"
-            {"span": {"start": 20, "end": 24}, "type": "author"},   # "EEEE"
+            {"span": {"start": 9, "end": 18}, "type": "colophon"}, # "CCCC DDDD"
+            {"span": {"start": 18, "end": 22}, "type": "author"},   # "EEEE"
         ]
 
         instance_request = {
@@ -4652,13 +4652,13 @@ class TestUpdateSegmentContentEndpoint:
         assert sorted_updated_bibliography[0]["span"]["start"] == 0
         assert sorted_updated_bibliography[0]["span"]["end"] == 11  # 9 + 2 = 11
 
-        # Second segment (colophon): 10-19 -> 12-21 (shifted by 2)
-        assert sorted_updated_bibliography[1]["span"]["start"] == 12  # 10 + 2 = 12
-        assert sorted_updated_bibliography[1]["span"]["end"] == 21    # 19 + 2 = 21
+        # Second segment (colophon): 9-18 -> 11-20 (shifted by 2)
+        assert sorted_updated_bibliography[1]["span"]["start"] == 11  # 9 + 2 = 11
+        assert sorted_updated_bibliography[1]["span"]["end"] == 20    # 18 + 2 = 20
 
-        # Third segment (author): 20-24 -> 22-26 (shifted by 2)
-        assert sorted_updated_bibliography[2]["span"]["start"] == 22  # 20 + 2 = 22
-        assert sorted_updated_bibliography[2]["span"]["end"] == 26    # 24 + 2 = 26
+        # Third segment (author): 18-22 -> 20-24 (shifted by 2)
+        assert sorted_updated_bibliography[2]["span"]["start"] == 20  # 18 + 2 = 20
+        assert sorted_updated_bibliography[2]["span"]["end"] == 24    # 22 + 2 = 24
 
     def test_update_segment_content_with_contraction_updates_bibliography(
         self,
@@ -4689,13 +4689,13 @@ class TestUpdateSegmentContentEndpoint:
         content = "AAAAAA BBBB CCCC DDDD"
         segmentation = [
             {"span": {"start": 0, "end": 6}},    # "AAAAAA"
-            {"span": {"start": 7, "end": 11}},   # "BBBB"
-            {"span": {"start": 12, "end": 16}},  # "CCCC"
-            {"span": {"start": 17, "end": 21}},  # "DDDD"
+            {"span": {"start": 6, "end": 10}},   # "BBBB"
+            {"span": {"start": 10, "end": 14}},  # "CCCC"
+            {"span": {"start": 14, "end": 18}},  # "DDDD"
         ]
         bibliography_annotation = [
             {"span": {"start": 0, "end": 11}, "type": "title"},     # "AAAAAA BBBB"
-            {"span": {"start": 12, "end": 21}, "type": "colophon"}, # "CCCC DDDD"
+            {"span": {"start": 11, "end": 20}, "type": "colophon"}, # "CCCC DDDD"
         ]
 
         instance_request = {
@@ -4761,9 +4761,9 @@ class TestUpdateSegmentContentEndpoint:
         assert sorted_updated_bibliography[0]["span"]["start"] == 0
         assert sorted_updated_bibliography[0]["span"]["end"] == 7  # 11 - 4 = 7
 
-        # Second segment (colophon): 12-21 -> 8-17 (shifted by -4)
-        assert sorted_updated_bibliography[1]["span"]["start"] == 8   # 12 - 4 = 8
-        assert sorted_updated_bibliography[1]["span"]["end"] == 17    # 21 - 4 = 17
+        # Second segment (colophon): 11-20 -> 7-16 (shifted by -4)
+        assert sorted_updated_bibliography[1]["span"]["start"] == 7   # 11 - 4 = 7
+        assert sorted_updated_bibliography[1]["span"]["end"] == 16    # 20 - 4 = 16
 
     def test_update_middle_segment_content_updates_bibliography_correctly(
         self,
@@ -4795,13 +4795,13 @@ class TestUpdateSegmentContentEndpoint:
         content = "AAA BBB CCC DDD"
         segmentation = [
             {"span": {"start": 0, "end": 3}},    # "AAA"
-            {"span": {"start": 4, "end": 7}},    # "BBB"
-            {"span": {"start": 8, "end": 11}},   # "CCC"
-            {"span": {"start": 12, "end": 15}},  # "DDD"
+            {"span": {"start": 3, "end": 6}},    # "BBB"
+            {"span": {"start": 6, "end": 9}},   # "CCC"
+            {"span": {"start": 9, "end": 12}},  # "DDD"
         ]
         bibliography_annotation = [
             {"span": {"start": 0, "end": 7}, "type": "title"},      # "AAA BBB"
-            {"span": {"start": 8, "end": 15}, "type": "colophon"},  # "CCC DDD"
+            {"span": {"start": 7, "end": 14}, "type": "colophon"},  # "CCC DDD"
         ]
 
         instance_request = {
@@ -4868,6 +4868,6 @@ class TestUpdateSegmentContentEndpoint:
         assert sorted_updated_bibliography[0]["span"]["start"] == 0
         assert sorted_updated_bibliography[0]["span"]["end"] == 9  # 7 + 2 = 9
 
-        # Second segment (colophon): 8-15 -> 10-17 (shifted by 2)
-        assert sorted_updated_bibliography[1]["span"]["start"] == 10  # 8 + 2 = 10
-        assert sorted_updated_bibliography[1]["span"]["end"] == 17    # 15 + 2 = 17
+        # Second segment (colophon): 7-14 -> 9-16 (shifted by 2)
+        assert sorted_updated_bibliography[1]["span"]["start"] == 9   # 7 + 2 = 9
+        assert sorted_updated_bibliography[1]["span"]["end"] == 16    # 14 + 2 = 16
