@@ -239,7 +239,7 @@ def update_segment_content(segment_id: str) -> tuple[Response, int]:
         new_content=validated_data.content,
     )
 
-    diffs = calculate_text_diffs_for_content(old_content, validated_data.content)
+    diffs = calculate_text_diffs_for_content(old_content, validated_data.content, old_start)
 
 
     manifestation, _ = db.get_manifestation(manifestation_id)
@@ -253,7 +253,7 @@ def update_segment_content(segment_id: str) -> tuple[Response, int]:
                 segment_id = segment["id"]
                 segment_start = segment["span"]["start"]
                 segment_end = segment["span"]["end"]
-
+                
                 total_start_delta = 0
                 total_end_delta = 0
 
@@ -261,10 +261,10 @@ def update_segment_content(segment_id: str) -> tuple[Response, int]:
                     coord = diff["coord"]
                     delta = diff["delta"]
 
-                    if coord <= segment_start:
+                    if coord < segment_start:
                         total_start_delta += delta
                         total_end_delta += delta
-                    elif coord > segment_start and coord < segment_end:
+                    elif coord >= segment_start and coord < segment_end:
                         total_end_delta += delta
 
                 if total_start_delta != 0 or total_end_delta != 0:
@@ -272,7 +272,6 @@ def update_segment_content(segment_id: str) -> tuple[Response, int]:
                         "start_delta": total_start_delta,
                         "end_delta": total_end_delta
                     }
-
             # Apply the changes to the database
             if changes_to_make:
 
@@ -298,29 +297,32 @@ def update_segment_content(segment_id: str) -> tuple[Response, int]:
     return jsonify({"message": "Segment content updated"}), 200
 
 
-def calculate_text_diffs_for_content(old_content: str, new_content: str) -> list[dict]:
+def calculate_text_diffs_for_content(old_content: str, new_content: str, old_start: int) -> list[dict]:
     sm = SequenceMatcher(None, old_content, new_content)
     diffs = []
     for tag, i1, i2, j1, j2 in sm.get_opcodes():
         if tag == "equal":
             continue
         if tag == "insert":
+            coord = i1
+            if i1 == len(old_content):
+                coord -= 1                
             diffs.append({
-                "coord": i1,
+                "coord": coord + old_start,
                 "delta": j2 - j1,   # inserted length
                 "op": "insert"
             })
 
         elif tag == "delete":
             diffs.append({
-                "coord": i1,
+                "coord": i1 + old_start,
                 "delta": -(i2 - i1),  # deleted length (negative)
                 "op": "delete"
             })
 
         elif tag == "replace":
             diffs.append({
-                "coord": i1,
+                "coord": i1 + old_start,
                 "delta": (j2 - j1) - (i2 - i1),  # net shift
                 "op": "replace"
             })
