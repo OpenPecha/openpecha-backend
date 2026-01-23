@@ -251,8 +251,8 @@ def update_segment_content(segment_id: str) -> tuple[Response, int]:
 
             for segment in segments:
                 segment_id = segment["id"]
-                segment_start = segment["span"]["start"]
-                segment_end = segment["span"]["end"]
+                segment_start = segment["span"]["start"] - segment["span"]["start"]
+                segment_end = segment["span"]["end"] - segment["span"]["start"]
 
                 total_start_delta = 0
                 total_end_delta = 0
@@ -305,8 +305,11 @@ def calculate_text_diffs_for_content(old_content: str, new_content: str) -> list
         if tag == "equal":
             continue
         if tag == "insert":
+            coord = i1
+            if i1 == len(old_content):
+                coord -= 1                
             diffs.append({
-                "coord": i1,
+                "coord": coord,
                 "delta": j2 - j1,   # inserted length
                 "op": "insert"
             })
