@@ -3791,6 +3791,57 @@ paths:
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/ServerError'
+    put:
+      summary: Update segment text content
+      description: >-
+        Update the base text content for a segment and shift related annotation spans
+        within the same manifestation (segmentation, pagination, durchen, bibliography, alignment).
+      tags:
+        - Segments
+      parameters:
+        - name: segment_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the segment to update text content for
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - content
+              properties:
+                content:
+                  type: string
+                  minLength: 1
+                  description: The new text content for the segment
+            examples:
+              update_content:
+                summary: Update segment content
+                value:
+                  content: "Updated segment content"
+      responses:
+        "200":
+          description: Segment content updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Segment content updated"
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "422":
+          $ref: '#/components/responses/ValidationError'
+        "500":
+          $ref: '#/components/responses/ServerError'
 
   /v2/segments/search:
     get:
