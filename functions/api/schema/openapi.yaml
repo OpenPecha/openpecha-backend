@@ -354,6 +354,122 @@ paths:
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/ServerError'
+  /v2/instances/{instance_id}/base-text:
+    put:
+      summary: Update base text content and segmentation spans
+      description: >-
+        Update base text content for an instance and update its segmentation spans (segment IDs must be preserved).
+        The API also returns diffs computed between old and new segmentation spans as a list of (segment_id, coordinate, delta).
+      tags:
+        - Instances
+      parameters:
+        - name: instance_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the instance (manifestation) to update
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - content
+                - segmentation
+              properties:
+                content:
+                  type: string
+                  description: The full updated base text content
+                segmentation:
+                  type: array
+                  description: List of segments with their updated spans in the new base text (same segment IDs)
+                  items:
+                    type: object
+                    required:
+                      - id
+                      - span
+                    properties:
+                      id:
+                        type: string
+                        description: Segment ID (must match an existing segmentation segment for this instance)
+                      span:
+                        type: object
+                        required:
+                          - start
+                          - end
+                        properties:
+                          start:
+                            type: integer
+                            minimum: 0
+                            description: Start character position (inclusive)
+                          end:
+                            type: integer
+                            minimum: 1
+                            description: End character position (exclusive)
+            examples:
+              update_base_text_request:
+                summary: Update base text with new segmentation spans
+                value:
+                  content: "Updated base text content..."
+                  segmentation:
+                    - id: "SEG001"
+                      span:
+                        start: 0
+                        end: 12
+                    - id: "SEG002"
+                      span:
+                        start: 12
+                        end: 25
+      responses:
+        "200":
+          description: Base text updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - "Base text updated successfully"
+                  manifestation_id:
+                    type: string
+                    description: The ID of the updated manifestation (same as instance_id)
+                  diffs:
+                    type: array
+                    description: List of diffs computed from old vs new segmentation spans
+                    items:
+                      type: object
+                      properties:
+                        segment_id:
+                          type: string
+                          description: Segment ID for which the span length changed
+                        coordinate:
+                          type: integer
+                          description: Edit coordinate in the old text adjusted by cumulative previous deltas
+                        delta:
+                          type: integer
+                          description: Change in segment length (new_len - old_len)
+              examples:
+                update_base_text_response:
+                  summary: Successful base text update
+                  value:
+                    message: "Base text updated successfully"
+                    manifestation_id: "I12345678"
+                    diffs:
+                      - segment_id: "SEG001"
+                        coordinate: 12
+                        delta: 3
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "422":
+          $ref: '#/components/responses/ValidationError'
+        "500":
+          $ref: '#/components/responses/ServerError'
   /v2/instances/{instance_id}/related:
     get:
       summary: Find related instances
@@ -3673,6 +3789,57 @@ paths:
                     content: "This is the text content of the segment."
         "404":
           $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/ServerError'
+    put:
+      summary: Update segment text content
+      description: >-
+        Update the base text content for a segment and shift related annotation spans
+        within the same manifestation (segmentation, pagination, durchen, bibliography, alignment).
+      tags:
+        - Segments
+      parameters:
+        - name: segment_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the segment to update text content for
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - content
+              properties:
+                content:
+                  type: string
+                  minLength: 1
+                  description: The new text content for the segment
+            examples:
+              update_content:
+                summary: Update segment content
+                value:
+                  content: "Updated segment content"
+      responses:
+        "200":
+          description: Segment content updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Segment content updated"
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "422":
+          $ref: '#/components/responses/ValidationError'
         "500":
           $ref: '#/components/responses/ServerError'
 

@@ -583,3 +583,14 @@ class SearchResponseModel(OpenPechaModel):
     search_type: str
     results: list[SearchResultModel]
     count: int
+
+
+class UpdateBaseTextSegmentModel(OpenPechaModel):
+    """Model for a segment with updated span in base text update request."""
+
+    id: NonEmptyStr
+    span: SpanModel
+
+
+class SegmentContentInput(OpenPechaModel):
+    content: NonEmptyStr = Field(..., description="The new content for the segment", min_length=1)

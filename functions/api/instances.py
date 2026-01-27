@@ -1,5 +1,6 @@
 import logging
 import threading
+from difflib import SequenceMatcher
 
 import requests
 from api.annotations import _alignment_annotation_mapping
@@ -12,7 +13,6 @@ from models import (
     AlignedTextRequestModel,
     AnnotationModel,
     AnnotationType,
-    ContributionModel,
     ContributionModelInput,
     ContributorRole,
     ExpressionModelInput,
@@ -594,3 +594,5 @@ def _validate_request_parameters(segment_ids: list[str], span_start: str, span_e
         return False, "Either segment_ids OR span_start and span_end is required"
 
     return True, ""
+
+

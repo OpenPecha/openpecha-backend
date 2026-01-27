@@ -686,6 +686,12 @@ RETURN s.id as id,
        aligned_segments
 ORDER BY s.span_start
 """,
+    "get_annotation_segments": """
+    MATCH (a:Annotation {id: $annotation_id})
+    <-[:SEGMENTATION_OF]-(s:Segment)
+    RETURN s.id as id, s.span_start as start, s.span_end as end
+    ORDER BY s.span_start
+""",
     "get_sections": """
 MATCH (a:Annotation {id: $annotation_id})
 <-[:SECTION_OF]-(s:Section)
@@ -875,6 +881,13 @@ RETURN seg.id as segment_id,
        seg.span_start as span_start,
        seg.span_end as span_end
 ORDER BY seg.id
+""",
+    "update_segmentation_spans_batch": """
+UNWIND $segments AS seg
+MATCH (s:Segment {id: seg.id})
+SET s.span_start = seg.span_start,
+    s.span_end = seg.span_end
+RETURN count(s) as updated_count
 """,
     "find_related_alignment_only": """
 MATCH (source_manif:Manifestation {id: $manifestation_id})
