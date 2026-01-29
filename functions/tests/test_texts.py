@@ -698,6 +698,32 @@ class TestPostTextV2:
         assert verify_data["title"]["en"] == "New Root Expression"
         assert verify_data["target"] is None
 
+    def test_create_root_expression_with_empty_contributions(self, client, test_database):
+        """Test creating a ROOT expression with empty contributions"""
+        category_id = test_database.create_category(
+            application='test_application',
+            title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
+        )
+
+        expression_data = {
+            "type": "root",
+            "title": {"en": "Root With No Contributors"},
+            "language": "en",
+            "contributions": [],
+            "category_id": category_id,
+        }
+
+        response = client.post("/v2/texts", data=json.dumps(expression_data), content_type="application/json")
+
+        assert response.status_code == 201
+        data = json.loads(response.data)
+        assert "id" in data
+
+        verify_response = client.get(f"/v2/texts/{data['id']}")
+        assert verify_response.status_code == 200
+        verify_data = json.loads(verify_response.data)
+        assert verify_data["contributions"] == []
+
     def test_create_expression_missing_json(self, client):
         """Test POST with no JSON data"""
 
