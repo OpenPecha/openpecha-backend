@@ -1774,6 +1774,20 @@ class Neo4JDatabase:
             if result is None:
                 raise DataNotFound(f"Expression with ID '{expression_id}' not found")
 
+    def update_alt_title(self, expression_id: str, alt_title: dict[str, str]) -> None:
+        logger.info("Updating alt title for expression ID: %s", expression_id)
+        with self.get_session() as session:
+            result = session.execute_write(
+                lambda tx: tx.run(
+                    Queries.expressions["update_alt_title"],
+                    expression_id=expression_id,
+                    alt_title=alt_title,
+                ).single()
+            )
+
+            if result is None:
+                raise DataNotFound(f"Expression with ID '{expression_id}' not found")
+
     def update_license(self, expression_id: str, license: LicenseType) -> None:
         with self.get_session() as session:
             result = session.execute_write(
