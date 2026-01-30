@@ -2254,11 +2254,18 @@ paths:
                     bo: "རྒྱལ་པོ་རབས་ཀྱི་གཏམ་རྒྱུད།"
                 alt_title:
                   type: object
-                  description: Dictionary with language code as key and alternative title text as value
+                  description: >-
+                    Dictionary with language code as key and alternative title(s) as value.
+                    Values can be a single string or an array of strings for multiple alt titles per language.
                   additionalProperties:
-                    type: string
+                    oneOf:
+                      - type: string
+                      - type: array
+                        items:
+                          type: string
                   example:
-                    bo: "མཚན་བྱང་གཞན།"
+                    bo: ["མཚན་བྱང་གཞན།-1", "མཚན་བྱང་གཞན།-2"]
+                    en: ["Alternative Title 1", "Alternative Title 2"]
               anyOf:
                 - required: [title]
                 - required: [alt_title]

@@ -59,6 +59,7 @@ def test_database(neo4j_connection):
         session.run("MERGE (l:Language {code: 'en', name: 'English'})")
         session.run("MERGE (l:Language {code: 'sa', name: 'Sanskrit'})")
         session.run("MERGE (l:Language {code: 'zh', name: 'Chinese'})")
+        session.run("MERGE (l:Language {code: 'cmg', name: 'Classical Mongolian'})")
 
         # Create test text types (TextType enum values)
         session.run("MERGE (t:TextType {name: 'root'})")
@@ -1265,13 +1266,21 @@ class TestUpdateTitleV2:
         expression_id = test_database.create_expression(expression)
 
         update_data = {
-            "alt_title": [
-                {"bo": "མཚན་བྱང་གསར་པ།-1"},
-                {"bo": "མཚན་བྱང་གསར་པ།-2"},
-                {"en": "alt-english-1"},
-                {"en": "alt-english-2"},
-            ]
-        }
+            "alt_title": {
+                "bo": [
+                "འཕགས་པ་མདོ་སྡུད་པ།",
+                "འཕགས་པ་ཤེས་རབ་ཀྱི་ཕ་རོལ་ཏུ་ཕྱིན་པ་ཡན་ཏ་རིན་པོ་ཆེ་སྡུད་པ།",
+                "འཕགས་པ་ཤེས་རབ་ཀྱི་ཕ་རོལ་ཏུ་ཕྱིན་པ་ཡོན་ཏན་རིན་པོ་ཆེ་སྡུད་པ།",
+                "བཅོམ་ལྡན་འདས་མ་ཤེས་རབ་ཀྱི་ཕ་རོལ་ཏུ་ཕྱིན་པ་སྡུད་པ་ཚིགས་སུ་བཅད་པ།",
+                "མདོ་སྡུད་པ།",
+                "སྡུད་པ་ཚིགས་སུ་བཅད་པ།"
+                ],
+                "cmg": [
+                "ᠬᠣᠳᠣᠬ ᠳᠣ ᠪᠢᠯᠢᠺ ᠦᠨ ᠴᠢᠨᠠᠳᠣ ᠭᠢᠵᠠᠭᠠᠷ᠎ᠠ ᠭᠥᠷᠥᠭᠰᠡᠨ ᠬᠣᠷᠢᠶᠠᠩᠭᠣᠢ ᠰᠢᠯᠥᠭ",
+                "qutug tu bilig ün cinadu kijagar a kürügsen quriyanggui silüg"
+                ]
+            }
+            }
         response = client.put(
             f"/v2/texts/{expression_id}/title",
             data=json.dumps(update_data),
@@ -1284,10 +1293,26 @@ class TestUpdateTitleV2:
         assert verify_response.status_code == 200
         verify_data = json.loads(verify_response.data)
         alt_titles = verify_data.get("alt_titles") or []
-        assert any(alt.get("bo") == "མཚན་བྱང་གསར་པ།-1" for alt in alt_titles)
-        assert any(alt.get("bo") == "མཚན་བྱང་གསར་པ།-2" for alt in alt_titles)
-        assert any(alt.get("en") == "alt-english-1" for alt in alt_titles)
-        assert any(alt.get("en") == "alt-english-2" for alt in alt_titles)
+
+        # Extract all bo and cmg titles from the response
+        bo_titles = [alt.get("bo") for alt in alt_titles if "bo" in alt]
+        cmg_titles = [alt.get("cmg") for alt in alt_titles if "cmg" in alt]
+
+        # Assert all bo titles are present
+        assert "འཕགས་པ་མདོ་སྡུད་པ།" in bo_titles
+        assert "འཕགས་པ་ཤེས་རབ་ཀྱི་ཕ་རོལ་ཏུ་ཕྱིན་པ་ཡན་ཏ་རིན་པོ་ཆེ་སྡུད་པ།" in bo_titles
+        assert "འཕགས་པ་ཤེས་རབ་ཀྱི་ཕ་རོལ་ཏུ་ཕྱིན་པ་ཡོན་ཏན་རིན་པོ་ཆེ་སྡུད་པ།" in bo_titles
+        assert "བཅོམ་ལྡན་འདས་མ་ཤེས་རབ་ཀྱི་ཕ་རོལ་ཏུ་ཕྱིན་པ་སྡུད་པ་ཚིགས་སུ་བཅད་པ།" in bo_titles
+        assert "མདོ་སྡུད་པ།" in bo_titles
+        assert "སྡུད་པ་ཚིགས་སུ་བཅད་པ།" in bo_titles
+
+        # Assert all cmg titles are present
+        assert "ᠬᠣᠳᠣᠬ ᠳᠣ ᠪᠢᠯᠢᠺ ᠦᠨ ᠴᠢᠨᠠᠳᠣ ᠭᠢᠵᠠᠭᠠᠷ᠎ᠠ ᠭᠥᠷᠥᠭᠰᠡᠨ ᠬᠣᠷᠢᠶᠠᠩᠭᠣᠢ ᠰᠢᠯᠥᠭ" in cmg_titles
+        assert "qutug tu bilig ün cinadu kijagar a kürügsen quriyanggui silüg" in cmg_titles
+
+        # Verify total count
+        assert len(bo_titles) == 6
+        assert len(cmg_titles) == 2
 
     def test_update_title_and_alt_title_together(self, client, test_database, test_person_data):
         """Test updating title and alt title in the same request"""
