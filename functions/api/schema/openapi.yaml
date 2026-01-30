@@ -2222,29 +2222,28 @@ paths:
         "500":
           $ref: '#/components/responses/ServerError'
 
-  /v2/texts/{texts_id}/title:
+  /v2/texts/{text_id}/title:
     put:
       summary: Update texts title
       description: >-
-        Update the title of a texts. The title should be provided as a dictionary
-        with language code as the key and the title text as the value.
+        Update the title or alternative title of a text. The title or alt_title
+        should be provided as a dictionary with language code as the key and the
+        title text as the value.
       tags:
         - Texts
       parameters:
-        - name: texts_id
+        - name: text_id
           in: path
           required: true
           schema:
             type: string
-          description: The texts ID of the text to update
+          description: The text ID of the text to update
       requestBody:
         required: true
         content:
           application/json:
             schema:
               type: object
-              required:
-                - title
               properties:
                 title:
                   type: object
@@ -2253,6 +2252,16 @@ paths:
                     type: string
                   example:
                     bo: "རྒྱལ་པོ་རབས་ཀྱི་གཏམ་རྒྱུད།"
+                alt_title:
+                  type: object
+                  description: Dictionary with language code as key and alternative title text as value
+                  additionalProperties:
+                    type: string
+                  example:
+                    bo: "མཚན་བྱང་གཞན།"
+              anyOf:
+                - required: [title]
+                - required: [alt_title]
       responses:
         "200":
           description: Title updated successfully
@@ -2273,7 +2282,7 @@ paths:
                 properties:
                   error:
                     type: string
-                    example: "Title is required"
+                    example: "Title or alt_title is required"
         "404":
           $ref: '#/components/responses/NotFound'
         "500":

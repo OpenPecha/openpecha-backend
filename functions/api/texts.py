@@ -213,25 +213,42 @@ def update_title(expression_id: str) -> tuple[Response, int]:
     logger.info("Received data for updating title: %s", data)
 
     title = data.get("title")
-    if not title:
-        return jsonify({"error": "Title is required"}), 400
-    
-    # Convert dict_keys to list to make it subscriptable (Python 3)
-    lang_code = list(title.keys())[0]
-    
-    # Extract base language code (in case of BCP47 tags like "bo-CN")
-    base_lang_code = lang_code.split("-")[0].lower()
-    
-    # Validate that the language code exists
+    alt_title = data.get("alt_title")
+    if not title and not alt_title:
+        return jsonify({"error": "Title or alt_title is required"}), 400
+
     db = Neo4JDatabase()
     with db.get_session() as session:
-        Neo4JDatabaseValidator().validate_language_code_exists(session, base_lang_code)
-    
-    title_data = {
-        "lang_code": lang_code,
-        "text": title[lang_code],
-    }
-    db.update_title(expression_id=expression_id, title=title_data)
+        if title:
+            # Convert dict_keys to list to make it subscriptable (Python 3)
+            lang_code = list(title.keys())[0]
+
+            # Extract base language code (in case of BCP47 tags like "bo-CN")
+            base_lang_code = lang_code.split("-")[0].lower()
+
+            # Validate that the language code exists
+            Neo4JDatabaseValidator().validate_language_code_exists(session, base_lang_code)
+
+        if alt_title:
+            alt_lang_code = list(alt_title.keys())[0]
+            base_alt_lang_code = alt_lang_code.split("-")[0].lower()
+
+            Neo4JDatabaseValidator().validate_language_code_exists(session, base_alt_lang_code)
+
+    if title:
+        title_data = {
+            "lang_code": lang_code,
+            "text": title[lang_code],
+        }
+        db.update_title(expression_id=expression_id, title=title_data)
+
+    if alt_title:
+        alt_title_data = {
+            "lang_code": alt_lang_code,
+            "text": alt_title[alt_lang_code],
+        }
+        db.update_alt_title(expression_id=expression_id, alt_title=alt_title_data)
+
     return jsonify({"message": "Title updated successfully"}), 200
 
 @texts_bp.route("/<string:expression_id>/license", methods=["PUT"], strict_slashes=False)

@@ -328,6 +328,20 @@ FOREACH (_ IN CASE WHEN existing_lt IS NULL THEN [1] ELSE [] END |
 )
 RETURN e.id as expression_id
 """,
+    "update_alt_title": """
+MATCH (e:Expression {id: $expression_id})-[:HAS_TITLE]->(primary_nomen:Nomen)
+MATCH (l:Language {code: $alt_title.lang_code})
+OPTIONAL MATCH (primary_nomen)<-[:ALTERNATIVE_OF]-(alt_nomen:Nomen)
+    -[:HAS_LOCALIZATION]->(existing_lt:LocalizedText)-[:HAS_LANGUAGE]->(l)
+FOREACH (_ IN CASE WHEN existing_lt IS NOT NULL THEN [1] ELSE [] END |
+    SET existing_lt.text = $alt_title.text
+)
+FOREACH (_ IN CASE WHEN existing_lt IS NULL THEN [1] ELSE [] END |
+    CREATE (new_alt:Nomen)-[:ALTERNATIVE_OF]->(primary_nomen)
+    CREATE (new_alt)-[:HAS_LOCALIZATION]->(new_lt:LocalizedText {text: $alt_title.text})-[:HAS_LANGUAGE]->(l)
+)
+RETURN e.id as expression_id
+""",
     "update_license": """
 MATCH (e:Expression {id: $expression_id})
 OPTIONAL MATCH (e)-[lc_rel:HAS_LICENSE]->(license:License)
