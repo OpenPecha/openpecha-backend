@@ -1265,12 +1265,10 @@ class TestUpdateTitleV2:
         expression_id = test_database.create_expression(expression)
 
         update_data = {
-            "alt_title": [
-                {"bo": "མཚན་བྱང་གསར་པ།-1"},
-                {"bo": "མཚན་བྱང་གསར་པ།-2"},
-                {"en": "alt-english-1"},
-                {"en": "alt-english-2"},
-            ]
+            "alt_title": {
+                "bo": ["མཚན་བྱང་གསར་པ།-1", "མཚན་བྱང་གསར་པ།-2"],
+                "en": ["alt-english-1", "alt-english-2"],
+            }
         }
         response = client.put(
             f"/v2/texts/{expression_id}/title",
