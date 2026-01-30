@@ -214,7 +214,18 @@ def update_title(expression_id: str) -> tuple[Response, int]:
 
     title = data.get("title")
     alt_title = data.get("alt_title")
-    if not title and not alt_title:
+
+    # Normalize alt_title to a list of dicts
+    alt_title_entries: list[dict[str, str]] = []
+    if alt_title is not None:
+        if isinstance(alt_title, list):
+            alt_title_entries = alt_title
+        elif isinstance(alt_title, dict):
+            alt_title_entries = [alt_title]
+        else:
+            return jsonify({"error": "alt_title must be an object or list of objects"}), 400
+
+    if not title and not alt_title_entries:
         return jsonify({"error": "Title or alt_title is required"}), 400
 
     db = Neo4JDatabase()
@@ -229,11 +240,13 @@ def update_title(expression_id: str) -> tuple[Response, int]:
             # Validate that the language code exists
             Neo4JDatabaseValidator().validate_language_code_exists(session, base_lang_code)
 
-        if alt_title:
-            alt_lang_code = list(alt_title.keys())[0]
-            base_alt_lang_code = alt_lang_code.split("-")[0].lower()
-
-            Neo4JDatabaseValidator().validate_language_code_exists(session, base_alt_lang_code)
+        # Validate all alt_title entries
+        for alt_entry in alt_title_entries:
+            if not isinstance(alt_entry, dict) or not alt_entry:
+                return jsonify({"error": "alt_title entries must be non-empty objects"}), 400
+            for alt_lang_code in alt_entry.keys():
+                base_alt_lang_code = alt_lang_code.split("-")[0].lower()
+                Neo4JDatabaseValidator().validate_language_code_exists(session, base_alt_lang_code)
 
     if title:
         title_data = {
@@ -242,12 +255,14 @@ def update_title(expression_id: str) -> tuple[Response, int]:
         }
         db.update_title(expression_id=expression_id, title=title_data)
 
-    if alt_title:
-        alt_title_data = {
-            "lang_code": alt_lang_code,
-            "text": alt_title[alt_lang_code],
-        }
-        db.update_alt_title(expression_id=expression_id, alt_title=alt_title_data)
+    # Process all alt_title entries
+    for alt_entry in alt_title_entries:
+        for alt_lang_code, alt_text in alt_entry.items():
+            alt_title_data = {
+                "lang_code": alt_lang_code,
+                "text": alt_text,
+            }
+            db.update_alt_title(expression_id=expression_id, alt_title=alt_title_data)
 
     return jsonify({"message": "Title updated successfully"}), 200
 
