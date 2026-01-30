@@ -1244,8 +1244,8 @@ class TestUpdateTitleV2:
         alt_titles = verify_data.get("alt_titles") or []
         assert any(alt.get("bo") == "མཚན་བྱང་གཞན།" for alt in alt_titles)
 
-    def test_update_alt_title_overwrites_existing_language(self, client, test_database, test_person_data):
-        """Test overwriting an existing alt title language while preserving others"""
+    def test_update_alt_title_adds_second_title_for_language(self, client, test_database, test_person_data):
+        """Test adding another alt title for the same language while preserving others"""
         person = PersonModelInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
@@ -1257,7 +1257,6 @@ class TestUpdateTitleV2:
         expression_data = {
             "type": "root",
             "title": {"en": "Primary Title"},
-            "alt_titles": [{"bo": "མཚན་བྱང་རྙིང་།"}, {"en": "Alt English"}],
             "language": "en",
             "contributions": [{"person_id": person_id, "role": "author"}],
             "category_id": category_id
@@ -1265,7 +1264,14 @@ class TestUpdateTitleV2:
         expression = ExpressionModelInput.model_validate(expression_data)
         expression_id = test_database.create_expression(expression)
 
-        update_data = {"alt_title": {"bo": "མཚན་བྱང་གསར་པ།"}}
+        update_data = {
+            "alt_title": [
+                {"bo": "མཚན་བྱང་གསར་པ།-1"},
+                {"bo": "མཚན་བྱང་གསར་པ།-2"},
+                {"en": "alt-english-1"},
+                {"en": "alt-english-2"},
+            ]
+        }
         response = client.put(
             f"/v2/texts/{expression_id}/title",
             data=json.dumps(update_data),
@@ -1278,8 +1284,10 @@ class TestUpdateTitleV2:
         assert verify_response.status_code == 200
         verify_data = json.loads(verify_response.data)
         alt_titles = verify_data.get("alt_titles") or []
-        assert any(alt.get("bo") == "མཚན་བྱང་གསར་པ།" for alt in alt_titles)
-        assert any(alt.get("en") == "Alt English" for alt in alt_titles)
+        assert any(alt.get("bo") == "མཚན་བྱང་གསར་པ།-1" for alt in alt_titles)
+        assert any(alt.get("bo") == "མཚན་བྱང་གསར་པ།-2" for alt in alt_titles)
+        assert any(alt.get("en") == "alt-english-1" for alt in alt_titles)
+        assert any(alt.get("en") == "alt-english-2" for alt in alt_titles)
 
     def test_update_title_and_alt_title_together(self, client, test_database, test_person_data):
         """Test updating title and alt title in the same request"""
@@ -1349,7 +1357,7 @@ class TestUpdateTitleV2:
         )
 
         assert response.status_code == 400
-        
+
 
     def test_update_title_nonexistent_expression(self, client):
         """Updating title on a non-existent expression should return 404, not 200 or 500."""
