@@ -182,6 +182,22 @@ Queries.expressions = {
             WHERE toLower(lt.text) CONTAINS toLower($title)
         }}
     ))
+    AND ($author IS NULL OR (
+        EXISTS {{
+            MATCH (e)-[:HAS_CONTRIBUTION]->(contrib:Contribution)-[:WITH_ROLE]->(role:RoleType)
+            WHERE role.name = 'author'
+            MATCH (contrib)-[:BY]->(person:Person)-[:HAS_NAME]->(nameNomen:Nomen)
+                  -[:HAS_LOCALIZATION]->(nameText:LocalizedText)
+            WHERE toLower(nameText.text) CONTAINS toLower($author)
+        }}
+        OR EXISTS {{
+            MATCH (e)-[:HAS_CONTRIBUTION]->(contrib:Contribution)-[:WITH_ROLE]->(role:RoleType)
+            WHERE role.name = 'author'
+            MATCH (contrib)-[:BY]->(person:Person)-[:HAS_NAME]->(:Nomen)<-[:ALTERNATIVE_OF]-(altName:Nomen)
+                  -[:HAS_LOCALIZATION]->(altNameText:LocalizedText)
+            WHERE toLower(altNameText.text) CONTAINS toLower($author)
+        }}
+    ))
 
     OFFSET $offset
     LIMIT $limit

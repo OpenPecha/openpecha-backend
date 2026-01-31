@@ -1000,6 +1000,7 @@ class Neo4JDatabase:
             "limit": limit,
             "type": filters.get("type"),
             "language": filters.get("language"),
+            "author": filters.get("author"),
             "title": filters.get("title"),
         }
 
