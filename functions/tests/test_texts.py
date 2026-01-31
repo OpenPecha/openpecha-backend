@@ -418,6 +418,93 @@ class TestGetAllTextsV2:
 
 
 
+    def test_get_all_metadata_filter_by_author(self, client, test_database):
+        """Test filtering by author name"""
+        author_primary = PersonModelInput.model_validate(
+            {
+                "name": {"en": "Tsongkhapa"},
+                "alt_names": [{"en": "Lama Tsongkhapa"}],
+                "bdrc": "P111111",
+                "wiki": "Q111111",
+            }
+        )
+        author_primary_id = test_database.create_person(author_primary)
+
+        author_alt = PersonModelInput.model_validate(
+            {
+                "name": {"en": "Milarepa"},
+                "alt_names": [{"en": "Mila"}],
+                "bdrc": "P222222",
+                "wiki": "Q222222",
+            }
+        )
+        author_alt_id = test_database.create_person(author_alt)
+
+        translator = PersonModelInput.model_validate(
+            {
+                "name": {"en": "Tsongkhapa Translator"},
+                "alt_names": [{"en": "Translator Name"}],
+                "bdrc": "P333333",
+                "wiki": "Q333333",
+            }
+        )
+        translator_id = test_database.create_person(translator)
+
+        category_id = test_database.create_category(
+            application="test_application",
+            title={"en": "Test Category"},
+        )
+
+        primary_author_data = {
+            "type": "root",
+            "title": {"en": "Primary Author Text"},
+            "language": "en",
+            "category_id": category_id,
+            "contributions": [{"person_id": author_primary_id, "role": "author"}],
+        }
+        primary_author_expression = ExpressionModelInput.model_validate(primary_author_data)
+        primary_author_id = test_database.create_expression(primary_author_expression)
+
+        alt_author_data = {
+            "type": "root",
+            "title": {"en": "Alt Author Text"},
+            "language": "en",
+            "category_id": category_id,
+            "contributions": [{"person_id": author_alt_id, "role": "author"}],
+        }
+        alt_author_expression = ExpressionModelInput.model_validate(alt_author_data)
+        alt_author_id = test_database.create_expression(alt_author_expression)
+
+        translator_data = {
+            "type": "root",
+            "title": {"en": "Translator Text"},
+            "language": "en",
+            "category_id": category_id,
+            "contributions": [{"person_id": translator_id, "role": "translator"}],
+        }
+        translator_expression = ExpressionModelInput.model_validate(translator_data)
+        test_database.create_expression(translator_expression)
+
+        response = client.get("/v2/texts?author=Tsongkhapa")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert {item["id"] for item in data} == {primary_author_id}
+
+        response = client.get("/v2/texts?author=Lama")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert {item["id"] for item in data} == {primary_author_id}
+
+        response = client.get("/v2/texts?author=Mila")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert {item["id"] for item in data} == {alt_author_id}
+
+        response = client.get("/v2/texts?author=NoMatch")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 0
+
     def test_get_all_metadata_multiple_filters(self, client, test_database, test_person_data):
         """Test combining multiple filters"""
 
