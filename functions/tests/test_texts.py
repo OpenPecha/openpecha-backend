@@ -61,6 +61,7 @@ def test_database(neo4j_connection):
         session.run("MERGE (l:Language {code: 'zh', name: 'Chinese'})")
         session.run("MERGE (l:Language {code: 'cmg', name: 'Classical Mongolian'})")
 
+
         # Create test text types (TextType enum values)
         session.run("MERGE (t:TextType {name: 'root'})")
         session.run("MERGE (t:TextType {name: 'commentary'})")
@@ -501,6 +502,128 @@ class TestGetAllTextsV2:
         assert {item["id"] for item in data} == {alt_author_id}
 
         response = client.get("/v2/texts?author=NoMatch")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 0
+
+    def test_get_all_metadata_filter_by_author_alt_name_substring(self, client, test_database):
+        """Test filtering by substring of author's alternate name including Tibetan, Sanskrit, and Mongolian"""
+        # Create person with multiple distinctive alternate names in various scripts
+        author_with_alt_names = PersonModelInput.model_validate(
+            {
+                "name": {"en": "Padmasambhava"},
+                "alt_names": [
+                    {"en": "Guru Rinpoche"},
+                    {"bo": "པདྨ་འབྱུང་གནས།"},  # Tibetan: Padma Jungne
+                    {"en": "Lotus Born Master"},
+                    {"sa": "पद्मसम्भव"},  # Sanskrit: Padmasambhava
+                    {"cmg": "Бадамжунай"},  # Mongolian: Badamjunai
+                ],
+                "bdrc": "P444444",
+                "wiki": "Q444444",
+            }
+        )
+        author_id = test_database.create_person(author_with_alt_names)
+
+        category_id = test_database.create_category(
+            application="test_application",
+            title={"en": "Test Category"},
+        )
+
+        expression_data = {
+            "type": "root",
+            "title": {"en": "Padmasambhava Text"},
+            "language": "en",
+            "category_id": category_id,
+            "contributions": [{"person_id": author_id, "role": "author"}],
+        }
+        expression = ExpressionModelInput.model_validate(expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        # Test searching by substring of first alternate name "Guru Rinpoche"
+        response = client.get("/v2/texts?author=Guru")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert {item["id"] for item in data} == {expression_id}
+
+        response = client.get("/v2/texts?author=Rinpoche")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert {item["id"] for item in data} == {expression_id}
+
+        # Test searching by substring of another alternate name "Lotus Born Master"
+        response = client.get("/v2/texts?author=Lotus")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert {item["id"] for item in data} == {expression_id}
+
+        response = client.get("/v2/texts?author=Born")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert {item["id"] for item in data} == {expression_id}
+
+        # Test searching by substring of primary name "Padmasambhava"
+        response = client.get("/v2/texts?author=Padma")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert {item["id"] for item in data} == {expression_id}
+
+        # Test searching by Tibetan alternate name (full and substring)
+        response = client.get("/v2/texts?author=པདྨ་འབྱུང་གནས།")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert {item["id"] for item in data} == {expression_id}
+
+        response = client.get("/v2/texts?author=པདྨ")  # Tibetan substring "Padma"
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert {item["id"] for item in data} == {expression_id}
+
+        response = client.get("/v2/texts?author=འབྱུང་གནས")  # Tibetan substring "Jungne"
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert {item["id"] for item in data} == {expression_id}
+
+        # Test searching by Sanskrit alternate name (full and substring)
+        response = client.get("/v2/texts?author=पद्मसम्भव")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert {item["id"] for item in data} == {expression_id}
+
+        response = client.get("/v2/texts?author=पद्म")  # Sanskrit substring "Padma"
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert {item["id"] for item in data} == {expression_id}
+
+        response = client.get("/v2/texts?author=सम्भव")  # Sanskrit substring "sambhava"
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert {item["id"] for item in data} == {expression_id}
+
+        # Test searching by Mongolian alternate name (full and substring)
+        response = client.get("/v2/texts?author=Бадамжунай")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert {item["id"] for item in data} == {expression_id}
+
+        response = client.get("/v2/texts?author=Бадам")  # Mongolian substring "Badam"
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert {item["id"] for item in data} == {expression_id}
+
+        response = client.get("/v2/texts?author=жунай")  # Mongolian substring "junai"
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert {item["id"] for item in data} == {expression_id}
+
+        # Test case insensitive search (if supported)
+        response = client.get("/v2/texts?author=guru")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert {item["id"] for item in data} == {expression_id}
+
+        # Test no match
+        response = client.get("/v2/texts?author=NonExistent")
         assert response.status_code == 200
         data = json.loads(response.data)
         assert len(data) == 0
