@@ -2038,6 +2038,132 @@ paths:
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/ServerError'
+    put:
+      summary: Update text metadata
+      description: |
+        Update any metadata field of a text (expression). All fields are optional - only provided fields will be updated.
+        
+        Updatable fields:
+        - bdrc: BDRC identifier
+        - wiki: Wikipedia/Wikidata identifier
+        - date: Date information
+        - title: Primary title (localized string with language codes as keys)
+        - alt_titles: Alternative titles (list of localized strings)
+        - copyright: Copyright status
+        - license: License type
+        - contributions: List of contributions (replaces all existing contributions)
+      tags:
+        - Texts
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The expression ID of the text to update
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                bdrc:
+                  type: string
+                  description: BDRC identifier
+                  example: "W12345"
+                wiki:
+                  type: string
+                  description: Wikipedia/Wikidata identifier
+                  example: "Q67890"
+                date:
+                  type: string
+                  description: Date information
+                  example: "15th century"
+                title:
+                  type: object
+                  description: Primary title with language codes as keys
+                  additionalProperties:
+                    type: string
+                  example:
+                    en: "The Great Treatise on the Stages of the Path"
+                    bo: "བྱང་ཆུབ་ལམ་རིམ་ཆེན་མོ།"
+                alt_titles:
+                  type: array
+                  description: Alternative titles
+                  items:
+                    type: object
+                    additionalProperties:
+                      type: string
+                  example:
+                    - bo: "ལམ་རིམ་ཆེན་མོ།"
+                copyright:
+                  type: string
+                  description: Copyright status
+                  enum: ["Public domain", "In copyright", "Unknown"]
+                  example: "Public domain"
+                license:
+                  type: string
+                  description: License type
+                  enum: ["CC0", "Public Domain Mark", "CC BY", "CC BY-SA", "CC BY-ND", "CC BY-NC", "CC BY-NC-SA", "CC BY-NC-ND", "under copyright", "unknown"]
+                  example: "CC0"
+                contributions:
+                  type: array
+                  description: List of contributions (replaces all existing)
+                  items:
+                    type: object
+                    properties:
+                      person_id:
+                        type: string
+                        description: Person ID
+                      person_bdrc_id:
+                        type: string
+                        description: Person BDRC ID (alternative to person_id)
+                      role:
+                        type: string
+                        enum: [author, translator, reviser, scholar]
+                  example:
+                    - person_id: "P12345"
+                      role: "author"
+            examples:
+              update_identifiers:
+                summary: Update external identifiers
+                value:
+                  bdrc: "W12345"
+                  wiki: "Q67890"
+              update_title:
+                summary: Update title
+                value:
+                  title:
+                    en: "Updated Title"
+                    bo: "མཚན་བྱང་གསར་པ།"
+              update_multiple:
+                summary: Update multiple fields
+                value:
+                  bdrc: "W12345"
+                  date: "15th century"
+                  copyright: "Public domain"
+                  license: "CC0"
+      responses:
+        "200":
+          description: Text updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Text updated successfully"
+                  id:
+                    type: string
+                    example: "T12345678"
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/ServerError'
   
   /v2/texts/{texts_id}/group:
     get:

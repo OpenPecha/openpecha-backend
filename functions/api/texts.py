@@ -5,7 +5,15 @@ from api.relation import _get_expression_relations
 from exceptions import DataNotFound, InvalidRequest
 from flask import Blueprint, Response, jsonify, request
 from identifier import generate_id
-from models import AnnotationModel, AnnotationType, ExpressionModelInput, InstanceRequestModel, LicenseType, ManifestationType
+from models import (
+    AnnotationModel,
+    AnnotationType,
+    ExpressionModelInput,
+    ExpressionUpdateModel,
+    InstanceRequestModel,
+    LicenseType,
+    ManifestationType,
+)
 from neo4j_database import Neo4JDatabase
 from neo4j_database_validator import Neo4JDatabaseValidator
 from storage import Storage
@@ -288,3 +296,59 @@ def update_license(expression_id: str) -> tuple[Response, int]:
     db = Neo4JDatabase()
     db.update_license(expression_id=expression_id, license=license)
     return jsonify({"message": "License updated successfully"}), 200
+
+
+@texts_bp.route("/<string:expression_id>", methods=["PUT"], strict_slashes=False)
+def update_text(expression_id: str) -> tuple[Response, int]:
+    """
+    Update text metadata.
+    
+    This endpoint allows updating any metadata field of a text (expression).
+    All fields are optional - only provided fields will be updated.
+    
+    Updatable fields:
+    - bdrc: BDRC identifier
+    - wiki: Wikipedia/Wikidata identifier
+    - date: Date information
+    - title: Primary title (localized string)
+    - alt_titles: Alternative titles (list of localized strings)
+    - copyright: Copyright status
+    - license: License type
+    - contributions: List of contributions (replaces existing)
+    """
+    data = request.get_json(force=True, silent=True)
+    if not data:
+        raise InvalidRequest("Request body is required")
+
+    logger.info("Received data for updating text %s: %s", expression_id, data)
+
+    # Validate the update data using Pydantic model
+    try:
+        update_model = ExpressionUpdateModel.model_validate(data)
+    except Exception as e:
+        raise InvalidRequest(f"Invalid update data: {str(e)}") from e
+
+    # Prepare update data dict
+    update_data = {}
+    
+    if update_model.bdrc is not None:
+        update_data["bdrc"] = update_model.bdrc
+    if update_model.wiki is not None:
+        update_data["wiki"] = update_model.wiki
+    if update_model.date is not None:
+        update_data["date"] = update_model.date
+    if update_model.title is not None:
+        update_data["title"] = update_model.title.root
+    if update_model.alt_titles is not None:
+        update_data["alt_titles"] = [alt.root for alt in update_model.alt_titles]
+    if update_model.copyright is not None:
+        update_data["copyright"] = update_model.copyright
+    if update_model.license is not None:
+        update_data["license"] = update_model.license
+    if update_model.contributions is not None:
+        update_data["contributions"] = update_model.contributions
+
+    db = Neo4JDatabase()
+    db.update_expression(expression_id=expression_id, update_data=update_data)
+
+    return jsonify({"message": "Text updated successfully", "id": expression_id}), 200

@@ -1008,8 +1008,29 @@ class Neo4JDatabase:
             # Validate language filter against Neo4j if provided
             if params.get("language"):
                 self.__validator.validate_language_code_exists(session, params["language"])
-            logger.info("Fetching expressions with params: %s", params)
-            result = session.run(Queries.expressions["fetch_all"], params)
+            
+            # Choose appropriate query based on filters
+            has_title = params.get("title") is not None
+            has_author = params.get("author") is not None
+            
+            if has_title and has_author:
+                # Both provided: fuzzy search on BOTH with AND logic (must match both)
+                query = Queries.expressions["fetch_all_fuzzy_both"]
+                logger.info("Using fuzzy search for BOTH title AND author with params: %s", params)
+            elif has_title:
+                # Only title: fuzzy search on title only
+                query = Queries.expressions["fetch_all_fuzzy_title"]
+                logger.info("Using fuzzy title search with params: %s", params)
+            elif has_author:
+                # Only author: fuzzy search on author only
+                query = Queries.expressions["fetch_all_fuzzy_author"]
+                logger.info("Using fuzzy author search with params: %s", params)
+            else:
+                # No fuzzy search needed
+                query = Queries.expressions["fetch_all"]
+                logger.info("Using standard search with params: %s", params)
+
+            result = session.run(query, params)
             logger.info("All Expressions Result: %s", result)
             expressions = []
 
@@ -1800,3 +1821,136 @@ class Neo4JDatabase:
             
             if result is None:
                 raise DataNotFound(f"Expression with ID '{expression_id}' not found")
+
+    def update_expression_properties(
+        self, 
+        expression_id: str, 
+        bdrc: str | None = None, 
+        wiki: str | None = None, 
+        date: str | None = None
+    ) -> None:
+        """Update expression properties (bdrc, wiki, date)."""
+        with self.get_session() as session:
+            result = session.execute_write(
+                lambda tx: tx.run(
+                    Queries.expressions["update_expression_properties"],
+                    expression_id=expression_id,
+                    bdrc=bdrc,
+                    wiki=wiki,
+                    date=date
+                ).single()
+            )
+            if result is None:
+                raise DataNotFound(f"Expression with ID '{expression_id}' not found")
+
+    def update_copyright(self, expression_id: str, copyright: CopyrightStatus) -> None:
+        """Update expression copyright status."""
+        with self.get_session() as session:
+            result = session.execute_write(
+                lambda tx: tx.run(
+                    Queries.expressions["update_copyright"],
+                    expression_id=expression_id,
+                    copyright=copyright.value
+                ).single()
+            )
+            if result is None:
+                raise DataNotFound(f"Expression with ID '{expression_id}' not found")
+
+    def add_contribution(self, expression_id: str, person_id: str, role: str) -> None:
+        """Add a contribution to an expression."""
+        with self.get_session() as session:
+            result = session.execute_write(
+                lambda tx: tx.run(
+                    Queries.expressions["add_contribution"],
+                    expression_id=expression_id,
+                    person_id=person_id,
+                    role=role
+                ).single()
+            )
+            if result is None:
+                raise DataNotFound(f"Expression with ID '{expression_id}' not found or person/role not found")
+
+    def remove_contribution(self, expression_id: str, person_id: str, role: str) -> None:
+        """Remove a contribution from an expression."""
+        with self.get_session() as session:
+            session.execute_write(
+                lambda tx: tx.run(
+                    Queries.expressions["remove_contribution"],
+                    expression_id=expression_id,
+                    person_id=person_id,
+                    role=role
+                ).consume()
+            )
+
+    def get_existing_contributions(self, expression_id: str) -> list[dict]:
+        """Get existing contributions for an expression."""
+        with self.get_session() as session:
+            result = session.run(
+                Queries.expressions["get_existing_contributions"],
+                expression_id=expression_id
+            )
+            return [{"person_id": record["person_id"], "role": record["role"]} for record in result]
+
+    def clear_all_contributions(self, expression_id: str) -> None:
+        """Clear all contributions from an expression."""
+        with self.get_session() as session:
+            session.execute_write(
+                lambda tx: tx.run(
+                    Queries.expressions["clear_all_contributions"],
+                    expression_id=expression_id
+                ).consume()
+            )
+
+    def update_expression(self, expression_id: str, update_data: dict) -> None:
+        """
+        Update an expression with the provided data.
+        This is the main method that orchestrates all updates.
+        """
+        logger.info("Updating expression %s with data: %s", expression_id, update_data)
+        
+        # Verify expression exists
+        self.get_expression(expression_id)
+        
+        # Update simple properties (bdrc, wiki, date)
+        if any(k in update_data for k in ["bdrc", "wiki", "date"]):
+            self.update_expression_properties(
+                expression_id=expression_id,
+                bdrc=update_data.get("bdrc"),
+                wiki=update_data.get("wiki"),
+                date=update_data.get("date")
+            )
+        
+        # Update copyright
+        if "copyright" in update_data and update_data["copyright"] is not None:
+            self.update_copyright(expression_id, update_data["copyright"])
+        
+        # Update license
+        if "license" in update_data and update_data["license"] is not None:
+            self.update_license(expression_id, update_data["license"])
+        
+        # Update title
+        if "title" in update_data and update_data["title"] is not None:
+            title_dict = update_data["title"]
+            for lang_code, text in title_dict.items():
+                self.update_title(expression_id, {"lang_code": lang_code, "text": text})
+        
+        # Update alt_titles
+        if "alt_titles" in update_data and update_data["alt_titles"] is not None:
+            for alt_title in update_data["alt_titles"]:
+                for lang_code, text in alt_title.items():
+                    self.update_alt_title(expression_id, {"lang_code": lang_code, "text": text})
+        
+        # Update contributions (replace all)
+        if "contributions" in update_data and update_data["contributions"] is not None:
+            # Clear existing contributions
+            self.clear_all_contributions(expression_id)
+            # Add new contributions
+            for contrib in update_data["contributions"]:
+                if hasattr(contrib, "person_id") and contrib.person_id:
+                    self.add_contribution(expression_id, contrib.person_id, contrib.role.value)
+                elif hasattr(contrib, "model_dump"):
+                    contrib_dict = contrib.model_dump()
+                    if contrib_dict.get("person_id"):
+                        self.add_contribution(expression_id, contrib_dict["person_id"], contrib_dict["role"])
+        
+        logger.info("Successfully updated expression %s", expression_id)
