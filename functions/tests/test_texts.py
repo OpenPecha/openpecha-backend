@@ -89,8 +89,8 @@ def test_database(neo4j_connection):
     yield db
 
     # Cleanup after test
-    with db.get_session() as session:
-        session.run("MATCH (n) DETACH DELETE n")
+    # with db.get_session() as session:
+    #     session.run("MATCH (n) DETACH DELETE n")
 
 
 @pytest.fixture
@@ -2369,6 +2369,50 @@ class TestUpdateTextV2:
         assert verify_response.status_code == 200
         verify_data = json.loads(verify_response.data)
         assert verify_data['title']['en'] == 'Updated Title'
+
+    def test_update_text_alt_title_dict_of_lists(self, client, test_database, test_person_data):
+        """Test updating alt titles via `alt_title` (dict-of-lists), like /title endpoint."""
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = test_database.create_category(
+            application='test_application',
+            title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
+        )
+
+        expression_data = {
+            'type': 'root',
+            'title': {'en': 'Primary Title'},
+            'language': 'en',
+            'contributions': [{'person_id': person_id, 'role': 'author'}],
+            'category_id': category_id
+        }
+        expression = ExpressionModelInput.model_validate(expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        update_data = {
+            "alt_title": {
+                "bo": ["མཚན་བྱང་གཞན།-1", "མཚན་བྱང་གཞན།-2"],
+                "en": ["Alternative Title 1", "Alternative Title 2"],
+            }
+        }
+        response = client.put(
+            f"/v2/texts/{expression_id}",
+            data=json.dumps(update_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+
+        verify_response = client.get(f"/v2/texts/{expression_id}")
+        assert verify_response.status_code == 200
+        verify_data = json.loads(verify_response.data)
+        alt_titles = verify_data.get("alt_titles") or []
+
+        assert any(alt.get("bo") == "མཚན་བྱང་གཞན།-1" for alt in alt_titles)
+        assert any(alt.get("bo") == "མཚན་བྱང་གཞན།-2" for alt in alt_titles)
+        assert any(alt.get("en") == "Alternative Title 1" for alt in alt_titles)
+        assert any(alt.get("en") == "Alternative Title 2" for alt in alt_titles)
 
     def test_update_text_multiple_fields(self, client, test_database, test_person_data):
         """Test updating multiple fields at once"""

@@ -2049,6 +2049,7 @@ paths:
         - date: Date information
         - title: Primary title (localized string with language codes as keys)
         - alt_titles: Alternative titles (list of localized strings)
+        - alt_title: Alternative titles (dictionary with language code keys; values can be string or array of strings)
         - copyright: Copyright status
         - license: License type
         - contributions: List of contributions (replaces all existing contributions)
@@ -2097,6 +2098,20 @@ paths:
                       type: string
                   example:
                     - bo: "ལམ་རིམ་ཆེན་མོ།"
+                alt_title:
+                  type: object
+                  description: >-
+                    Dictionary with language code as key and alternative title(s) as value.
+                    Values can be a single string or an array of strings for multiple alt titles per language.
+                  additionalProperties:
+                    oneOf:
+                      - type: string
+                      - type: array
+                        items:
+                          type: string
+                  example:
+                    bo: ["མཚན་བྱང་གཞན།-1", "མཚན་བྱང་གཞན།-2"]
+                    en: ["Alternative Title 1", "Alternative Title 2"]
                 copyright:
                   type: string
                   description: Copyright status
@@ -2127,7 +2142,7 @@ paths:
                       role: "author"
             examples:
               update_identifiers:
-                summary: Update external identifiers
+                summary: Update bdrc and wiki
                 value:
                   bdrc: "W12345"
                   wiki: "Q67890"
@@ -2137,13 +2152,29 @@ paths:
                   title:
                     en: "Updated Title"
                     bo: "མཚན་བྱང་གསར་པ།"
-              update_multiple:
-                summary: Update multiple fields
+              update_alt_title:
+                summary: Update alt_title
                 value:
-                  bdrc: "W12345"
-                  date: "15th century"
+                  alt_title:
+                    bo:
+                      - "མཚན་བྱང་གཞན།-1"
+                      - "མཚན་བྱང་གཞན།-2"
+                    en:
+                      - "Alternative Title 1"
+                      - "Alternative Title 2"
+              update_copyright_and_license:
+                summary: Update copyright and license
+                value:
                   copyright: "Public domain"
                   license: "CC0"
+              update_contributions:
+                summary: Update contributions
+                value:
+                  contributions:
+                    - person_id: "P12345"
+                      role: "author"
+                    - ai_id: "gpt-4"
+                      role: "translator"
       responses:
         "200":
           description: Text updated successfully
@@ -2348,141 +2379,141 @@ paths:
         "500":
           $ref: '#/components/responses/ServerError'
 
-  /v2/texts/{text_id}/title:
-    put:
-      summary: Update texts title
-      description: >-
-        Update the title or alternative title of a text. The title or alt_title
-        should be provided as a dictionary with language code as the key and the
-        title text as the value.
-      tags:
-        - Texts
-      parameters:
-        - name: text_id
-          in: path
-          required: true
-          schema:
-            type: string
-          description: The text ID of the text to update
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              properties:
-                title:
-                  type: object
-                  description: Dictionary with language code as key and title text as value
-                  additionalProperties:
-                    type: string
-                  example:
-                    bo: "རྒྱལ་པོ་རབས་ཀྱི་གཏམ་རྒྱུད།"
-                alt_title:
-                  type: object
-                  description: >-
-                    Dictionary with language code as key and alternative title(s) as value.
-                    Values can be a single string or an array of strings for multiple alt titles per language.
-                  additionalProperties:
-                    oneOf:
-                      - type: string
-                      - type: array
-                        items:
-                          type: string
-                  example:
-                    bo: ["མཚན་བྱང་གཞན།-1", "མཚན་བྱང་གཞན།-2"]
-                    en: ["Alternative Title 1", "Alternative Title 2"]
-              anyOf:
-                - required: [title]
-                - required: [alt_title]
-      responses:
-        "200":
-          description: Title updated successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: "Title updated successfully"
-        "400":
-          description: Bad request - Invalid input
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    example: "Title or alt_title is required"
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "500":
-          $ref: '#/components/responses/ServerError'
+  # /v2/texts/{text_id}/title:
+  #   put:
+  #     summary: Update texts title
+  #     description: >-
+  #       Update the title or alternative title of a text. The title or alt_title
+  #       should be provided as a dictionary with language code as the key and the
+  #       title text as the value.
+  #     tags:
+  #       - Texts
+  #     parameters:
+  #       - name: text_id
+  #         in: path
+  #         required: true
+  #         schema:
+  #           type: string
+  #         description: The text ID of the text to update
+  #     requestBody:
+  #       required: true
+  #       content:
+  #         application/json:
+  #           schema:
+  #             type: object
+  #             properties:
+  #               title:
+  #                 type: object
+  #                 description: Dictionary with language code as key and title text as value
+  #                 additionalProperties:
+  #                   type: string
+  #                 example:
+  #                   bo: "རྒྱལ་པོ་རབས་ཀྱི་གཏམ་རྒྱུད།"
+  #               alt_title:
+  #                 type: object
+  #                 description: >-
+  #                   Dictionary with language code as key and alternative title(s) as value.
+  #                   Values can be a single string or an array of strings for multiple alt titles per language.
+  #                 additionalProperties:
+  #                   oneOf:
+  #                     - type: string
+  #                     - type: array
+  #                       items:
+  #                         type: string
+  #                 example:
+  #                   bo: ["མཚན་བྱང་གཞན།-1", "མཚན་བྱང་གཞན།-2"]
+  #                   en: ["Alternative Title 1", "Alternative Title 2"]
+  #             anyOf:
+  #               - required: [title]
+  #               - required: [alt_title]
+  #     responses:
+  #       "200":
+  #         description: Title updated successfully
+  #         content:
+  #           application/json:
+  #             schema:
+  #               type: object
+  #               properties:
+  #                 message:
+  #                   type: string
+  #                   example: "Title updated successfully"
+  #       "400":
+  #         description: Bad request - Invalid input
+  #         content:
+  #           application/json:
+  #             schema:
+  #               type: object
+  #               properties:
+  #                 error:
+  #                   type: string
+  #                   example: "Title or alt_title is required"
+  #       "404":
+  #         $ref: '#/components/responses/NotFound'
+  #       "500":
+  #         $ref: '#/components/responses/ServerError'
 
-  /v2/texts/{texts_id}/license:
-    put:
-      summary: Update texts license
-      description: Update the license information for a texts
-      tags:
-        - Texts
-      parameters:
-        - name: texts_id
-          in: path
-          required: true
-          schema:
-            type: string
-          description: The texts ID of the text to update
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - license
-              properties:
-                license:
-                  type: string
-                  description: License identifier or name
-                  enum:
-                    - "CC0"
-                    - "Public Domain Mark"
-                    - "CC BY"
-                    - "CC BY-SA"
-                    - "CC BY-ND"
-                    - "CC BY-NC"
-                    - "CC BY-NC-SA"
-                    - "CC BY-NC-ND"
-                    - "under copyright"
-                    - "unknown"
-                  example: "CC BY-SA"
-      responses:
-        "200":
-          description: License updated successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    example: "License updated successfully"
-        "400":
-          description: Bad request - Invalid input
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  error:
-                    type: string
-                    example: "License is required"
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "500":
-          $ref: '#/components/responses/ServerError'
+  # /v2/texts/{texts_id}/license:
+  #   put:
+  #     summary: Update texts license
+  #     description: Update the license information for a texts
+  #     tags:
+  #       - Texts
+  #     parameters:
+  #       - name: texts_id
+  #         in: path
+  #         required: true
+  #         schema:
+  #           type: string
+  #         description: The texts ID of the text to update
+  #     requestBody:
+  #       required: true
+  #       content:
+  #         application/json:
+  #           schema:
+  #             type: object
+  #             required:
+  #               - license
+  #             properties:
+  #               license:
+  #                 type: string
+  #                 description: License identifier or name
+  #                 enum:
+  #                   - "CC0"
+  #                   - "Public Domain Mark"
+  #                   - "CC BY"
+  #                   - "CC BY-SA"
+  #                   - "CC BY-ND"
+  #                   - "CC BY-NC"
+  #                   - "CC BY-NC-SA"
+  #                   - "CC BY-NC-ND"
+  #                   - "under copyright"
+  #                   - "unknown"
+  #                 example: "CC BY-SA"
+  #     responses:
+  #       "200":
+  #         description: License updated successfully
+  #         content:
+  #           application/json:
+  #             schema:
+  #               type: object
+  #               properties:
+  #                 message:
+  #                   type: string
+  #                   example: "License updated successfully"
+  #       "400":
+  #         description: Bad request - Invalid input
+  #         content:
+  #           application/json:
+  #             schema:
+  #               type: object
+  #               properties:
+  #                 error:
+  #                   type: string
+  #                   example: "License is required"
+  #       "404":
+  #         $ref: '#/components/responses/NotFound'
+  #       "500":
+  #         $ref: '#/components/responses/ServerError'
 
   /v2/persons:
     get:

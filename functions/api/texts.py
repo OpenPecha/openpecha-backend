@@ -322,33 +322,76 @@ def update_text(expression_id: str) -> tuple[Response, int]:
 
     logger.info("Received data for updating text %s: %s", expression_id, data)
 
-    # Validate the update data using Pydantic model
-    try:
-        update_model = ExpressionUpdateModel.model_validate(data)
-    except Exception as e:
-        raise InvalidRequest(f"Invalid update data: {str(e)}") from e
+    # Support `alt_title` (dict-of-lists) like the dedicated `/title` endpoint.
+    # This key is NOT part of ExpressionUpdateModel (extra fields are forbidden),
+    # so we parse it separately and then validate the remaining payload with Pydantic.
+    alt_title = data.get("alt_title")
+    alt_title_items: list[tuple[str, str]] = []
+    if alt_title is not None:
+        if not isinstance(alt_title, dict):
+            raise InvalidRequest("alt_title must be an object with language codes as keys")
+        for lang_code, texts in alt_title.items():
+            if isinstance(texts, list):
+                for text in texts:
+                    alt_title_items.append((lang_code, text))
+            else:
+                alt_title_items.append((lang_code, texts))
+
+    data_for_model = dict(data)
+    data_for_model.pop("alt_title", None)
+
+    update_model = None
+    if data_for_model:
+        # Validate the update data using Pydantic model
+        try:
+            update_model = ExpressionUpdateModel.model_validate(data_for_model)
+        except Exception as e:
+            raise InvalidRequest(f"Invalid update data: {str(e)}") from e
+    elif not alt_title_items:
+        # Payload had only unknown keys / was empty after normalization.
+        raise InvalidRequest("At least one field must be provided for update")
 
     # Prepare update data dict
     update_data = {}
     
-    if update_model.bdrc is not None:
-        update_data["bdrc"] = update_model.bdrc
-    if update_model.wiki is not None:
-        update_data["wiki"] = update_model.wiki
-    if update_model.date is not None:
-        update_data["date"] = update_model.date
-    if update_model.title is not None:
-        update_data["title"] = update_model.title.root
-    if update_model.alt_titles is not None:
-        update_data["alt_titles"] = [alt.root for alt in update_model.alt_titles]
-    if update_model.copyright is not None:
-        update_data["copyright"] = update_model.copyright
-    if update_model.license is not None:
-        update_data["license"] = update_model.license
-    if update_model.contributions is not None:
-        update_data["contributions"] = update_model.contributions
+    if update_model is not None:
+        if update_model.bdrc is not None:
+            update_data["bdrc"] = update_model.bdrc
+        if update_model.wiki is not None:
+            update_data["wiki"] = update_model.wiki
+        if update_model.date is not None:
+            update_data["date"] = update_model.date
+        if update_model.title is not None:
+            update_data["title"] = update_model.title.root
+        if update_model.alt_titles is not None:
+            update_data["alt_titles"] = [alt.root for alt in update_model.alt_titles]
+        if update_model.copyright is not None:
+            update_data["copyright"] = update_model.copyright
+        if update_model.license is not None:
+            update_data["license"] = update_model.license
+        if update_model.contributions is not None:
+            update_data["contributions"] = update_model.contributions
 
     db = Neo4JDatabase()
-    db.update_expression(expression_id=expression_id, update_data=update_data)
+
+    # Validate language codes for alt_title updates (supports BCP47 tags like "bo-CN")
+    if alt_title_items:
+        with db.get_session() as session:
+            for alt_lang_code, _ in alt_title_items:
+                base_alt_lang_code = alt_lang_code.split("-")[0].lower()
+                Neo4JDatabaseValidator().validate_language_code_exists(session, base_alt_lang_code)
+
+    # Route `alt_title` updates through the unified db.update_expression() path.
+    # Neo4JDatabase.update_expression expects alternative titles under `alt_titles` as:
+    #   [{"bo": "..."}, {"bo": "..."}, {"en": "..."}]
+    if alt_title_items:
+        alt_titles_from_alt_title = [{lang: text} for (lang, text) in alt_title_items]
+        if "alt_titles" in update_data and update_data["alt_titles"] is not None:
+            update_data["alt_titles"].extend(alt_titles_from_alt_title)
+        else:
+            update_data["alt_titles"] = alt_titles_from_alt_title
+
+    if update_data:
+        db.update_expression(expression_id=expression_id, update_data=update_data)
 
     return jsonify({"message": "Text updated successfully", "id": expression_id}), 200
