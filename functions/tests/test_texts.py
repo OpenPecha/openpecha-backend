@@ -53,6 +53,17 @@ def test_database(neo4j_connection):
         # Clean up any existing data first
         session.run("MATCH (n) DETACH DELETE n")
 
+        # Create full-text index for fuzzy search (if not exists)
+        session.run("""
+            CREATE FULLTEXT INDEX localized_text_fulltext IF NOT EXISTS
+            FOR (lt:LocalizedText) ON EACH [lt.text]
+        """)
+        # Create test copyright and license nodes
+        session.run("MERGE (c:Copyright {status: 'In copyright'})")
+        session.run("MERGE (c:Copyright {status: 'Public domain'})")
+        session.run("MERGE (l:License {name: 'CC BY'})")
+        session.run("MERGE (l:License {name: 'CC0'})")
+
         # Create test languages
         session.run("MERGE (l:Language {code: 'bo', name: 'Tibetan'})")
         session.run("MERGE (l:Language {code: 'tib', name: 'Spoken Tibetan'})")
@@ -78,8 +89,8 @@ def test_database(neo4j_connection):
     yield db
 
     # Cleanup after test
-    with db.get_session() as session:
-        session.run("MATCH (n) DETACH DELETE n")
+    # with db.get_session() as session:
+    #     session.run("MATCH (n) DETACH DELETE n")
 
 
 @pytest.fixture
@@ -748,6 +759,421 @@ class TestGetAllTextsV2:
         assert response.status_code == 200
         data = json.loads(response.data)
         assert len(data) == 0
+
+    def test_get_all_metadata_fuzzy_title_search(self, client, test_database, test_person_data):
+        """Test fuzzy search by title with typos - fuzzy matching is automatic for title/author"""
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = test_database.create_category(
+            application='test_application',
+            title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
+        )
+
+        titles = [
+            {"en": "Shakespeare Sonnets"},
+            {"en": "Buddhist Philosophy"},
+            {"en": "Meditation Guide"},
+        ]
+
+        expression_ids = []
+        for title in titles:
+            root_data = {
+                "type": "root",
+                "title": title,
+                "language": "en",
+                "category_id": category_id,
+                "contributions": [{"person_id": person_id, "role": "author"}],
+            }
+            expression = ExpressionModelInput.model_validate(root_data)
+            expression_ids.append(test_database.create_expression(expression))
+
+        # Test fuzzy search with typo - "Shakspeare" should match "Shakespeare"
+        response = client.get("/v2/texts?title=Shakspeare")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 1
+        assert "Shakespeare" in data[0]["title"]["en"]
+
+        # Test fuzzy search with typo - "Buddist" should match "Buddhist"
+        response = client.get("/v2/texts?title=Buddist")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 1
+        assert "Buddhist" in data[0]["title"]["en"]
+
+        # Test exact match still works
+        response = client.get("/v2/texts?title=Shakespeare")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 1
+        assert "Shakespeare" in data[0]["title"]["en"]
+
+    def test_get_all_metadata_fuzzy_author_search(self, client, test_database):
+        """Test fuzzy search by author name with typos - fuzzy matching is automatic"""
+        # Create authors with different names
+        author1 = PersonModelInput.model_validate({
+            "name": {"en": "Tsongkhapa"},
+            "alt_names": [{"en": "Lama Tsongkhapa"}],
+            "bdrc": "P111111",
+            "wiki": "Q111111",
+        })
+        author1_id = test_database.create_person(author1)
+
+        author2 = PersonModelInput.model_validate({
+            "name": {"en": "Nagarjuna"},
+            "alt_names": [{"en": "Arya Nagarjuna"}],
+            "bdrc": "P222222",
+            "wiki": "Q222222",
+        })
+        author2_id = test_database.create_person(author2)
+
+        category_id = test_database.create_category(
+            application='test_application',
+            title={'en': 'Test Category'}
+        )
+
+        # Create expressions by different authors
+        expr1_data = {
+            "type": "root",
+            "title": {"en": "Lamrim Chenmo"},
+            "language": "en",
+            "category_id": category_id,
+            "contributions": [{"person_id": author1_id, "role": "author"}],
+        }
+        test_database.create_expression(ExpressionModelInput.model_validate(expr1_data))
+
+        expr2_data = {
+            "type": "root",
+            "title": {"en": "Mulamadhyamakakarika"},
+            "language": "en",
+            "category_id": category_id,
+            "contributions": [{"person_id": author2_id, "role": "author"}],
+        }
+        test_database.create_expression(ExpressionModelInput.model_validate(expr2_data))
+
+        # Test fuzzy search with typo - "Tsongkapa" (missing 'h') should match "Tsongkhapa"
+        response = client.get("/v2/texts?author=Tsongkapa")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 1
+        assert data[0]["title"]["en"] == "Lamrim Chenmo"
+
+        # Test fuzzy search with typo - "Nagarjuna" with slight typo
+        response = client.get("/v2/texts?author=Nagrajuna")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 1
+        assert data[0]["title"]["en"] == "Mulamadhyamakakarika"
+
+    def test_get_all_metadata_fuzzy_combined_filters(self, client, test_database, test_person_data):
+        """Test fuzzy search combined with other filters"""
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = test_database.create_category(
+            application='test_application',
+            title={'en': 'Test Category'}
+        )
+
+        # Create expressions in different languages
+        expr_en_data = {
+            "type": "root",
+            "title": {"en": "Buddhist Meditation"},
+            "language": "en",
+            "category_id": category_id,
+            "contributions": [{"person_id": person_id, "role": "author"}],
+        }
+        test_database.create_expression(ExpressionModelInput.model_validate(expr_en_data))
+
+        expr_bo_data = {
+            "type": "root",
+            "title": {"bo": "སངས་རྒྱས་ཀྱི་སྒོམ།"},
+            "language": "bo",
+            "category_id": category_id,
+            "contributions": [{"person_id": person_id, "role": "author"}],
+        }
+        test_database.create_expression(ExpressionModelInput.model_validate(expr_bo_data))
+
+        # Fuzzy search with language filter - should only return English expression
+        response = client.get("/v2/texts?title=Buddist&language=en")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 1
+        assert data[0]["language"] == "en"
+
+    def test_get_all_metadata_fuzzy_tibetan_title_search(self, client, test_database, test_person_data):
+        """Test fuzzy search with Tibetan titles"""
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = test_database.create_category(
+            application='test_application',
+            title={'en': 'Test Category', 'bo': 'དཔེ་རྩ།'}
+        )
+
+        # Create expressions with Tibetan titles
+        titles = [
+            {"bo": "བྱང་ཆུབ་ལམ་རིམ་ཆེན་མོ།"},  # Lamrim Chenmo
+            {"bo": "དབུ་མ་རྩ་བའི་ཚིག་ལེའུར་བྱས་པ།"},  # Mulamadhyamakakarika
+            {"bo": "ཤེས་རབ་ཀྱི་ཕ་རོལ་ཏུ་ཕྱིན་པའི་སྙིང་པོ།"},  # Heart Sutra
+        ]
+
+        expression_ids = []
+        for title in titles:
+            root_data = {
+                "type": "root",
+                "title": title,
+                "language": "bo",
+                "category_id": category_id,
+                "contributions": [{"person_id": person_id, "role": "author"}],
+            }
+            expression = ExpressionModelInput.model_validate(root_data)
+            expression_ids.append(test_database.create_expression(expression))
+
+        # Test exact Tibetan search
+        response = client.get("/v2/texts?title=བྱང་ཆུབ་ལམ་རིམ")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) >= 1
+        assert any("བྱང་ཆུབ་ལམ་རིམ" in item["title"].get("bo", "") for item in data)
+
+        # Test partial Tibetan title search
+        response = client.get("/v2/texts?title=ཤེས་རབ")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) >= 1
+
+    def test_get_all_metadata_fuzzy_tibetan_author_search(self, client, test_database):
+        """Test fuzzy search with Tibetan author names"""
+        # Create author with Tibetan name
+        author = PersonModelInput.model_validate({
+            "name": {"bo": "ཙོང་ཁ་པ་བློ་བཟང་གྲགས་པ།"},  # Tsongkhapa Lobzang Drakpa
+            "alt_names": [
+                {"bo": "རྗེ་རིན་པོ་ཆེ།"},  # Je Rinpoche
+                {"en": "Tsongkhapa"}
+            ],
+            "bdrc": "P555555",
+            "wiki": "Q555555",
+        })
+        author_id = test_database.create_person(author)
+
+        category_id = test_database.create_category(
+            application='test_application',
+            title={'en': 'Test Category'}
+        )
+
+        expr_data = {
+            "type": "root",
+            "title": {"bo": "བྱང་ཆུབ་ལམ་རིམ་ཆེན་མོ།"},
+            "language": "bo",
+            "category_id": category_id,
+            "contributions": [{"person_id": author_id, "role": "author"}],
+        }
+        test_database.create_expression(ExpressionModelInput.model_validate(expr_data))
+
+        # Test search by Tibetan author name
+        response = client.get("/v2/texts?author=ཙོང་ཁ་པ")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 1
+
+        # Test search by Tibetan alternate name
+        response = client.get("/v2/texts?author=རྗེ་རིན་པོ་ཆེ")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 1
+
+    def test_get_all_metadata_fuzzy_sanskrit_title_search(self, client, test_database, test_person_data):
+        """Test fuzzy search with Sanskrit titles"""
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = test_database.create_category(
+            application='test_application',
+            title={'en': 'Test Category'}
+        )
+
+        # Create expressions with Sanskrit titles
+        titles = [
+            {"sa": "प्रज्ञापारमिताहृदयसूत्र"},  # Prajnaparamita Heart Sutra
+            {"sa": "मूलमध्यमककारिका"},  # Mulamadhyamakakarika
+            {"sa": "अभिधर्मकोश"},  # Abhidharmakosha
+        ]
+
+        expression_ids = []
+        for title in titles:
+            root_data = {
+                "type": "root",
+                "title": title,
+                "language": "sa",
+                "category_id": category_id,
+                "contributions": [{"person_id": person_id, "role": "author"}],
+            }
+            expression = ExpressionModelInput.model_validate(root_data)
+            expression_ids.append(test_database.create_expression(expression))
+
+        # Test Sanskrit search
+        response = client.get("/v2/texts?title=प्रज्ञापारमिता")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) >= 1
+
+        # Test another Sanskrit term
+        response = client.get("/v2/texts?title=मध्यमक")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) >= 1
+
+    def test_get_all_metadata_fuzzy_chinese_title_search(self, client, test_database, test_person_data):
+        """Test fuzzy search with Chinese titles"""
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = test_database.create_category(
+            application='test_application',
+            title={'en': 'Test Category'}
+        )
+
+        # Create expressions with Chinese titles
+        titles = [
+            {"zh": "般若波羅蜜多心經"},  # Heart Sutra
+            {"zh": "中論"},  # Mulamadhyamakakarika
+            {"zh": "大智度論"},  # Mahaprajnaparamita Shastra
+        ]
+
+        expression_ids = []
+        for title in titles:
+            root_data = {
+                "type": "root",
+                "title": title,
+                "language": "zh",
+                "category_id": category_id,
+                "contributions": [{"person_id": person_id, "role": "author"}],
+            }
+            expression = ExpressionModelInput.model_validate(root_data)
+            expression_ids.append(test_database.create_expression(expression))
+
+        # Test Chinese search
+        response = client.get("/v2/texts?title=般若波羅蜜")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) >= 1
+
+        # Test another Chinese term
+        response = client.get("/v2/texts?title=中論")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) >= 1
+
+    def test_get_all_metadata_fuzzy_mixed_language_search(self, client, test_database):
+        """Test fuzzy search across expressions with titles in multiple languages"""
+        # Create author
+        author = PersonModelInput.model_validate({
+            "name": {"en": "Nagarjuna", "bo": "ཀླུ་སྒྲུབ།", "sa": "नागार्जुन"},
+            "alt_names": [],
+            "bdrc": "P666666",
+            "wiki": "Q666666",
+        })
+        author_id = test_database.create_person(author)
+
+        category_id = test_database.create_category(
+            application='test_application',
+            title={'en': 'Test Category'}
+        )
+
+        # Create same text with titles in different languages
+        expr_en = {
+            "type": "root",
+            "title": {"en": "Fundamental Wisdom of the Middle Way"},
+            "language": "en",
+            "category_id": category_id,
+            "contributions": [{"person_id": author_id, "role": "author"}],
+        }
+        en_id = test_database.create_expression(ExpressionModelInput.model_validate(expr_en))
+
+        expr_bo = {
+            "type": "root",
+            "title": {"bo": "དབུ་མ་རྩ་བའི་ཚིག་ལེའུར་བྱས་པ།"},
+            "language": "bo",
+            "category_id": category_id,
+            "contributions": [{"person_id": author_id, "role": "author"}],
+        }
+        bo_id = test_database.create_expression(ExpressionModelInput.model_validate(expr_bo))
+
+        expr_sa = {
+            "type": "root",
+            "title": {"sa": "मूलमध्यमककारिका"},
+            "language": "sa",
+            "category_id": category_id,
+            "contributions": [{"person_id": author_id, "role": "author"}],
+        }
+        sa_id = test_database.create_expression(ExpressionModelInput.model_validate(expr_sa))
+
+        # Search by English author name - should find all three
+        response = client.get("/v2/texts?author=Nagarjuna")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        found_ids = {item["id"] for item in data}
+        assert en_id in found_ids
+        assert bo_id in found_ids
+        assert sa_id in found_ids
+
+        # Search by Tibetan author name - should find all three
+        response = client.get("/v2/texts?author=ཀླུ་སྒྲུབ")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        found_ids = {item["id"] for item in data}
+        assert en_id in found_ids
+        assert bo_id in found_ids
+        assert sa_id in found_ids
+
+        # Search by Sanskrit author name - should find all three
+        response = client.get("/v2/texts?author=नागार्जुन")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        found_ids = {item["id"] for item in data}
+        assert en_id in found_ids
+        assert bo_id in found_ids
+        assert sa_id in found_ids
+
+    def test_get_all_metadata_fuzzy_romanized_tibetan_search(self, client, test_database, test_person_data):
+        """Test fuzzy search with romanized Tibetan (Wylie) that might have typos"""
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = test_database.create_category(
+            application='test_application',
+            title={'en': 'Test Category'}
+        )
+
+        # Create expressions with romanized Tibetan titles
+        titles = [
+            {"en": "Byang chub lam rim chen mo"},  # Lamrim Chenmo in Wylie
+            {"en": "Dbu ma rtsa ba'i tshig le'ur byas pa"},  # MMK in Wylie
+        ]
+
+        for title in titles:
+            root_data = {
+                "type": "root",
+                "title": title,
+                "language": "en",
+                "category_id": category_id,
+                "contributions": [{"person_id": person_id, "role": "author"}],
+            }
+            test_database.create_expression(ExpressionModelInput.model_validate(root_data))
+
+        # Test fuzzy search with slight typo in Wylie
+        response = client.get("/v2/texts?title=Byang%20chub%20lam%20rim")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) >= 1
+
+        # Test with typo - "Byang chub" vs "Byang chubb"
+        response = client.get("/v2/texts?title=Byang%20chubb")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) >= 1
 
 
 class TestGetSingleTextV2:
@@ -1780,4 +2206,325 @@ class TestUpdateLicenseV2:
         assert response.status_code == 404
         data = json.loads(response.data)
         assert 'not found' in data['error'].lower()
+
+
+class TestUpdateTextV2:
+    """Tests for PUT /v2/texts/{expression_id} endpoint (unified update)"""
+
+    def test_update_text_bdrc_and_wiki(self, client, test_database, test_person_data):
+        """Test updating bdrc and wiki identifiers"""
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = test_database.create_category(
+            application='test_application',
+            title={'en': 'Test Category'}
+        )
+
+        expression_data = {
+            'type': 'root',
+            'title': {'en': 'Test Text'},
+            'language': 'en',
+            'contributions': [{'person_id': person_id, 'role': 'author'}],
+            'category_id': category_id
+        }
+        expression = ExpressionModelInput.model_validate(expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        # Update bdrc and wiki
+        update_data = {
+            'bdrc': 'W12345',
+            'wiki': 'Q67890'
+        }
+        response = client.put(
+            f'/v2/texts/{expression_id}',
+            data=json.dumps(update_data),
+            content_type='application/json',
+        )
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data['message'] == 'Text updated successfully'
+        assert data['id'] == expression_id
+
+        # Verify the update
+        verify_response = client.get(f'/v2/texts/{expression_id}')
+        assert verify_response.status_code == 200
+        verify_data = json.loads(verify_response.data)
+        assert verify_data['bdrc'] == 'W12345'
+        assert verify_data['wiki'] == 'Q67890'
+
+    def test_update_text_date(self, client, test_database, test_person_data):
+        """Test updating date field"""
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = test_database.create_category(
+            application='test_application',
+            title={'en': 'Test Category'}
+        )
+
+        expression_data = {
+            'type': 'root',
+            'title': {'en': 'Test Text'},
+            'language': 'en',
+            'contributions': [{'person_id': person_id, 'role': 'author'}],
+            'category_id': category_id
+        }
+        expression = ExpressionModelInput.model_validate(expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        # Update date
+        update_data = {
+            'date': '15th century'
+        }
+        response = client.put(
+            f'/v2/texts/{expression_id}',
+            data=json.dumps(update_data),
+            content_type='application/json',
+        )
+
+        assert response.status_code == 200
+
+        # Verify the update
+        verify_response = client.get(f'/v2/texts/{expression_id}')
+        assert verify_response.status_code == 200
+        verify_data = json.loads(verify_response.data)
+        assert verify_data['date'] == '15th century'
+
+    def test_update_text_copyright_and_license(self, client, test_database, test_person_data):
+        """Test updating copyright and license"""
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = test_database.create_category(
+            application='test_application',
+            title={'en': 'Test Category'}
+        )
+
+        expression_data = {
+            'type': 'root',
+            'title': {'en': 'Test Text'},
+            'language': 'en',
+            'contributions': [{'person_id': person_id, 'role': 'author'}],
+            'category_id': category_id
+        }
+        expression = ExpressionModelInput.model_validate(expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        # Update copyright and license
+        update_data = {
+            'copyright': 'In copyright',
+            'license': 'CC BY'
+        }
+        response = client.put(
+            f'/v2/texts/{expression_id}',
+            data=json.dumps(update_data),
+            content_type='application/json',
+        )
+
+        assert response.status_code == 200
+
+        # Verify the update
+        verify_response = client.get(f'/v2/texts/{expression_id}')
+        assert verify_response.status_code == 200
+        verify_data = json.loads(verify_response.data)
+        assert verify_data['copyright'] == 'In copyright'
+        assert verify_data['license'] == 'CC BY'
+
+    def test_update_text_title(self, client, test_database, test_person_data):
+        """Test updating title"""
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = test_database.create_category(
+            application='test_application',
+            title={'en': 'Test Category'}
+        )
+
+        expression_data = {
+            'type': 'root',
+            'title': {'en': 'Original Title'},
+            'language': 'en',
+            'contributions': [{'person_id': person_id, 'role': 'author'}],
+            'category_id': category_id
+        }
+        expression = ExpressionModelInput.model_validate(expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        # Update title
+        update_data = {
+            'title': {'en': 'Updated Title'}
+        }
+        response = client.put(
+            f'/v2/texts/{expression_id}',
+            data=json.dumps(update_data),
+            content_type='application/json',
+        )
+
+        assert response.status_code == 200
+
+        # Verify the update
+        verify_response = client.get(f'/v2/texts/{expression_id}')
+        assert verify_response.status_code == 200
+        verify_data = json.loads(verify_response.data)
+        assert verify_data['title']['en'] == 'Updated Title'
+
+    def test_update_text_alt_title_dict_of_lists(self, client, test_database, test_person_data):
+        """Test updating alt titles via `alt_title` (dict-of-lists), like /title endpoint."""
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = test_database.create_category(
+            application='test_application',
+            title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
+        )
+
+        expression_data = {
+            'type': 'root',
+            'title': {'en': 'Primary Title'},
+            'language': 'en',
+            'contributions': [{'person_id': person_id, 'role': 'author'}],
+            'category_id': category_id
+        }
+        expression = ExpressionModelInput.model_validate(expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        update_data = {
+            "alt_title": {
+                "bo": ["མཚན་བྱང་གཞན།-1", "མཚན་བྱང་གཞན།-2"],
+                "en": ["Alternative Title 1", "Alternative Title 2"],
+            }
+        }
+        response = client.put(
+            f"/v2/texts/{expression_id}",
+            data=json.dumps(update_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 200
+
+        verify_response = client.get(f"/v2/texts/{expression_id}")
+        assert verify_response.status_code == 200
+        verify_data = json.loads(verify_response.data)
+        alt_titles = verify_data.get("alt_titles") or []
+
+        assert any(alt.get("bo") == "མཚན་བྱང་གཞན།-1" for alt in alt_titles)
+        assert any(alt.get("bo") == "མཚན་བྱང་གཞན།-2" for alt in alt_titles)
+        assert any(alt.get("en") == "Alternative Title 1" for alt in alt_titles)
+        assert any(alt.get("en") == "Alternative Title 2" for alt in alt_titles)
+
+    def test_update_text_multiple_fields(self, client, test_database, test_person_data):
+        """Test updating multiple fields at once"""
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = test_database.create_category(
+            application='test_application',
+            title={'en': 'Test Category'}
+        )
+
+        expression_data = {
+            'type': 'root',
+            'title': {'en': 'Test Text'},
+            'language': 'en',
+            'contributions': [{'person_id': person_id, 'role': 'author'}],
+            'category_id': category_id
+        }
+        expression = ExpressionModelInput.model_validate(expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        # Update multiple fields
+        update_data = {
+            'bdrc': 'W99999',
+            'wiki': 'Q88888',
+            'date': '14th century',
+            'title': {'en': 'Multi-field Updated Title'}
+        }
+        response = client.put(
+            f'/v2/texts/{expression_id}',
+            data=json.dumps(update_data),
+            content_type='application/json',
+        )
+
+        assert response.status_code == 200
+
+        # Verify all updates
+        verify_response = client.get(f'/v2/texts/{expression_id}')
+        assert verify_response.status_code == 200
+        verify_data = json.loads(verify_response.data)
+        assert verify_data['bdrc'] == 'W99999'
+        assert verify_data['wiki'] == 'Q88888'
+        assert verify_data['date'] == '14th century'
+        assert verify_data['title']['en'] == 'Multi-field Updated Title'
+
+    def test_update_text_no_fields_returns_error(self, client, test_database, test_person_data):
+        """Test that updating with no fields returns an error"""
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = test_database.create_category(
+            application='test_application',
+            title={'en': 'Test Category'}
+        )
+
+        expression_data = {
+            'type': 'root',
+            'title': {'en': 'Test Text'},
+            'language': 'en',
+            'contributions': [{'person_id': person_id, 'role': 'author'}],
+            'category_id': category_id
+        }
+        expression = ExpressionModelInput.model_validate(expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        # Try to update with no fields
+        update_data = {}
+        response = client.put(
+            f'/v2/texts/{expression_id}',
+            data=json.dumps(update_data),
+            content_type='application/json',
+        )
+
+        assert response.status_code == 400
+
+    def test_update_text_nonexistent_returns_404(self, client, test_database):
+        """Test that updating nonexistent expression returns 404"""
+        update_data = {
+            'bdrc': 'W12345'
+        }
+        response = client.put(
+            '/v2/texts/nonexistent_id',
+            data=json.dumps(update_data),
+            content_type='application/json',
+        )
+
+        assert response.status_code == 404
+
+    def test_update_text_no_body_returns_error(self, client, test_database, test_person_data):
+        """Test that updating with no body returns an error"""
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = test_database.create_category(
+            application='test_application',
+            title={'en': 'Test Category'}
+        )
+
+        expression_data = {
+            'type': 'root',
+            'title': {'en': 'Test Text'},
+            'language': 'en',
+            'contributions': [{'person_id': person_id, 'role': 'author'}],
+            'category_id': category_id
+        }
+        expression = ExpressionModelInput.model_validate(expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        response = client.put(
+            f'/v2/texts/{expression_id}',
+            content_type='application/json',
+        )
+
+        assert response.status_code == 400
 

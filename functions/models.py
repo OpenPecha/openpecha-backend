@@ -236,6 +236,27 @@ class ExpressionModelOutput(ExpressionModelBase):
     contributions: list[ContributionModelOutput | AIContributionModel]
 
 
+class ExpressionUpdateModel(OpenPechaModel):
+    """Model for partial updates to an expression. All fields are optional."""
+    bdrc: str | None = None
+    wiki: str | None = None
+    date: NonEmptyStr | None = None
+    title: LocalizedString | None = None
+    alt_titles: list[LocalizedString] | None = None
+    copyright: CopyrightStatus | None = None
+    license: LicenseType | None = None
+    contributions: list[ContributionModelInput | AIContributionModel] | None = None
+
+    @model_validator(mode="after")
+    def validate_at_least_one_field(self):
+        """Ensure at least one field is provided for update."""
+        fields = [self.bdrc, self.wiki, self.date, self.title, self.alt_titles, 
+                  self.copyright, self.license, self.contributions]
+        if all(f is None for f in fields):
+            raise ValueError("At least one field must be provided for update")
+        return self
+
+
 class ManifestationModelBase(OpenPechaModel):
     id: str | None = None
     bdrc: str | None = None

@@ -126,7 +126,7 @@ END
             alt_titles: [{Queries.alternative_nomen(label, 'HAS_TITLE')}],
             language: [({label})-[:HAS_LANGUAGE]->(ef_lang:Language) | ef_lang.code][0],
             category_id: [({label})-[:EXPRESSION_OF]->(ef_work:Work)-[:BELONGS_TO]->(ef_cat:Category) | ef_cat.id][0],
-            copyright: [({label})-[:HAS_COPYRIGHT]->(ef_copyright:Copyright) | ef_copyright.name][0],
+            copyright: [({label})-[:HAS_COPYRIGHT]->(ef_copyright:Copyright) | ef_copyright.status][0],
             license: [({label})-[:HAS_LICENSE]->(ef_license:License) | ef_license.name][0]
         }}
         """
@@ -199,6 +199,96 @@ Queries.expressions = {
         }}
     ))
 
+    OFFSET $offset
+    LIMIT $limit
+
+    RETURN {Queries.expression_fragment('e')} AS expression
+""",
+    "fetch_all_fuzzy_title": f"""
+    // Cypher 25 - Search by title using CONTAINS (works for all languages including Tibetan)
+    MATCH (e:Expression)
+    WHERE ($title IS NULL OR (
+        EXISTS {{
+            MATCH (e)-[:HAS_TITLE]->(titleNomen:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
+            WHERE toLower(lt.text) CONTAINS toLower($title)
+        }}
+        OR EXISTS {{
+            MATCH (e)-[:HAS_TITLE]->(:Nomen)<-[:ALTERNATIVE_OF]-(altNomen:Nomen)
+                  -[:HAS_LOCALIZATION]->(lt:LocalizedText)
+            WHERE toLower(lt.text) CONTAINS toLower($title)
+        }}
+    ))
+    AND ($type IS NULL OR {Queries.get_expression_type('e')} = $type)
+    AND ($language IS NULL OR [(e)-[:HAS_LANGUAGE]->(l:Language) | l.code][0] = $language)
+    
+    WITH DISTINCT e
+    OFFSET $offset
+    LIMIT $limit
+
+    RETURN {Queries.expression_fragment('e')} AS expression
+""",
+    "fetch_all_fuzzy_author": f"""
+    // Cypher 25 - Search by author using CONTAINS (works for all languages including Tibetan)
+    MATCH (e:Expression)
+    WHERE ($author IS NULL OR (
+        EXISTS {{
+            MATCH (e)-[:HAS_CONTRIBUTION]->(contrib:Contribution)-[:WITH_ROLE]->(role:RoleType)
+            WHERE role.name = 'author'
+            MATCH (contrib)-[:BY]->(person:Person)-[:HAS_NAME]->(nameNomen:Nomen)
+                  -[:HAS_LOCALIZATION]->(nameText:LocalizedText)
+            WHERE toLower(nameText.text) CONTAINS toLower($author)
+        }}
+        OR EXISTS {{
+            MATCH (e)-[:HAS_CONTRIBUTION]->(contrib:Contribution)-[:WITH_ROLE]->(role:RoleType)
+            WHERE role.name = 'author'
+            MATCH (contrib)-[:BY]->(person:Person)-[:HAS_NAME]->(:Nomen)<-[:ALTERNATIVE_OF]-(altName:Nomen)
+                  -[:HAS_LOCALIZATION]->(altNameText:LocalizedText)
+            WHERE toLower(altNameText.text) CONTAINS toLower($author)
+        }}
+    ))
+    AND ($type IS NULL OR {Queries.get_expression_type('e')} = $type)
+    AND ($language IS NULL OR [(e)-[:HAS_LANGUAGE]->(l:Language) | l.code][0] = $language)
+    
+    WITH DISTINCT e
+    OFFSET $offset
+    LIMIT $limit
+
+    RETURN {Queries.expression_fragment('e')} AS expression
+""",
+    "fetch_all_fuzzy_both": f"""
+    // Cypher 25 - Search by BOTH title AND author using CONTAINS (must match both)
+    MATCH (e:Expression)
+    WHERE (
+        EXISTS {{
+            MATCH (e)-[:HAS_TITLE]->(titleNomen:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
+            WHERE toLower(lt.text) CONTAINS toLower($title)
+        }}
+        OR EXISTS {{
+            MATCH (e)-[:HAS_TITLE]->(:Nomen)<-[:ALTERNATIVE_OF]-(altNomen:Nomen)
+                  -[:HAS_LOCALIZATION]->(lt:LocalizedText)
+            WHERE toLower(lt.text) CONTAINS toLower($title)
+        }}
+    )
+    AND (
+        EXISTS {{
+            MATCH (e)-[:HAS_CONTRIBUTION]->(contrib:Contribution)-[:WITH_ROLE]->(role:RoleType)
+            WHERE role.name = 'author'
+            MATCH (contrib)-[:BY]->(person:Person)-[:HAS_NAME]->(nameNomen:Nomen)
+                  -[:HAS_LOCALIZATION]->(nameText:LocalizedText)
+            WHERE toLower(nameText.text) CONTAINS toLower($author)
+        }}
+        OR EXISTS {{
+            MATCH (e)-[:HAS_CONTRIBUTION]->(contrib:Contribution)-[:WITH_ROLE]->(role:RoleType)
+            WHERE role.name = 'author'
+            MATCH (contrib)-[:BY]->(person:Person)-[:HAS_NAME]->(:Nomen)<-[:ALTERNATIVE_OF]-(altName:Nomen)
+                  -[:HAS_LOCALIZATION]->(altNameText:LocalizedText)
+            WHERE toLower(altNameText.text) CONTAINS toLower($author)
+        }}
+    )
+    AND ($type IS NULL OR {Queries.get_expression_type('e')} = $type)
+    AND ($language IS NULL OR [(e)-[:HAS_LANGUAGE]->(l:Language) | l.code][0] = $language)
+    
+    WITH DISTINCT e
     OFFSET $offset
     LIMIT $limit
 
@@ -362,6 +452,50 @@ WITH e, lc_rel
 DELETE lc_rel
 MATCH (license:License {name: $license})
 MERGE (e)-[:HAS_LICENSE]->(license)
+RETURN e.id as expression_id
+""",
+    "update_expression_properties": """
+MATCH (e:Expression {id: $expression_id})
+SET e.bdrc = COALESCE($bdrc, e.bdrc),
+    e.wiki = COALESCE($wiki, e.wiki),
+    e.date = COALESCE($date, e.date)
+RETURN e.id as expression_id
+""",
+    "update_copyright": """
+MATCH (e:Expression {id: $expression_id})
+OPTIONAL MATCH (e)-[cp_rel:HAS_COPYRIGHT]->(old_copyright:Copyright)
+WITH e, cp_rel
+DELETE cp_rel
+MATCH (copyright:Copyright {status: $copyright})
+MERGE (e)-[:HAS_COPYRIGHT]->(copyright)
+RETURN e.id as expression_id
+""",
+    "add_contribution": """
+MATCH (e:Expression {id: $expression_id})
+MATCH (person:Person {id: $person_id})
+MATCH (role:RoleType {name: $role})
+CREATE (contrib:Contribution)
+CREATE (e)-[:HAS_CONTRIBUTION]->(contrib)
+CREATE (contrib)-[:BY]->(person)
+CREATE (contrib)-[:WITH_ROLE]->(role)
+RETURN e.id as expression_id
+""",
+    "remove_contribution": """
+MATCH (e:Expression {id: $expression_id})-[:HAS_CONTRIBUTION]->(contrib:Contribution)
+      -[:BY]->(person:Person {id: $person_id})
+MATCH (contrib)-[:WITH_ROLE]->(role:RoleType {name: $role})
+DETACH DELETE contrib
+RETURN e.id as expression_id
+""",
+    "get_existing_contributions": """
+MATCH (e:Expression {id: $expression_id})-[:HAS_CONTRIBUTION]->(contrib:Contribution)
+      -[:BY]->(person:Person)
+MATCH (contrib)-[:WITH_ROLE]->(role:RoleType)
+RETURN person.id as person_id, role.name as role
+""",
+    "clear_all_contributions": """
+MATCH (e:Expression {id: $expression_id})-[:HAS_CONTRIBUTION]->(contrib:Contribution)
+DETACH DELETE contrib
 RETURN e.id as expression_id
 """,
 }
