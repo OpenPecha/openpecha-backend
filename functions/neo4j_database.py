@@ -1904,6 +1904,16 @@ class Neo4JDatabase:
                 ).consume()
             )
 
+    def clear_all_alt_titles(self, expression_id: str) -> None:
+        """Clear all alternative titles from an expression."""
+        with self.get_session() as session:
+            session.execute_write(
+                lambda tx: tx.run(
+                    Queries.expressions["clear_all_alt_titles"],
+                    expression_id=expression_id
+                ).consume()
+            )
+
     def update_expression(self, expression_id: str, update_data: dict) -> None:
         """
         Update an expression with the provided data.
@@ -1937,8 +1947,11 @@ class Neo4JDatabase:
             for lang_code, text in title_dict.items():
                 self.update_title(expression_id, {"lang_code": lang_code, "text": text})
         
-        # Update alt_titles
+        # Update alt_titles (replace all)
         if "alt_titles" in update_data and update_data["alt_titles"] is not None:
+            # Clear existing alt_titles
+            self.clear_all_alt_titles(expression_id)
+            # Add new alt_titles
             for alt_title in update_data["alt_titles"]:
                 for lang_code, text in alt_title.items():
                     self.update_alt_title(expression_id, {"lang_code": lang_code, "text": text})

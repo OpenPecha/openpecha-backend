@@ -311,7 +311,7 @@ def update_text(expression_id: str) -> tuple[Response, int]:
     - wiki: Wikipedia/Wikidata identifier
     - date: Date information
     - title: Primary title (localized string)
-    - alt_titles: Alternative titles (list of localized strings)
+    - alt_titles: Alternative titles (list of localized strings, replaces existing)
     - copyright: Copyright status
     - license: License type
     - contributions: List of contributions (replaces existing)
