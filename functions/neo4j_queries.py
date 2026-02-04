@@ -498,6 +498,12 @@ MATCH (e:Expression {id: $expression_id})-[:HAS_CONTRIBUTION]->(contrib:Contribu
 DETACH DELETE contrib
 RETURN e.id as expression_id
 """,
+    "clear_all_alt_titles": """
+MATCH (e:Expression {id: $expression_id})-[:HAS_TITLE]->(primary_nomen:Nomen)
+OPTIONAL MATCH (primary_nomen)<-[:ALTERNATIVE_OF]-(alt_nomen:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
+DETACH DELETE alt_nomen, lt
+RETURN e.id as expression_id
+""",
 }
 
 Queries.persons = {

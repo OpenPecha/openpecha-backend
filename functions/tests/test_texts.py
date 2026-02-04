@@ -2414,6 +2414,63 @@ class TestUpdateTextV2:
         assert any(alt.get("en") == "Alternative Title 1" for alt in alt_titles)
         assert any(alt.get("en") == "Alternative Title 2" for alt in alt_titles)
 
+    def test_update_text_alt_titles_replaces_existing(self, client, test_database, test_person_data):
+        """Test that updating alt_titles replaces all existing alt_titles (not appends)."""
+        person = PersonModelInput.model_validate(test_person_data)
+        person_id = test_database.create_person(person)
+
+        category_id = test_database.create_category(
+            application='test_application',
+            title={'en': 'Test Category', 'bo': 'ཚིག་སྒྲུབ་གསར་པ།'}
+        )
+
+        # Create expression with initial alt_titles
+        expression_data = {
+            'type': 'root',
+            'title': {'en': 'Primary Title'},
+            'alt_titles': [{'en': 'Old Alt Title 1'}, {'bo': 'གཞན་མཚན་བྱང་རྙིང་པ།'}],
+            'language': 'en',
+            'contributions': [{'person_id': person_id, 'role': 'author'}],
+            'category_id': category_id
+        }
+        expression = ExpressionModelInput.model_validate(expression_data)
+        expression_id = test_database.create_expression(expression)
+
+        # Verify initial alt_titles exist
+        initial_response = client.get(f"/v2/texts/{expression_id}")
+        assert initial_response.status_code == 200
+        initial_data = json.loads(initial_response.data)
+        initial_alt_titles = initial_data.get("alt_titles") or []
+        assert any(alt.get("en") == "Old Alt Title 1" for alt in initial_alt_titles)
+        assert any(alt.get("bo") == "གཞན་མཚན་བྱང་རྙིང་པ།" for alt in initial_alt_titles)
+
+        # Update with new alt_titles (should replace, not append)
+        update_data = {
+            "alt_title": {
+                "en": ["New Alt Title 1", "New Alt Title 2"],
+            }
+        }
+        response = client.put(
+            f"/v2/texts/{expression_id}",
+            data=json.dumps(update_data),
+            content_type="application/json",
+        )
+        assert response.status_code == 200
+
+        # Verify old alt_titles are removed and only new ones exist
+        verify_response = client.get(f"/v2/texts/{expression_id}")
+        assert verify_response.status_code == 200
+        verify_data = json.loads(verify_response.data)
+        alt_titles = verify_data.get("alt_titles") or []
+
+        # New alt_titles should exist
+        assert any(alt.get("en") == "New Alt Title 1" for alt in alt_titles)
+        assert any(alt.get("en") == "New Alt Title 2" for alt in alt_titles)
+
+        # Old alt_titles should be gone (replaced, not appended)
+        assert not any(alt.get("en") == "Old Alt Title 1" for alt in alt_titles)
+        assert not any(alt.get("bo") == "གཞན་མཚན་བྱང་རྙིང་པ།" for alt in alt_titles)
+
     def test_update_text_multiple_fields(self, client, test_database, test_person_data):
         """Test updating multiple fields at once"""
         person = PersonModelInput.model_validate(test_person_data)
