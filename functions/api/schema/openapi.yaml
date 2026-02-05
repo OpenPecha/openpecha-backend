@@ -424,6 +424,18 @@ paths:
                               person_id:
                                 type: string
                                 description: Person identifier (for person contributions)
+                              person_name:
+                                type: object
+                                description: Person primary name (localized)
+                                additionalProperties:
+                                  type: string
+                              alt_names:
+                                type: array
+                                description: Person alternative names (localized)
+                                items:
+                                  type: object
+                                  additionalProperties:
+                                    type: string
                               ai_id:
                                 type: string
                                 description: AI identifier (for AI contributions)
@@ -457,6 +469,10 @@ paths:
                         contributions:
                           - person_id: "P12345678"
                             role: "translator"
+                            person_name:
+                              en: "Example Person"
+                            alt_names:
+                              - en: "Alt Name"
                           - person_id: "P87654321"
                             role: "reviser"
                       annotation: "A98765432"
@@ -1714,6 +1730,18 @@ paths:
                             type: string
                           ai_id:
                             type: string
+                          person_name:
+                            type: object
+                            additionalProperties:
+                              type: string
+                            description: Person primary name (localized)
+                          alt_names:
+                            type: array
+                            items:
+                              type: object
+                              additionalProperties:
+                                type: string
+                            description: Person alternative names (localized)
                           role:
                             type: string
                             enum: [author, translator, reviser, scholar]
@@ -1744,6 +1772,10 @@ paths:
                       contributions:
                         - person_id: "P12345678"
                           role: "author"
+                          person_name:
+                            en: "Example Person"
+                          alt_names:
+                            - en: "Alt Name"
                       date: "2024-01-01"
                       bdrc: "W123456"
                       copyright: "Public domain"
@@ -1998,6 +2030,18 @@ paths:
                           type: string
                         ai_id:
                           type: string
+                        person_name:
+                          type: object
+                          additionalProperties:
+                            type: string
+                          description: Person primary name (localized)
+                        alt_names:
+                          type: array
+                          items:
+                            type: object
+                            additionalProperties:
+                              type: string
+                          description: Person alternative names (localized)
                         role:
                           type: string
                           enum: [author, translator, reviser, scholar]
@@ -2028,6 +2072,10 @@ paths:
                     contributions:
                       - person_id: "P12345678"
                         role: "author"
+                        person_name:
+                          en: "Example Person"
+                        alt_names:
+                          - en: "Alt Name"
                     date: "2024-01-01"
                     bdrc: "W123456"
                     copyright: "Public domain"

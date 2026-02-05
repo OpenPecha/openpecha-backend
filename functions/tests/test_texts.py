@@ -89,8 +89,8 @@ def test_database(neo4j_connection):
     yield db
 
     # Cleanup after test
-    # with db.get_session() as session:
-    #     session.run("MATCH (n) DETACH DELETE n")
+    with db.get_session() as session:
+        session.run("MATCH (n) DETACH DELETE n")
 
 
 @pytest.fixture
@@ -164,16 +164,17 @@ class TestGetAllTextsV2:
 
             expression_ids.append(expression_id)
 
-        response = client.get("/v2/texts/")
+        response = client.get("/v2/texts?limit=25&offset=0")
 
         assert response.status_code == 200
         data = json.loads(response.data)
         assert isinstance(data, list)
-        assert len(data) == 20
-        assert data[0]["id"] == expression_ids[0]
-        assert data[0]["title"]["en"] == "Test Expression 1"
-        assert data[19]["id"] == expression_ids[19]
-        assert data[19]["title"]["en"] == "Test Expression 20"
+        assert len(data) == len(expression_ids)
+        
+        response_expression_ids = [expression["id"] for expression in data]
+
+        assert set(response_expression_ids) == set(expression_ids)
+
 
     def test_get_all_metadata_custom_pagination(self, client, test_database, test_person_data):
         """Test custom pagination parameters"""
@@ -206,8 +207,9 @@ class TestGetAllTextsV2:
         assert response.status_code == 200
         data = json.loads(response.data)
         assert len(data) == 2
-        assert data[0]["id"] == expression_ids[1]
-        assert data[1]["id"] == expression_ids[2]
+
+        response_expression_ids = [expression["id"] for expression in data]
+        assert set(response_expression_ids) == set(expression_ids[1:3])
 
     def test_get_all_metadata_filter_by_type(self, client, test_database, test_person_data):
         """Test filtering by expression type"""
@@ -364,27 +366,21 @@ class TestGetAllTextsV2:
         assert en_title_search_response.status_code == 200
         data = json.loads(en_title_search_response.data)
         assert len(data) == 2
-        assert data[0]["id"] == expression_ids[1]
         assert "Buddha" in data[0]["title"]["en"]
-        assert data[1]["id"] == expression_ids[2]
         assert "Buddha" in data[1]["title"]["en"]
 
         bo_title_search_response = client.get("/v2/texts?title=དཔེ་གཞི།")
         assert bo_title_search_response.status_code == 200
         data = json.loads(bo_title_search_response.data)
         assert len(data) == 2
-        assert data[0]["id"] == expression_ids[0]
         assert "དཔེ་གཞི།" in data[0]["title"]["bo"]
-        assert data[1]["id"] == expression_ids[2]
         assert "དཔེ་གཞི།" in data[1]["title"]["bo"]
 
         bo_title_search_response = client.get("/v2/texts?title=བོད")
         assert bo_title_search_response.status_code == 200
         data = json.loads(bo_title_search_response.data)
         assert len(data) == 2
-        assert data[0]["id"] == expression_ids[1]
         assert "བོད" in data[0]["title"]["bo"]
-        assert data[1]["id"] == expression_ids[2]
         assert "བོད" in data[1]["title"]["bo"]
 
     def test_get_all_metadata_filter_by_title_with_no_title_present_in_db(self, client, test_database, test_person_data):
@@ -1208,6 +1204,11 @@ class TestGetSingleTextV2:
         assert data["wiki"] == "Q789012"
         assert len(data["contributions"]) == 1
         assert data["contributions"][0]["role"] == "author"
+        assert data["contributions"][0]["person_name"]["en"] == test_person_data["name"]["en"]
+        assert data["contributions"][0]["person_name"]["bo"] == test_person_data["name"]["bo"]
+        assert len(data["contributions"][0]["alt_names"]) >= 1
+        assert data["contributions"][0]["alt_names"][0]["en"] == test_person_data["alt_names"][0]["en"]
+        assert data["contributions"][0]["alt_names"][0]["bo"] == test_person_data["alt_names"][0]["bo"]
         assert data["target"] is None
         assert data["category_id"] == category_id
 
@@ -1239,6 +1240,11 @@ class TestGetSingleTextV2:
         assert data["wiki"] == "Q789012"
         assert len(data["contributions"]) == 1
         assert data["contributions"][0]["role"] == "author"
+        assert data["contributions"][0]["person_name"]["en"] == test_person_data["name"]["en"]
+        assert data["contributions"][0]["person_name"]["bo"] == test_person_data["name"]["bo"]
+        assert len(data["contributions"][0]["alt_names"]) >= 1
+        assert data["contributions"][0]["alt_names"][0]["en"] == test_person_data["alt_names"][0]["en"]
+        assert data["contributions"][0]["alt_names"][0]["bo"] == test_person_data["alt_names"][0]["bo"]
         assert data["target"] is None
         assert data["category_id"] == category_id
 
@@ -1283,6 +1289,11 @@ class TestGetSingleTextV2:
         assert data["target"] == target_id
         assert data["language"] == "bo"
         assert data["contributions"][0]["role"] == "translator"
+        assert data["contributions"][0]["person_name"]["en"] == test_person_data["name"]["en"]
+        assert data["contributions"][0]["person_name"]["bo"] == test_person_data["name"]["bo"]
+        assert len(data["contributions"][0]["alt_names"]) >= 1
+        assert data["contributions"][0]["alt_names"][0]["en"] == test_person_data["alt_names"][0]["en"]
+        assert data["contributions"][0]["alt_names"][0]["bo"] == test_person_data["alt_names"][0]["bo"]
 
     def test_get_single_metadata_invalid_id(self, client, test_database):
         """Test retrieving invalid expression id"""

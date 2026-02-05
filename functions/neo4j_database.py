@@ -1085,12 +1085,22 @@ class Neo4JDatabase:
                     if person_name_dict:
                         person_name = LocalizedString(person_name_dict)
 
+                alt_names = None
+                if alt_name_lists := c.get("alt_names"):
+                    alt_names_models: list[LocalizedString] = []
+                    for alt in alt_name_lists or []:
+                        alt_dict = self.__convert_to_localized_text(alt)
+                        if alt_dict:
+                            alt_names_models.append(LocalizedString(alt_dict))
+                    alt_names = alt_names_models or None
+
                 out.append(
                     ContributionModelOutput(
                         person_id=c.get("person_id"),
                         person_bdrc_id=c.get("person_bdrc_id"),
                         role=c["role"],
                         person_name=person_name,
+                        alt_names=alt_names,
                     )
                 )
         return out

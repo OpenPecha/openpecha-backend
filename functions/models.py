@@ -124,6 +124,7 @@ class ContributionModelInput(ContributionModel):
 
 class ContributionModelOutput(ContributionModel):
     person_name: LocalizedString
+    alt_names: list[LocalizedString] | None = None
 
 
 class AnnotationModel(OpenPechaModel):
