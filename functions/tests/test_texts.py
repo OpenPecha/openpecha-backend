@@ -89,8 +89,8 @@ def test_database(neo4j_connection):
     yield db
 
     # Cleanup after test
-    with db.get_session() as session:
-        session.run("MATCH (n) DETACH DELETE n")
+    # with db.get_session() as session:
+    #     session.run("MATCH (n) DETACH DELETE n")
 
 
 @pytest.fixture
@@ -2381,8 +2381,8 @@ class TestUpdateTextV2:
         verify_data = json.loads(verify_response.data)
         assert verify_data['title']['en'] == 'Updated Title'
 
-    def test_update_text_alt_title_dict_of_lists(self, client, test_database, test_person_data):
-        """Test updating alt titles via `alt_title` (dict-of-lists), like /title endpoint."""
+    def test_update_text_alt_titles_array(self, client, test_database, test_person_data):
+        """Test updating alt titles via `alt_titles` (array of localized objects)."""
         person = PersonModelInput.model_validate(test_person_data)
         person_id = test_database.create_person(person)
 
@@ -2402,10 +2402,12 @@ class TestUpdateTextV2:
         expression_id = test_database.create_expression(expression)
 
         update_data = {
-            "alt_title": {
-                "bo": ["མཚན་བྱང་གཞན།-1", "མཚན་བྱང་གཞན།-2"],
-                "en": ["Alternative Title 1", "Alternative Title 2"],
-            }
+            "alt_titles": [
+                {"bo": "མཚན་བྱང་གཞན།-1"},
+                {"bo": "མཚན་བྱང་གཞན།-2"},
+                {"en": "Alternative Title 1"},
+                {"en": "Alternative Title 2"},
+            ]
         }
         response = client.put(
             f"/v2/texts/{expression_id}",
@@ -2457,9 +2459,10 @@ class TestUpdateTextV2:
 
         # Update with new alt_titles (should replace, not append)
         update_data = {
-            "alt_title": {
-                "en": ["New Alt Title 1", "New Alt Title 2"],
-            }
+            "alt_titles": [
+                {"en": "New Alt Title 1"},
+                {"en": "New Alt Title 2"},
+            ]
         }
         response = client.put(
             f"/v2/texts/{expression_id}",

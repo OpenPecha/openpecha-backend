@@ -2096,8 +2096,7 @@ paths:
         - wiki: Wikipedia/Wikidata identifier
         - date: Date information
         - title: Primary title (localized string with language codes as keys)
-        - alt_titles: Alternative titles (list of localized strings)
-        - alt_title: Alternative titles (dictionary with language code keys; values can be string or array of strings)
+        - alt_titles: Alternative titles (list of localized strings, replaces existing)
         - copyright: Copyright status
         - license: License type
         - contributions: List of contributions (replaces all existing contributions)
@@ -2139,27 +2138,14 @@ paths:
                     bo: "བྱང་ཆུབ་ལམ་རིམ་ཆེན་མོ།"
                 alt_titles:
                   type: array
-                  description: Alternative titles
+                  description: Alternative titles (list of localized strings, replaces existing)
                   items:
                     type: object
                     additionalProperties:
                       type: string
                   example:
                     - bo: "ལམ་རིམ་ཆེན་མོ།"
-                alt_title:
-                  type: object
-                  description: >-
-                    Dictionary with language code as key and alternative title(s) as value.
-                    Values can be a single string or an array of strings for multiple alt titles per language.
-                  additionalProperties:
-                    oneOf:
-                      - type: string
-                      - type: array
-                        items:
-                          type: string
-                  example:
-                    bo: ["མཚན་བྱང་གཞན།-1", "མཚན་བྱང་གཞན།-2"]
-                    en: ["Alternative Title 1", "Alternative Title 2"]
+                    - en: "Alternative Title"
                 copyright:
                   type: string
                   description: Copyright status
@@ -2200,16 +2186,14 @@ paths:
                   title:
                     en: "Updated Title"
                     bo: "མཚན་བྱང་གསར་པ།"
-              update_alt_title:
-                summary: Update alt_title
+              update_alt_titles:
+                summary: Update alt_titles
                 value:
-                  alt_title:
-                    bo:
-                      - "མཚན་བྱང་གཞན།-1"
-                      - "མཚན་བྱང་གཞན།-2"
-                    en:
-                      - "Alternative Title 1"
-                      - "Alternative Title 2"
+                  alt_titles:
+                    - bo: "མཚན་བྱང་གཞན།-1"
+                    - bo: "མཚན་བྱང་གཞན།-2"
+                    - en: "Alternative Title 1"
+                    - en: "Alternative Title 2"
               update_copyright_and_license:
                 summary: Update copyright and license
                 value:
