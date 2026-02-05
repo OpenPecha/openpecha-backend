@@ -113,7 +113,8 @@ END
                     person_id: ef_person.id,
                     person_bdrc_id: ef_person.bdrc,
                     role: [(ef_contrib)-[:WITH_ROLE]->(ef_role:RoleType) | ef_role.name][0],
-                    person_name: [{Queries.primary_nomen('ef_person', 'HAS_NAME')}]
+                    person_name: [{Queries.primary_nomen('ef_person', 'HAS_NAME')}],
+                    alt_names: [{Queries.alternative_nomen('ef_person', 'HAS_NAME')}]
                 }}]
                 +
                 [({label})-[:HAS_CONTRIBUTION]->(ef_contrib:Contribution)-[:BY]->(ef_ai:AI) | {{
