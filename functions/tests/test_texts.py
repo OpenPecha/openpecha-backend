@@ -89,8 +89,8 @@ def test_database(neo4j_connection):
     yield db
 
     # Cleanup after test
-    # with db.get_session() as session:
-    #     session.run("MATCH (n) DETACH DELETE n")
+    with db.get_session() as session:
+        session.run("MATCH (n) DETACH DELETE n")
 
 
 @pytest.fixture
