@@ -5,7 +5,7 @@ import requests
 from api.decorators import validate_json, validate_query_params
 from database import Database
 from flask import Blueprint, Response, jsonify
-from models import AnnotationType
+from models import AnnotationType, DeleteOperation, InsertOperation, ReplaceOperation, TextOperation
 from request_models import (
     AnnotationRequestInput,
     AnnotationRequestOutput,
@@ -164,3 +164,56 @@ def delete_edition(manifestation_id: str) -> tuple[str, int]:
         Storage().delete_base_text(expression_id=manifestation.text_id, manifestation_id=manifestation_id)
 
     return "", 204
+
+
+@editions_bp.route("/<string:manifestation_id>/content", methods=["PATCH"], strict_slashes=False)
+@validate_json(TextOperation)
+def patch_content(manifestation_id: str, validated_data: TextOperation) -> tuple[Response, int]:
+    """Apply a text operation (INSERT, DELETE, or REPLACE) to the edition's content."""
+    op = validated_data.operation
+    logger.info("Applying %s operation to manifestation %s", op.type, manifestation_id)
+
+    with Database() as db:
+        manifestation = db.manifestation.get(manifestation_id=manifestation_id)
+        storage = Storage()
+
+        if isinstance(op, InsertOperation):
+            storage.apply_insert(
+                expression_id=manifestation.text_id,
+                manifestation_id=manifestation_id,
+                position=op.position,
+                text=op.text,
+            )
+            db.span.adjust_spans_for_insert(
+                manifestation_id=manifestation_id,
+                position=op.position,
+                length=len(op.text),
+            )
+        elif isinstance(op, DeleteOperation):
+            storage.apply_delete(
+                expression_id=manifestation.text_id,
+                manifestation_id=manifestation_id,
+                start=op.start,
+                end=op.end,
+            )
+            db.span.adjust_spans_for_delete(
+                manifestation_id=manifestation_id,
+                start=op.start,
+                end=op.end,
+            )
+        elif isinstance(op, ReplaceOperation):
+            storage.apply_replace(
+                expression_id=manifestation.text_id,
+                manifestation_id=manifestation_id,
+                start=op.start,
+                end=op.end,
+                text=op.text,
+            )
+            db.span.adjust_spans_for_replace(
+                manifestation_id=manifestation_id,
+                start=op.start,
+                end=op.end,
+                new_len=len(op.text),
+            )
+
+    return jsonify({"message": "Operation applied successfully"}), 200

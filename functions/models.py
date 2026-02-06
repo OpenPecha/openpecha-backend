@@ -1,6 +1,6 @@
 from collections.abc import Sequence
 from enum import Enum
-from typing import Annotated, Any, Self, TypeVar
+from typing import Annotated, Any, Literal, Self, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, RootModel, StrictStr, StringConstraints, model_validator
 
@@ -514,3 +514,48 @@ class SearchResponseModel(OpenPechaModel):
 
 class SegmentContentInput(OpenPechaModel):
     content: str = Field(..., min_length=1)
+
+
+class TextOperationBase(BaseModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=False)
+
+
+class InsertOperation(TextOperationBase):
+    type: Literal["insert"]
+    position: int = Field(..., ge=0, description="Position for INSERT operation")
+    text: str = Field(..., min_length=1, description="Text to insert")
+
+
+class DeleteOperation(TextOperationBase):
+    type: Literal["delete"]
+    start: int = Field(..., ge=0, description="Start position for DELETE operation")
+    end: int = Field(..., ge=1, description="End position for DELETE operation")
+
+    @model_validator(mode="after")
+    def validate_range(self) -> Self:
+        if self.start >= self.end:
+            raise ValueError("'start' must be less than 'end'")
+        return self
+
+
+class ReplaceOperation(TextOperationBase):
+    type: Literal["replace"]
+    start: int = Field(..., ge=0, description="Start position for REPLACE operation")
+    end: int = Field(..., ge=1, description="End position for REPLACE operation")
+    text: str = Field(..., min_length=1, description="Replacement text")
+
+    @model_validator(mode="after")
+    def validate_range(self) -> Self:
+        if self.start >= self.end:
+            raise ValueError("'start' must be less than 'end'")
+        return self
+
+
+class TextOperation(
+    RootModel[Annotated[InsertOperation | DeleteOperation | ReplaceOperation, Field(discriminator="type")]]
+):
+    """Text operation wrapper using discriminated union."""
+
+    @property
+    def operation(self) -> InsertOperation | DeleteOperation | ReplaceOperation:
+        return self.root

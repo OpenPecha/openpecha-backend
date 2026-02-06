@@ -81,6 +81,14 @@ class OptionalSpanQueryParams(OpenPechaModel):
 class AnnotationTypeFilter(OpenPechaModel):
     type: list[AnnotationType] = Field(default_factory=lambda: list(AnnotationType))
 
+    @model_validator(mode="before")
+    @classmethod
+    def coerce_type_to_list(cls, data: dict) -> dict:
+        """Coerce single type string to list for query parameter handling."""
+        if isinstance(data, dict) and "type" in data and isinstance(data["type"], str):
+            data["type"] = [data["type"]]
+        return data
+
 
 class AnnotationRequestInput(OpenPechaModel):
     segmentation: SegmentationInput | None = None

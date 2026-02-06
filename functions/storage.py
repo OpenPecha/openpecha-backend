@@ -118,3 +118,21 @@ class Storage:
         current_text = self.retrieve_base_text(expression_id, manifestation_id)
         updated_text = current_text[:start] + new_content + current_text[end:]
         return self.store_base_text(expression_id, manifestation_id, updated_text)
+
+    def apply_insert(self, expression_id: str, manifestation_id: str, position: int, text: str) -> str:
+        """Insert text at the specified position."""
+        current_text = self.retrieve_base_text(expression_id, manifestation_id)
+        updated_text = current_text[:position] + text + current_text[position:]
+        return self.store_base_text(expression_id, manifestation_id, updated_text)
+
+    def apply_delete(self, expression_id: str, manifestation_id: str, start: int, end: int) -> str:
+        """Delete text in the specified range [start, end)."""
+        current_text = self.retrieve_base_text(expression_id, manifestation_id)
+        updated_text = current_text[:start] + current_text[end:]
+        return self.store_base_text(expression_id, manifestation_id, updated_text)
+
+    def apply_replace(self, expression_id: str, manifestation_id: str, start: int, end: int, text: str) -> str:
+        """Replace text in the specified range [start, end) with new text."""
+        current_text = self.retrieve_base_text(expression_id, manifestation_id)
+        updated_text = current_text[:start] + text + current_text[end:]
+        return self.store_base_text(expression_id, manifestation_id, updated_text)

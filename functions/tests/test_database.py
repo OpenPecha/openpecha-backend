@@ -937,225 +937,448 @@ class TestSpanDatabase:
                 return None
             return (result["start"], result["end"])
 
-    def test_update_span_end(self, test_database):
-        """Test updating a segment's span end position."""
-        setup = self._create_test_setup(test_database)
 
-        test_database.span.update_span_end(setup["segment_id"], 20)
+class TestSpanAdjustmentFunctions:
+    """Unit tests for the new span adjustment helper functions."""
 
-        span = self._get_span(test_database, setup["segment_id"])
-        assert span == (0, 20)
+    def test_continuous_insert_at_position_zero_expands_first_segment(self):
+        """Insert at position 0 should expand first continuous span (start=0)."""
+        from database.span_database import _adjust_continuous_for_insert
 
-    def test_adjust_shifts_subsequent_segment(self, test_database):
-        """Test that subsequent segments are shifted when content grows."""
-        setup = self._create_test_setup(test_database)
-        second_segment_id = self._add_second_segment(test_database, setup["manifestation_id"], 13, 28)
+        result = _adjust_continuous_for_insert(start=0, end=10, insert_pos=0, insert_len=5)
+        assert result == (0, 15)
 
-        test_database.span.adjust_affected_spans(
-            manifestation_id=setup["manifestation_id"],
-            replace_start=0,
-            replace_end=12,
-            new_length=20,
-            exclude_entity_id=setup["segment_id"],
+    def test_continuous_insert_at_position_zero_shifts_non_first_segment(self):
+        """Insert at position 0 should shift continuous spans that don't start at 0."""
+        from database.span_database import _adjust_continuous_for_insert
+
+        result = _adjust_continuous_for_insert(start=5, end=15, insert_pos=0, insert_len=5)
+        assert result == (10, 20)
+
+    def test_continuous_insert_at_start_boundary_shifts(self):
+        """Insert at continuous span start boundary should shift it."""
+        from database.span_database import _adjust_continuous_for_insert
+
+        result = _adjust_continuous_for_insert(start=10, end=20, insert_pos=10, insert_len=5)
+        assert result == (15, 25)
+
+    def test_continuous_insert_at_end_boundary_expands(self):
+        """Insert at continuous span end boundary should expand it."""
+        from database.span_database import _adjust_continuous_for_insert
+
+        result = _adjust_continuous_for_insert(start=10, end=20, insert_pos=20, insert_len=5)
+        assert result == (10, 25)
+
+    def test_continuous_insert_inside_expands(self):
+        """Insert inside continuous span should expand it."""
+        from database.span_database import _adjust_continuous_for_insert
+
+        result = _adjust_continuous_for_insert(start=10, end=20, insert_pos=15, insert_len=5)
+        assert result == (10, 25)
+
+    def test_continuous_insert_after_unchanged(self):
+        """Insert after continuous span should leave it unchanged."""
+        from database.span_database import _adjust_continuous_for_insert
+
+        result = _adjust_continuous_for_insert(start=10, end=20, insert_pos=25, insert_len=5)
+        assert result == (10, 20)
+
+    def test_annotation_insert_at_start_boundary_shifts(self):
+        """Insert at annotation start boundary should shift it."""
+        from database.span_database import _adjust_annotation_for_insert
+
+        result = _adjust_annotation_for_insert(start=10, end=20, insert_pos=10, insert_len=5)
+        assert result == (15, 25)
+
+    def test_annotation_insert_at_end_boundary_unchanged(self):
+        """Insert at annotation end boundary should leave it unchanged."""
+        from database.span_database import _adjust_annotation_for_insert
+
+        result = _adjust_annotation_for_insert(start=10, end=20, insert_pos=20, insert_len=5)
+        assert result == (10, 20)
+
+    def test_annotation_insert_inside_expands(self):
+        """Insert strictly inside annotation should expand it."""
+        from database.span_database import _adjust_annotation_for_insert
+
+        result = _adjust_annotation_for_insert(start=10, end=20, insert_pos=15, insert_len=5)
+        assert result == (10, 25)
+
+    def test_delete_fully_encompasses_returns_none(self):
+        """Delete that fully encompasses span should return None."""
+        from database.span_database import _adjust_span_for_delete
+
+        result = _adjust_span_for_delete(start=10, end=20, del_start=5, del_end=25)
+        assert result is None
+
+    def test_delete_before_shifts_left(self):
+        """Delete before span should shift it left."""
+        from database.span_database import _adjust_span_for_delete
+
+        result = _adjust_span_for_delete(start=20, end=30, del_start=5, del_end=10)
+        assert result == (15, 25)
+
+    def test_delete_after_unchanged(self):
+        """Delete after span should leave it unchanged."""
+        from database.span_database import _adjust_span_for_delete
+
+        result = _adjust_span_for_delete(start=10, end=20, del_start=25, del_end=30)
+        assert result == (10, 20)
+
+    def test_delete_overlaps_start_trims(self):
+        """Delete overlapping start should trim the span and shift."""
+        from database.span_database import _adjust_span_for_delete
+
+        # Span (10,20), delete [5,15): del_start <= start < del_end < end
+        # Result: (del_start, end - del_len) = (5, 20 - 10) = (5, 10)
+        result = _adjust_span_for_delete(start=10, end=20, del_start=5, del_end=15)
+        assert result == (5, 10)
+
+    def test_delete_overlaps_end_trims(self):
+        """Delete overlapping end should trim the span."""
+        from database.span_database import _adjust_span_for_delete
+
+        result = _adjust_span_for_delete(start=10, end=20, del_start=15, del_end=25)
+        assert result == (10, 15)
+
+    def test_delete_inside_shrinks(self):
+        """Delete inside span should shrink it."""
+        from database.span_database import _adjust_span_for_delete
+
+        result = _adjust_span_for_delete(start=10, end=30, del_start=15, del_end=20)
+        assert result == (10, 25)
+
+    def test_continuous_replace_exact_match_preserves(self):
+        """Replace exact match should preserve continuous span."""
+        from database.span_database import _adjust_continuous_for_replace
+
+        result = _adjust_continuous_for_replace(
+            start=10, end=20, replace_start=10, replace_end=20, new_len=15, is_first_encompassed=False
+        )
+        assert result == (10, 25)
+
+    def test_continuous_replace_encompasses_first_keeps(self):
+        """Replace encompassing first continuous span should keep it."""
+        from database.span_database import _adjust_continuous_for_replace
+
+        result = _adjust_continuous_for_replace(
+            start=10, end=20, replace_start=5, replace_end=25, new_len=10, is_first_encompassed=True
+        )
+        assert result == (5, 15)
+
+    def test_continuous_replace_encompasses_subsequent_deletes(self):
+        """Replace encompassing subsequent continuous spans should delete them."""
+        from database.span_database import _adjust_continuous_for_replace
+
+        result = _adjust_continuous_for_replace(
+            start=10, end=20, replace_start=5, replace_end=25, new_len=10, is_first_encompassed=False
+        )
+        assert result is None
+
+    def test_annotation_replace_exact_match_deletes(self):
+        """Replace exact match should delete annotation."""
+        from database.span_database import _adjust_annotation_for_replace
+
+        result = _adjust_annotation_for_replace(start=10, end=20, replace_start=10, replace_end=20, new_len=15)
+        assert result is None
+
+    def test_annotation_replace_encompasses_deletes(self):
+        """Replace encompassing annotation should delete it."""
+        from database.span_database import _adjust_annotation_for_replace
+
+        result = _adjust_annotation_for_replace(start=10, end=20, replace_start=5, replace_end=25, new_len=10)
+        assert result is None
+
+    def test_replace_partial_overlap_start_trims(self):
+        """Replace overlapping start should trim the span."""
+        from database.span_database import _adjust_annotation_for_replace
+
+        result = _adjust_annotation_for_replace(start=10, end=20, replace_start=5, replace_end=15, new_len=3)
+        assert result == (8, 13)
+
+    def test_replace_partial_overlap_end_trims(self):
+        """Replace overlapping end should trim the span."""
+        from database.span_database import _adjust_annotation_for_replace
+
+        result = _adjust_annotation_for_replace(start=10, end=20, replace_start=15, replace_end=25, new_len=3)
+        assert result == (10, 18)
+
+    def test_replace_inside_span_adjusts(self):
+        """Replace inside span should adjust its size."""
+        from database.span_database import _adjust_annotation_for_replace
+
+        result = _adjust_annotation_for_replace(start=10, end=30, replace_start=15, replace_end=20, new_len=3)
+        assert result == (10, 28)
+
+
+class TestSpanAdjustmentEdgeCases:
+    """Edge case tests from text-editing-edge-cases document."""
+
+    def test_insert_at_boundary_between_adjacent_continuous_spans(self):
+        """Insert at boundary between two adjacent continuous spans should not cause overlap.
+
+        Setup: S1 [0, 10), S2 [10, 20)
+        Operation: Insert at position 10
+        Expected: S1 expands to [0, 15), S2 shifts to [15, 25) - no overlap
+        """
+        from database.span_database import _adjust_continuous_for_insert
+
+        s1_result = _adjust_continuous_for_insert(start=0, end=10, insert_pos=10, insert_len=5)
+        s2_result = _adjust_continuous_for_insert(start=10, end=20, insert_pos=10, insert_len=5)
+
+        assert s1_result == (0, 15)
+        assert s2_result == (15, 25)
+        assert s1_result[1] == s2_result[0]
+
+    def test_insert_at_segment_boundary_with_gap(self):
+        """Insert at boundary between segments with gap.
+
+        Setup: B1 [0, 3), space at 3, B2 [4, 9)
+        Operation: Insert "very " at position 4
+        Expected: B1 unchanged, B2 shifts
+        """
+        from database.span_database import _adjust_continuous_for_insert
+
+        b1_result = _adjust_continuous_for_insert(start=0, end=3, insert_pos=4, insert_len=5)
+        b2_result = _adjust_continuous_for_insert(start=4, end=9, insert_pos=4, insert_len=5)
+
+        assert b1_result == (0, 3)
+        assert b2_result == (9, 14)
+
+    def test_delete_exact_match_returns_none(self):
+        """Delete that exactly matches span should return None.
+
+        Operation: Delete [4, 9) on span [4, 9)
+        """
+        from database.span_database import _adjust_span_for_delete
+
+        result = _adjust_span_for_delete(start=4, end=9, del_start=4, del_end=9)
+        assert result is None
+
+    def test_delete_across_multiple_spans(self):
+        """Delete crossing multiple spans should trim both.
+
+        Setup: B2 [4, 9), B3 [10, 15)
+        Operation: Delete [7, 12) - crosses both spans
+        Expected: B2 trims to [4, 7), B3 trims and shifts to [7, 10)
+        """
+        from database.span_database import _adjust_span_for_delete
+
+        b2_result = _adjust_span_for_delete(start=4, end=9, del_start=7, del_end=12)
+        b3_result = _adjust_span_for_delete(start=10, end=15, del_start=7, del_end=12)
+
+        assert b2_result == (4, 7)
+        assert b3_result == (7, 10)
+
+    def test_delete_creates_continuous_segmentation(self):
+        """Delete entire segment should maintain continuity.
+
+        Setup: S1 [0, 10), S2 [10, 20), S3 [20, 30)
+        Operation: Delete [10, 20) (exactly S2)
+        Expected: S1 stays [0, 10), S2 deleted, S3 shifts to [10, 20)
+        """
+        from database.span_database import _adjust_span_for_delete
+
+        s1_result = _adjust_span_for_delete(start=0, end=10, del_start=10, del_end=20)
+        s2_result = _adjust_span_for_delete(start=10, end=20, del_start=10, del_end=20)
+        s3_result = _adjust_span_for_delete(start=20, end=30, del_start=10, del_end=20)
+
+        assert s1_result == (0, 10)
+        assert s2_result is None
+        assert s3_result == (10, 20)
+        assert s1_result is not None and s3_result is not None
+        assert s1_result[1] == s3_result[0]
+
+    def test_delete_partial_overlap_maintains_continuity(self):
+        """Delete partial overlap should maintain continuity.
+
+        Setup: S1 [0, 10), S2 [10, 20), S3 [20, 30)
+        Operation: Delete [5, 15) (partial S1, partial S2)
+        Expected: S1 [0, 5), S2 [5, 10), S3 [10, 20)
+        """
+        from database.span_database import _adjust_span_for_delete
+
+        s1_result = _adjust_span_for_delete(start=0, end=10, del_start=5, del_end=15)
+        s2_result = _adjust_span_for_delete(start=10, end=20, del_start=5, del_end=15)
+        s3_result = _adjust_span_for_delete(start=20, end=30, del_start=5, del_end=15)
+
+        assert s1_result == (0, 5)
+        assert s2_result == (5, 10)
+        assert s3_result == (10, 20)
+        assert s1_result is not None and s2_result is not None and s3_result is not None
+        assert s1_result[1] == s2_result[0]
+        assert s2_result[1] == s3_result[0]
+
+    def test_replace_same_length_exact_match_continuous(self):
+        """Replace with same length on exact match should preserve continuous span.
+
+        Operation: Replace [4, 9) with "QUICK" (5 chars) on span [4, 9)
+        """
+        from database.span_database import _adjust_continuous_for_replace
+
+        result = _adjust_continuous_for_replace(
+            start=4, end=9, replace_start=4, replace_end=9, new_len=5, is_first_encompassed=False
+        )
+        assert result == (4, 9)
+
+    def test_replace_longer_text_exact_match_continuous(self):
+        """Replace with longer text on exact match should expand continuous span.
+
+        Operation: Replace [4, 9) with "VERY QUICK" (10 chars) on span [4, 9)
+        """
+        from database.span_database import _adjust_continuous_for_replace
+
+        result = _adjust_continuous_for_replace(
+            start=4, end=9, replace_start=4, replace_end=9, new_len=10, is_first_encompassed=False
+        )
+        assert result == (4, 14)
+
+    def test_replace_shorter_text_exact_match_continuous(self):
+        """Replace with shorter text on exact match should shrink continuous span.
+
+        Operation: Replace [4, 9) with "QK" (2 chars) on span [4, 9)
+        """
+        from database.span_database import _adjust_continuous_for_replace
+
+        result = _adjust_continuous_for_replace(
+            start=4, end=9, replace_start=4, replace_end=9, new_len=2, is_first_encompassed=False
+        )
+        assert result == (4, 6)
+
+    def test_replace_encompasses_multiple_continuous_keeps_first(self):
+        """Replace encompassing multiple continuous spans should keep first, delete others.
+
+        Setup: B2 [4, 9), B3 [10, 15)
+        Operation: Replace [4, 15) with "FAST" (4 chars)
+        Expected: B2 (first) becomes [4, 8), B3 deleted
+        """
+        from database.span_database import _adjust_continuous_for_replace
+
+        b2_result = _adjust_continuous_for_replace(
+            start=4, end=9, replace_start=4, replace_end=15, new_len=4, is_first_encompassed=True
+        )
+        b3_result = _adjust_continuous_for_replace(
+            start=10, end=15, replace_start=4, replace_end=15, new_len=4, is_first_encompassed=False
         )
 
-        span = self._get_span(test_database, second_segment_id)
-        assert span == (21, 36)
+        assert b2_result == (4, 8)
+        assert b3_result is None
 
-    def test_adjust_shifts_subsequent_note(self, test_database):
-        """Test that subsequent notes are shifted when content grows."""
-        setup = self._create_test_setup(test_database)
-        note_id = self._add_note(test_database, setup["manifestation_id"], 15, 20)
+    def test_replace_encompasses_annotation_deletes(self):
+        """Replace encompassing annotation (not exact) should delete it.
 
-        test_database.span.adjust_affected_spans(
-            manifestation_id=setup["manifestation_id"],
-            replace_start=0,
-            replace_end=12,
-            new_length=20,
-            exclude_entity_id=setup["segment_id"],
+        Operation: Replace [3, 10) on annotation [4, 9)
+        """
+        from database.span_database import _adjust_annotation_for_replace
+
+        result = _adjust_annotation_for_replace(start=4, end=9, replace_start=3, replace_end=10, new_len=7)
+        assert result is None
+
+    def test_multiple_segmentations_affected_correctly(self):
+        """Multiple segmentations should be adjusted correctly.
+
+        Setup:
+        - Segmentation A: S_A1 [0, 20), S_A2 [20, 40)
+        - Segmentation B: S_B1 [0, 10), S_B2 [10, 20), S_B3 [20, 40)
+
+        Operation: Replace [5, 15) with "XXX" (3 chars), delta = -7
+
+        Expected:
+        - S_A1: inside replace -> [0, 13)
+        - S_A2: shift -> [13, 33)
+        - S_B1: trim end -> [0, 8)
+        - S_B2: trim start, shift -> [8, 13)
+        - S_B3: shift -> [13, 33)
+        """
+        from database.span_database import _adjust_continuous_for_replace
+
+        s_a1 = _adjust_continuous_for_replace(
+            start=0, end=20, replace_start=5, replace_end=15, new_len=3, is_first_encompassed=False
+        )
+        s_a2 = _adjust_continuous_for_replace(
+            start=20, end=40, replace_start=5, replace_end=15, new_len=3, is_first_encompassed=False
+        )
+        s_b1 = _adjust_continuous_for_replace(
+            start=0, end=10, replace_start=5, replace_end=15, new_len=3, is_first_encompassed=False
+        )
+        s_b2 = _adjust_continuous_for_replace(
+            start=10, end=20, replace_start=5, replace_end=15, new_len=3, is_first_encompassed=False
+        )
+        s_b3 = _adjust_continuous_for_replace(
+            start=20, end=40, replace_start=5, replace_end=15, new_len=3, is_first_encompassed=False
         )
 
-        span = self._get_span(test_database, note_id)
-        assert span == (23, 28)
+        assert s_a1 == (0, 13)
+        assert s_a2 == (13, 33)
+        assert s_b1 == (0, 8)
+        assert s_b2 == (8, 13)
+        assert s_b3 == (13, 33)
+        assert s_a1 is not None and s_a2 is not None and s_b1 is not None and s_b2 is not None and s_b3 is not None
+        assert s_a1[1] == s_a2[0]
+        assert s_b1[1] == s_b2[0]
+        assert s_b2[1] == s_b3[0]
 
-    def test_adjust_deletes_encompassed_note(self, test_database):
-        """Test that notes fully encompassed by replacement are deleted."""
-        setup = self._create_test_setup(test_database)
-        note_id = self._add_note(test_database, setup["manifestation_id"], 2, 8)
+    def test_overlapping_annotations_handled_correctly(self):
+        """Overlapping annotations should be handled correctly.
 
-        test_database.span.adjust_affected_spans(
-            manifestation_id=setup["manifestation_id"],
-            replace_start=0,
-            replace_end=12,
-            new_length=5,
-            exclude_entity_id=setup["segment_id"],
-        )
+        Setup: N1 [5, 15), N2 [10, 20)
+        Operation: Delete [12, 18)
+        Expected: N1 trims to [5, 12), N2 shrinks to [10, 14)
+        """
+        from database.span_database import _adjust_span_for_delete
 
-        span = self._get_span(test_database, note_id)
-        assert span is None
+        n1_result = _adjust_span_for_delete(start=5, end=15, del_start=12, del_end=18)
+        n2_result = _adjust_span_for_delete(start=10, end=20, del_start=12, del_end=18)
 
-    def test_adjust_trims_overlapping_note_end(self, test_database):
-        """Test that notes overlapping the replacement end are trimmed."""
-        setup = self._create_test_setup(test_database)
-        note_id = self._add_note(test_database, setup["manifestation_id"], 5, 15)
+        assert n1_result == (5, 12)
+        assert n2_result == (10, 14)
 
-        test_database.span.adjust_affected_spans(
-            manifestation_id=setup["manifestation_id"],
-            replace_start=0,
-            replace_end=12,
-            new_length=12,
-            exclude_entity_id=setup["segment_id"],
-        )
+    def test_nested_spans_handled_correctly(self):
+        """Nested spans should be handled correctly.
 
-        span = self._get_span(test_database, note_id)
-        assert span == (12, 15)
+        Setup: Outer [0, 40), Inner [10, 20)
+        Operation: Delete [5, 25)
+        Expected: Outer shrinks to [0, 20), Inner deleted
+        """
+        from database.span_database import _adjust_span_for_delete
 
-    def test_adjust_no_change_for_span_after_replacement(self, test_database):
-        """Test that spans completely after replacement with same length stay unchanged."""
-        setup = self._create_test_setup(test_database)
-        note_id = self._add_note(test_database, setup["manifestation_id"], 20, 30)
+        outer_result = _adjust_span_for_delete(start=0, end=40, del_start=5, del_end=25)
+        inner_result = _adjust_span_for_delete(start=10, end=20, del_start=5, del_end=25)
 
-        test_database.span.adjust_affected_spans(
-            manifestation_id=setup["manifestation_id"],
-            replace_start=0,
-            replace_end=12,
-            new_length=12,
-            exclude_entity_id=setup["segment_id"],
-        )
+        assert outer_result == (0, 20)
+        assert inner_result is None
 
-        span = self._get_span(test_database, note_id)
-        assert span == (20, 30)
+    def test_annotation_insert_before_shifts(self):
+        """Insert before annotation should shift it."""
+        from database.span_database import _adjust_annotation_for_insert
 
-    def test_adjust_shrinking_content_shifts_left(self, test_database):
-        """Test that subsequent spans shift left when content shrinks."""
-        setup = self._create_test_setup(test_database)
-        note_id = self._add_note(test_database, setup["manifestation_id"], 20, 30)
+        result = _adjust_annotation_for_insert(start=10, end=20, insert_pos=5, insert_len=5)
+        assert result == (15, 25)
 
-        test_database.span.adjust_affected_spans(
-            manifestation_id=setup["manifestation_id"],
-            replace_start=0,
-            replace_end=12,
-            new_length=4,
-            exclude_entity_id=setup["segment_id"],
-        )
+    def test_annotation_insert_after_unchanged(self):
+        """Insert after annotation should leave it unchanged."""
+        from database.span_database import _adjust_annotation_for_insert
 
-        span = self._get_span(test_database, note_id)
-        assert span == (12, 22)
+        result = _adjust_annotation_for_insert(start=10, end=20, insert_pos=25, insert_len=5)
+        assert result == (10, 20)
 
-    def test_adjust_trims_overlapping_start(self, test_database):
-        """Test that spans overlapping replacement start are adjusted."""
-        setup = self._create_test_setup(test_database)
-        note_id = self._add_note(test_database, setup["manifestation_id"], 5, 20)
+    def test_continuous_insert_before_shifts(self):
+        """Insert before continuous span should shift it."""
+        from database.span_database import _adjust_continuous_for_insert
 
-        test_database.span.adjust_affected_spans(
-            manifestation_id=setup["manifestation_id"],
-            replace_start=10,
-            replace_end=15,
-            new_length=5,
-            exclude_entity_id=setup["segment_id"],
-        )
+        result = _adjust_continuous_for_insert(start=10, end=20, insert_pos=5, insert_len=5)
+        assert result == (15, 25)
 
-        span = self._get_span(test_database, note_id)
-        assert span == (5, 20)
+    def test_replace_before_shifts(self):
+        """Replace before span should shift it by delta."""
+        from database.span_database import _adjust_annotation_for_replace
 
-    def test_adjust_inside_span_expands(self, test_database):
-        """Test that replacement inside a span expands it."""
-        setup = self._create_test_setup(test_database)
-        note_id = self._add_note(test_database, setup["manifestation_id"], 0, 30)
+        result = _adjust_annotation_for_replace(start=20, end=30, replace_start=5, replace_end=10, new_len=3)
+        assert result == (18, 28)
 
-        test_database.span.adjust_affected_spans(
-            manifestation_id=setup["manifestation_id"],
-            replace_start=10,
-            replace_end=15,
-            new_length=10,
-            exclude_entity_id=setup["segment_id"],
-        )
+    def test_replace_after_unchanged(self):
+        """Replace after span should leave it unchanged."""
+        from database.span_database import _adjust_annotation_for_replace
 
-        span = self._get_span(test_database, note_id)
-        assert span == (0, 35)
-
-    def _add_page(self, test_database, manifestation_id: str, start: int, end: int) -> str:
-        """Helper to add a page with a span."""
-        page_id = generate_id()
-        with test_database.get_session() as session:
-            session.execute_write(
-                lambda tx: tx.run(
-                    """
-                    MATCH (m:Manifestation {id: $manifestation_id})
-                    CREATE (span:Span {start: $start, end: $end})-[:SPAN_OF]->(p:Page {id: $page_id, index: 1})
-                    CREATE (p)-[:PAGE_OF]->(m)
-                    """,
-                    manifestation_id=manifestation_id,
-                    page_id=page_id,
-                    start=start,
-                    end=end,
-                )
-            )
-        return page_id
-
-    def test_adjust_shifts_page(self, test_database):
-        """Test that pages are shifted when content grows."""
-        setup = self._create_test_setup(test_database)
-        page_id = self._add_page(test_database, setup["manifestation_id"], 15, 40)
-
-        test_database.span.adjust_affected_spans(
-            manifestation_id=setup["manifestation_id"],
-            replace_start=0,
-            replace_end=12,
-            new_length=20,
-            exclude_entity_id=setup["segment_id"],
-        )
-
-        span = self._get_span(test_database, page_id)
-        assert span == (23, 48)
-
-    def _add_bibliographic(self, test_database, manifestation_id: str, start: int, end: int) -> str:
-        """Helper to add bibliographic metadata with a span."""
-        bib_id = generate_id()
-        with test_database.get_session() as session:
-            session.execute_write(
-                lambda tx: tx.run(
-                    """
-                    MATCH (m:Manifestation {id: $manifestation_id})
-                    CREATE (span:Span {start: $start, end: $end})-[:SPAN_OF]->(b:BibliographicMetadata {id: $bib_id})
-                    CREATE (b)-[:BIBLIOGRAPHY_OF]->(m)
-                    """,
-                    manifestation_id=manifestation_id,
-                    bib_id=bib_id,
-                    start=start,
-                    end=end,
-                )
-            )
-        return bib_id
-
-    def test_adjust_shifts_bibliographic(self, test_database):
-        """Test that bibliographic metadata is shifted when content grows."""
-        setup = self._create_test_setup(test_database)
-        bib_id = self._add_bibliographic(test_database, setup["manifestation_id"], 15, 25)
-
-        test_database.span.adjust_affected_spans(
-            manifestation_id=setup["manifestation_id"],
-            replace_start=0,
-            replace_end=12,
-            new_length=20,
-            exclude_entity_id=setup["segment_id"],
-        )
-
-        span = self._get_span(test_database, bib_id)
-        assert span == (23, 33)
-
-    def test_adjust_deletes_encompassed_bibliographic(self, test_database):
-        """Test that bibliographic metadata fully inside replacement is deleted."""
-        setup = self._create_test_setup(test_database)
-        bib_id = self._add_bibliographic(test_database, setup["manifestation_id"], 2, 10)
-
-        test_database.span.adjust_affected_spans(
-            manifestation_id=setup["manifestation_id"],
-            replace_start=0,
-            replace_end=12,
-            new_length=5,
-            exclude_entity_id=setup["segment_id"],
-        )
-
-        span = self._get_span(test_database, bib_id)
-        assert span is None
+        result = _adjust_annotation_for_replace(start=10, end=20, replace_start=25, replace_end=30, new_len=3)
+        assert result == (10, 20)
