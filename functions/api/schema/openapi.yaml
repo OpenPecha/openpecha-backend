@@ -2411,142 +2411,6 @@ paths:
         "500":
           $ref: '#/components/responses/ServerError'
 
-  # /v2/texts/{text_id}/title:
-  #   put:
-  #     summary: Update texts title
-  #     description: >-
-  #       Update the title or alternative title of a text. The title or alt_title
-  #       should be provided as a dictionary with language code as the key and the
-  #       title text as the value.
-  #     tags:
-  #       - Texts
-  #     parameters:
-  #       - name: text_id
-  #         in: path
-  #         required: true
-  #         schema:
-  #           type: string
-  #         description: The text ID of the text to update
-  #     requestBody:
-  #       required: true
-  #       content:
-  #         application/json:
-  #           schema:
-  #             type: object
-  #             properties:
-  #               title:
-  #                 type: object
-  #                 description: Dictionary with language code as key and title text as value
-  #                 additionalProperties:
-  #                   type: string
-  #                 example:
-  #                   bo: "རྒྱལ་པོ་རབས་ཀྱི་གཏམ་རྒྱུད།"
-  #               alt_title:
-  #                 type: object
-  #                 description: >-
-  #                   Dictionary with language code as key and alternative title(s) as value.
-  #                   Values can be a single string or an array of strings for multiple alt titles per language.
-  #                 additionalProperties:
-  #                   oneOf:
-  #                     - type: string
-  #                     - type: array
-  #                       items:
-  #                         type: string
-  #                 example:
-  #                   bo: ["མཚན་བྱང་གཞན།-1", "མཚན་བྱང་གཞན།-2"]
-  #                   en: ["Alternative Title 1", "Alternative Title 2"]
-  #             anyOf:
-  #               - required: [title]
-  #               - required: [alt_title]
-  #     responses:
-  #       "200":
-  #         description: Title updated successfully
-  #         content:
-  #           application/json:
-  #             schema:
-  #               type: object
-  #               properties:
-  #                 message:
-  #                   type: string
-  #                   example: "Title updated successfully"
-  #       "400":
-  #         description: Bad request - Invalid input
-  #         content:
-  #           application/json:
-  #             schema:
-  #               type: object
-  #               properties:
-  #                 error:
-  #                   type: string
-  #                   example: "Title or alt_title is required"
-  #       "404":
-  #         $ref: '#/components/responses/NotFound'
-  #       "500":
-  #         $ref: '#/components/responses/ServerError'
-
-  # /v2/texts/{texts_id}/license:
-  #   put:
-  #     summary: Update texts license
-  #     description: Update the license information for a texts
-  #     tags:
-  #       - Texts
-  #     parameters:
-  #       - name: texts_id
-  #         in: path
-  #         required: true
-  #         schema:
-  #           type: string
-  #         description: The texts ID of the text to update
-  #     requestBody:
-  #       required: true
-  #       content:
-  #         application/json:
-  #           schema:
-  #             type: object
-  #             required:
-  #               - license
-  #             properties:
-  #               license:
-  #                 type: string
-  #                 description: License identifier or name
-  #                 enum:
-  #                   - "CC0"
-  #                   - "Public Domain Mark"
-  #                   - "CC BY"
-  #                   - "CC BY-SA"
-  #                   - "CC BY-ND"
-  #                   - "CC BY-NC"
-  #                   - "CC BY-NC-SA"
-  #                   - "CC BY-NC-ND"
-  #                   - "under copyright"
-  #                   - "unknown"
-  #                 example: "CC BY-SA"
-  #     responses:
-  #       "200":
-  #         description: License updated successfully
-  #         content:
-  #           application/json:
-  #             schema:
-  #               type: object
-  #               properties:
-  #                 message:
-  #                   type: string
-  #                   example: "License updated successfully"
-  #       "400":
-  #         description: Bad request - Invalid input
-  #         content:
-  #           application/json:
-  #             schema:
-  #               type: object
-  #               properties:
-  #                 error:
-  #                   type: string
-  #                   example: "License is required"
-  #       "404":
-  #         $ref: '#/components/responses/NotFound'
-  #       "500":
-  #         $ref: '#/components/responses/ServerError'
-
   /v2/persons:
     get:
       summary: Retrieve all persons
@@ -3066,9 +2930,254 @@ paths:
         "500":
           $ref: '#/components/responses/ServerError'
 
-  /v2/annotations/{instance_id}/annotation:
-    post:
-      summary: Add annotation to a instance
+    put:
+      summary: Update (replace) annotation
+      description: |
+        Replaces ALL segments of an existing annotation. This is a full replacement operation.
+        
+        **For SEGMENTATION/PAGINATION/BIBLIOGRAPHY/TABLE_OF_CONTENTS annotations:**
+        - Deletes all existing segments
+        - Creates new segments from request body
+        - Annotation node is preserved
+        
+        **For ALIGNMENT annotations:**
+        - Deletes all segments from both source and target annotations
+        - Deletes both annotation nodes and their relationship
+        - Must provide both alignment_annotation and target_annotation
+      tags:
+        - Annotations
+      parameters:
+        - name: annotation_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the annotation to update
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - type
+                - data
+              properties:
+                type:
+                  type: string
+                  enum: [segmentation, pagination, bibliography, alignment]
+                  description: Type of annotation being updated
+                data:
+                  type: object
+                  properties:
+                    annotations:
+                      type: array
+                      minItems: 1
+                      description: Segments for segmentation/pagination/bibliography (required for non-alignment types)
+                      items:
+                        oneOf:
+                          - type: object
+                            required: [span]
+                            properties:
+                              span:
+                                type: object
+                                required: [start, end]
+                                properties:
+                                  start:
+                                    type: integer
+                                    minimum: 0
+                                    description: Start character position (inclusive)
+                                  end:
+                                    type: integer
+                                    minimum: 1
+                                    description: End character position (exclusive)
+                            description: Segmentation annotation
+                          - type: object
+                            required: [span, reference]
+                            properties:
+                              span:
+                                type: object
+                                required: [start, end]
+                                properties:
+                                  start:
+                                    type: integer
+                                    minimum: 0
+                                  end:
+                                    type: integer
+                                    minimum: 1
+                              reference:
+                                type: string
+                                description: Page/folio reference
+                            description: Pagination annotation
+                          - type: object
+                            required: [span, type]
+                            properties:
+                              span:
+                                type: object
+                                required: [start, end]
+                                properties:
+                                  start:
+                                    type: integer
+                                    minimum: 0
+                                  end:
+                                    type: integer
+                                    minimum: 1
+                              type:
+                                type: string
+                                enum: [colophon, title, incipit_title, author]
+                                description: Type of bibliography annotation
+                            description: Bibliography annotation
+                    alignment_annotation:
+                      type: array
+                      minItems: 1
+                      description: Source segments (required for alignment type)
+                      items:
+                        type: object
+                        required: [span, index, alignment_index]
+                        properties:
+                          span:
+                            type: object
+                            required: [start, end]
+                            properties:
+                              start:
+                                type: integer
+                                minimum: 0
+                              end:
+                                type: integer
+                                minimum: 1
+                          index:
+                            type: integer
+                            description: Sequential index of this segment
+                          alignment_index:
+                            type: array
+                            items:
+                              type: integer
+                            description: Indices of target segments this aligns to
+                    target_annotation:
+                      type: array
+                      minItems: 1
+                      description: Target segments (required for alignment type)
+                      items:
+                        type: object
+                        required: [span, index]
+                        properties:
+                          span:
+                            type: object
+                            required: [start, end]
+                            properties:
+                              start:
+                                type: integer
+                                minimum: 0
+                              end:
+                                type: integer
+                                minimum: 1
+                          index:
+                            type: integer
+                            description: Sequential index of this segment
+            examples:
+              segmentation:
+                summary: Update segmentation annotation
+                value:
+                  type: segmentation
+                  data:
+                    annotations:
+                      - span:
+                          start: 0
+                          end: 42
+                      - span:
+                          start: 42
+                          end: 100
+              table_of_contents:
+                summary: Update table of contents annotation
+                value:
+                  type: table_of_contents
+                  data:
+                    annotations:
+                      - title:
+                          "Chapter 1: Introduction"
+                        segments: ["seg_001", "seg_002", "seg_003"]
+                      - title:
+                          "Chapter 2: Main Content"
+                        segments: ["seg_004", "seg_005"]
+              pagination:
+                summary: Update pagination annotation
+                value:
+                  type: pagination
+                  data:
+                    annotations:
+                      - span:
+                          start: 0
+                          end: 42
+                        reference: "folio 1a"
+                      - span:
+                          start: 42
+                          end: 100
+                        reference: "folio 1b"
+              bibliography:
+                summary: Update bibliography annotation
+                value:
+                  type: bibliography
+                  data:
+                    annotations:
+                      - span:
+                          start: 0
+                          end: 50
+                        type: "colophon"
+                      - span:
+                          start: 50
+                          end: 100
+                        type: "title"
+              alignment:
+                summary: Update alignment annotation
+                value:
+                  type: alignment
+                  data:
+                    alignment_annotation:
+                      - span:
+                          start: 0
+                          end: 30
+                        index: 0
+                        alignment_index: [0]
+                      - span:
+                          start: 30
+                          end: 60
+                        index: 1
+                        alignment_index: [0, 1]
+                    target_annotation:
+                      - span:
+                          start: 0
+                          end: 50
+                        index: 0
+                      - span:
+                          start: 50
+                          end: 100
+                        index: 1
+      responses:
+        "200":
+          description: Annotation updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    examples:
+                      - "Annotation updated successfully"
+                  annotation_id:
+                    type: string
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "404":
+          $ref: '#/components/responses/NotFound'
+        "422":
+          $ref: '#/components/responses/ValidationError'
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+  /v2/instances/{instance_id}/annotation:
+    put:
+      summary: Add annotation to an instance
       description: >-
         Adds an annotation to the specified instance. Supports multiple annotation types:
         
@@ -3087,7 +3196,7 @@ paths:
 
         - ALIGNMENT: Creates alignment relationships between segments of the source and target manifestations.
       tags:
-        - Annotations
+        - Instances
       parameters:
         - name: instance_id
           in: path
@@ -3436,252 +3545,6 @@ paths:
                     message: "Alignment annotation added successfully"
                     alignment_annotation_id: "A12345678"
                     target_annotation_id: "A87654321"
-        "404":
-          $ref: '#/components/responses/NotFound'
-        "422":
-          $ref: '#/components/responses/ValidationError'
-        "500":
-          $ref: '#/components/responses/ServerError'
-
-  /v2/annotations/{annotation_id}/annotation:
-    put:
-      summary: Update (replace) annotation
-      description: |
-        Replaces ALL segments of an existing annotation. This is a full replacement operation.
-        
-        **For SEGMENTATION/PAGINATION/BIBLIOGRAPHY/TABLE_OF_CONTENTS annotations:**
-        - Deletes all existing segments
-        - Creates new segments from request body
-        - Annotation node is preserved
-        
-        **For ALIGNMENT annotations:**
-        - Deletes all segments from both source and target annotations
-        - Deletes both annotation nodes and their relationship
-        - Must provide both alignment_annotation and target_annotation
-      tags:
-        - Annotations
-      parameters:
-        - name: annotation_id
-          in: path
-          required: true
-          schema:
-            type: string
-          description: The ID of the annotation to update
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              type: object
-              required:
-                - type
-                - data
-              properties:
-                type:
-                  type: string
-                  enum: [segmentation, pagination, bibliography, alignment]
-                  description: Type of annotation being updated
-                data:
-                  type: object
-                  properties:
-                    annotations:
-                      type: array
-                      minItems: 1
-                      description: Segments for segmentation/pagination/bibliography (required for non-alignment types)
-                      items:
-                        oneOf:
-                          - type: object
-                            required: [span]
-                            properties:
-                              span:
-                                type: object
-                                required: [start, end]
-                                properties:
-                                  start:
-                                    type: integer
-                                    minimum: 0
-                                    description: Start character position (inclusive)
-                                  end:
-                                    type: integer
-                                    minimum: 1
-                                    description: End character position (exclusive)
-                            description: Segmentation annotation
-                          - type: object
-                            required: [span, reference]
-                            properties:
-                              span:
-                                type: object
-                                required: [start, end]
-                                properties:
-                                  start:
-                                    type: integer
-                                    minimum: 0
-                                  end:
-                                    type: integer
-                                    minimum: 1
-                              reference:
-                                type: string
-                                description: Page/folio reference
-                            description: Pagination annotation
-                          - type: object
-                            required: [span, type]
-                            properties:
-                              span:
-                                type: object
-                                required: [start, end]
-                                properties:
-                                  start:
-                                    type: integer
-                                    minimum: 0
-                                  end:
-                                    type: integer
-                                    minimum: 1
-                              type:
-                                type: string
-                                enum: [colophon, title, incipit_title, author]
-                                description: Type of bibliography annotation
-                            description: Bibliography annotation
-                    alignment_annotation:
-                      type: array
-                      minItems: 1
-                      description: Source segments (required for alignment type)
-                      items:
-                        type: object
-                        required: [span, index, alignment_index]
-                        properties:
-                          span:
-                            type: object
-                            required: [start, end]
-                            properties:
-                              start:
-                                type: integer
-                                minimum: 0
-                              end:
-                                type: integer
-                                minimum: 1
-                          index:
-                            type: integer
-                            description: Sequential index of this segment
-                          alignment_index:
-                            type: array
-                            items:
-                              type: integer
-                            description: Indices of target segments this aligns to
-                    target_annotation:
-                      type: array
-                      minItems: 1
-                      description: Target segments (required for alignment type)
-                      items:
-                        type: object
-                        required: [span, index]
-                        properties:
-                          span:
-                            type: object
-                            required: [start, end]
-                            properties:
-                              start:
-                                type: integer
-                                minimum: 0
-                              end:
-                                type: integer
-                                minimum: 1
-                          index:
-                            type: integer
-                            description: Sequential index of this segment
-            examples:
-              segmentation:
-                summary: Update segmentation annotation
-                value:
-                  type: segmentation
-                  data:
-                    annotations:
-                      - span:
-                          start: 0
-                          end: 42
-                      - span:
-                          start: 42
-                          end: 100
-              table_of_contents:
-                summary: Update table of contents annotation
-                value:
-                  type: table_of_contents
-                  data:
-                    annotations:
-                      - title:
-                          "Chapter 1: Introduction"
-                        segments: ["seg_001", "seg_002", "seg_003"]
-                      - title:
-                          "Chapter 2: Main Content"
-                        segments: ["seg_004", "seg_005"]
-              pagination:
-                summary: Update pagination annotation
-                value:
-                  type: pagination
-                  data:
-                    annotations:
-                      - span:
-                          start: 0
-                          end: 42
-                        reference: "folio 1a"
-                      - span:
-                          start: 42
-                          end: 100
-                        reference: "folio 1b"
-              bibliography:
-                summary: Update bibliography annotation
-                value:
-                  type: bibliography
-                  data:
-                    annotations:
-                      - span:
-                          start: 0
-                          end: 50
-                        type: "colophon"
-                      - span:
-                          start: 50
-                          end: 100
-                        type: "title"
-              alignment:
-                summary: Update alignment annotation
-                value:
-                  type: alignment
-                  data:
-                    alignment_annotation:
-                      - span:
-                          start: 0
-                          end: 30
-                        index: 0
-                        alignment_index: [0]
-                      - span:
-                          start: 30
-                          end: 60
-                        index: 1
-                        alignment_index: [0, 1]
-                    target_annotation:
-                      - span:
-                          start: 0
-                          end: 50
-                        index: 0
-                      - span:
-                          start: 50
-                          end: 100
-                        index: 1
-      responses:
-        "200":
-          description: Annotation updated successfully
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    examples:
-                      - "Annotation updated successfully"
-                  annotation_id:
-                    type: string
-        "400":
-          $ref: '#/components/responses/InvalidRequest'
         "404":
           $ref: '#/components/responses/NotFound'
         "422":
