@@ -9,6 +9,31 @@ nodes:
         type: string
         required: true
 
+  ApiKey:
+    properties:
+      id:
+        type: string
+        required: true
+        unique: true
+      name:
+        type: string
+        required: true
+      api_key_hash:
+        type: string
+        required: true
+        unique: true
+      is_active:
+        type: boolean
+        required: true
+      created_at:
+        type: datetime
+        required: true
+    relationships:
+      BOUND_TO:
+        target: Application
+        cardinality: one
+        required: false
+
   Work:
     properties:
       id:

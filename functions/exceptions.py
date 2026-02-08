@@ -23,3 +23,7 @@ class DataConflictError(OpenPechaError):
 
 class DataValidationError(OpenPechaError):
     status_code = 422
+
+
+class UnauthorizedError(OpenPechaError):
+    status_code = 401

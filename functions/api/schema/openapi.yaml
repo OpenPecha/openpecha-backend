@@ -2,6 +2,10 @@ openapi: 3.1.0
 info:
     title: OpenPecha API v2
     version: "2.1.0"
+
+security:
+    - ApiKeyAuth: []
+
 servers:
     - url: http://127.0.0.1:5001/pecha-backend-test-3a4d0/us-central1/api
       description: Local Development
@@ -2235,6 +2239,13 @@ paths:
                     $ref: "#/components/responses/ServerError"
 
 components:
+    securitySchemes:
+        ApiKeyAuth:
+            type: apiKey
+            in: header
+            name: X-API-Key
+            description: API key for authentication. Obtain from OpenPecha administrators.
+
     schemas:
         TextOperation:
             type: object

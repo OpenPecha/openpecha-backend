@@ -15,6 +15,13 @@ python_functions = ["test_*"]
 addopts = "--verbose --log-cli-level=DEBUG"
 env_files = ["functions/.env"]
 
+[tool.coverage.run]
+omit = [
+    "functions/tests/*",
+    "functions/scripts/*",
+    "functions/firebase_config.py",
+]
+
 [tool.ruff]
 line-length = 120
 exclude = ["functions/tests"]

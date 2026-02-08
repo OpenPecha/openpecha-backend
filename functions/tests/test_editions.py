@@ -1538,12 +1538,10 @@ class TestPatchContentWithMultipleSegmentations(TestEditionsEndpoints):
         all_spans = self._get_all_segmentation_spans(client, manifestation_id)
         assert len(all_spans) == 2
 
-        assert (0, 7) in all_spans[0]
-        assert (7, 12) in all_spans[0]
-
-        assert (0, 3) in all_spans[1]
-        assert (3, 9) in all_spans[1]
-        assert (9, 12) in all_spans[1]
+        # Segmentation 1: [(0,5), (5,10)] after insert at 4 → [(0,7), (7,12)]
+        # Segmentation 2: [(0,3), (3,7), (7,10)] after insert at 4 → [(0,3), (3,9), (9,12)]
+        assert [(0, 7), (7, 12)] in all_spans
+        assert [(0, 3), (3, 9), (9, 12)] in all_spans
 
     def test_delete_affects_multiple_segmentations(self, client, test_database, test_person_data):
         """Delete should adjust spans in all segmentations."""
@@ -1566,19 +1564,10 @@ class TestPatchContentWithMultipleSegmentations(TestEditionsEndpoints):
         all_spans = self._get_all_segmentation_spans(client, manifestation_id)
         assert len(all_spans) == 2
 
-        # Segmentation 1: [(0,5), (5,10)] after delete [2,6)
-        # (0,5): start < del_start < end <= del_end → (0, 2)
-        # (5,10): del_start <= start < del_end < end → (del_start, end-del_len) = (2, 6)
-        assert (0, 2) in all_spans[0]
-        assert (2, 6) in all_spans[0]
-
-        # Segmentation 2: [(0,3), (3,7), (7,10)] after delete [2,6)
-        # (0,3): start < del_start < end <= del_end → (0, 2)
-        # (3,7): del_start <= start < del_end < end → (del_start, end-del_len) = (2, 3)
-        # (7,10): del_end <= start → shift by del_len → (3, 6)
-        assert (0, 2) in all_spans[1]
-        assert (2, 3) in all_spans[1]
-        assert (3, 6) in all_spans[1]
+        # Segmentation 1: [(0,5), (5,10)] after delete [2,6) → [(0,2), (2,6)]
+        # Segmentation 2: [(0,3), (3,7), (7,10)] after delete [2,6) → [(0,2), (2,3), (3,6)]
+        assert [(0, 2), (2, 6)] in all_spans
+        assert [(0, 2), (2, 3), (3, 6)] in all_spans
 
     def test_replace_affects_multiple_segmentations_differently(self, client, test_database, test_person_data):
         """Replace crossing different segment boundaries in different segmentations."""

@@ -5,6 +5,7 @@ import traceback
 import firebase_admin
 from api.annotations import annotations_bp
 from api.api import api_bp
+from api.auth import validate_api_key
 from api.categories import categories_bp
 from api.editions import editions_bp
 from api.languages import languages_bp
@@ -50,6 +51,12 @@ def create_app(*, testing: bool = False) -> Flask:
     app.register_blueprint(annotations_bp, url_prefix="/v2/annotations")
     app.register_blueprint(categories_bp, url_prefix="/v2/categories")
     app.register_blueprint(languages_bp, url_prefix="/v2/languages")
+
+    @app.before_request
+    def authenticate_request() -> None:
+        """Validate API key for all requests."""
+        if not testing:
+            validate_api_key()
 
     @app.route("/__/health")
     def health_check() -> tuple[Response, int]:
@@ -119,7 +126,6 @@ def create_app(*, testing: bool = False) -> Flask:
     max_instances=1,
     timeout_sec=540,  # Maximum timeout: 540 seconds (9 minutes)
     secrets=[
-        "PECHA_API_KEY",
         "NEO4J_URI",
         "NEO4J_USERNAME",
         "NEO4J_PASSWORD",
