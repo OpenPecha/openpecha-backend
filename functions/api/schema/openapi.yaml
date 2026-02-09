@@ -58,55 +58,6 @@ paths:
                 "500":
                     $ref: "#/components/responses/ServerError"
 
-    /v2/editions/{edition_id}/content:
-        get:
-            summary: Retrieve edition content
-            description: Fetch base text content for a given edition ID. Optionally specify a span to retrieve a portion of the content.
-            tags:
-                - Editions
-            parameters:
-                - name: edition_id
-                  in: path
-                  required: true
-                  schema:
-                      type: string
-                  description: The ID of the edition to retrieve content for
-                - name: span_start
-                  in: query
-                  required: false
-                  schema:
-                      type: integer
-                      minimum: 0
-                  description: Start character position (inclusive). Must be provided together with span_end.
-                - name: span_end
-                  in: query
-                  required: false
-                  schema:
-                      type: integer
-                      minimum: 1
-                  description: End character position (exclusive). Must be provided together with span_start.
-            responses:
-                "200":
-                    description: Edition content retrieved successfully
-                    content:
-                        application/json:
-                            schema:
-                                type: string
-                                description: The base text content (or portion if span specified)
-                            examples:
-                                full_content:
-                                    summary: Full content
-                                    value: "This is the complete base text content of the edition."
-                                span_content:
-                                    summary: Content span
-                                    value: "portion of the text"
-                "400":
-                    $ref: "#/components/responses/InvalidRequest"
-                "404":
-                    $ref: "#/components/responses/NotFound"
-                "500":
-                    $ref: "#/components/responses/ServerError"
-
     /v2/editions/{edition_id}:
         delete:
             summary: Delete an edition
@@ -250,8 +201,8 @@ paths:
 
     /v2/editions/{edition_id}/content:
         get:
-            summary: Get edition content
-            description: Retrieve the base text content of an edition. Optionally specify a span to retrieve a portion of the content.
+            summary: Retrieve edition content
+            description: Fetch base text content for a given edition ID. Optionally specify a span to retrieve a portion of the content.
             tags:
                 - Editions
             parameters:
@@ -260,28 +211,38 @@ paths:
                   required: true
                   schema:
                       type: string
-                  description: The ID of the edition
+                  description: The ID of the edition to retrieve content for
                 - name: span_start
                   in: query
                   required: false
                   schema:
                       type: integer
                       minimum: 0
-                  description: Start position of the span to retrieve
+                  description: Start character position (inclusive). Must be provided together with span_end.
                 - name: span_end
                   in: query
                   required: false
                   schema:
                       type: integer
                       minimum: 1
-                  description: End position of the span to retrieve
+                  description: End character position (exclusive). Must be provided together with span_start.
             responses:
                 "200":
-                    description: Content retrieved successfully
+                    description: Edition content retrieved successfully
                     content:
                         application/json:
                             schema:
                                 type: string
+                                description: The base text content (or portion if span specified)
+                            examples:
+                                full_content:
+                                    summary: Full content
+                                    value: "This is the complete base text content of the edition."
+                                span_content:
+                                    summary: Content span
+                                    value: "portion of the text"
+                "400":
+                    $ref: "#/components/responses/InvalidRequest"
                 "404":
                     $ref: "#/components/responses/NotFound"
                 "500":
