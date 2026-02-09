@@ -54,9 +54,18 @@ def create_app(*, testing: bool = False) -> Flask:
 
     @app.before_request
     def authenticate_request() -> None:
-        """Validate API key for all requests."""
-        if not testing:
-            validate_api_key()
+        """Validate API key for all requests except public endpoints."""
+        if testing:
+            return
+
+        public_paths = [
+            "/v2/schema/openapi",
+            "/__/health",
+        ]
+        if request.path in public_paths:
+            return
+
+        validate_api_key()
 
     @app.route("/__/health")
     def health_check() -> tuple[Response, int]:

@@ -30,7 +30,8 @@
                     deepLinking: true,
                     presets: [SwaggerUIBundle.presets.apis, SwaggerUIStandalonePreset],
                     plugins: [SwaggerUIBundle.plugins.DownloadUrl],
-                    layout: "StandaloneLayout"
+                    layout: "StandaloneLayout",
+                    persistAuthorization: true
                 });
             } catch (error) {
                 console.error('Error initializing Swagger UI:', error);
