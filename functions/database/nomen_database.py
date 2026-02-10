@@ -8,7 +8,7 @@ from identifier import generate_id
 from .database_validator import DatabaseValidator
 
 if TYPE_CHECKING:
-    from neo4j import ManagedTransaction, Session
+    from neo4j import ManagedTransaction
 
     from .database import Database
 
@@ -34,10 +34,6 @@ class NomenDatabase:
 
     def __init__(self, db: Database) -> None:
         self._db = db
-
-    @property
-    def session(self) -> Session:
-        return self._db.get_session()
 
     @staticmethod
     def create_with_transaction(

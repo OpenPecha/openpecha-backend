@@ -28,8 +28,9 @@ class TestApiKeyDatabase:
         """Test creating a master key (no application binding)."""
         key_id = generate_id()
         name = "Test Master Key"
+        email = "test@example.com"
 
-        created_id, raw_key = test_database.api_key.create(key_id, name)
+        created_id, raw_key = test_database.api_key.create(key_id, name, email)
 
         assert created_id == key_id
         assert raw_key is not None
@@ -39,9 +40,10 @@ class TestApiKeyDatabase:
         """Test creating a key bound to an application."""
         key_id = generate_id()
         name = "Test App Key"
+        email = "app@example.com"
         application_id = "test_application"
 
-        created_id, raw_key = test_database.api_key.create(key_id, name, application_id)
+        created_id, raw_key = test_database.api_key.create(key_id, name, email, application_id)
 
         assert created_id == key_id
         assert raw_key is not None
@@ -50,15 +52,17 @@ class TestApiKeyDatabase:
         """Test creating a key bound to nonexistent application fails."""
         key_id = generate_id()
         name = "Test Key"
+        email = "test@example.com"
 
         with pytest.raises(ValueError, match="not found"):
-            test_database.api_key.create(key_id, name, "nonexistent_app")
+            test_database.api_key.create(key_id, name, email, "nonexistent_app")
 
     def test_validate_master_key(self, test_database):
         """Test validating a master key returns id and no bound application."""
         key_id = generate_id()
         name = "Test Master Key"
-        created_id, raw_key = test_database.api_key.create(key_id, name)
+        email = "test@example.com"
+        created_id, raw_key = test_database.api_key.create(key_id, name, email)
 
         result = test_database.api_key.validate_key(raw_key)
 
@@ -70,8 +74,9 @@ class TestApiKeyDatabase:
         """Test validating an app-bound key returns bound application id."""
         key_id = generate_id()
         name = "Test App Key"
+        email = "app@example.com"
         application_id = "test_application"
-        created_id, raw_key = test_database.api_key.create(key_id, name, application_id)
+        created_id, raw_key = test_database.api_key.create(key_id, name, email, application_id)
 
         result = test_database.api_key.validate_key(raw_key)
 
@@ -89,7 +94,8 @@ class TestApiKeyDatabase:
         """Test revoking a key makes it invalid."""
         key_id = generate_id()
         name = "Test Key"
-        created_id, raw_key = test_database.api_key.create(key_id, name)
+        email = "test@example.com"
+        created_id, raw_key = test_database.api_key.create(key_id, name, email)
 
         assert test_database.api_key.validate_key(raw_key) is not None
 
@@ -107,7 +113,8 @@ class TestApiKeyDatabase:
         """Test rotating a key generates new value and invalidates old."""
         key_id = generate_id()
         name = "Test Key"
-        created_id, old_key = test_database.api_key.create(key_id, name)
+        email = "test@example.com"
+        created_id, old_key = test_database.api_key.create(key_id, name, email)
 
         new_key = test_database.api_key.rotate_key(created_id)
 
@@ -125,8 +132,8 @@ class TestApiKeyDatabase:
         """Test listing all keys."""
         key_id1 = generate_id()
         key_id2 = generate_id()
-        test_database.api_key.create(key_id1, "Key 1")
-        test_database.api_key.create(key_id2, "Key 2", "test_application")
+        test_database.api_key.create(key_id1, "Key 1", "key1@example.com")
+        test_database.api_key.create(key_id2, "Key 2", "key2@example.com", "test_application")
 
         keys = test_database.api_key.list_all()
 
@@ -179,7 +186,7 @@ class TestApiKeyAuthMiddleware:
         from main import create_app
 
         key_id = generate_id()
-        _, raw_key = test_database.api_key.create(key_id, "Master Key")
+        _, raw_key = test_database.api_key.create(key_id, "Master Key", "master@example.com")
 
         app = create_app(testing=False)
         client = app.test_client()
@@ -209,7 +216,7 @@ class TestApiKeyAuthMiddleware:
         from main import create_app
 
         key_id = generate_id()
-        _, raw_key = test_database.api_key.create(key_id, "App Key", "test_application")
+        _, raw_key = test_database.api_key.create(key_id, "App Key", "app@example.com", "test_application")
 
         app = create_app(testing=False)
         client = app.test_client()
@@ -229,7 +236,7 @@ class TestApiKeyAuthMiddleware:
         from main import create_app
 
         key_id = generate_id()
-        _, raw_key = test_database.api_key.create(key_id, "App Key", "test_application")
+        _, raw_key = test_database.api_key.create(key_id, "App Key", "app@example.com", "test_application")
 
         app = create_app(testing=False)
         client = app.test_client()
@@ -251,7 +258,7 @@ class TestApiKeyAuthMiddleware:
         from main import create_app
 
         key_id = generate_id()
-        created_id, raw_key = test_database.api_key.create(key_id, "Test Key")
+        created_id, raw_key = test_database.api_key.create(key_id, "Test Key", "test@example.com")
         test_database.api_key.revoke(created_id)
 
         app = create_app(testing=False)

@@ -840,6 +840,133 @@ class TestDatabase:
         assert retrieved.source is None
         assert retrieved.type == ManifestationType.CRITICAL
 
+    def test_create_manifestation_with_expression(self, test_database):
+        """Test creating manifestation with expression in same transaction."""
+        # Create a person for the expression contribution
+        person = PersonInput(
+            name=LocalizedString({"en": "Test Author"}),
+        )
+        person_id = test_database.person.create(person)
+
+        # Create expression input (not yet in database)
+        expression = ExpressionInput(
+            category_id="category",
+            title=LocalizedString({"en": "New Expression Created With Manifestation"}),
+            language="en",
+            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
+        )
+
+        # Create manifestation input
+        manifestation = ManifestationInput(
+            type=ManifestationType.CRITICAL,
+            source="Test Source",
+            colophon="Test colophon",
+        )
+
+        # Create both in same transaction
+        manifestation_id = generate_id()
+        expression_id = generate_id()
+        test_database.manifestation.create(
+            manifestation, manifestation_id, expression_id, expression=expression
+        )
+
+        # Verify expression was created
+        retrieved_expression = test_database.expression.get(expression_id)
+        assert retrieved_expression.id == expression_id
+        assert retrieved_expression.title.root["en"] == "New Expression Created With Manifestation"
+        assert len(retrieved_expression.contributions) == 1
+
+        # Verify manifestation was created and linked
+        retrieved_manifestation = test_database.manifestation.get(manifestation_id)
+        assert retrieved_manifestation.id == manifestation_id
+        assert retrieved_manifestation.source == "Test Source"
+        assert retrieved_manifestation.type == ManifestationType.CRITICAL
+
+        # Verify manifestation is linked to expression
+        manifestations = test_database.manifestation.get_all(expression_id)
+        assert len(manifestations) == 1
+        assert manifestations[0].id == manifestation_id
+
+    def test_create_manifestation_with_expression_rollback_on_invalid_person(self, test_database):
+        """Test that transaction rolls back if expression creation fails due to invalid person."""
+        # Create expression with non-existent person
+        expression = ExpressionInput(
+            category_id="category",
+            title=LocalizedString({"en": "Expression With Invalid Person"}),
+            language="en",
+            contributions=[ContributionInput(person_id="nonexistent-person-id", role=ContributorRole.AUTHOR)],
+        )
+
+        manifestation = ManifestationInput(
+            type=ManifestationType.CRITICAL,
+            source="Test Source",
+        )
+
+        manifestation_id = generate_id()
+        expression_id = generate_id()
+
+        # Should fail due to invalid person in expression
+        with pytest.raises(DataValidationError, match="nonexistent-person-id"):
+            test_database.manifestation.create(
+                manifestation, manifestation_id, expression_id, expression=expression
+            )
+
+        # Verify nothing was created (transaction rolled back)
+        with pytest.raises(DataNotFoundError):
+            test_database.expression.get(expression_id)
+
+        with pytest.raises(DataNotFoundError):
+            test_database.manifestation.get(manifestation_id)
+
+    def test_create_manifestation_with_translation_expression(self, test_database):
+        """Test creating manifestation with translation expression in same transaction."""
+        # Create person
+        person = PersonInput(
+            name=LocalizedString({"en": "Author"}),
+        )
+        person_id = test_database.person.create(person)
+
+        # Create root expression first (parent)
+        root_expression = ExpressionInput(
+            category_id="category",
+            title=LocalizedString({"en": "Root Text"}),
+            language="en",
+            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
+        )
+        root_expression_id = test_database.expression.create(root_expression)
+
+        # Create translation expression input
+        translation_expression = ExpressionInput(
+            category_id="category",
+            title=LocalizedString({"bo": "བསྒྱུར་བ།"}),
+            language="bo",
+            translation_of=root_expression_id,
+            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.TRANSLATOR)],
+        )
+
+        manifestation = ManifestationInput(
+            type=ManifestationType.DIPLOMATIC,
+            bdrc="W12345",
+        )
+
+        # Create both in same transaction
+        manifestation_id = generate_id()
+        translation_id = generate_id()
+        test_database.manifestation.create(
+            manifestation, manifestation_id, translation_id, expression=translation_expression
+        )
+
+        # Verify translation expression was created with parent link
+        retrieved_expression = test_database.expression.get(translation_id)
+        assert retrieved_expression.id == translation_id
+        assert retrieved_expression.translation_of == root_expression_id
+        assert retrieved_expression.language == "bo"
+
+        # Verify manifestation was created
+        retrieved_manifestation = test_database.manifestation.get(manifestation_id)
+        assert retrieved_manifestation.id == manifestation_id
+        assert retrieved_manifestation.type == ManifestationType.DIPLOMATIC
+
 
 class TestSpanDatabase:
     """Tests for SpanDatabase span adjustment functionality."""

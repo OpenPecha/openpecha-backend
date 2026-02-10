@@ -107,18 +107,6 @@ class Storage:
         data = self._get_file(Storage._base_text_path(expression_id, manifestation_id))
         return data.decode("utf-8")
 
-    def update_base_text_range(
-        self,
-        expression_id: str,
-        manifestation_id: str,
-        start: int,
-        end: int,
-        new_content: str,
-    ) -> str:
-        current_text = self.retrieve_base_text(expression_id, manifestation_id)
-        updated_text = current_text[:start] + new_content + current_text[end:]
-        return self.store_base_text(expression_id, manifestation_id, updated_text)
-
     def apply_insert(self, expression_id: str, manifestation_id: str, position: int, text: str) -> str:
         """Insert text at the specified position."""
         current_text = self.retrieve_base_text(expression_id, manifestation_id)

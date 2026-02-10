@@ -18,6 +18,9 @@ nodes:
       name:
         type: string
         required: true
+      email:
+        type: string
+        required: true
       api_key_hash:
         type: string
         required: true

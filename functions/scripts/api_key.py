@@ -3,11 +3,11 @@
 CLI tool for managing API keys.
 
 Usage:
-    python scripts/manage_api_keys.py create --name "My Key"
-    python scripts/manage_api_keys.py create --name "App Key" --application "app_id"
-    python scripts/manage_api_keys.py list
-    python scripts/manage_api_keys.py revoke --id "key_id"
-    python scripts/manage_api_keys.py rotate --id "key_id"
+    python scripts/api_key.py create --name "My Key" --email "user@example.com"
+    python scripts/api_key.py create --name "App Key" --email "user@example.com" --application "app_id"
+    python scripts/api_key.py list
+    python scripts/api_key.py revoke --id "key_id"
+    python scripts/api_key.py rotate --id "key_id"
 
 Requires NEO4J_URI, NEO4J_USERNAME, NEO4J_PASSWORD environment variables.
 """
@@ -16,19 +16,24 @@ import argparse
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent / "functions"))
+from dotenv import load_dotenv
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
 
 from database import Database
 from identifier import generate_id
 
+load_dotenv()
 
-def create_api_key(name: str, application_id: str | None = None) -> None:
+
+def create_api_key(name: str, email: str, application_id: str | None = None) -> None:
     """Create a new API key, optionally bound to an application."""
     key_id = generate_id()
 
     with Database() as db:
         try:
-            created_id, raw_key = db.api_key.create(key_id, name, application_id)
+            created_id, raw_key = db.api_key.create(key_id, name, email, application_id)
         except ValueError as e:
             print(f"\n❌ {e}\n")
             sys.exit(1)
@@ -36,6 +41,7 @@ def create_api_key(name: str, application_id: str | None = None) -> None:
     print("\n✅ API key created successfully!")
     print(f"   ID:          {created_id}")
     print(f"   Name:        {name}")
+    print(f"   Email:       {email}")
     if application_id:
         print(f"   Bound to:    {application_id}")
     else:
@@ -53,15 +59,16 @@ def list_api_keys() -> None:
         print("\nNo API keys found.\n")
         return
 
-    print(f"\n{'ID':<25} {'Name':<25} {'Active':<8} {'Bound To':<25} {'Created':<20}")
-    print("-" * 105)
+    print(f"\n{'ID':<20} {'Name':<20} {'Email':<30} {'Active':<8} {'Bound To':<20} {'Created':<20}")
+    print("-" * 120)
 
     for key in keys:
         created = str(key.get("created_at", "N/A"))[:19] if key.get("created_at") else "N/A"
         active = "Yes" if key.get("is_active") else "No"
         bound_to = key.get("bound_application_id") or "(master)"
+        email = key.get("email", "N/A")
 
-        print(f"{key['id']:<25} {key['name']:<25} {active:<8} {bound_to:<25} {created:<20}")
+        print(f"{key['id']:<20} {key['name']:<20} {email:<30} {active:<8} {bound_to:<20} {created:<20}")
 
     print()
 
@@ -100,8 +107,8 @@ def main() -> None:
         formatter_class=argparse.RawDescriptionHelpFormatter,
         epilog="""
 Examples:
-  %(prog)s create --name "Master Admin Key"
-  %(prog)s create --name "WebBuddhist Key" --application webuddhist
+  %(prog)s create --name "Master Admin Key" --email "admin@example.com"
+  %(prog)s create --name "WebBuddhist Key" --email "dev@example.com" --application webuddhist
   %(prog)s list
   %(prog)s revoke --id abc123
   %(prog)s rotate --id abc123
@@ -112,6 +119,7 @@ Examples:
 
     create_parser = subparsers.add_parser("create", help="Create a new API key")
     create_parser.add_argument("--name", required=True, help="Name for the API key")
+    create_parser.add_argument("--email", required=True, help="Contact email for the key owner")
     create_parser.add_argument(
         "--application",
         required=False,
@@ -129,7 +137,7 @@ Examples:
     args = parser.parse_args()
 
     if args.command == "create":
-        create_api_key(args.name, args.application)
+        create_api_key(args.name, args.email, args.application)
     elif args.command == "list":
         list_api_keys()
     elif args.command == "revoke":

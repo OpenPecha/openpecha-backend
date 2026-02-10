@@ -96,9 +96,8 @@ def _adjust_annotation_for_replace(
         return (start, end + delta)
     if replace_start <= start < replace_end < end:
         return (replace_start + new_len, end + delta)
-    if start < replace_start < end <= replace_end:
-        return (start, replace_start + new_len)
-    return (start, end)
+
+    return (start, replace_start + new_len)  # start < replace_start < end <= replace_end
 
 
 class SpanDatabase:

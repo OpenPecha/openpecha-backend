@@ -16,6 +16,7 @@ class ApiKeyDatabase:
         CREATE (k:ApiKey {
             id: $key_id,
             name: $name,
+            email: $email,
             api_key_hash: $api_key_hash,
             is_active: true,
             created_at: datetime($created_at)
@@ -28,6 +29,7 @@ class ApiKeyDatabase:
         CREATE (k:ApiKey {
             id: $key_id,
             name: $name,
+            email: $email,
             api_key_hash: $api_key_hash,
             is_active: true,
             created_at: datetime($created_at)
@@ -56,7 +58,7 @@ class ApiKeyDatabase:
     LIST_QUERY = """
         MATCH (k:ApiKey)
         OPTIONAL MATCH (k)-[:BOUND_TO]->(a:Application)
-        RETURN k.id AS id, k.name AS name, k.is_active AS is_active,
+        RETURN k.id AS id, k.name AS name, k.email AS email, k.is_active AS is_active,
                k.created_at AS created_at, a.id AS bound_application_id
         ORDER BY k.created_at DESC
     """
@@ -78,13 +80,14 @@ class ApiKeyDatabase:
         """Generate a secure random API key (32 characters)."""
         return secrets.token_urlsafe(24)
 
-    def create(self, key_id: str, name: str, application_id: str | None = None) -> tuple[str, str]:
+    def create(self, key_id: str, name: str, email: str, application_id: str | None = None) -> tuple[str, str]:
         """
         Create a new API key, optionally bound to an application.
 
         Args:
             key_id: Unique identifier for the API key.
             name: Human-readable name for the key.
+            email: Contact email for the key owner.
             application_id: Optional application ID to bind the key to.
 
         Returns:
@@ -101,6 +104,7 @@ class ApiKeyDatabase:
                     self.CREATE_WITH_BINDING_QUERY,
                     key_id=key_id,
                     name=name,
+                    email=email,
                     api_key_hash=api_key_hash,
                     created_at=created_at,
                     application_id=application_id,
@@ -110,6 +114,7 @@ class ApiKeyDatabase:
                     self.CREATE_QUERY,
                     key_id=key_id,
                     name=name,
+                    email=email,
                     api_key_hash=api_key_hash,
                     created_at=created_at,
                 ).single()
@@ -180,7 +185,7 @@ class ApiKeyDatabase:
         List all API keys.
 
         Returns:
-            List of key dictionaries with id, name, is_active, created_at, bound_application_id.
+            List of key dictionaries with id, name, email, is_active, created_at, bound_application_id.
         """
         with self.session as session:
             return session.run(self.LIST_QUERY).data()
