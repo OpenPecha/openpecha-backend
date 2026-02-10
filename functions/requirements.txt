@@ -1,8 +1,8 @@
 firebase-admin==7.1.0
 firebase-functions==0.5.0
 Flask==3.1.2
-functions-framework==3.8.2
-google-cloud-logging==3.12.0
-google-cloud-storage==3.7.0
+functions-framework==3.10.0
+google-cloud-logging==3.13.0
+google-cloud-storage==3.9.0
 pydantic==2.12.5
-neo4j==6.0.3
+neo4j==6.1.0

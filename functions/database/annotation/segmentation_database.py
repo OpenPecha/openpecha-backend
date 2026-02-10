@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from exceptions import DataNotFoundError
+from exceptions import DataNotFoundError, InvalidRequestError
 
 if TYPE_CHECKING:
     from database.database import Database
@@ -23,9 +23,13 @@ class SegmentationDatabase:
        OR ($manifestation_id IS NOT NULL AND manifestation.id = $manifestation_id)
     MATCH (manifestation)-[:MANIFESTATION_OF]->(expression:Expression)
     MATCH (segment:Segment)-[:SEGMENT_OF]->(segmentation)
-    MATCH (span:Span)-[:SPAN_OF]->(segment)
-    WITH segmentation, manifestation, expression, segment,
-         min(span.start) AS min_start, collect({start: span.start, end: span.end}) AS lines
+    CALL (segment) {
+        MATCH (span:Span)-[:SPAN_OF]->(segment)
+        WITH span ORDER BY span.start
+        RETURN collect({start: span.start, end: span.end}) AS lines,
+               min(span.start) AS min_start
+    }
+    WITH segmentation, manifestation, expression, segment, lines, min_start
     ORDER BY min_start
     WITH segmentation, manifestation, expression, collect({id: segment.id, lines: lines}) AS segments
     RETURN segmentation.id AS id, manifestation.id AS manifestation_id, expression.id AS expression_id, segments
@@ -46,6 +50,12 @@ class SegmentationDatabase:
     MATCH (seg:Segmentation {id: $segmentation_id})
     OPTIONAL MATCH (span:Span)-[:SPAN_OF]->(segment:Segment)-[:SEGMENT_OF]->(seg)
     DETACH DELETE span, segment, seg
+    """
+
+    CHECK_ALIGNMENT_QUERY = """
+    MATCH (seg:Segmentation {id: $segmentation_id})
+    RETURN seg IS NOT NULL AS exists,
+           EXISTS { (seg)<-[:SEGMENT_OF]-(:Segment)-[:ALIGNED_TO]-(:Segment) } AS is_aligned
     """
 
     def __init__(self, db: Database) -> None:
@@ -108,7 +118,13 @@ class SegmentationDatabase:
             )
 
     @staticmethod
-    def delete_with_transaction(tx: ManagedTransaction, segmentation_id: str) -> None:
+    def delete_with_transaction(tx: ManagedTransaction, segmentation_id: str, *, include_aligned: bool = False) -> None:
+        if not include_aligned:
+            result = tx.run(SegmentationDatabase.CHECK_ALIGNMENT_QUERY, segmentation_id=segmentation_id).single()
+            if result and result["exists"] and result["is_aligned"]:
+                raise InvalidRequestError(
+                    f"Segmentation '{segmentation_id}' is part of an alignment. Use alignment delete instead."
+                )
         tx.run(SegmentationDatabase.DELETE_QUERY, segmentation_id=segmentation_id)
 
     def delete(self, segmentation_id: str) -> None:

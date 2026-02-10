@@ -1228,7 +1228,10 @@ paths:
                     $ref: "#/components/responses/ServerError"
         delete:
             summary: Delete segmentation annotation
-            description: Permanently delete a segmentation annotation and all its segments
+            description: >-
+                Permanently delete a standalone segmentation annotation and all its segments.
+                If the segmentation is part of an alignment, this endpoint will return 400.
+                Use DELETE /v2/annotations/alignment/{alignment_id} instead.
             tags:
                 - Annotations
             parameters:
@@ -1241,6 +1244,8 @@ paths:
             responses:
                 "204":
                     description: Segmentation deleted successfully
+                "400":
+                    $ref: "#/components/responses/InvalidRequest"
                 "404":
                     $ref: "#/components/responses/NotFound"
                 "500":
@@ -1300,7 +1305,9 @@ paths:
                     $ref: "#/components/responses/ServerError"
         delete:
             summary: Delete alignment annotation
-            description: Permanently delete an alignment annotation and all its segments
+            description: >-
+                Permanently delete an alignment annotation and both its source and target
+                segmentations, including all their segments.
             tags:
                 - Annotations
             parameters:

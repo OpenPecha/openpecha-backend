@@ -153,8 +153,8 @@ class AlignmentDatabase:
     @staticmethod
     def delete_with_transaction(tx: ManagedTransaction, segmentation_id: str) -> None:
         aligned_segmentation_id = AlignmentDatabase._validate_alignment(tx, segmentation_id)
-        SegmentationDatabase.delete_with_transaction(tx, segmentation_id)
-        SegmentationDatabase.delete_with_transaction(tx, aligned_segmentation_id)
+        SegmentationDatabase.delete_with_transaction(tx, segmentation_id, include_aligned=True)
+        SegmentationDatabase.delete_with_transaction(tx, aligned_segmentation_id, include_aligned=True)
 
     @staticmethod
     def delete_all_with_transaction(tx: ManagedTransaction, manifestation_id: str) -> None:
@@ -237,8 +237,8 @@ class AlignmentDatabase:
     ) -> str:
         aligned_segmentation_id = AlignmentDatabase._validate_alignment(tx, segmentation_id)
 
-        SegmentationDatabase.delete_with_transaction(tx, segmentation_id)
-        SegmentationDatabase.delete_with_transaction(tx, aligned_segmentation_id)
+        SegmentationDatabase.delete_with_transaction(tx, segmentation_id, include_aligned=True)
+        SegmentationDatabase.delete_with_transaction(tx, aligned_segmentation_id, include_aligned=True)
 
         return AlignmentDatabase.add_with_transaction(tx, source_manifestation_id, alignment)
 

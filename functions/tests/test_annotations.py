@@ -200,6 +200,32 @@ class TestDeleteSegmentation(TestAnnotationsEndpoints):
         second_delete = client.delete(f"/v2/annotations/segmentation/{segmentation_id}")
         assert second_delete.status_code == 204
 
+    def test_delete_segmentation_rejects_aligned(self, client, test_database, test_person_data):
+        """Test that deleting a segmentation that is part of an alignment returns 400"""
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_id = self._create_test_expression(test_database, person_id)
+        source_manifestation_id = self._create_test_manifestation(
+            test_database, expression_id, "Source text"
+        )
+        target_manifestation_id = self._create_test_manifestation(
+            test_database, expression_id, "Target text"
+        )
+
+        alignment = AlignmentInput(
+            target_id=target_manifestation_id,
+            target_segments=[SegmentInput(lines=[SpanModel(start=0, end=11)])],
+            aligned_segments=[AlignedSegment(lines=[SpanModel(start=0, end=11)], alignment_indices=[0])],
+        )
+        alignment_id = test_database.annotation.alignment.add(source_manifestation_id, alignment)
+
+        response = client.delete(f"/v2/annotations/segmentation/{alignment_id}")
+
+        assert response.status_code == 400
+        assert "alignment" in response.get_json()["error"].lower()
+
+        verify_response = client.get(f"/v2/annotations/alignment/{alignment_id}")
+        assert verify_response.status_code == 200
+
 
 class TestGetAlignment(TestAnnotationsEndpoints):
     """Tests for GET /v2/annotations/alignment/{alignment_id}"""
@@ -306,6 +332,30 @@ class TestDeleteAlignment(TestAnnotationsEndpoints):
 
         verify_response = client.get(f"/v2/annotations/alignment/{alignment_id}")
         assert verify_response.status_code == 404
+
+    def test_delete_alignment_removes_both_segmentations(self, client, test_database, test_person_data):
+        """Test that deleting an alignment also removes both underlying segmentations"""
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_id = self._create_test_expression(test_database, person_id)
+        source_manifestation_id = self._create_test_manifestation(
+            test_database, expression_id, "Source text"
+        )
+        target_manifestation_id = self._create_test_manifestation(
+            test_database, expression_id, "Target text"
+        )
+
+        alignment = AlignmentInput(
+            target_id=target_manifestation_id,
+            target_segments=[SegmentInput(lines=[SpanModel(start=0, end=11)])],
+            aligned_segments=[AlignedSegment(lines=[SpanModel(start=0, end=11)], alignment_indices=[0])],
+        )
+        alignment_id = test_database.annotation.alignment.add(source_manifestation_id, alignment)
+
+        response = client.delete(f"/v2/annotations/alignment/{alignment_id}")
+        assert response.status_code == 204
+
+        source_seg_response = client.get(f"/v2/annotations/segmentation/{alignment_id}")
+        assert source_seg_response.status_code == 404
 
     def test_delete_alignment_not_found(self, client, test_database):
         """Test deleting non-existent alignment returns 404"""
