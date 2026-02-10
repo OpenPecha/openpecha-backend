@@ -8,6 +8,8 @@ import pytest
 from database.database import Database
 from dotenv import load_dotenv
 from main import create_app
+from neo4j import GraphDatabase
+from testcontainers.neo4j import Neo4jContainer
 
 
 
@@ -83,52 +85,68 @@ def setup_test_schema(session) -> None:
 
 
 @pytest.fixture(scope="session")
-def neo4j_connection():
-    """Get Neo4j connection details from environment variables and setup constraints once."""
-    from neo4j import GraphDatabase
+def _neo4j_database():
+    """Session-scoped Database backed by a disposable Neo4j container.
 
-    test_uri = os.environ.get("NEO4J_TEST_URI")
-    test_password = os.environ.get("NEO4J_TEST_PASSWORD")
-
-    if not test_uri or not test_password:
-        pytest.skip(
-            "Neo4j test credentials not provided. Set NEO4J_TEST_URI and NEO4J_TEST_PASSWORD."
+    A local Neo4j instance is spun up via testcontainers and torn down
+    automatically when the test session ends.  Requires Docker to be running.
+    """
+    # Ensure the Docker SDK can reach a running daemon.
+    # Docker Desktop works out of the box (/var/run/docker.sock).
+    # For other runtimes (colima, podman, …) set DOCKER_HOST before running tests.
+    if not os.environ.get("DOCKER_HOST") and not os.path.exists("/var/run/docker.sock"):
+        pytest.fail(
+            "No Docker daemon found. Tests require a running Docker-compatible runtime.\n"
+            "Set DOCKER_HOST to point at your Docker socket, e.g.:\n"
+            "  export DOCKER_HOST=unix://$HOME/.colima/default/docker.sock\n"
+            "See README.md for details."
         )
-        return  # unreachable, but helps type checker
 
-    # Setup constraints once per session (they persist, so no need to recreate per test)
-    driver = GraphDatabase.driver(test_uri, auth=("neo4j", test_password))
-    with driver.session() as session:
+    # TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE tells the Ryuk cleanup container
+    # the *in-VM* socket path when DOCKER_HOST differs from the default.
+    if os.environ.get("DOCKER_HOST") and not os.environ.get("TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE"):
+        os.environ["TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE"] = "/var/run/docker.sock"
+
+    container = Neo4jContainer("neo4j:2025")
+    container.start()
+
+    test_uri = container.get_connection_url()
+    test_password = container.password
+
+    os.environ["NEO4J_URI"] = test_uri
+    os.environ["NEO4J_USERNAME"] = "neo4j"
+    os.environ["NEO4J_PASSWORD"] = test_password
+
+    db = Database(neo4j_uri=test_uri, neo4j_auth=("neo4j", test_password))
+
+    # Enable CYPHER25 (GQL) as the default language — must run on the system database
+    _driver = GraphDatabase.driver(test_uri, auth=("neo4j", test_password))
+    with _driver.session(database="system") as sys_session:
+        sys_session.run("ALTER DATABASE neo4j SET DEFAULT LANGUAGE CYPHER 25").consume()
+    _driver.close()
+
+    # Setup constraints once per session (IF NOT EXISTS makes them idempotent)
+    with db.get_session() as session:
         constraint_statements = load_constraints_file()
         for statement in constraint_statements:
             try:
                 session.run(statement).consume()  # type: ignore[arg-type]
             except Exception:
                 pass  # Constraint already exists
-    driver.close()
 
-    yield {"uri": test_uri, "auth": ("neo4j", test_password)}
+    yield db
+
+    db.close()
+    container.stop()
 
 
 @pytest.fixture
-def test_database(neo4j_connection):
-    os.environ["NEO4J_URI"] = neo4j_connection["uri"]
-    os.environ["NEO4J_USERNAME"] = neo4j_connection["auth"][0]
-    os.environ["NEO4J_PASSWORD"] = neo4j_connection["auth"][1]
+def test_database(_neo4j_database):
+    """Per-test fixture: clean DB, seed data, yield shared Database."""
+    with _neo4j_database.get_session() as session:
+        setup_test_schema(session)
 
-    db = Database(neo4j_uri=neo4j_connection["uri"], neo4j_auth=neo4j_connection["auth"])
-
-    try:
-        with db.get_session() as session:
-            setup_test_schema(session)
-
-        yield db
-
-        # Cleanup
-        with db.get_session() as session:
-            session.execute_write(lambda tx: tx.run("MATCH (n) DETACH DELETE n").consume())
-    finally:
-        db.close()
+    yield _neo4j_database
 
 
 class StorageBucket:

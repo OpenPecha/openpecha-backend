@@ -6,3 +6,4 @@ pre-commit
 pyright
 ty
 pytest-dotenv
+testcontainers[neo4j]
