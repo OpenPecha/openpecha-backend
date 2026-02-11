@@ -93,7 +93,7 @@ class NoteDatabase:
             note_type=note_type,
         )
         record = result.single()
-        if not record:
+        if not record or not record["note_ids"]:
             raise DataNotFoundError(f"Manifestation with ID '{manifestation_id}' not found")
         return record["note_ids"]
 
@@ -119,7 +119,3 @@ class NoteDatabase:
 
         for record in result:
             NoteDatabase.delete_with_transaction(tx, record["note_id"])
-
-    def delete_all(self, manifestation_id: str, note_type: str = "durchen") -> None:
-        with self._db.get_session() as session:
-            session.execute_write(lambda tx: NoteDatabase.delete_all_with_transaction(tx, manifestation_id, note_type))

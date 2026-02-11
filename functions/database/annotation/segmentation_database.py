@@ -107,7 +107,7 @@ class SegmentationDatabase:
             segments=segments_data,
         )
         record = result.single()
-        if not record:
+        if not record or record["segment_count"] == 0:
             raise DataNotFoundError(f"Manifestation with ID '{manifestation_id}' not found")
         return segmentation_id
 
@@ -137,10 +137,6 @@ class SegmentationDatabase:
 
         for record in result:
             SegmentationDatabase.delete_with_transaction(tx, record["id"])
-
-    def delete_all(self, manifestation_id: str) -> None:
-        with self._db.get_session() as session:
-            session.execute_write(lambda tx: SegmentationDatabase.delete_all_with_transaction(tx, manifestation_id))
 
     @staticmethod
     def update_with_transaction(

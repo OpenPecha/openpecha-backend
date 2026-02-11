@@ -18,6 +18,7 @@ logging.getLogger("neo4j").setLevel(logging.WARNING)
 logging.getLogger("neo4j.io").setLevel(logging.WARNING)
 logging.getLogger("neo4j.pool").setLevel(logging.WARNING)
 logging.getLogger("neo4j.notifications").setLevel(logging.WARNING)
+logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 
 def load_constraints_file() -> list[str]:

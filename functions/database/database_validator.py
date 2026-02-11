@@ -1,6 +1,6 @@
 import logging
 
-from exceptions import DataValidationError, InvalidRequestError
+from exceptions import DataNotFoundError, DataValidationError, InvalidRequestError
 from models import (
     AnnotationType,
     ContributionInput,
@@ -98,6 +98,18 @@ class DatabaseValidator:
             raise DataValidationError(
                 f"Expression {expression_id} does not exist. Cannot create manifestation for non-existent expression."
             )
+
+    @staticmethod
+    def validate_manifestation_exists(tx: ManagedTransaction, manifestation_id: str) -> None:
+        query = """
+        RETURN EXISTS { (m:Manifestation {id: $manifestation_id}) } AS exists
+        """
+
+        result = tx.run(query, manifestation_id=manifestation_id)
+        record = result.single()
+
+        if not record or not record["exists"]:
+            raise DataNotFoundError(f"Manifestation with ID '{manifestation_id}' not found")
 
     @staticmethod
     def validate_language_code_exists(tx: ManagedTransaction, language_code: str) -> None:

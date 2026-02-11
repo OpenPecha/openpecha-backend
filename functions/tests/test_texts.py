@@ -1633,3 +1633,486 @@ class TestPatchTextV2:
         data = json.loads(response.data)
         assert "error" in data
 
+
+class TestGetEditionsV2:
+    """Tests for GET /v2/texts/{text_id}/editions endpoint (get editions of a text)"""
+
+    def _create_test_person(self, db, test_person_data):
+        """Helper to create a test person"""
+        person = PersonInput.model_validate(test_person_data)
+        return db.person.create(person)
+
+    def _create_test_expression(self, db, person_id, title=None):
+        """Helper to create a test expression"""
+        if title is None:
+            title = {"en": "Test Expression", "bo": "བརྟག་དཔྱད།"}
+        expr_data = {
+            "title": title,
+            "language": "en",
+            "category_id": "category",
+            "contributions": [{"person_id": person_id, "role": "author"}],
+        }
+        expression = ExpressionInput.model_validate(expr_data)
+        return db.expression.create(expression)
+
+    def test_get_editions_empty_list(self, client, test_database, test_person_data):
+        """Test getting editions for an expression with no editions"""
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_id = self._create_test_expression(test_database, person_id)
+
+        response = client.get(f"/v2/texts/{expression_id}/editions")
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert isinstance(data, list)
+        assert len(data) == 0
+
+    def test_get_editions_single_diplomatic(self, client, test_database, test_person_data):
+        """Test getting a single diplomatic edition"""
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_id = self._create_test_expression(test_database, person_id)
+
+        edition_data = {
+            "content": "Test content for diplomatic edition",
+            "metadata": {
+                "type": "diplomatic",
+                "bdrc": "W12345",
+                "source": "Test Source",
+            },
+            "pagination": {
+                "volume": {
+                    "pages": [{"reference": "1a", "lines": [{"start": 0, "end": 35}]}]
+                }
+            },
+        }
+        post_response = client.post(f"/v2/texts/{expression_id}/editions", json=edition_data)
+        assert post_response.status_code == 201
+        manifestation_id = post_response.get_json()["id"]
+
+        response = client.get(f"/v2/texts/{expression_id}/editions")
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 1
+        assert data[0]["id"] == manifestation_id
+        assert data[0]["type"] == "diplomatic"
+        assert data[0]["bdrc"] == "W12345"
+        assert data[0]["text_id"] == expression_id
+
+    def test_get_editions_single_critical(self, client, test_database, test_person_data):
+        """Test getting a single critical edition"""
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_id = self._create_test_expression(test_database, person_id)
+
+        edition_data = {
+            "content": "Test content for critical edition",
+            "metadata": {
+                "type": "critical",
+                "source": "Critical Source",
+            },
+            "segmentation": {
+                "segments": [{"lines": [{"start": 0, "end": 33}]}]
+            },
+        }
+        post_response = client.post(f"/v2/texts/{expression_id}/editions", json=edition_data)
+        assert post_response.status_code == 201
+        manifestation_id = post_response.get_json()["id"]
+
+        response = client.get(f"/v2/texts/{expression_id}/editions")
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 1
+        assert data[0]["id"] == manifestation_id
+        assert data[0]["type"] == "critical"
+
+    def test_get_editions_multiple_editions(self, client, test_database, test_person_data):
+        """Test getting multiple editions for an expression"""
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_id = self._create_test_expression(test_database, person_id)
+
+        diplomatic_data = {
+            "content": "Diplomatic content",
+            "metadata": {
+                "type": "diplomatic",
+                "bdrc": "W11111",
+                "source": "Source A",
+            },
+            "pagination": {
+                "volume": {
+                    "pages": [{"reference": "1a", "lines": [{"start": 0, "end": 18}]}]
+                }
+            },
+        }
+        post_response_1 = client.post(f"/v2/texts/{expression_id}/editions", json=diplomatic_data)
+        assert post_response_1.status_code == 201
+        diplomatic_id = post_response_1.get_json()["id"]
+
+        diplomatic_data_2 = {
+            "content": "Another diplomatic content",
+            "metadata": {
+                "type": "diplomatic",
+                "bdrc": "W22222",
+                "source": "Source B",
+            },
+            "pagination": {
+                "volume": {
+                    "pages": [{"reference": "1a", "lines": [{"start": 0, "end": 26}]}]
+                }
+            },
+        }
+        post_response_2 = client.post(f"/v2/texts/{expression_id}/editions", json=diplomatic_data_2)
+        assert post_response_2.status_code == 201
+        diplomatic_id_2 = post_response_2.get_json()["id"]
+
+        response = client.get(f"/v2/texts/{expression_id}/editions")
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 2
+        returned_ids = {item["id"] for item in data}
+        assert diplomatic_id in returned_ids
+        assert diplomatic_id_2 in returned_ids
+
+    def test_get_editions_filter_by_diplomatic_type(self, client, test_database, test_person_data):
+        """Test filtering editions by diplomatic type"""
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_id = self._create_test_expression(test_database, person_id)
+
+        diplomatic_data = {
+            "content": "Diplomatic content",
+            "metadata": {
+                "type": "diplomatic",
+                "bdrc": "W11111",
+                "source": "Source A",
+            },
+            "pagination": {
+                "volume": {
+                    "pages": [{"reference": "1a", "lines": [{"start": 0, "end": 18}]}]
+                }
+            },
+        }
+        post_response_1 = client.post(f"/v2/texts/{expression_id}/editions", json=diplomatic_data)
+        assert post_response_1.status_code == 201
+        diplomatic_id = post_response_1.get_json()["id"]
+
+        critical_data = {
+            "content": "Critical content",
+            "metadata": {
+                "type": "critical",
+                "source": "Critical Source",
+            },
+            "segmentation": {
+                "segments": [{"lines": [{"start": 0, "end": 16}]}]
+            },
+        }
+        post_response_2 = client.post(f"/v2/texts/{expression_id}/editions", json=critical_data)
+        assert post_response_2.status_code == 201
+
+        response = client.get(f"/v2/texts/{expression_id}/editions?edition_type=diplomatic")
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 1
+        assert data[0]["id"] == diplomatic_id
+        assert data[0]["type"] == "diplomatic"
+
+    def test_get_editions_filter_by_critical_type(self, client, test_database, test_person_data):
+        """Test filtering editions by critical type"""
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_id = self._create_test_expression(test_database, person_id)
+
+        diplomatic_data = {
+            "content": "Diplomatic content",
+            "metadata": {
+                "type": "diplomatic",
+                "bdrc": "W11111",
+                "source": "Source A",
+            },
+            "pagination": {
+                "volume": {
+                    "pages": [{"reference": "1a", "lines": [{"start": 0, "end": 18}]}]
+                }
+            },
+        }
+        post_response_1 = client.post(f"/v2/texts/{expression_id}/editions", json=diplomatic_data)
+        assert post_response_1.status_code == 201
+
+        critical_data = {
+            "content": "Critical content",
+            "metadata": {
+                "type": "critical",
+                "source": "Critical Source",
+            },
+            "segmentation": {
+                "segments": [{"lines": [{"start": 0, "end": 16}]}]
+            },
+        }
+        post_response_2 = client.post(f"/v2/texts/{expression_id}/editions", json=critical_data)
+        assert post_response_2.status_code == 201
+        critical_id = post_response_2.get_json()["id"]
+
+        response = client.get(f"/v2/texts/{expression_id}/editions?edition_type=critical")
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 1
+        assert data[0]["id"] == critical_id
+        assert data[0]["type"] == "critical"
+
+    def test_get_editions_filter_returns_empty_when_no_match(self, client, test_database, test_person_data):
+        """Test filtering returns empty list when no editions match the type"""
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_id = self._create_test_expression(test_database, person_id)
+
+        diplomatic_data = {
+            "content": "Diplomatic content",
+            "metadata": {
+                "type": "diplomatic",
+                "bdrc": "W11111",
+                "source": "Source A",
+            },
+            "pagination": {
+                "volume": {
+                    "pages": [{"reference": "1a", "lines": [{"start": 0, "end": 18}]}]
+                }
+            },
+        }
+        post_response = client.post(f"/v2/texts/{expression_id}/editions", json=diplomatic_data)
+        assert post_response.status_code == 201
+
+        response = client.get(f"/v2/texts/{expression_id}/editions?edition_type=critical")
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 0
+
+    def test_get_editions_invalid_expression_id(self, client, test_database):
+        """Test getting editions for a non-existent expression returns empty list"""
+        response = client.get("/v2/texts/non-existent-id/editions")
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert isinstance(data, list)
+        assert len(data) == 0
+
+    def test_get_editions_invalid_edition_type(self, client, test_database, test_person_data):
+        """Test filtering with invalid edition type returns 422"""
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_id = self._create_test_expression(test_database, person_id)
+
+        response = client.get(f"/v2/texts/{expression_id}/editions?edition_type=invalid_type")
+
+        assert response.status_code == 422
+        data = json.loads(response.data)
+        assert "error" in data
+
+    def test_get_editions_returns_all_metadata_fields(self, client, test_database, test_person_data):
+        """Test that returned editions include all expected metadata fields"""
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_id = self._create_test_expression(test_database, person_id)
+
+        edition_data = {
+            "content": "Test content with all fields",
+            "metadata": {
+                "type": "diplomatic",
+                "bdrc": "W99999",
+                "wiki": "Q88888",
+                "source": "Complete Source",
+                "colophon": "Test colophon text",
+                "incipit_title": {"en": "Opening words", "bo": "དབུ་ཚིག"},
+            },
+            "pagination": {
+                "volume": {
+                    "pages": [{"reference": "1a", "lines": [{"start": 0, "end": 28}]}]
+                }
+            },
+        }
+        post_response = client.post(f"/v2/texts/{expression_id}/editions", json=edition_data)
+        assert post_response.status_code == 201
+        manifestation_id = post_response.get_json()["id"]
+
+        response = client.get(f"/v2/texts/{expression_id}/editions")
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 1
+        edition = data[0]
+        assert edition["id"] == manifestation_id
+        assert edition["text_id"] == expression_id
+        assert edition["type"] == "diplomatic"
+        assert edition["bdrc"] == "W99999"
+        assert edition["wiki"] == "Q88888"
+        assert edition["colophon"] == "Test colophon text"
+        assert edition["incipit_title"]["en"] == "Opening words"
+        assert edition["incipit_title"]["bo"] == "དབུ་ཚིག"
+
+    def test_get_editions_no_filter_returns_all_types(self, client, test_database, test_person_data):
+        """Test that no filter returns all edition types"""
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_id = self._create_test_expression(test_database, person_id)
+
+        diplomatic_data = {
+            "content": "Diplomatic content",
+            "metadata": {
+                "type": "diplomatic",
+                "bdrc": "W11111",
+                "source": "Source A",
+            },
+            "pagination": {
+                "volume": {
+                    "pages": [{"reference": "1a", "lines": [{"start": 0, "end": 18}]}]
+                }
+            },
+        }
+        post_response_1 = client.post(f"/v2/texts/{expression_id}/editions", json=diplomatic_data)
+        assert post_response_1.status_code == 201
+
+        critical_data = {
+            "content": "Critical content",
+            "metadata": {
+                "type": "critical",
+                "source": "Critical Source",
+            },
+            "segmentation": {
+                "segments": [{"lines": [{"start": 0, "end": 16}]}]
+            },
+        }
+        post_response_2 = client.post(f"/v2/texts/{expression_id}/editions", json=critical_data)
+        assert post_response_2.status_code == 201
+
+        response = client.get(f"/v2/texts/{expression_id}/editions")
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 2
+        types = {item["type"] for item in data}
+        assert "diplomatic" in types
+        assert "critical" in types
+
+    def test_get_editions_different_expressions_isolated(self, client, test_database, test_person_data):
+        """Test that editions from different expressions are isolated"""
+        person_id = self._create_test_person(test_database, test_person_data)
+
+        expression_id_1 = self._create_test_expression(
+            test_database, person_id, title={"en": "Expression 1"}
+        )
+        expression_id_2 = self._create_test_expression(
+            test_database, person_id, title={"en": "Expression 2"}
+        )
+
+        edition_data_1 = {
+            "content": "Content for expression 1",
+            "metadata": {
+                "type": "diplomatic",
+                "bdrc": "W11111",
+                "source": "Source 1",
+            },
+            "pagination": {
+                "volume": {
+                    "pages": [{"reference": "1a", "lines": [{"start": 0, "end": 24}]}]
+                }
+            },
+        }
+        post_response_1 = client.post(f"/v2/texts/{expression_id_1}/editions", json=edition_data_1)
+        assert post_response_1.status_code == 201
+        edition_id_1 = post_response_1.get_json()["id"]
+
+        edition_data_2 = {
+            "content": "Content for expression 2",
+            "metadata": {
+                "type": "diplomatic",
+                "bdrc": "W22222",
+                "source": "Source 2",
+            },
+            "pagination": {
+                "volume": {
+                    "pages": [{"reference": "1a", "lines": [{"start": 0, "end": 24}]}]
+                }
+            },
+        }
+        post_response_2 = client.post(f"/v2/texts/{expression_id_2}/editions", json=edition_data_2)
+        assert post_response_2.status_code == 201
+        edition_id_2 = post_response_2.get_json()["id"]
+
+        response_1 = client.get(f"/v2/texts/{expression_id_1}/editions")
+        assert response_1.status_code == 200
+        data_1 = json.loads(response_1.data)
+        assert len(data_1) == 1
+        assert data_1[0]["id"] == edition_id_1
+        assert data_1[0]["text_id"] == expression_id_1
+
+        response_2 = client.get(f"/v2/texts/{expression_id_2}/editions")
+        assert response_2.status_code == 200
+        data_2 = json.loads(response_2.data)
+        assert len(data_2) == 1
+        assert data_2[0]["id"] == edition_id_2
+        assert data_2[0]["text_id"] == expression_id_2
+
+    def test_get_editions_with_tibetan_content(self, client, test_database, test_person_data):
+        """Test getting editions with Tibetan incipit titles"""
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_id = self._create_test_expression(test_database, person_id)
+
+        edition_data = {
+            "content": "བོད་སྐད་ཀྱི་ཡིག་ཆ།",
+            "metadata": {
+                "type": "diplomatic",
+                "bdrc": "W77777",
+                "source": "Tibetan Source",
+                "incipit_title": {"bo": "དབུ་ཚིག་བོད་སྐད།", "en": "Tibetan Opening"},
+            },
+            "pagination": {
+                "volume": {
+                    "pages": [{"reference": "1a", "lines": [{"start": 0, "end": 17}]}]
+                }
+            },
+        }
+        post_response = client.post(f"/v2/texts/{expression_id}/editions", json=edition_data)
+        assert post_response.status_code == 201
+
+        response = client.get(f"/v2/texts/{expression_id}/editions")
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 1
+        assert data[0]["incipit_title"]["bo"] == "དབུ་ཚིག་བོད་སྐད།"
+        assert data[0]["incipit_title"]["en"] == "Tibetan Opening"
+
+    def test_get_editions_round_trip(self, client, test_database, test_person_data):
+        """Test creating an edition and retrieving it via get_editions"""
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_id = self._create_test_expression(test_database, person_id)
+
+        edition_data = {
+            "content": "Round trip test content",
+            "metadata": {
+                "type": "diplomatic",
+                "bdrc": "W55555",
+                "wiki": "Q66666",
+                "source": "Round Trip Source",
+                "colophon": "Round trip colophon",
+            },
+            "pagination": {
+                "volume": {
+                    "pages": [{"reference": "1a", "lines": [{"start": 0, "end": 23}]}]
+                }
+            },
+        }
+        post_response = client.post(f"/v2/texts/{expression_id}/editions", json=edition_data)
+        assert post_response.status_code == 201
+        manifestation_id = post_response.get_json()["id"]
+
+        response = client.get(f"/v2/texts/{expression_id}/editions")
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 1
+        edition = data[0]
+        assert edition["id"] == manifestation_id
+        assert edition["text_id"] == expression_id
+        assert edition["type"] == "diplomatic"
+        assert edition["bdrc"] == "W55555"
+        assert edition["wiki"] == "Q66666"
+        assert edition["colophon"] == "Round trip colophon"
+

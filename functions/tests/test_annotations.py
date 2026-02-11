@@ -302,6 +302,54 @@ class TestGetAlignment(TestAnnotationsEndpoints):
         assert data["aligned_segments"][0]["alignment_indices"] == [0, 1, 2]
 
 
+class TestAddAlignment(TestAnnotationsEndpoints):
+    """Tests for alignment creation error cases"""
+
+    def test_add_alignment_source_manifestation_not_found(self, test_database, test_person_data):
+        """Test that adding alignment with non-existent source manifestation raises DataNotFoundError"""
+        from exceptions import DataNotFoundError
+        from models import AlignmentInput, AlignedSegment, SegmentInput, SpanModel
+
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_id = self._create_test_expression(test_database, person_id)
+        target_manifestation_id = self._create_test_manifestation(
+            test_database, expression_id, "Target text"
+        )
+
+        alignment = AlignmentInput(
+            target_id=target_manifestation_id,
+            target_segments=[SegmentInput(lines=[SpanModel(start=0, end=11)])],
+            aligned_segments=[AlignedSegment(lines=[SpanModel(start=0, end=11)], alignment_indices=[0])],
+        )
+
+        with pytest.raises(DataNotFoundError) as exc_info:
+            test_database.annotation.alignment.add("nonexistent_manifestation_id", alignment)
+
+        assert "Manifestation with ID 'nonexistent_manifestation_id' not found" in str(exc_info.value)
+
+    def test_add_alignment_target_manifestation_not_found(self, test_database, test_person_data):
+        """Test that adding alignment with non-existent target manifestation raises DataNotFoundError"""
+        from exceptions import DataNotFoundError
+        from models import AlignmentInput, AlignedSegment, SegmentInput, SpanModel
+
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_id = self._create_test_expression(test_database, person_id)
+        source_manifestation_id = self._create_test_manifestation(
+            test_database, expression_id, "Source text"
+        )
+
+        alignment = AlignmentInput(
+            target_id="nonexistent_target_id",
+            target_segments=[SegmentInput(lines=[SpanModel(start=0, end=11)])],
+            aligned_segments=[AlignedSegment(lines=[SpanModel(start=0, end=11)], alignment_indices=[0])],
+        )
+
+        with pytest.raises(DataNotFoundError) as exc_info:
+            test_database.annotation.alignment.add(source_manifestation_id, alignment)
+
+        assert "not found" in str(exc_info.value).lower()
+
+
 class TestDeleteAlignment(TestAnnotationsEndpoints):
     """Tests for DELETE /v2/annotations/alignment/{alignment_id}"""
 
@@ -362,6 +410,27 @@ class TestDeleteAlignment(TestAnnotationsEndpoints):
         response = client.delete("/v2/annotations/alignment/nonexistent_id")
 
         assert response.status_code == 404
+
+    def test_delete_alignment_rejects_regular_segmentation(self, client, test_database, test_person_data):
+        """Test that deleting a regular segmentation via alignment endpoint returns 400"""
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_id = self._create_test_expression(test_database, person_id)
+        manifestation_id = self._create_test_manifestation(
+            test_database, expression_id, "Source text"
+        )
+
+        segmentation = SegmentationInput(
+            segments=[SegmentInput(lines=[SpanModel(start=0, end=11)])]
+        )
+        segmentation_id = test_database.annotation.segmentation.add(manifestation_id, segmentation)
+
+        response = client.delete(f"/v2/annotations/alignment/{segmentation_id}")
+
+        assert response.status_code == 400
+        assert "not an alignment annotation" in response.get_json()["error"].lower()
+
+        verify_response = client.get(f"/v2/annotations/segmentation/{segmentation_id}")
+        assert verify_response.status_code == 200
 
 
 class TestGetPagination(TestAnnotationsEndpoints):
@@ -617,6 +686,119 @@ class TestDeleteBibliographic(TestAnnotationsEndpoints):
         response = client.delete("/v2/annotations/bibliographic/nonexistent_id")
 
         assert response.status_code == 204
+
+
+class TestAddAnnotationManifestationNotFound(TestAnnotationsEndpoints):
+    """Tests for annotation creation with non-existent manifestation"""
+
+    def test_add_bibliographic_manifestation_not_found(self, test_database):
+        """Test that adding bibliographic metadata with non-existent manifestation raises DataNotFoundError"""
+        from exceptions import DataNotFoundError
+
+        with test_database.get_session() as session:
+            session.run("MERGE (:BibliographyType {name: 'colophon'})")
+
+        items = [BibliographicMetadataInput(span=SpanModel(start=0, end=10), type=BibliographyType.COLOPHON)]
+
+        with pytest.raises(DataNotFoundError) as exc_info:
+            test_database.annotation.bibliographic.add("nonexistent_manifestation_id", items)
+
+        assert "Manifestation with ID 'nonexistent_manifestation_id' not found" in str(exc_info.value)
+
+    def test_add_segmentation_manifestation_not_found(self, test_database):
+        """Test that adding segmentation with non-existent manifestation raises DataNotFoundError"""
+        from exceptions import DataNotFoundError
+
+        segmentation = SegmentationInput(
+            segments=[SegmentInput(lines=[SpanModel(start=0, end=10)])]
+        )
+
+        with pytest.raises(DataNotFoundError) as exc_info:
+            test_database.annotation.segmentation.add("nonexistent_manifestation_id", segmentation)
+
+        assert "Manifestation with ID 'nonexistent_manifestation_id' not found" in str(exc_info.value)
+
+    def test_add_pagination_manifestation_not_found(self, test_database):
+        """Test that adding pagination with non-existent manifestation raises DataNotFoundError"""
+        from exceptions import DataNotFoundError
+
+        pagination = PaginationInput(
+            volume=VolumeModel(pages=[PageModel(reference="1a", lines=[SpanModel(start=0, end=10)])])
+        )
+
+        with pytest.raises(DataNotFoundError) as exc_info:
+            test_database.annotation.pagination.add("nonexistent_manifestation_id", pagination)
+
+        assert "Manifestation with ID 'nonexistent_manifestation_id' not found" in str(exc_info.value)
+
+    def test_add_note_manifestation_not_found(self, test_database):
+        """Test that adding durchen notes with non-existent manifestation raises DataNotFoundError"""
+        from exceptions import DataNotFoundError
+
+        with test_database.get_session() as session:
+            session.run("MERGE (:NoteType {name: 'durchen'})")
+
+        notes = [NoteInput(span=SpanModel(start=0, end=10), text="Test note")]
+
+        with pytest.raises(DataNotFoundError) as exc_info:
+            test_database.annotation.note.add_durchen("nonexistent_manifestation_id", notes)
+
+        assert "Manifestation with ID 'nonexistent_manifestation_id' not found" in str(exc_info.value)
+
+
+class TestDeleteManifestationWithAnnotations(TestAnnotationsEndpoints):
+    """Tests for manifestation deletion with all annotation types"""
+
+    def test_delete_manifestation_deletes_all_annotations(self, client, test_database, test_person_data):
+        """Test that deleting a manifestation deletes all associated annotations"""
+        person_id = self._create_test_person(test_database, test_person_data)
+        expression_id = self._create_test_expression(test_database, person_id)
+
+        source_manifestation_id = self._create_test_manifestation(
+            test_database, expression_id, "0123456789ABCDEFGHIJ"
+        )
+        target_manifestation_id = self._create_test_manifestation(
+            test_database, expression_id, "KLMNOPQRSTUVWXYZ0123"
+        )
+
+        segmentation = SegmentationInput(
+            segments=[SegmentInput(lines=[SpanModel(start=0, end=10)])]
+        )
+        segmentation_id = test_database.annotation.segmentation.add(source_manifestation_id, segmentation)
+
+        pagination = PaginationInput(
+            volume=VolumeModel(pages=[PageModel(reference="1a", lines=[SpanModel(start=0, end=10)])])
+        )
+        pagination_id = test_database.annotation.pagination.add(source_manifestation_id, pagination)
+
+        bibliographic_items = [
+            BibliographicMetadataInput(span=SpanModel(start=0, end=5), type=BibliographyType.COLOPHON)
+        ]
+        bibliographic_ids = test_database.annotation.bibliographic.add(source_manifestation_id, bibliographic_items)
+
+        note_items = [NoteInput(span=SpanModel(start=5, end=10), text="Test note")]
+        note_ids = test_database.annotation.note.add_durchen(source_manifestation_id, note_items)
+
+        alignment = AlignmentInput(
+            target_id=target_manifestation_id,
+            target_segments=[SegmentInput(lines=[SpanModel(start=0, end=10)])],
+            aligned_segments=[AlignedSegment(lines=[SpanModel(start=0, end=10)], alignment_indices=[0])],
+        )
+        alignment_id = test_database.annotation.alignment.add(source_manifestation_id, alignment)
+
+        assert client.get(f"/v2/annotations/segmentation/{segmentation_id}").status_code == 200
+        assert client.get(f"/v2/annotations/pagination/{pagination_id}").status_code == 200
+        assert client.get(f"/v2/annotations/bibliographic/{bibliographic_ids[0]}").status_code == 200
+        assert client.get(f"/v2/annotations/durchen/{note_ids[0]}").status_code == 200
+        assert client.get(f"/v2/annotations/alignment/{alignment_id}").status_code == 200
+
+        test_database.manifestation.delete(source_manifestation_id)
+
+        assert client.get(f"/v2/annotations/segmentation/{segmentation_id}").status_code == 404
+        assert client.get(f"/v2/annotations/pagination/{pagination_id}").status_code == 404
+        assert client.get(f"/v2/annotations/bibliographic/{bibliographic_ids[0]}").status_code == 404
+        assert client.get(f"/v2/annotations/durchen/{note_ids[0]}").status_code == 404
+        assert client.get(f"/v2/annotations/alignment/{alignment_id}").status_code == 404
 
 
 class TestAnnotationEdgeCases(TestAnnotationsEndpoints):

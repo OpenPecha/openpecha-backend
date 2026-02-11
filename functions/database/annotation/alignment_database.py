@@ -7,6 +7,7 @@ from exceptions import DataNotFoundError, InvalidRequestError
 if TYPE_CHECKING:
     from database.database import Database
     from neo4j import ManagedTransaction, Record
+from database.database_validator import DatabaseValidator
 from identifier import generate_id
 from models import (
     AlignedSegment,
@@ -114,9 +115,6 @@ class AlignmentDatabase:
 
         target_segments = [target_min_start_to_segment[ms] for ms in target_min_starts_ordered]
 
-        if not target_segments or not aligned_segments:
-            raise DataNotFoundError(f"Alignment '{segmentation_id}' has no segments")
-
         return AlignmentOutput(
             id=segmentation_id,
             target_id=target_manifestation_id,
@@ -165,18 +163,6 @@ class AlignmentDatabase:
         for record in result:
             AlignmentDatabase.delete_with_transaction(tx, record["segmentation_id"])
 
-    def delete_all(self, manifestation_id: str) -> None:
-        with self._db.get_session() as session:
-            session.execute_write(lambda tx: AlignmentDatabase.delete_all_with_transaction(tx, manifestation_id))
-
-    def update(self, segmentation_id: str, source_manifestation_id: str, alignment: AlignmentInput) -> str:
-        with self._db.get_session() as session:
-            return session.execute_write(
-                lambda tx: AlignmentDatabase.update_with_transaction(
-                    tx, segmentation_id, source_manifestation_id, alignment
-                )
-            )
-
     @staticmethod
     def add_with_transaction(
         tx: ManagedTransaction,
@@ -213,7 +199,10 @@ class AlignmentDatabase:
             for target_idx in seg.alignment_indices
         ]
 
-        result = tx.run(
+        DatabaseValidator.validate_manifestation_exists(tx, source_manifestation_id)
+        DatabaseValidator.validate_manifestation_exists(tx, alignment.target_id)
+
+        tx.run(
             AlignmentDatabase.CREATE_QUERY,
             manifestation_id=source_manifestation_id,
             target_manifestation_id=alignment.target_id,
@@ -223,24 +212,7 @@ class AlignmentDatabase:
             source_segments=source_segments_data,
             alignments=alignments_data,
         )
-        record = result.single()
-        if not record:
-            raise DataNotFoundError(f"Manifestation with ID '{source_manifestation_id}' not found")
         return source_segmentation_id
-
-    @staticmethod
-    def update_with_transaction(
-        tx: ManagedTransaction,
-        segmentation_id: str,
-        source_manifestation_id: str,
-        alignment: AlignmentInput,
-    ) -> str:
-        aligned_segmentation_id = AlignmentDatabase._validate_alignment(tx, segmentation_id)
-
-        SegmentationDatabase.delete_with_transaction(tx, segmentation_id, include_aligned=True)
-        SegmentationDatabase.delete_with_transaction(tx, aligned_segmentation_id, include_aligned=True)
-
-        return AlignmentDatabase.add_with_transaction(tx, source_manifestation_id, alignment)
 
     @staticmethod
     def _validate_alignment(tx: ManagedTransaction, segmentation_id: str) -> str:

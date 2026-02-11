@@ -92,7 +92,7 @@ class BibliographicDatabase:
             items=items_data,
         )
         record = result.single()
-        if not record:
+        if not record or not record["ids"]:
             raise DataNotFoundError(f"Manifestation with ID '{manifestation_id}' not found")
         return record["ids"]
 
@@ -123,7 +123,3 @@ class BibliographicDatabase:
 
         for record in result:
             BibliographicDatabase.delete_with_transaction(tx, record["id"])
-
-    def delete_all(self, manifestation_id: str) -> None:
-        with self._db.get_session() as session:
-            session.execute_write(lambda tx: BibliographicDatabase.delete_all_with_transaction(tx, manifestation_id))

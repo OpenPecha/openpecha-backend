@@ -109,7 +109,7 @@ class PaginationDatabase:
             pages=pages_data,
         )
         record = result.single()
-        if not record:
+        if not record or record["count"] == 0:
             raise DataNotFoundError(f"Manifestation with ID '{manifestation_id}' not found")
         return pagination_id
 
@@ -133,7 +133,3 @@ class PaginationDatabase:
 
         for record in result:
             PaginationDatabase.delete_with_transaction(tx, record["pagination_id"])
-
-    def delete_all(self, manifestation_id: str) -> None:
-        with self._db.get_session() as session:
-            session.execute_write(lambda tx: PaginationDatabase.delete_all_with_transaction(tx, manifestation_id))
