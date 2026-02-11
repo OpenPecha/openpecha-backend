@@ -2089,23 +2089,17 @@ paths:
                         schema:
                             type: object
                             required:
-                                - id
                                 - name
                             properties:
-                                id:
-                                    type: string
-                                    minLength: 1
-                                    description: Application ID (slug, will be lowercased)
                                 name:
                                     type: string
                                     minLength: 1
-                                    description: Application name (will be lowercased; stored same as id)
+                                    description: Application name (lowercased and used as both id and name)
                         examples:
-                            webuddhist:
-                                summary: Create webuddhist application
+                            create_app:
+                                summary: Create application
                                 value:
-                                    id: "WebBuddhist"
-                                    name: "WebBuddhist"
+                                    name: "MyApp"
             responses:
                 "201":
                     description: Application created successfully
@@ -2122,8 +2116,8 @@ paths:
                                 created:
                                     summary: Application created
                                     value:
-                                        id: "webuddhist"
-                                        name: "webuddhist"
+                                        id: "myapp"
+                                        name: "myapp"
                 "400":
                     $ref: "#/components/responses/InvalidRequest"
                 "422":

@@ -11,7 +11,7 @@ class TestApplications:
 
     def test_create_application(self, client, test_database):
         """Test POST creates application and returns 201."""
-        payload = {"id": "myapp", "name": "MyApp"}
+        payload = {"name": "MyApp"}
         response = client.post(
             "/v2/applications",
             data=json.dumps(payload),
@@ -24,8 +24,8 @@ class TestApplications:
         assert test_database.application.exists("myapp")
 
     def test_create_application_rejects_duplicate(self, client, test_database):
-        """Test POST same id returns 422."""
-        payload = {"id": "test_application", "name": "Test Application"}
+        """Test POST same name returns 422."""
+        payload = {"name": "test_application"}
         response = client.post(
             "/v2/applications",
             data=json.dumps(payload),
@@ -38,7 +38,7 @@ class TestApplications:
 
     def test_create_application_normalizes_to_lowercase(self, client, test_database):
         """Test input WebBuddhist is stored as webbuddhist in both id and name."""
-        payload = {"id": "WebBuddhist", "name": "WebBuddhist"}
+        payload = {"name": "WebBuddhist"}
         response = client.post(
             "/v2/applications",
             data=json.dumps(payload),

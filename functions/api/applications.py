@@ -9,7 +9,7 @@ applications_bp = Blueprint("applications", __name__)
 @applications_bp.route("", methods=["POST"], strict_slashes=False)
 @validate_json(ApplicationCreateRequest)
 def create_application(validated_data: ApplicationCreateRequest) -> tuple[Response, int]:
-    app_id = validated_data.id.strip().lower()
+    app_id = validated_data.name.strip().lower()
     app_name = app_id
     with Database() as db:
         created_id = db.application.create(application_id=app_id, name=app_name)

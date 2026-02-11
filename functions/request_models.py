@@ -163,7 +163,6 @@ class LanguageCreateRequest(OpenPechaModel):
 
 
 class ApplicationCreateRequest(OpenPechaModel):
-    id: NonEmptyStr
     name: NonEmptyStr
 
 
