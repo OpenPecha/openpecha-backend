@@ -2076,6 +2076,61 @@ paths:
                 "500":
                     $ref: "#/components/responses/ServerError"
 
+    /v2/applications:
+        post:
+            summary: Create a new application
+            description: Create a new application entry in the database. Input is normalized to lowercase for both id and name.
+            tags:
+                - Applications
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            type: object
+                            required:
+                                - id
+                                - name
+                            properties:
+                                id:
+                                    type: string
+                                    minLength: 1
+                                    description: Application ID (slug, will be lowercased)
+                                name:
+                                    type: string
+                                    minLength: 1
+                                    description: Application name (will be lowercased; stored same as id)
+                        examples:
+                            webuddhist:
+                                summary: Create webuddhist application
+                                value:
+                                    id: "WebBuddhist"
+                                    name: "WebBuddhist"
+            responses:
+                "201":
+                    description: Application created successfully
+                    content:
+                        application/json:
+                            schema:
+                                type: object
+                                properties:
+                                    id:
+                                        type: string
+                                    name:
+                                        type: string
+                            examples:
+                                created:
+                                    summary: Application created
+                                    value:
+                                        id: "webuddhist"
+                                        name: "webuddhist"
+                "400":
+                    $ref: "#/components/responses/InvalidRequest"
+                "422":
+                    $ref: "#/components/responses/ValidationError"
+                "500":
+                    $ref: "#/components/responses/ServerError"
+
     /v2/languages:
         get:
             summary: Retrieve all languages

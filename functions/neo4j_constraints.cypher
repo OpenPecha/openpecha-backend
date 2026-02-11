@@ -95,3 +95,7 @@ CREATE INDEX volume_index_index IF NOT EXISTS FOR (v:Volume) ON (v.index);
 
 // Index on BibliographicMetadata id for faster lookups
 CREATE INDEX bibliographic_id_index IF NOT EXISTS FOR (b:BibliographicMetadata) ON (b.id);
+
+// Application nodes - each application must have a unique ID (slug)
+CREATE CONSTRAINT application_id_unique IF NOT EXISTS
+FOR (a:Application) REQUIRE a.id IS UNIQUE;
