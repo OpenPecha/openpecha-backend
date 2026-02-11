@@ -95,9 +95,11 @@ class DataAdapter:
 
     @staticmethod
     def category(data: dict) -> CategoryOutput:
+        desc = DataAdapter.localized_text(data.get("description"))
         return CategoryOutput(
             id=data["id"],
             title=LocalizedString(DataAdapter.localized_text(data["title"]) or {}),
+            description=LocalizedString(desc) if desc else None,
             parent_id=data.get("parent_id"),
             children=data.get("children") or [],
         )

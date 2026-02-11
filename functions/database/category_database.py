@@ -24,6 +24,8 @@ class CategoryDatabase:
         id: c.id,
         title: [(c)-[:HAS_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
             -[:HAS_LANGUAGE]->(l:Language) | {language: l.code, text: lt.text}],
+        description: [(c)-[:HAS_DESCRIPTION]->(dn:Nomen)-[:HAS_LOCALIZATION]->(dlt:LocalizedText)
+            -[:HAS_LANGUAGE]->(dl:Language) | {language: dl.code, text: dlt.text}],
         parent_id: [(c)-[:HAS_PARENT]->(parent:Category) | parent.id][0],
         children: [(child:Category)-[:HAS_PARENT]->(c) | child.id]
     } AS category
@@ -37,8 +39,11 @@ class CategoryDatabase:
     CREATE (c)-[:BELONGS_TO]->(app)
     WITH c
     OPTIONAL MATCH (parent:Category {id: $parent_id})
-    WITH c, parent
+    OPTIONAL MATCH (desc_nomen:Nomen {id: $description_nomen_id})
+    WITH c, parent, desc_nomen
     CALL (*) { WHEN parent IS NOT NULL THEN { CREATE (c)-[:HAS_PARENT]->(parent) } }
+    WITH c, desc_nomen
+    CALL (*) { WHEN desc_nomen IS NOT NULL THEN { CREATE (c)-[:HAS_DESCRIPTION]->(desc_nomen) } }
     RETURN c.id AS category_id
     """
 
@@ -75,6 +80,11 @@ class CategoryDatabase:
 
             category_id = generate_id()
             nomen_id = NomenDatabase.create_with_transaction(tx, category.title.root, None)
+            description_nomen_id = None
+            if category.description is not None:
+                description_nomen_id = NomenDatabase.create_with_transaction(
+                    tx, category.description.root, None
+                )
 
             result = tx.run(
                 CategoryDatabase.CREATE_QUERY,
@@ -82,6 +92,7 @@ class CategoryDatabase:
                 application=application,
                 nomen_id=nomen_id,
                 parent_id=category.parent_id,
+                description_nomen_id=description_nomen_id,
             )
             record = result.single(strict=True)
             return record["category_id"]
