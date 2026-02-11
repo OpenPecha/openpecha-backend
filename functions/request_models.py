@@ -162,6 +162,10 @@ class LanguageCreateRequest(OpenPechaModel):
     name: NonEmptyStr
 
 
+class ApplicationCreateRequest(OpenPechaModel):
+    name: NonEmptyStr
+
+
 class SearchQueryParams(OpenPechaModel):
     query: NonEmptyStr
     search_type: str = "hybrid"

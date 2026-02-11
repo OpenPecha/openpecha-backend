@@ -6,7 +6,6 @@ from unittest.mock import patch
 
 import pytest
 from database.database import Database
-from dotenv import load_dotenv
 from main import create_app
 from neo4j import GraphDatabase
 from testcontainers.neo4j import Neo4jContainer

@@ -4,6 +4,7 @@ import traceback
 
 import firebase_admin
 from api.annotations import annotations_bp
+from api.applications import applications_bp
 from api.api import api_bp
 from api.auth import validate_api_key
 from api.categories import categories_bp
@@ -49,6 +50,7 @@ def create_app(*, testing: bool = False) -> Flask:
     app.register_blueprint(segments_bp, url_prefix="/v2/segments")
     app.register_blueprint(schema_bp, url_prefix="/v2/schema")
     app.register_blueprint(annotations_bp, url_prefix="/v2/annotations")
+    app.register_blueprint(applications_bp, url_prefix="/v2/applications")
     app.register_blueprint(categories_bp, url_prefix="/v2/categories")
     app.register_blueprint(languages_bp, url_prefix="/v2/languages")
 
