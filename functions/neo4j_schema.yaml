@@ -72,6 +72,10 @@ nodes:
         target: Nomen
         cardinality: one
         required: true
+      HAS_DESCRIPTION:
+        target: Nomen
+        cardinality: one
+        required: false
       CHILD_OF:
         target: Category
         cardinality: one
