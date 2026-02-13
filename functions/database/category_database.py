@@ -32,30 +32,30 @@ class CategoryDatabase:
     """
 
     CREATE_QUERY = """
-    MATCH (n:Nomen {id: $nomen_id})
-    MATCH (app:Application {id: $application})
-    CREATE (c:Category {id: $category_id})
-    CREATE (c)-[:HAS_TITLE]->(n)
-    CREATE (c)-[:BELONGS_TO]->(app)
-    WITH c
-    OPTIONAL MATCH (parent:Category {id: $parent_id})
-    OPTIONAL MATCH (desc_nomen:Nomen {id: $description_nomen_id})
-    WITH c, parent, desc_nomen
-    CALL (*) { WHEN parent IS NOT NULL THEN { CREATE (c)-[:HAS_PARENT]->(parent) } }
-    WITH c, desc_nomen
-    CALL (*) { WHEN desc_nomen IS NOT NULL THEN { CREATE (c)-[:HAS_DESCRIPTION]->(desc_nomen) } }
-    RETURN c.id AS category_id
+        MATCH (n:Nomen {id: $nomen_id})
+        MATCH (app:Application {id: $application})
+        CREATE (c:Category {id: $category_id})
+        CREATE (c)-[:HAS_TITLE]->(n)
+        CREATE (c)-[:BELONGS_TO]->(app)
+        WITH c
+        OPTIONAL MATCH (parent:Category {id: $parent_id})
+        OPTIONAL MATCH (desc_nomen:Nomen {id: $description_nomen_id})
+        WITH c, parent, desc_nomen
+        CALL (*) { WHEN parent IS NOT NULL THEN { CREATE (c)-[:HAS_PARENT]->(parent) } }
+        WITH c, desc_nomen
+        CALL (*) { WHEN desc_nomen IS NOT NULL THEN { CREATE (c)-[:HAS_DESCRIPTION]->(desc_nomen) } }
+        RETURN c.id AS category_id
     """
 
     FIND_EXISTING_QUERY = """
-    MATCH (c:Category)-[:BELONGS_TO]->(app:Application {id: $application})
-    WHERE ($parent_id IS NULL AND NOT EXISTS { (c)-[:HAS_PARENT]->(:Category) })
-       OR (c)-[:HAS_PARENT]->(:Category {id: $parent_id})
-    MATCH (c)-[:HAS_TITLE]->(:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
-        -[:HAS_LANGUAGE]->(:Language {code: $language})
-    WHERE toLower(lt.text) = toLower($title_text)
-    RETURN c.id AS category_id
-    LIMIT 1
+        MATCH (c:Category)-[:BELONGS_TO]->(app:Application {id: $application})
+        WHERE ($parent_id IS NULL AND NOT EXISTS { (c)-[:HAS_PARENT]->(:Category) })
+        OR (c)-[:HAS_PARENT]->(:Category {id: $parent_id})
+        MATCH (c)-[:HAS_TITLE]->(:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
+            -[:HAS_LANGUAGE]->(:Language {code: $language})
+        WHERE toLower(lt.text) = toLower($title_text)
+        RETURN c.id AS category_id
+        LIMIT 1
     """
 
     def __init__(self, db: Database) -> None:

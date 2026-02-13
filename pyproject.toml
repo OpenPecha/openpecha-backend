@@ -12,7 +12,7 @@ pythonpath = ["functions"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "--verbose --log-cli-level=DEBUG"
+addopts = "--verbose"
 env_files = ["functions/.env"]
 
 [tool.coverage.run]
