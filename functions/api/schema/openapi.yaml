@@ -2300,6 +2300,12 @@ components:
                     additionalProperties:
                         type: string
                     description: Localized category titles (language code to text mapping)
+                description:
+                    type: object
+                    additionalProperties:
+                        type: string
+                    nullable: true
+                    description: Localized category descriptions (language code to text mapping, optional)
                 parent_id:
                     type: string
                     nullable: true
@@ -2320,6 +2326,12 @@ components:
                     additionalProperties:
                         type: string
                     description: Localized category titles
+                description:
+                    type: object
+                    additionalProperties:
+                        type: string
+                    nullable: true
+                    description: Localized category descriptions (language code to text mapping, optional)
                 parent_id:
                     type: string
                     nullable: true

@@ -388,3 +388,112 @@ class TestCategoryHierarchy:
         assert created_cat["title"]["en"] == "English Title"
         assert created_cat["title"]["bo"] == "བོད་ཡིག་མིང་།"
         assert created_cat["title"]["zh"] == "中文标题"
+
+
+class TestCategoryDescription:
+    """Tests for category description field (optional, localized via Nomen)"""
+
+    def test_create_category_with_description_single_language(self, client, test_database):
+        """Test creating a category with description in one language"""
+        category_data = {
+            "title": {"en": "Category With Description"},
+            "description": {"en": "will add description here"},
+        }
+
+        response = client.post(
+            "/v2/categories/",
+            data=json.dumps(category_data),
+            content_type="application/json",
+            headers=APPLICATION_HEADER,
+        )
+
+        assert response.status_code == 201
+        data = json.loads(response.data)
+        category_id = data["id"]
+
+        get_response = client.get("/v2/categories/", headers=APPLICATION_HEADER)
+        categories = json.loads(get_response.data)
+        created_cat = next((c for c in categories if c["id"] == category_id), None)
+
+        assert created_cat is not None
+        assert created_cat["description"] is not None
+        assert created_cat["description"]["en"] == "will add description here"
+
+    def test_create_category_with_description_multiple_languages(self, client, test_database):
+        """Test creating a category with description in multiple languages"""
+        category_data = {
+            "title": {"en": "Multi-Lang Desc Category"},
+            "description": {
+                "en": "A category for texts",
+                "bo": "གཞུང་དེབ་སྡེ་ཚན།",
+                "zh": "文本分类",
+            },
+        }
+
+        response = client.post(
+            "/v2/categories/",
+            data=json.dumps(category_data),
+            content_type="application/json",
+            headers=APPLICATION_HEADER,
+        )
+
+        assert response.status_code == 201
+        category_id = json.loads(response.data)["id"]
+
+        get_response = client.get("/v2/categories/", headers=APPLICATION_HEADER)
+        categories = json.loads(get_response.data)
+        created_cat = next((c for c in categories if c["id"] == category_id), None)
+
+        assert created_cat is not None
+        assert created_cat["description"]["en"] == "A category for texts"
+        assert created_cat["description"]["bo"] == "གཞུང་དེབ་སྡེ་ཚན།"
+        assert created_cat["description"]["zh"] == "文本分类"
+
+    def test_create_category_without_description(self, client, test_database):
+        """Test creating a category without description (backward compatibility)"""
+        category_data = {"title": {"en": "Category Without Description"}}
+
+        response = client.post(
+            "/v2/categories/",
+            data=json.dumps(category_data),
+            content_type="application/json",
+            headers=APPLICATION_HEADER,
+        )
+
+        assert response.status_code == 201
+        category_id = json.loads(response.data)["id"]
+
+        get_response = client.get("/v2/categories/", headers=APPLICATION_HEADER)
+        categories = json.loads(get_response.data)
+        created_cat = next((c for c in categories if c["id"] == category_id), None)
+
+        assert created_cat is not None
+        assert created_cat.get("description") is None
+
+    def test_get_categories_returns_description_when_present(self, client, test_database):
+        """Test that GET returns description when category has one"""
+        category_with_desc = CategoryInput.model_validate({
+            "title": {"en": "Desc Via DB"},
+            "description": {"en": "Created via database with description"},
+        })
+        category_id = test_database.category.create(
+            category_with_desc, application="test_application"
+        )
+
+        response = client.get("/v2/categories/", headers=APPLICATION_HEADER)
+        categories = json.loads(response.data)
+        created_cat = next((c for c in categories if c["id"] == category_id), None)
+
+        assert created_cat is not None
+        assert created_cat["description"]["en"] == "Created via database with description"
+
+    def test_get_categories_seeded_category_no_description(self, client, test_database):
+        """Test that seeded category (no HAS_DESCRIPTION) returns description null/absent"""
+        response = client.get("/v2/categories/", headers=APPLICATION_HEADER)
+
+        assert response.status_code == 200
+        categories = json.loads(response.data)
+        seeded_cat = next((c for c in categories if c["id"] == "category"), None)
+
+        assert seeded_cat is not None
+        assert seeded_cat.get("description") is None
