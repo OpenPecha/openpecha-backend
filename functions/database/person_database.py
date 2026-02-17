@@ -62,6 +62,23 @@ class PersonDatabase:
     RETURN {_PERSON_RETURN} AS person
     """
 
+    PERSON_COUNT_QUERY = """
+    MATCH (p:Person)
+    WHERE ($name IS NULL OR EXISTS {{
+        (p)-[:HAS_NAME]->(n:Nomen)
+        WHERE EXISTS {{
+            (n)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
+            WHERE toLower(lt.text) CONTAINS toLower($name)
+        }} OR EXISTS {{
+            (n)<-[:ALTERNATIVE_OF]-(alt:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
+            WHERE toLower(lt.text) CONTAINS toLower($name)
+        }}
+    }})
+    AND ($bdrc IS NULL OR p.bdrc = $bdrc)
+    AND ($wiki IS NULL OR p.wiki = $wiki)
+    RETURN count(p) as total
+    """
+
     CREATE_QUERY = """
     MATCH (n:Nomen {id: $primary_nomen_id})
     CREATE (p:Person {id: $id, bdrc: $bdrc, wiki: $wiki})
