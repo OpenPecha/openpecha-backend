@@ -22,12 +22,17 @@ def get_person(person_id: str) -> tuple[Response, int]:
 @validate_query_params(PersonsQueryParams)
 def get_all_persons(validated_params: PersonsQueryParams) -> tuple[Response, int]:
     with Database() as db:
-        persons = db.person.get_all(
+        persons, total = db.person.get_all(
             offset=validated_params.offset,
             limit=validated_params.limit,
             filters=validated_params,
         )
-    return jsonify([person.model_dump() for person in persons]), 200
+    return jsonify({
+        "items": [person.model_dump() for person in persons],
+        "total": total,
+        "offset": validated_params.offset,
+        "limit": validated_params.limit
+    }), 200
 
 
 @persons_bp.route("/", methods=["POST"], strict_slashes=False)
