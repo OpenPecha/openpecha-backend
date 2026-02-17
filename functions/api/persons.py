@@ -28,7 +28,7 @@ def get_all_persons(validated_params: PersonsQueryParams) -> tuple[Response, int
             filters=validated_params,
         )
     return jsonify({
-        "items": [person.model_dump() for person in persons],
+        "items": [item.model_dump() for item in persons],
         "total": total,
         "offset": validated_params.offset,
         "limit": validated_params.limit

@@ -129,6 +129,13 @@ class PersonDatabase:
         filters: PersonFilter | None = None,
     ) -> list[PersonOutput]:
         with self.session as session:
+            count_result = session.run(
+                PersonDatabase.PERSON_COUNT_QUERY,
+                name=filters.name if filters else None,
+                bdrc=filters.bdrc if filters else None,
+                wiki=filters.wiki if filters else None,
+            )
+            total = count_result.single()["total"]
             result = session.run(
                 PersonDatabase.GET_ALL_QUERY,
                 offset=offset,
@@ -137,11 +144,12 @@ class PersonDatabase:
                 bdrc=filters.bdrc if filters else None,
                 wiki=filters.wiki if filters else None,
             )
-            return [
+            persons = [
                 person_model
                 for record in result
                 if (person_model := DataAdapter.person(record.data()["person"])) is not None
             ]
+            return persons, total
 
     def create(self, person: PersonInput) -> str:
         def create_transaction(tx: ManagedTransaction) -> str:
