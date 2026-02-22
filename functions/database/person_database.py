@@ -22,6 +22,23 @@ class PersonDatabase:
     MATCH (n:Person) RETURN count(n) as total
     """
 
+    FILTERED_COUNT_QUERY = """
+    MATCH (p:Person)
+    WHERE ($name IS NULL OR EXISTS {
+        (p)-[:HAS_NAME]->(n:Nomen)
+        WHERE EXISTS {
+            (n)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
+            WHERE toLower(lt.text) CONTAINS toLower($name)
+        } OR EXISTS {
+            (n)<-[:ALTERNATIVE_OF]-(alt:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
+            WHERE toLower(lt.text) CONTAINS toLower($name)
+        }
+    })
+    AND ($bdrc IS NULL OR p.bdrc = $bdrc)
+    AND ($wiki IS NULL OR p.wiki = $wiki)
+    RETURN count(p) as total
+    """
+
     _PERSON_RETURN = """
     {
         id: p.id,
@@ -115,23 +132,23 @@ class PersonDatabase:
         limit: int = 20,
         filters: PersonFilter | None = None,
     ) -> tuple[list[PersonOutput], int]:
-        with self.session as session:       
-            record = session.run(PersonDatabase.PERSON_COUNT_QUERY).single()
-            if not record:
-                raise DataNotFoundError("No persons found")
-            total = record["total"]
-            print(f"Total persons: {total}")
+        with self.session as session:
+            filter_params = {
+                "name": filters.name if filters else None,
+                "bdrc": filters.bdrc if filters else None,
+                "wiki": filters.wiki if filters else None,
+            }
+            
+            count_record = session.run(PersonDatabase.FILTERED_COUNT_QUERY, **filter_params).single()
+            total = count_record["total"] if count_record else 0
 
             result = session.run(
                 PersonDatabase.GET_ALL_QUERY,
                 offset=offset,
                 limit=limit,
-                name=filters.name if filters else None,
-                bdrc=filters.bdrc if filters else None,
-                wiki=filters.wiki if filters else None,
+                **filter_params,
             )
 
-            
             persons = [
                 person_model
                 for record in result

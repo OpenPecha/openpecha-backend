@@ -314,8 +314,11 @@ class TestGetAllPersonsV2:
 
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert isinstance(data, list)
-        assert len(data) == 0
+        assert "persons" in data
+        assert "total" in data
+        assert isinstance(data["persons"], list)
+        assert len(data["persons"]) == 0
+        assert data["total"] == 0
 
     def test_get_all_persons_filter_by_name(self, client, test_database):
         """Test filtering persons by name (primary name)"""
@@ -328,9 +331,11 @@ class TestGetAllPersonsV2:
 
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert len(data) == 1
-        assert data[0]["id"] == person1_id
-        assert data[0]["name"]["en"] == "John Smith"
+        assert "persons" in data
+        assert "total" in data
+        assert len(data["persons"]) == 1
+        assert data["persons"][0]["id"] == person1_id
+        assert data["persons"][0]["name"]["en"] == "John Smith"
 
     def test_get_all_persons_filter_by_alternative_name(self, client, test_database):
         """Test filtering persons by alternative name"""
@@ -344,16 +349,20 @@ class TestGetAllPersonsV2:
 
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert len(data) == 1
-        assert data[0]["id"] == person_id
-        assert data[0]["name"]["en"] == "Primary Name"
+        assert "persons" in data
+        assert "total" in data
+        assert len(data["persons"]) == 1
+        assert data["persons"][0]["id"] == person_id
+        assert data["persons"][0]["name"]["en"] == "Primary Name"
+    
 
         response_bo = client.get("/v2/persons/?name=གཞན་མིང")
 
         assert response_bo.status_code == 200
         data_bo = json.loads(response_bo.data)
-        assert len(data_bo) == 1
-        assert data_bo[0]["id"] == person_id
+        assert len(data_bo["persons"]) == 1
+        assert data_bo["persons"][0]["id"] == person_id
+        assert data_bo["total"] == 1
 
     def test_get_all_persons_filter_by_bdrc(self, client, test_database):
         """Test filtering persons by BDRC ID"""
@@ -366,9 +375,11 @@ class TestGetAllPersonsV2:
 
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert len(data) == 1
-        assert data[0]["id"] == person1_id
-        assert data[0]["bdrc"] == "P111111"
+        assert "persons" in data
+        assert "total" in data
+        assert len(data["persons"]) == 1
+        assert data["persons"][0]["id"] == person1_id
+        assert data["persons"][0]["bdrc"] == "P111111"
 
     def test_get_all_persons_filter_by_wiki(self, client, test_database):
         """Test filtering persons by Wiki ID"""
@@ -381,9 +392,11 @@ class TestGetAllPersonsV2:
 
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert len(data) == 1
-        assert data[0]["id"] == person1_id
-        assert data[0]["wiki"] == "Q111111"
+        assert "persons" in data
+        assert "total" in data
+        assert len(data["persons"]) == 1
+        assert data["persons"][0]["id"] == person1_id
+        assert data["persons"][0]["wiki"] == "Q111111"
 
     def test_get_all_persons_filter_combined(self, client, test_database):
         """Test filtering persons with multiple filters"""
@@ -404,8 +417,11 @@ class TestGetAllPersonsV2:
 
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert len(data) == 1
-        assert data[0]["id"] == person1_id
+        assert "persons" in data
+        assert "total" in data
+        assert len(data["persons"]) == 1
+        assert data["persons"][0]["id"] == person1_id
+        assert data["total"] == 1
 
     def test_get_all_persons_filter_combined_multiple_results(self, client, test_database):
         """Test filtering persons with multiple filters returning multiple results"""
@@ -429,8 +445,11 @@ class TestGetAllPersonsV2:
 
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert len(data) == 2
-        returned_ids = [p["id"] for p in data]
+        assert "persons" in data
+        assert "total" in data
+        assert len(data["persons"]) == 2
+        assert data["total"] == 2
+        returned_ids = [p["id"] for p in data["persons"]]
         assert person1_id in returned_ids
         assert person2_id in returned_ids
 
@@ -443,7 +462,10 @@ class TestGetAllPersonsV2:
 
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert len(data) == 0
+        assert "persons" in data
+        assert "total" in data
+        assert len(data["persons"]) == 0
+        assert data["total"] == 0
 
     def test_get_all_persons_filter_case_insensitive(self, client, test_database):
         """Test that name filter is case-insensitive"""
@@ -454,8 +476,11 @@ class TestGetAllPersonsV2:
 
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert len(data) == 1
-        assert data[0]["id"] == person_id
+        assert "persons" in data
+        assert "total" in data
+        assert len(data["persons"]) == 1
+        assert data["total"] == 1
+        assert data["persons"][0]["id"] == person_id
 
 
 class TestGetSinglePersonV2:
@@ -548,7 +573,10 @@ class TestGetSinglePersonV2:
         # This should hit the GET all persons endpoint, not single person
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert isinstance(data, list)
+        assert "persons" in data
+        assert "total" in data
+        assert len(data["persons"]) == 0
+        assert data["total"] == 0
 
 
 class TestPostPersonV2:
@@ -1077,6 +1105,7 @@ class TestPersonsIntegration:
 
             assert response.status_code == 201
             data = json.loads(response.data)
+            assert "id" in data
             created_ids.append(data["id"])
 
         # Get all persons
@@ -1084,10 +1113,13 @@ class TestPersonsIntegration:
 
         assert get_all_response.status_code == 200
         all_data = json.loads(get_all_response.data)
-        assert len(all_data) == 3
+        assert "persons" in all_data
+        assert "total" in all_data
+        assert len(all_data["persons"]) == 3
+        assert all_data["total"] == 3
 
         # Verify all created persons are returned
-        returned_ids = [p["id"] for p in all_data]
+        returned_ids = [p["id"] for p in all_data["persons"]]
         for created_id in created_ids:
             assert created_id in returned_ids
 
