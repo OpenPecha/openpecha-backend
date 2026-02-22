@@ -22,12 +22,15 @@ logger = logging.getLogger(__name__)
 @validate_query_params(TextsQueryParams)
 def get_all_texts(validated_params: TextsQueryParams) -> tuple[Response, int]:
     with Database() as db:
-        result = db.expression.get_all(
+        texts, total = db.expression.get_all(
             offset=validated_params.offset,
             limit=validated_params.limit,
             filters=validated_params,
         )
-    return jsonify([item.model_dump() for item in result]), 200
+    return jsonify({
+        "texts": [text.model_dump() for text in texts],
+        "total": total, 
+    }), 200
 
 
 @texts_bp.route("/<string:expression_id>", methods=["GET"], strict_slashes=False)

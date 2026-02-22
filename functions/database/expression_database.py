@@ -76,6 +76,11 @@ class ExpressionDatabase:
     RETURN {_EXPRESSION_RETURN}
     """
 
+    GET_COUNT_QUERY = """
+    MATCH (e:Expression)
+    RETURN count(e) AS total
+    """
+
     GET_ALL_QUERY = f"""
     MATCH (e:Expression)
     WHERE ($language IS NULL OR (e)-[:HAS_LANGUAGE]->(:Language {{code: $language}}))
@@ -218,12 +223,16 @@ class ExpressionDatabase:
                 raise DataNotFoundError(f"Expression with ID '{expression_id}' not found")
             return self._parse_record(result.data())
 
-    def get_all(self, offset: int, limit: int, filters: ExpressionFilter | None = None) -> list[ExpressionOutput]:
+    def get_all(self, offset: int, limit: int, filters: ExpressionFilter | None = None) -> tuple[list[ExpressionOutput], int]:
         filters = filters or ExpressionFilter()
 
-        def _get_all(tx: ManagedTransaction) -> list[ExpressionOutput]:
+        def _get_all(tx: ManagedTransaction) -> tuple[list[ExpressionOutput], int]:
             if filters.language:
                 DatabaseValidator.validate_language_code_exists(tx, filters.language)
+
+            count_record = tx.run(ExpressionDatabase.GET_COUNT_QUERY).single()
+            total = count_record["total"] if count_record else 0
+
             result = tx.run(
                 ExpressionDatabase.GET_ALL_QUERY,
                 offset=offset,
@@ -234,7 +243,8 @@ class ExpressionDatabase:
                 bdrc=filters.bdrc,
                 wiki=filters.wiki,
             )
-            return [self._parse_record(r.data()) for r in result]
+            texts = [self._parse_record(r.data()) for r in result]
+            return texts, total
 
         with self.session as session:
             return session.execute_read(_get_all)
