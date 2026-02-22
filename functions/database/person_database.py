@@ -18,6 +18,10 @@ if TYPE_CHECKING:
 
 
 class PersonDatabase:
+    PERSON_COUNT_QUERY = """
+    MATCH (n:Person) RETURN count(n) as total
+    """
+
     _PERSON_RETURN = """
     {
         id: p.id,
@@ -110,8 +114,14 @@ class PersonDatabase:
         offset: int = 0,
         limit: int = 20,
         filters: PersonFilter | None = None,
-    ) -> list[PersonOutput]:
-        with self.session as session:
+    ) -> tuple[list[PersonOutput], int]:
+        with self.session as session:       
+            record = session.run(PersonDatabase.PERSON_COUNT_QUERY).single()
+            if not record:
+                raise DataNotFoundError("No persons found")
+            total = record["total"]
+            print(f"Total persons: {total}")
+
             result = session.run(
                 PersonDatabase.GET_ALL_QUERY,
                 offset=offset,
@@ -120,11 +130,14 @@ class PersonDatabase:
                 bdrc=filters.bdrc if filters else None,
                 wiki=filters.wiki if filters else None,
             )
-            return [
+
+            
+            persons = [
                 person_model
                 for record in result
                 if (person_model := DataAdapter.person(record.data()["person"])) is not None
             ]
+            return persons, total
 
     def create(self, person: PersonInput) -> str:
         def create_transaction(tx: ManagedTransaction) -> str:
