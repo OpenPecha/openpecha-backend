@@ -115,12 +115,14 @@ class TestGetAllPersonsV2:
 
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert len(data) == 1
-        assert data[0]["id"] == person_id
-        assert data[0]["name"]["en"] == "Primary Name"
-        assert len(data[0]["alt_names"]) == 2
+        assert "persons" in data
+        assert "total" in data
+        assert len(data["persons"]) == 1
+        assert data["persons"][0]["id"] == person_id
+        assert data["persons"][0]["name"]["en"] == "Primary Name"
+        assert len(data["persons"][0]["alt_names"]) == 2
         # Check that both alt names are present (order may vary)
-        alt_name_texts = [alt["en"] for alt in data[0]["alt_names"] if "en" in alt]
+        alt_name_texts = [alt["en"] for alt in data["persons"][0]["alt_names"] if "en" in alt]
         assert "Alt Name 1" in alt_name_texts
         assert "Alt Name 2" in alt_name_texts
 
@@ -137,8 +139,11 @@ class TestGetAllPersonsV2:
 
         assert response.status_code == 200
         data = json.loads(response.data)
+        assert "persons" in data
+        assert "total" in data
         # Default limit is 20, so should get 20 persons
-        assert len(data) == 20
+        assert len(data["persons"]) == 20
+        assert data["total"] == 25
 
     def test_get_all_persons_with_custom_limit(self, client, test_database):
         """Test pagination with custom limit"""
@@ -153,7 +158,10 @@ class TestGetAllPersonsV2:
 
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert len(data) == 5
+        assert "persons" in data
+        assert "total" in data
+        assert len(data["persons"]) == 5
+        assert data["total"] == 15
 
     def test_get_all_persons_with_custom_offset(self, client, test_database):
         """Test pagination with custom offset"""
