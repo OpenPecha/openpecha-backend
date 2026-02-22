@@ -51,8 +51,11 @@ class TestGetAllTextsV2:
 
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert isinstance(data, list)
-        assert len(data) == 0
+        assert "texts" in data
+        assert "total" in data
+        assert isinstance(data["texts"], list)
+        assert data["total"] == 0
+        assert len(data["texts"]) == 0
 
     def test_get_all_metadata_default_pagination(self, client, test_database, test_person_data):
         """Test default pagination (limit=20, offset=0)"""
@@ -83,10 +86,13 @@ class TestGetAllTextsV2:
 
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert isinstance(data, list)
-        assert len(data) == 20
+        assert "texts" in data
+        assert "total" in data
+        assert isinstance(data["texts"], list)
+        assert len(data["texts"]) == 20
+        assert data["total"] == 25
         # Verify all returned IDs are from our created expressions
-        returned_ids = {item["id"] for item in data}
+        returned_ids = {item["id"] for item in data["texts"]}
         assert returned_ids.issubset(set(expression_ids))
 
     def test_get_all_metadata_custom_pagination(self, client, test_database, test_person_data):
@@ -115,9 +121,13 @@ class TestGetAllTextsV2:
 
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert len(data) == 2
+        assert "texts" in data
+        assert "total" in data
+        assert isinstance(data["texts"], list)
+        assert len(data["texts"]) == 2
+        assert data["total"] == 5
         # Verify returned IDs are from our created expressions (order is by id, not creation)
-        returned_ids = {item["id"] for item in data}
+        returned_ids = {item["id"] for item in data["texts"]}
         assert returned_ids.issubset(set(expression_ids))
 
     def test_get_all_metadata_filter_by_category(self, client, test_database, test_person_data):
@@ -158,17 +168,25 @@ class TestGetAllTextsV2:
 
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert len(data) == 1
-        assert data[0]["id"] == expr_id_1
-        assert data[0]["category_id"] == category_id_1
+        assert "texts" in data
+        assert "total" in data
+        assert isinstance(data["texts"], list)
+        assert len(data["texts"]) == 1
+        assert data["total"] == 2
+        assert data["texts"][0]["id"] == expr_id_1
+        assert data["texts"][0]["category_id"] == category_id_1
 
         # Filter by category_id_2
         response = client.get(f"/v2/texts?category_id={category_id_2}")
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert len(data) == 1
-        assert data[0]["id"] == expr_id_2
-        assert data[0]["category_id"] == category_id_2
+        assert "texts" in data
+        assert "total" in data
+        assert isinstance(data["texts"], list)
+        assert len(data["texts"]) == 1
+        assert data["total"] == 2
+        assert data["texts"][0]["id"] == expr_id_2
+        assert data["texts"][0]["category_id"] == category_id_2
 
     def test_get_all_metadata_filter_by_language(self, client, test_database, test_person_data):
         """Test filtering by language"""
@@ -204,18 +222,26 @@ class TestGetAllTextsV2:
 
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert len(data) == 1
-        assert data[0]["id"] == en_id
-        assert data[0]["language"] == "en"
+        assert "texts" in data
+        assert "total" in data
+        assert isinstance(data["texts"], list)
+        assert len(data["texts"]) == 1
+        assert data["total"] == 2
+        assert data["texts"][0]["id"] == en_id
+        assert data["texts"][0]["language"] == "en"
 
         # Filter by Tibetan
         response = client.get("/v2/texts?language=bo")
 
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert len(data) == 1
-        assert data[0]["id"] == bo_id
-        assert data[0]["language"] == "bo"
+        assert "texts" in data
+        assert "total" in data
+        assert isinstance(data["texts"], list)
+        assert len(data["texts"]) == 1
+        assert data["total"] == 2
+        assert data["texts"][0]["id"] == bo_id
+        assert data["texts"][0]["language"] == "bo"
 
     def test_get_all_metadata_filter_by_title(self, client, test_database, test_person_data):
         """Test filtering by title"""
@@ -254,29 +280,41 @@ class TestGetAllTextsV2:
         en_title_search_response = client.get("/v2/texts?title=Buddha")
         assert en_title_search_response.status_code == 200
         data = json.loads(en_title_search_response.data)
-        assert len(data) == 2
+        assert "texts" in data
+        assert "total" in data
+        assert isinstance(data["texts"], list)
+        assert len(data["texts"]) == 2
+        assert data["total"] == 3
         # Verify results contain Buddha in title (order not guaranteed)
-        returned_ids = {item["id"] for item in data}
+        returned_ids = {item["id"] for item in data["texts"]}
         assert returned_ids.issubset({expression_ids[1], expression_ids[2]})
-        for item in data:
+        for item in data["texts"]:
             assert "Buddha" in item["title"]["en"]
 
         bo_title_search_response = client.get("/v2/texts?title=དཔེ་གཞི།")
         assert bo_title_search_response.status_code == 200
         data = json.loads(bo_title_search_response.data)
-        assert len(data) == 2
-        returned_ids = {item["id"] for item in data}
+        assert "texts" in data
+        assert "total" in data
+        assert isinstance(data["texts"], list)
+        assert len(data["texts"]) == 2
+        assert data["total"] == 3
+        returned_ids = {item["id"] for item in data["texts"]}
         assert returned_ids.issubset({expression_ids[0], expression_ids[2]})
-        for item in data:
+        for item in data["texts"]:
             assert "དཔེ་གཞི།" in item["title"]["bo"]
 
         bo_title_search_response = client.get("/v2/texts?title=བོད")
         assert bo_title_search_response.status_code == 200
         data = json.loads(bo_title_search_response.data)
-        assert len(data) == 2
-        returned_ids = {item["id"] for item in data}
+        assert "texts" in data
+        assert "total" in data
+        assert isinstance(data["texts"], list)
+        assert len(data["texts"]) == 2
+        assert data["total"] == 3
+        returned_ids = {item["id"] for item in data["texts"]}
         assert returned_ids.issubset({expression_ids[1], expression_ids[2]})
-        for item in data:
+        for item in data["texts"]:
             assert "བོད" in item["title"]["bo"]
 
     def test_get_all_metadata_filter_by_title_with_no_title_present_in_db(self, client, test_database, test_person_data):
@@ -314,7 +352,11 @@ class TestGetAllTextsV2:
         response = client.get("/v2/texts?title=invalid_title")
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert len(data) == 0
+        assert "texts" in data
+        assert "total" in data
+        assert isinstance(data["texts"], list)
+        assert len(data["texts"]) == 0
+        assert data["total"] == 3
 
 
 
@@ -361,9 +403,13 @@ class TestGetAllTextsV2:
 
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert len(data) == 1
-        assert data[0]["id"] == en_id
-        assert data[0]["language"] == "en"
+        assert "texts" in data
+        assert "total" in data
+        assert isinstance(data["texts"], list)
+        assert len(data["texts"]) == 1
+        assert data["total"] == 3
+        assert data["texts"][0]["id"] == en_id
+        assert data["texts"][0]["language"] == "en"
 
     def test_get_all_metadata_invalid_limit(self, client, test_database):
         """Test invalid limit parameters"""
@@ -414,19 +460,31 @@ class TestGetAllTextsV2:
         response = client.get("/v2/texts?limit=1")
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert len(data) == 1
+        assert "texts" in data
+        assert "total" in data
+        assert isinstance(data["texts"], list)
+        assert len(data["texts"]) == 1
+        assert data["total"] == 1
 
         # Test limit=100 (maximum)
         response = client.get("/v2/texts?limit=100")
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert len(data) == 1
+        assert "texts" in data
+        assert "total" in data
+        assert isinstance(data["texts"], list)
+        assert len(data["texts"]) == 1
+        assert data["total"] == 1
 
         # Test large offset (beyond available data)
         response = client.get("/v2/texts?offset=1000")
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert len(data) == 0
+        assert "texts" in data
+        assert "total" in data
+        assert isinstance(data["texts"], list)
+        assert len(data["texts"]) == 0
+        assert data["total"] == 1
 
 
 class TestGetSingleTextV2:
@@ -479,10 +537,14 @@ class TestGetSingleTextV2:
 
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert len(data) == 1
-        assert data[0]["bdrc"] == test_expression_data['bdrc']
-        assert data[0]["title"]["en"] == "Test Expression"
-        assert data[0]["id"] == expression_id
+        assert "texts" in data
+        assert "total" in data
+        assert isinstance(data["texts"], list)
+        assert len(data["texts"]) == 1
+        assert data["total"] == 1
+        assert data["texts"][0]["bdrc"] == test_expression_data['bdrc']
+        assert data["texts"][0]["title"]["en"] == "Test Expression"
+        assert data["texts"][0]["id"] == expression_id
 
     def test_get_texts_filter_by_alternative_title(self, client, test_database, test_person_data):
         """Test filtering texts by alternative title"""
@@ -504,16 +566,25 @@ class TestGetSingleTextV2:
 
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert len(data) == 1
-        assert data[0]["id"] == expression_id
-        assert data[0]["title"]["en"] == "Primary Title"
+        assert "texts" in data
+        assert "total" in data
+        assert isinstance(data["texts"], list)
+        assert len(data["texts"]) == 1
+        assert data["total"] == 1
+        assert data["texts"][0]["id"] == expression_id
+        assert data["texts"][0]["title"]["en"] == "Primary Title"
 
         response_bo = client.get("/v2/texts?title=གཞན་མིང")
 
         assert response_bo.status_code == 200
         data_bo = json.loads(response_bo.data)
-        assert len(data_bo) == 1
-        assert data_bo[0]["id"] == expression_id
+        assert "texts" in data_bo
+        assert "total" in data_bo
+        assert isinstance(data_bo["texts"], list)
+        assert len(data_bo["texts"]) == 1
+        assert data_bo["total"] == 1
+        assert data_bo["texts"][0]["id"] == expression_id
+        assert data_bo["texts"][0]["title"]["en"] == "Primary Title"
 
     def test_get_single_translation_metadata_success(self, client, test_database, test_person_data):
         """Test successfully retrieving a translation expression"""
