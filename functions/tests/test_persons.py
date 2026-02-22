@@ -177,17 +177,23 @@ class TestGetAllPersonsV2:
         response1 = client.get("/v2/persons/?limit=5&offset=0")
         assert response1.status_code == 200
         data1 = json.loads(response1.data)
-        assert len(data1) == 5
+        assert "persons" in data1
+        assert "total" in data1
+        assert len(data1["persons"]) == 5
+        assert data1["total"] == 10
 
         # Request second page (offset=5, limit=5)
         response2 = client.get("/v2/persons/?limit=5&offset=5")
         assert response2.status_code == 200
         data2 = json.loads(response2.data)
-        assert len(data2) == 5
+        assert "persons" in data2
+        assert "total" in data2
+        assert len(data2["persons"]) == 5
+        assert data2["total"] == 10
 
         # Verify no overlap between pages
-        ids1 = [p["id"] for p in data1]
-        ids2 = [p["id"] for p in data2]
+        ids1 = [p["id"] for p in data1["persons"]]
+        ids2 = [p["id"] for p in data2["persons"]]
         assert len(set(ids1) & set(ids2)) == 0  # No common IDs
 
     def test_get_all_persons_limit_edge_cases(self, client, test_database):
@@ -202,13 +208,19 @@ class TestGetAllPersonsV2:
         response = client.get("/v2/persons/?limit=1")
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert len(data) == 1
+        assert "persons" in data
+        assert "total" in data
+        assert len(data["persons"]) == 1
+        assert data["total"] == 5
 
         # Test limit=100 (max allowed)
         response = client.get("/v2/persons/?limit=100")
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert len(data) == 5  # Only 5 persons exist
+        assert "persons" in data
+        assert "total" in data
+        assert len(data["persons"]) == 5
+        assert data["total"] == 5
 
     def test_get_all_persons_invalid_limit_too_low(self, client, test_database):
         """Test pagination with limit less than 1"""
@@ -246,7 +258,10 @@ class TestGetAllPersonsV2:
         response = client.get("/v2/persons/?offset=100")
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert len(data) == 0  # Should return empty list
+        assert "persons" in data
+        assert "total" in data
+        assert len(data["persons"]) == 0
+        assert data["total"] == 5
 
     def test_get_all_persons_pagination_consistency(self, client, test_database):
         """Test that paginated results cover all data without duplication"""
@@ -264,7 +279,10 @@ class TestGetAllPersonsV2:
             response = client.get(f"/v2/persons/?limit=10&offset={page*10}")
             assert response.status_code == 200
             data = json.loads(response.data)
-            fetched_ids = [p["id"] for p in data]
+            assert "persons" in data
+            assert "total" in data
+            assert data["total"] == 30
+            fetched_ids = [p["id"] for p in data["persons"]]
             all_fetched_ids.extend(fetched_ids)
 
         # Verify we got all persons exactly once
