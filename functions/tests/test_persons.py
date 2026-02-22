@@ -46,8 +46,11 @@ class TestGetAllPersonsV2:
         logger.info(response.data)
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert isinstance(data, list)
-        assert len(data) == 0
+        assert "persons" in data
+        assert "total" in data
+        assert isinstance(data["persons"], list)
+        assert len(data["persons"]) == 0
+        assert data["total"] == 0
 
     def test_get_all_persons_with_data(self, client, test_database, test_person_data):
         """Test getting all persons when database has data"""
@@ -59,11 +62,13 @@ class TestGetAllPersonsV2:
 
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert isinstance(data, list)
-        assert len(data) == 1
-        assert data[0]["id"] == person_id
-        assert data[0]["name"]["en"] == "Test Author"
-        assert data[0]["bdrc"] == "P123456"
+        assert "persons" in data
+        assert "total" in data
+        assert isinstance(data["persons"], list)
+        assert len(data["persons"]) == 1
+        assert data["persons"][0]["id"] == person_id
+        assert data["persons"][0]["name"]["en"] == "Test Author"
+        assert data["persons"][0]["bdrc"] == "P123456"
 
     def test_get_all_persons_multiple_persons(self, client, test_database):
         """Test getting all persons with multiple persons in database"""
@@ -82,11 +87,14 @@ class TestGetAllPersonsV2:
 
         assert response.status_code == 200
         data = json.loads(response.data)
-        assert isinstance(data, list)
-        assert len(data) == 3
+        assert "persons" in data
+        assert "total" in data
+        assert isinstance(data["persons"], list)
+        assert len(data["persons"]) == 3
+        assert data["total"] == 3
 
         # Verify all persons are returned
-        returned_ids = [p["id"] for p in data]
+        returned_ids = [p["id"] for p in data["persons"]]
         for person_id in person_ids:
             assert person_id in returned_ids
 
