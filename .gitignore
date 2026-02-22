@@ -180,3 +180,5 @@ firebase-debug.*.log*
 storage.rules
 .secret.local
 .ruff_cache/
+
+docker-compose.yaml
