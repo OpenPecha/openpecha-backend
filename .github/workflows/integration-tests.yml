@@ -1,0 +1,38 @@
+name: Integration tests
+
+on:
+  push:
+  pull_request:
+
+jobs:
+  integration-tests:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Cache pip dependencies
+        id: cache
+        uses: actions/cache@v4
+        with:
+          path: functions/venv
+          key: ${{ runner.os }}-pip-${{ hashFiles('functions/requirements.txt', 'functions/requirements_dev.txt') }}
+          restore-keys: |
+            ${{ runner.os }}-pip-
+
+      - name: Create venv and install dependencies
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          python -m venv functions/venv
+          functions/venv/bin/pip install --upgrade pip
+          functions/venv/bin/pip install -r functions/requirements.txt -r functions/requirements_dev.txt
+
+      - name: Run integration tests with coverage
+        run: |
+          functions/venv/bin/pytest --cov=functions --cov-report=term --cov-fail-under=75

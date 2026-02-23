@@ -22,6 +22,9 @@ omit = [
     "functions/firebase_config.py",
 ]
 
+[tool.coverage.report]
+fail_under = 75
+
 [tool.ruff]
 line-length = 120
 exclude = ["functions/tests"]
