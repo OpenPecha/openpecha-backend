@@ -2077,6 +2077,45 @@ paths:
                     $ref: "#/components/responses/ServerError"
 
     /v2/categories/{category_id}:
+        get:
+            summary: Get a category by ID
+            description: Retrieve a single category by its ID. Application context is provided via X-Application header.
+            tags:
+                - Categories
+            parameters:
+                - name: X-Application
+                  in: header
+                  required: true
+                  schema:
+                      type: string
+                  description: Application context for the category
+                  example: "webuddhist"
+                - name: category_id
+                  in: path
+                  required: true
+                  schema:
+                      type: string
+                  description: The ID of the category to retrieve
+            responses:
+                "200":
+                    description: Category retrieved successfully
+                    content:
+                        application/json:
+                            schema:
+                                $ref: "#/components/schemas/CategoryOutput"
+                            example:
+                                id: "CAT12345678"
+                                parent_id: null
+                                title:
+                                    en: "Literature"
+                                    bo: "རྩོམ་རིག"
+                                children: []
+                "400":
+                    $ref: "#/components/responses/InvalidRequest"
+                "404":
+                    $ref: "#/components/responses/NotFound"
+                "500":
+                    $ref: "#/components/responses/ServerError"
         patch:
             summary: Update a category
             description: Partially update a category. Only provided fields (title, description, parent_id) will be updated; omitted fields retain their current values.
@@ -2116,6 +2155,10 @@ paths:
                                         en: "Category Title"
                                     description:
                                         en: "Updated description"
+                            update_parent_id:
+                                summary: Update parent ID
+                                value:
+                                    parent_id: "parent_id_here"
             responses:
                 "200":
                     description: Category updated successfully

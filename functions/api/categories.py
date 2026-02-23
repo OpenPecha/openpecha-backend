@@ -30,7 +30,7 @@ def get_categories(validated_params: CategoriesQueryParams, application: str) ->
 
 @categories_bp.route("/<string:category_id>", methods=["GET"], strict_slashes=False)
 @require_application
-def get_category(category_id: str, application: str) -> tuple[Response, int]:
+def get_category_by_id(category_id: str, application: str) -> tuple[Response, int]:
     with Database() as db:
         if not db.application.exists(application):
             raise DataNotFoundError(f"Application '{application}' not found")
