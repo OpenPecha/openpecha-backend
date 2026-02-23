@@ -490,6 +490,18 @@ class CategoryInput(CategoryBase):
     pass
 
 
+class CategoryPatch(OpenPechaModel):
+    title: LocalizedString | None = None
+    description: LocalizedString | None = None
+    parent_id: NonEmptyStr | None = None
+
+    @model_validator(mode="after")
+    def validate_at_least_one_field(self) -> Self:
+        if all(v is None for v in [self.title, self.description, self.parent_id]):
+            raise ValueError("At least one field must be provided for update")
+        return self
+
+
 class CategoryOutput(CategoryBase):
     id: NonEmptyStr
     children: list[str] = []

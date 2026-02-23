@@ -5,6 +5,7 @@ Integration tests for v2/categories endpoints using real Neo4j test instance.
 Tests endpoints:
 - GET /v2/categories/ (get all categories)
 - POST /v2/categories/ (create category)
+- PATCH /v2/categories/{category_id} (update category)
 
 Requires environment variables:
 - NEO4J_TEST_URI: Neo4j test instance URI
@@ -497,3 +498,210 @@ class TestCategoryDescription:
 
         assert seeded_cat is not None
         assert seeded_cat.get("description") is None
+
+
+class TestUpdateCategoryV2:
+    """Tests for PATCH /v2/categories/{category_id} endpoint (update category)"""
+
+    def test_patch_category_update_title_only(self, client, test_database):
+        """Test updating only the title"""
+        category_data = {"title": {"en": "Original Title"}}
+        category = CategoryInput.model_validate(category_data)
+        category_id = test_database.category.create(category, application="test_application")
+
+        patch_data = {"title": {"en": "Updated Title", "bo": "གསར་བསྒྱུར་མིང་།"}}
+        response = client.patch(
+            f"/v2/categories/{category_id}",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+            headers=APPLICATION_HEADER,
+        )
+
+        assert response.status_code == 200
+
+        get_response = client.get(f"/v2/categories/{category_id}", headers=APPLICATION_HEADER)
+        assert get_response.status_code == 200
+        data = json.loads(get_response.data)
+        assert data["title"]["en"] == "Updated Title"
+        assert data["title"]["bo"] == "གསར་བསྒྱུར་མིང་།"
+
+
+    def test_patch_category_update_description_only(self, client, test_database):
+        """Test updating description (title required in request)"""
+        category_data = {
+            "title": {"en": "Category For Desc Update"},
+            "description": {"en": "Original description"},
+        }
+        category = CategoryInput.model_validate(category_data)
+        category_id = test_database.category.create(category, application="test_application")
+
+        patch_data = {
+            "description": {"en": "Updated description", "bo": "གསར་བསྒྱུར་འགྲེལ་བཤད།"},
+        }
+        response = client.patch(
+            f"/v2/categories/{category_id}",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+            headers=APPLICATION_HEADER,
+        )
+        assert response.status_code == 200
+
+        get_response = client.get(f"/v2/categories/{category_id}", headers=APPLICATION_HEADER)
+
+        assert get_response.status_code == 200
+        data = json.loads(get_response.data)
+        assert data["title"]["en"] == "Category For Desc Update"
+        assert data["description"]["en"] == "Updated description"
+        assert data["description"]["bo"] == "གསར་བསྒྱུར་འགྲེལ་བཤད།"
+
+
+    def test_patch_category_update_both_title_and_description(self, client, test_database):
+        """Test updating both title and description"""
+        category_data = {
+            "title": {"en": "Original"},
+            "description": {"en": "Original desc"},
+        }
+        category = CategoryInput.model_validate(category_data)
+        category_id = test_database.category.create(category, application="test_application")
+
+        patch_data = {
+            "title": {"en": "New Updated Title"},
+            "description": {"en": "New Updated Description"},
+        }
+        response = client.patch(
+            f"/v2/categories/{category_id}",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+            headers=APPLICATION_HEADER,
+        )
+        assert response.status_code == 200
+
+
+        get_response = client.get(f"/v2/categories/{category_id}", headers=APPLICATION_HEADER)
+        assert get_response.status_code == 200
+        data = json.loads(get_response.data)
+        assert data["title"]["en"] == "New Updated Title"
+        assert data["description"]["en"] == "New Updated Description"
+
+
+    def test_patch_category_update_parent_id_only(self, client, test_database):
+        """Test moving category to different parent"""
+        parent1_data = {"title": {"en": "Parent 1"}}
+        parent1 = CategoryInput.model_validate(parent1_data)
+        parent1_id = test_database.category.create(parent1, application="test_application")
+
+        parent2_data = {"title": {"en": "Parent 2"}}
+        parent2 = CategoryInput.model_validate(parent2_data)
+        parent2_id = test_database.category.create(parent2, application="test_application")
+
+        child_data = {"title": {"en": "Child"}, "parent_id": parent1_id}
+        child = CategoryInput.model_validate(child_data)
+        child_id = test_database.category.create(child, application="test_application")
+
+        get_child_response = client.get(f"/v2/categories/{child_id}", headers=APPLICATION_HEADER)
+        assert get_child_response.status_code == 200
+        data = json.loads(get_child_response.data)
+        assert data["parent_id"] == parent1_id
+
+        patch_data = {"parent_id": parent2_id}
+        response = client.patch(
+            f"/v2/categories/{child_id}",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+            headers=APPLICATION_HEADER,
+        )
+        assert response.status_code == 200
+
+        get_child_response = client.get(f"/v2/categories/{child_id}", headers=APPLICATION_HEADER)
+        assert get_child_response.status_code == 200
+        data = json.loads(get_child_response.data)
+        assert data["parent_id"] == parent2_id
+
+    def test_patch_category_not_found(self, client, test_database):
+        """Test 404 when category not found"""
+        patch_data = {"title": {"en": "Updated"}}
+        response = client.patch(
+            "/v2/categories/nonexistent_category_id",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+            headers=APPLICATION_HEADER,
+        )
+
+        assert response.status_code == 404
+        data = json.loads(response.data)
+        assert "error" in data
+
+    def test_patch_category_different_application(self, client, test_database):
+        """Test 404 when category belongs to different application"""
+        category_data = {"title": {"en": "App1 Category"}}
+        category = CategoryInput.model_validate(category_data)
+        category_id = test_database.category.create(category, application="test_application")
+
+        patch_data = {"title": {"en": "Updated"}}
+        response = client.patch(
+            f"/v2/categories/{category_id}",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+            headers={"X-Application": "other_application"},
+        )
+
+        assert response.status_code == 404
+        data = json.loads(response.data)
+        assert "error" in data
+
+    def test_patch_category_missing_application_header(self, client, test_database):
+        """Test 400 when missing X-Application header"""
+        category_data = {"title": {"en": "Category"}}
+        category = CategoryInput.model_validate(category_data)
+        category_id = test_database.category.create(category, application="test_application")
+
+        patch_data = {"title": {"en": "Updated"}}
+        response = client.patch(
+            f"/v2/categories/{category_id}",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+        )
+
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert "error" in data
+
+    def test_patch_category_empty_body(self, client, test_database):
+        """Test 422 when request body missing required title (validation error)"""
+        category_data = {"title": {"en": "Category"}}
+        category = CategoryInput.model_validate(category_data)
+        category_id = test_database.category.create(category, application="test_application")
+
+        response = client.patch(
+            f"/v2/categories/{category_id}",
+            data=json.dumps({}),
+            content_type="application/json",
+            headers=APPLICATION_HEADER,
+        )
+
+        assert response.status_code == 400
+        data = json.loads(response.data)
+        assert "error" in data
+
+    def test_patch_category_duplicate_title_rejected(self, client, test_database):
+        """Test 422 when updating to duplicate title in same parent"""
+        category1_data = {"title": {"en": "First Category"}}
+        category1 = CategoryInput.model_validate(category1_data)
+        test_database.category.create(category1, application="test_application")
+
+        category2_data = {"title": {"en": "Second Category"}}
+        category2 = CategoryInput.model_validate(category2_data)
+        category2_id = test_database.category.create(category2, application="test_application")
+
+        patch_data = {"title": {"en": "First Category"}, "parent_id": None}
+        response = client.patch(
+            f"/v2/categories/{category2_id}",
+            data=json.dumps(patch_data),
+            content_type="application/json",
+            headers=APPLICATION_HEADER,
+        )
+
+        assert response.status_code == 422
+        data = json.loads(response.data)
+        assert "error" in data
+        assert "already exists" in data["error"].lower()
