@@ -17,6 +17,10 @@ This document provides comprehensive documentation for all Annotations-related e
    - [Bibliographic Metadata](#bibliographic-metadata)
 ---
 
+## Annotation Design
+
+[Design Link](https://excalidraw.com/#json=FOKFHw3wBx0Yf5fm-6vrU,M_x0GiMa5bYEjeiwnLhQMQ)
+
 ## Overview
 
 Annotations in the OpenPecha API provide a way to add structured metadata and relationships to edition content. Annotations use character span references to mark specific portions of text with semantic information.
