@@ -214,6 +214,8 @@ def _create_aligned_text(
 
     manifestation_id = generate_id()
     _, target_expression_id = db.get_manifestation(target_manifestation_id)
+    target_expression = db.get_expression(target_expression_id)
+    category_id = request_model.category_id or target_expression.category_id
 
     segmentation = AnnotationModel(id=segmentation_annotation_id, type=AnnotationType.SEGMENTATION)
     segmentation_segments = [
@@ -254,7 +256,7 @@ def _create_aligned_text(
         language=request_model.language,
         contributions=contributions,
         target=target_expression_id,
-        category_id=request_model.category_id,
+        category_id=category_id,
         copyright=request_model.copyright,
         license=request_model.license,
         bdrc=request_model.bdrc,
