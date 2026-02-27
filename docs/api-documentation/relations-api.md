@@ -10,6 +10,7 @@ This document provides comprehensive documentation for all Relations-related end
 2. [Authentication](#authentication)
 3. [Relations Endpoints](#relations-endpoints)
    - [Get Relations for Expression](#get-relations-for-expression)
+   - [References for better understanding](#references-for-better-understanding)
 
 ---
 
@@ -151,5 +152,10 @@ curl -X GET "https://api-l25bgmwqoa-uc.a.run.app/v2/relations/expressions/13mxFP
 - Construct relation graphs
 - Find source texts for translations
 - Discover related content
+
+### References for better understanding
+
+- **Visual example (Excalidraw)** – A diagram showing how relations (translations, commentaries) connect expressions: [Open in Excalidraw](https://excalidraw.com/#json=1Vliyd8lBGDc3nDKT8Pbo,5WVEtvfZnQmaHgfP2ulaQA).
+- **Integration tests** – Test cases that build the relation graph from the diagram and validate the relations API: [test_relations.py](https://github.com/OpenPecha/openpecha-backend/blob/main/functions/tests/test_relations.py).
 
 ---
