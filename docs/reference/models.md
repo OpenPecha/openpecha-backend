@@ -1,6 +1,6 @@
 # Models reference
 
-This document describes the Pydantic models and enums in [functions/models.py](functions/models.py) used by the API and database layer for request/response validation and domain types.
+This document describes the Pydantic models and enums in [functions/models.py](../../functions/models.py) used by the API and database layer for request/response validation and domain types.
 
 ---
 
@@ -147,4 +147,4 @@ Used for PATCH content (insert/delete/replace spans of text). Discriminated unio
 - **ReplaceOperation** – `type: "replace"`, `start`, `end`, `text`. Validator: `start` < `end`.
 - **TextOperation** – RootModel wrapping one of the above; `.operation` returns the concrete operation.
 
-See [functions/models.py](functions/models.py) for validators and field details.
+See [functions/models.py](../../functions/models.py) for validators and field details.

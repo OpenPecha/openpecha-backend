@@ -1,6 +1,6 @@
 # Application entry point (main)
 
-This document describes how the Flask app and Firebase HTTP entrypoint are wired in [functions/main.py](functions/main.py).
+This document describes how the Flask app and Firebase HTTP entrypoint are wired in [functions/main.py](../../functions/main.py).
 
 ---
 
@@ -19,7 +19,7 @@ This document describes how the Flask app and Firebase HTTP entrypoint are wired
 
 ## Overview
 
-[functions/main.py](functions/main.py) serves two roles:
+[functions/main.py](../../functions/main.py) serves two roles:
 
 - **App factory** – `create_app(testing=False)` builds the Flask application, registers blueprints, and configures before/after request hooks and error handlers.
 - **HTTP entrypoint** – The `api(req)` Firebase function receives each request and dispatches it through the Flask app.
@@ -74,7 +74,7 @@ When `testing=True`, the `before_request` authentication step is skipped.
 - **Purpose:** Validate API key for all requests except public paths.
 - **When testing:** No-op (returns without calling `validate_api_key()`).
 - **Public paths (no auth):** `/v2/schema/openapi`, `/__/health`.
-- **Other paths:** Calls `validate_api_key()` from [api.auth](functions/api/auth.py). On failure, `UnauthorizedError` is raised and handled by the exception handler.
+- **Other paths:** Calls `validate_api_key()` from [api.auth](../../functions/api/auth.py). On failure, `UnauthorizedError` is raised and handled by the exception handler.
 
 ### after_request (order matters)
 

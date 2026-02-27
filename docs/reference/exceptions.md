@@ -1,6 +1,6 @@
 # Exceptions reference
 
-This document describes the API error types in [functions/exceptions.py](functions/exceptions.py) and how they map to HTTP status codes and JSON responses.
+This document describes the API error types in [functions/exceptions.py](../../functions/exceptions.py) and how they map to HTTP status codes and JSON responses.
 
 ---
 
@@ -15,7 +15,7 @@ This document describes the API error types in [functions/exceptions.py](functio
 
 ## Overview
 
-All API errors used by the OpenPecha backend inherit from `OpenPechaError`. They are raised by the API and database layers and are handled in [functions/main.py](functions/main.py), which returns JSON responses with the appropriate status code.
+All API errors used by the OpenPecha backend inherit from `OpenPechaError`. They are raised by the API and database layers and are handled in [functions/main.py](../../functions/main.py), which returns JSON responses with the appropriate status code.
 
 ---
 
@@ -45,6 +45,6 @@ Subclasses override `status_code` only; `to_dict()` is inherited.
 ## Usage
 
 - **Raising:** Use the appropriate subclass where the failure occurs (e.g. `raise DataNotFoundError("Expression not found")`).
-- **Handling:** The global exception handler in [functions/main.py](functions/main.py) catches `OpenPechaError`, calls `to_dict()`, and returns the result with the exception’s `status_code`. Clients receive a JSON body like `{"error": "Expression not found"}` and the corresponding HTTP status.
+- **Handling:** The global exception handler in [functions/main.py](../../functions/main.py) catches `OpenPechaError`, calls `to_dict()`, and returns the result with the exception’s `status_code`. Clients receive a JSON body like `{"error": "Expression not found"}` and the corresponding HTTP status.
 
 Pydantic `ValidationError` is handled separately in main (422 with the first validation message); it is not an `OpenPechaError` subclass.
