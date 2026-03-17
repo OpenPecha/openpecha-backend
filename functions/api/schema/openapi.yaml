@@ -693,6 +693,12 @@ paths:
                   schema:
                       type: string
                   description: Filter by category ID
+                - name: author_id
+                  in: query
+                  required: false
+                  schema:
+                      type: string
+                  description: Filter by author ID (Person ID)
                 - name: bdrc
                   in: query
                   required: false

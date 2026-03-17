@@ -90,6 +90,9 @@ class ExpressionDatabase:
         }}
     }})
     AND ($category_id IS NULL OR (e)-[:EXPRESSION_OF]->(:Work)-[:HAS_CATEGORY]->(:Category {{id: $category_id}}))
+    AND ($author_id IS NULL OR EXISTS {{
+        (e)-[:HAS_CONTRIBUTION]->(:Contribution)-[:BY]->(p:Person {{id: $author_id}})
+    }})
     AND ($bdrc IS NULL OR e.bdrc = $bdrc)
     AND ($wiki IS NULL OR e.wiki = $wiki)
     WITH e
@@ -231,6 +234,7 @@ class ExpressionDatabase:
                 language=filters.language,
                 title=filters.title,
                 category_id=filters.category_id,
+                author_id=filters.author_id,
                 bdrc=filters.bdrc,
                 wiki=filters.wiki,
             )

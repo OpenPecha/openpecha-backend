@@ -316,6 +316,76 @@ class TestGetAllTextsV2:
         data = json.loads(response.data)
         assert len(data) == 0
 
+    def test_get_all_metadata_filter_by_author(self, client, test_database, test_person_data):
+        """Test filtering by author_id"""
+        # Create two test persons
+        person1 = PersonInput.model_validate(test_person_data)
+        person1_id = test_database.person.create(person1)
+
+        person2_data = {
+            "name": {"en": "Second Author", "bo": "སློབ་དཔོན་གཉིས་པ།"},
+            "bdrc": "P654321",
+            "wiki": "Q654321",
+        }
+        person2 = PersonInput.model_validate(person2_data)
+        person2_id = test_database.person.create(person2)
+
+        category_id = 'category'
+
+        # Create expression by person1
+        expr1_data = {
+            "title": {"en": "Expression by Author 1", "bo": "རྩོམ་པ་པོ་དང་པོའི་ཚིག་སྒྲུབ།"},
+            "language": "en",
+            "category_id": category_id,
+            "contributions": [{"person_id": person1_id, "role": "author"}],
+        }
+        expression1 = ExpressionInput.model_validate(expr1_data)
+        expr1_id = test_database.expression.create(expression1)
+
+        # Create expression by person2
+        expr2_data = {
+            "title": {"en": "Expression by Author 2", "bo": "རྩོམ་པ་པོ་གཉིས་པའི་ཚིག་སྒྲུབ།"},
+            "language": "en",
+            "category_id": category_id,
+            "contributions": [{"person_id": person2_id, "role": "author"}],
+        }
+        expression2 = ExpressionInput.model_validate(expr2_data)
+        expr2_id = test_database.expression.create(expression2)
+
+        # Create expression by both authors
+        expr3_data = {
+            "title": {"en": "Expression by Both Authors", "bo": "རྩོམ་པ་པོ་གཉིས་ཀའི་ཚིག་སྒྲུབ།"},
+            "language": "bo",
+            "category_id": category_id,
+            "contributions": [
+                {"person_id": person1_id, "role": "author"},
+                {"person_id": person2_id, "role": "translator"}
+            ],
+        }
+        expression3 = ExpressionInput.model_validate(expr3_data)
+        expr3_id = test_database.expression.create(expression3)
+
+        # Filter by person1_id
+        response = client.get(f"/v2/texts?author_id={person1_id}")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 2
+        returned_ids = {item["id"] for item in data}
+        assert returned_ids == {expr1_id, expr3_id}
+
+        # Filter by person2_id
+        response = client.get(f"/v2/texts?author_id={person2_id}")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 2
+        returned_ids = {item["id"] for item in data}
+        assert returned_ids == {expr2_id, expr3_id}
+
+        # Filter by non-existent author
+        response = client.get("/v2/texts?author_id=nonexistent_author_id")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 0
 
 
     def test_get_all_metadata_multiple_filters(self, client, test_database, test_person_data):
@@ -364,6 +434,74 @@ class TestGetAllTextsV2:
         assert len(data) == 1
         assert data[0]["id"] == en_id
         assert data[0]["language"] == "en"
+
+    def test_get_all_metadata_filter_by_author_and_language(self, client, test_database, test_person_data):
+        """Test combining author_id and language filters"""
+        # Create two test persons
+        person1 = PersonInput.model_validate(test_person_data)
+        person1_id = test_database.person.create(person1)
+
+        person2_data = {
+            "name": {"en": "Second Author", "bo": "སློབ་དཔོན་གཉིས་པ།"},
+            "bdrc": "P654321",
+            "wiki": "Q654321",
+        }
+        person2 = PersonInput.model_validate(person2_data)
+        person2_id = test_database.person.create(person2)
+
+        category_id = 'category'
+
+        # Create English expression by person1
+        expr1_data = {
+            "title": {"en": "English Expression by Author 1"},
+            "language": "en",
+            "category_id": category_id,
+            "contributions": [{"person_id": person1_id, "role": "author"}],
+        }
+        expression1 = ExpressionInput.model_validate(expr1_data)
+        expr1_id = test_database.expression.create(expression1)
+
+        # Create Tibetan expression by person1
+        expr2_data = {
+            "title": {"bo": "རྩོམ་པ་པོ་དང་པོའི་བོད་ཡིག"},
+            "language": "bo",
+            "category_id": category_id,
+            "contributions": [{"person_id": person1_id, "role": "author"}],
+        }
+        expression2 = ExpressionInput.model_validate(expr2_data)
+        expr2_id = test_database.expression.create(expression2)
+
+        # Create English expression by person2
+        expr3_data = {
+            "title": {"en": "English Expression by Author 2"},
+            "language": "en",
+            "category_id": category_id,
+            "contributions": [{"person_id": person2_id, "role": "author"}],
+        }
+        expression3 = ExpressionInput.model_validate(expr3_data)
+        expr3_id = test_database.expression.create(expression3)
+
+        # Filter by author_id=person1_id AND language=en
+        response = client.get(f"/v2/texts?author_id={person1_id}&language=en")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 1
+        assert data[0]["id"] == expr1_id
+        assert data[0]["language"] == "en"
+
+        # Filter by author_id=person1_id AND language=bo
+        response = client.get(f"/v2/texts?author_id={person1_id}&language=bo")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 1
+        assert data[0]["id"] == expr2_id
+        assert data[0]["language"] == "bo"
+
+        # Filter by author_id=person2_id AND language=bo (should return nothing)
+        response = client.get(f"/v2/texts?author_id={person2_id}&language=bo")
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 0
 
     def test_get_all_metadata_invalid_limit(self, client, test_database):
         """Test invalid limit parameters"""
