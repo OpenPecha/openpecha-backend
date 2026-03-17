@@ -3,7 +3,7 @@ import logging
 from api.decorators import validate_json, validate_query_params
 from api.editions import _trigger_search_segmenter
 from database import Database
-from flask import Blueprint, Response, jsonify
+from flask import Blueprint, Response, jsonify, request
 from identifier import generate_id
 from models import ExpressionInput, ExpressionPatch
 from request_models import (
@@ -21,19 +21,22 @@ logger = logging.getLogger(__name__)
 @texts_bp.route("", methods=["GET"], strict_slashes=False)
 @validate_query_params(TextsQueryParams)
 def get_all_texts(validated_params: TextsQueryParams) -> tuple[Response, int]:
+    application = request.headers.get("X-Application")
     with Database() as db:
         result = db.expression.get_all(
             offset=validated_params.offset,
             limit=validated_params.limit,
             filters=validated_params,
+            application=application,
         )
     return jsonify([item.model_dump() for item in result]), 200
 
 
 @texts_bp.route("/<string:expression_id>", methods=["GET"], strict_slashes=False)
 def get_texts(expression_id: str) -> tuple[Response, int]:
+    application = request.headers.get("X-Application")
     with Database() as db:
-        expression = db.expression.get(expression_id=expression_id)
+        expression = db.expression.get(expression_id=expression_id, application=application)
         return jsonify(expression.model_dump()), 200
 
 
@@ -85,8 +88,25 @@ def create_edition(expression_id: str, validated_data: EditionRequestModel) -> t
 @validate_json(ExpressionPatch)
 def update_text(expression_id: str, validated_data: ExpressionPatch) -> tuple[Response, int]:
     logger.info("Updating text %s with: %s", expression_id, validated_data.model_dump_json())
+    application = request.headers.get("X-Application")
 
     with Database() as db:
-        updated_expression = db.expression.update(expression_id, validated_data)
+        updated_expression = db.expression.update(expression_id, validated_data, application=application)
 
     return jsonify(updated_expression.model_dump()), 200
+
+
+@texts_bp.route("/<string:expression_id>/tags/<string:tag_id>", methods=["POST"], strict_slashes=False)
+def tag_text(expression_id: str, tag_id: str) -> tuple[Response, int]:
+    with Database() as db:
+        work_id = db.expression.get_work_id(expression_id)
+        db.tag.tag_work(work_id, tag_id)
+    return jsonify({"message": f"Tag '{tag_id}' added to text '{expression_id}'"}), 200
+
+
+@texts_bp.route("/<string:expression_id>/tags/<string:tag_id>", methods=["DELETE"], strict_slashes=False)
+def untag_text(expression_id: str, tag_id: str) -> tuple[Response, int]:
+    with Database() as db:
+        work_id = db.expression.get_work_id(expression_id)
+        db.tag.untag_work(work_id, tag_id)
+    return jsonify({"message": f"Tag '{tag_id}' removed from text '{expression_id}'"}), 200

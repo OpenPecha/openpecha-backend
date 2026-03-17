@@ -12,7 +12,6 @@ if TYPE_CHECKING:
 
 class ApplicationDatabase:
     EXISTS_QUERY = "MATCH (a:Application {id: $application_id}) RETURN a.id AS id LIMIT 1"
-    
     CREATE_QUERY = "CREATE (a:Application {id: $application_id, name: $name}) RETURN a.id AS id"
 
     def __init__(self, db: Database) -> None:
@@ -26,7 +25,6 @@ class ApplicationDatabase:
         with self.session as session:
             result = session.run(self.EXISTS_QUERY, application_id=application_id).single()
             return result is not None
-
 
     def create(self, application_id: str, name: str) -> str:
         if self.exists(application_id):

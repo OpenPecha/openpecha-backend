@@ -110,18 +110,18 @@ def get_annotations(manifestation_id: str, validated_params: AnnotationTypeFilte
         db.manifestation.get(manifestation_id=manifestation_id)
         if AnnotationType.SEGMENTATION in requested_types:
             segmentations = db.annotation.segmentation.get_all(manifestation_id)
-            result["segmentations"] = segmentations if segmentations else None
+            result["segmentations"] = segmentations or None
         if AnnotationType.ALIGNMENT in requested_types:
             alignments = db.annotation.alignment.get_all(manifestation_id)
-            result["alignments"] = alignments if alignments else None
+            result["alignments"] = alignments or None
         if AnnotationType.PAGINATION in requested_types:
             result["pagination"] = db.annotation.pagination.get_all(manifestation_id)
         if AnnotationType.BIBLIOGRAPHY in requested_types:
             bibliographic = db.annotation.bibliographic.get_all(manifestation_id)
-            result["bibliographic_metadata"] = bibliographic if bibliographic else None
+            result["bibliographic_metadata"] = bibliographic or None
         if AnnotationType.DURCHEN in requested_types:
             notes = db.annotation.note.get_all(manifestation_id)
-            result["durchen_notes"] = notes if notes else None
+            result["durchen_notes"] = notes or None
 
     output = AnnotationRequestOutput.model_validate(result)
     return jsonify(output.model_dump(exclude_none=True)), 200

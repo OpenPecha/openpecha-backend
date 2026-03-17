@@ -82,9 +82,7 @@ class CategoryDatabase:
             nomen_id = NomenDatabase.create_with_transaction(tx, category.title.root, None)
             description_nomen_id = None
             if category.description is not None:
-                description_nomen_id = NomenDatabase.create_with_transaction(
-                    tx, category.description.root, None
-                )
+                description_nomen_id = NomenDatabase.create_with_transaction(tx, category.description.root, None)
 
             result = tx.run(
                 CategoryDatabase.CREATE_QUERY,

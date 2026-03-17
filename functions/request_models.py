@@ -31,6 +31,7 @@ class ExpressionFilter(OpenPechaModel):
     language: str | None = None
     title: str | None = None
     category_id: str | None = None
+    tag_id: str | None = None
     author_id: str | None = None
     bdrc: str | None = None
     wiki: str | None = None

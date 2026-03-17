@@ -8,6 +8,7 @@ from models import (
     ManifestationOutput,
     ManifestationType,
     PersonOutput,
+    TagOutput,
 )
 
 
@@ -78,6 +79,7 @@ class DataAdapter:
             category_id=data["category_id"],
             license=LicenseType(data.get("license") or LicenseType.PUBLIC_DOMAIN_MARK.value),
             editions=data.get("editions") or [],
+            tag_ids=data.get("tag_ids") or [],
         )
 
     @staticmethod
@@ -102,4 +104,13 @@ class DataAdapter:
             description=LocalizedString(desc) if desc else None,
             parent_id=data.get("parent_id"),
             children=data.get("children") or [],
+        )
+
+    @staticmethod
+    def tag(data: dict) -> TagOutput:
+        desc = DataAdapter.localized_text(data.get("description"))
+        return TagOutput(
+            id=data["id"],
+            title=LocalizedString(DataAdapter.localized_text(data["title"]) or {}),
+            description=LocalizedString(desc) if desc else None,
         )

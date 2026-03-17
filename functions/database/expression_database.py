@@ -17,6 +17,7 @@ from request_models import ExpressionFilter
 from .data_adapter import DataAdapter
 from .database_validator import DatabaseValidator
 from .nomen_database import NomenDatabase
+from .tag_database import TagDatabase
 
 if TYPE_CHECKING:
     from neo4j import ManagedTransaction, Record, Session
@@ -67,7 +68,9 @@ class ExpressionDatabase:
         language: [(e)-[r:HAS_LANGUAGE]->(lang:Language) | coalesce(r.bcp47, lang.code)][0],
         category_id: [(e)-[:EXPRESSION_OF]->(work:Work)-[:HAS_CATEGORY]->(cat:Category) | cat.id][0],
         license: [(e)-[:HAS_LICENSE]->(license:LicenseType) | license.name][0],
-        editions: [(e)<-[:MANIFESTATION_OF]-(m:Manifestation) | m.id]
+        editions: [(e)<-[:MANIFESTATION_OF]-(m:Manifestation) | m.id],
+        tag_ids: [(e)-[:EXPRESSION_OF]->(w:Work)-[:HAS_TAG]->(t:Tag)
+            WHERE ($application IS NULL OR (t)-[:BELONGS_TO]->(:Application {id: $application})) | t.id]
     } AS expression
     """
 
@@ -93,6 +96,7 @@ class ExpressionDatabase:
     AND ($author_id IS NULL OR EXISTS {{
         (e)-[:HAS_CONTRIBUTION]->(:Contribution)-[:BY]->(p:Person {{id: $author_id}})
     }})
+    AND ($tag_id IS NULL OR (e)-[:EXPRESSION_OF]->(:Work)-[:HAS_TAG]->(:Tag {{id: $tag_id}}))
     AND ($bdrc IS NULL OR e.bdrc = $bdrc)
     AND ($wiki IS NULL OR e.wiki = $wiki)
     WITH e
@@ -184,6 +188,22 @@ class ExpressionDatabase:
     {_CREATE_EXPRESSION_LINKS}
     """
 
+    UPDATE_TAGS_QUERY = """
+    MATCH (e:Expression {id: $expression_id})-[:EXPRESSION_OF]->(w:Work)
+    OPTIONAL MATCH (w)-[r:HAS_TAG]->(:Tag)
+    DELETE r
+    WITH w
+    UNWIND $tag_ids AS tag_id
+    MATCH (t:Tag {id: tag_id})
+    MERGE (w)-[:HAS_TAG]->(t)
+    RETURN w.id AS work_id
+    """
+
+    GET_WORK_ID_QUERY = """
+    MATCH (e:Expression {id: $expression_id})-[:EXPRESSION_OF]->(w:Work)
+    RETURN w.id AS work_id
+    """
+
     LINK_WORK_TO_CATEGORY_QUERY = """
     MATCH (w:Work {id: $work_id})
     MATCH (c:Category {id: $category_id})
@@ -214,14 +234,23 @@ class ExpressionDatabase:
         data = record.get("expression", record) if isinstance(record, dict) else record.data()["expression"]
         return DataAdapter.expression(data)
 
-    def get(self, expression_id: str) -> ExpressionOutput:
+    def get(self, expression_id: str, application: str | None = None) -> ExpressionOutput:
         with self.session as session:
-            result = session.run(ExpressionDatabase.GET_QUERY, id=expression_id).single()
+            result = session.run(ExpressionDatabase.GET_QUERY, id=expression_id, application=application).single()
             if result is None:
                 raise DataNotFoundError(f"Expression with ID '{expression_id}' not found")
             return self._parse_record(result.data())
 
-    def get_all(self, offset: int, limit: int, filters: ExpressionFilter | None = None) -> list[ExpressionOutput]:
+    def get_work_id(self, expression_id: str) -> str:
+        with self.session as session:
+            result = session.run(ExpressionDatabase.GET_WORK_ID_QUERY, expression_id=expression_id).single()
+            if result is None:
+                raise DataNotFoundError(f"Expression with ID '{expression_id}' not found or has no associated Work")
+            return result["work_id"]
+
+    def get_all(
+        self, offset: int, limit: int, filters: ExpressionFilter | None = None, application: str | None = None
+    ) -> list[ExpressionOutput]:
         filters = filters or ExpressionFilter()
 
         def _get_all(tx: ManagedTransaction) -> list[ExpressionOutput]:
@@ -235,8 +264,10 @@ class ExpressionDatabase:
                 title=filters.title,
                 category_id=filters.category_id,
                 author_id=filters.author_id,
+                tag_id=filters.tag_id,
                 bdrc=filters.bdrc,
                 wiki=filters.wiki,
+                application=application,
             )
             return [self._parse_record(r.data()) for r in result]
 
@@ -304,13 +335,20 @@ class ExpressionDatabase:
         for contribution in expression.contributions or []:
             ExpressionDatabase._create_contribution(tx, expression_id, contribution)
 
+        if expression.tag_ids:
+            DatabaseValidator.validate_tags_exist(tx, list(expression.tag_ids))
+            for tag_id in expression.tag_ids:
+                TagDatabase.tag_work_with_transaction(tx, work_id, tag_id)
+
         return expression_id
 
     @staticmethod
     def _validate_translation_language(tx: ManagedTransaction, expression: ExpressionInput) -> None:
         if not expression.translation_of:
             return
-        result = tx.run(ExpressionDatabase.GET_QUERY, id=expression.translation_of, bdrc_id=None).single()
+        result = tx.run(
+            ExpressionDatabase.GET_QUERY, id=expression.translation_of, bdrc_id=None, application=None
+        ).single()
         if not result:
             raise DataNotFoundError(f"Target expression '{expression.translation_of}' not found for translation")
         target_language = result.data()["expression"]["language"]
@@ -346,7 +384,7 @@ class ExpressionDatabase:
                     f"AI contribution creation failed. AI: {contribution.ai_id}; Role: {contribution.role.value}"
                 )
 
-    def update(self, expression_id: str, patch: ExpressionPatch) -> ExpressionOutput:
+    def update(self, expression_id: str, patch: ExpressionPatch, application: str | None = None) -> ExpressionOutput:
         existing = self.get(expression_id)
 
         merged_bdrc = patch.bdrc if patch.bdrc is not None else existing.bdrc
@@ -410,6 +448,14 @@ class ExpressionDatabase:
                     ExpressionDatabase.UPDATE_CATEGORY_QUERY, expression_id=expression_id, category_id=patch.category_id
                 )
 
+            if patch.tag_ids is not None:
+                DatabaseValidator.validate_tags_exist(tx, list(patch.tag_ids))
+                tx.run(
+                    ExpressionDatabase.UPDATE_TAGS_QUERY,
+                    expression_id=expression_id,
+                    tag_ids=list(patch.tag_ids),
+                )
+
         with self.session as session:
             session.execute_write(update_transaction)
-            return self.get(expression_id)
+            return self.get(expression_id, application=application)

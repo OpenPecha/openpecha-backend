@@ -497,3 +497,98 @@ class TestCategoryDescription:
 
         assert seeded_cat is not None
         assert seeded_cat.get("description") is None
+
+
+def _seed_app_b(test_database):
+    """Seed a second application for isolation tests."""
+    with test_database.get_session() as session:
+        session.run("""
+            MERGE (app:Application {id: 'app_b', name: 'Application B'})
+        """).consume()
+
+
+APP_B_HEADER = {"X-Application": "app_b"}
+
+
+class TestCategoryApplicationIsolation:
+    """Tests that categories are isolated per application."""
+
+    def test_listing_categories_only_returns_own_application(self, client, test_database):
+        """Categories created for App A should not appear when listing for App B."""
+        _seed_app_b(test_database)
+
+        cat_data = {"title": {"en": "App A Exclusive Category"}}
+        response_create = client.post(
+            "/v2/categories/",
+            data=json.dumps(cat_data),
+            content_type="application/json",
+            headers=APPLICATION_HEADER,
+        )
+        assert response_create.status_code == 201
+        cat_id_a = json.loads(response_create.data)["id"]
+
+        response_b = client.get("/v2/categories/", headers=APP_B_HEADER)
+        assert response_b.status_code == 200
+        cats_b = json.loads(response_b.data)
+        cat_ids_b = [c["id"] for c in cats_b]
+        assert cat_id_a not in cat_ids_b
+
+    def test_listing_categories_returns_own_categories(self, client, test_database):
+        """Categories created for App B should appear for App B, not App A."""
+        _seed_app_b(test_database)
+
+        cat_b_data = {"title": {"en": "App B Exclusive Category"}}
+        response_create = client.post(
+            "/v2/categories/",
+            data=json.dumps(cat_b_data),
+            content_type="application/json",
+            headers=APP_B_HEADER,
+        )
+        assert response_create.status_code == 201
+        cat_id_b = json.loads(response_create.data)["id"]
+
+        response_b = client.get("/v2/categories/", headers=APP_B_HEADER)
+        cats_b = json.loads(response_b.data)
+        cat_ids_b = [c["id"] for c in cats_b]
+        assert cat_id_b in cat_ids_b
+
+        response_a = client.get("/v2/categories/", headers=APPLICATION_HEADER)
+        cats_a = json.loads(response_a.data)
+        cat_ids_a = [c["id"] for c in cats_a]
+        assert cat_id_b not in cat_ids_a
+
+    def test_same_category_title_allowed_across_applications(self, client, test_database):
+        """Two applications can each have a category with the same title."""
+        _seed_app_b(test_database)
+
+        cat_data = {"title": {"en": "Cross App Same Category Title"}}
+
+        response_a = client.post(
+            "/v2/categories/",
+            data=json.dumps(cat_data),
+            content_type="application/json",
+            headers=APPLICATION_HEADER,
+        )
+        assert response_a.status_code == 201
+        cat_id_a = json.loads(response_a.data)["id"]
+
+        response_b = client.post(
+            "/v2/categories/",
+            data=json.dumps(cat_data),
+            content_type="application/json",
+            headers=APP_B_HEADER,
+        )
+        assert response_b.status_code == 201
+        cat_id_b = json.loads(response_b.data)["id"]
+
+        assert cat_id_a != cat_id_b
+
+    def test_seeded_category_not_visible_to_app_b(self, client, test_database):
+        """The seeded category (belongs to test_application) should not be visible to App B."""
+        _seed_app_b(test_database)
+
+        response_b = client.get("/v2/categories/", headers=APP_B_HEADER)
+        assert response_b.status_code == 200
+        cats_b = json.loads(response_b.data)
+        cat_ids_b = [c["id"] for c in cats_b]
+        assert "category" not in cat_ids_b
