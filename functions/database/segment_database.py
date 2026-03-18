@@ -38,13 +38,17 @@ class SegmentDatabase:
     MATCH (source_seg:Segment {id: $segment_id})
         -[:SEGMENT_OF]->(:Segmentation)
         -[:SEGMENTATION_OF]->(source_manif:Manifestation)
+        -[:MANIFESTATION_OF]->(source_expr:Expression)
     MATCH (source_seg)-[:ALIGNED_TO]-{1,10}(related_seg:Segment)
         -[:SEGMENT_OF]->(:Segmentation)
         -[:SEGMENTATION_OF]->(related_manif:Manifestation)
         -[:MANIFESTATION_OF]->(related_expr:Expression)
     WHERE related_manif <> source_manif
     MATCH (related_span:Span)-[:SPAN_OF]->(related_seg)
-    RETURN related_manif.id as manifestation_id, related_expr.id as expression_id,
+    OPTIONAL MATCH (related_expr)-[rel:TRANSLATION_OF|COMMENTARY_OF]-(source_expr)
+    RETURN related_manif.id as manifestation_id, 
+        related_expr.id as expression_id,
+        type(rel) as relation_type,
         COLLECT(DISTINCT {
             id: related_seg.id,
             span_start: related_span.start,
@@ -103,11 +107,13 @@ class SegmentDatabase:
             for record in result:
                 manif_id = record["manifestation_id"]
                 text_id = record["expression_id"]
+                relation_type = record.get("relation_type")
                 segments.extend(
                     SegmentOutput(
                         id=seg["id"],
                         manifestation_id=manif_id,
                         text_id=text_id,
+                        relation_type=relation_type,
                         lines=[SpanModel(start=seg["span_start"], end=seg["span_end"])],
                         tag_ids=seg.get("tag_ids") or [],
                     )

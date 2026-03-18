@@ -214,6 +214,7 @@ class SegmentOutput(SegmentBase):
     id: NonEmptyStr
     manifestation_id: NonEmptyStr
     text_id: NonEmptyStr
+    relation_type: str | None = None
     tag_ids: list[str] = []
 
 
