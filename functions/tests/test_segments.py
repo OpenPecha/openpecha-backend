@@ -19,6 +19,7 @@ from models import (
     ManifestationType,
     PersonInput,
     SegmentationInput,
+    SegmentInput,
     SpanModel,
 )
 from storage import Storage
@@ -70,19 +71,15 @@ class TestSegmentsEndpoints:
 
         return manifestation_id
 
-    def _create_test_segmentation(self, db, manifestation_id, segmentation_type="sentence"):
-        """Helper to create a segmentation"""
-        segmentation_id = generate_id()
-        segmentation_data = SegmentationInput(type=segmentation_type)
-        db.segmentation.create(segmentation_data, segmentation_id, manifestation_id)
-        return segmentation_id
-
-    def _create_test_segment(self, db, segmentation_id, span_start=0, span_end=10):
-        """Helper to create a segment with a span"""
-        segment_id = generate_id()
-        db.segment.create(segment_id, segmentation_id)
-        db.span.create(SpanModel(start=span_start, end=span_end), segment_id)
-        return segment_id
+    def _create_test_segmentation(self, db, manifestation_id, span_start=0, span_end=10):
+        """Helper to create a segmentation with a single segment, returns (segmentation_id, segment_id)"""
+        segmentation_data = SegmentationInput(
+            segments=[SegmentInput(lines=[SpanModel(start=span_start, end=span_end)])]
+        )
+        segmentation_id = db.annotation.segmentation.add(manifestation_id, segmentation_data)
+        segmentation_output = db.annotation.segmentation.get(segmentation_id)
+        segment_id = segmentation_output.segments[0].id
+        return segmentation_id, segment_id
 
 
 class TestGetRelatedSegments(TestSegmentsEndpoints):
@@ -101,8 +98,7 @@ class TestGetRelatedSegments(TestSegmentsEndpoints):
             test_database, source_expression_id, 
             "Original text content"
         )
-        source_segmentation_id = self._create_test_segmentation(test_database, source_manifestation_id)
-        source_segment_id = self._create_test_segment(test_database, source_segmentation_id, 0, 10)
+        source_segmentation_id, source_segment_id = self._create_test_segmentation(test_database, source_manifestation_id, 0, 10)
 
         # Create related expression and manifestation (translation)
         related_expression_id = self._create_test_expression(
@@ -113,8 +109,7 @@ class TestGetRelatedSegments(TestSegmentsEndpoints):
             test_database, related_expression_id,
             "Translated text content"
         )
-        related_segmentation_id = self._create_test_segmentation(test_database, related_manifestation_id)
-        related_segment_id = self._create_test_segment(test_database, related_segmentation_id, 0, 15)
+        related_segmentation_id, related_segment_id = self._create_test_segmentation(test_database, related_manifestation_id, 0, 15)
 
         # Create TRANSLATION_OF relationship between expressions
         with test_database.get_session() as session:
@@ -163,13 +158,11 @@ class TestGetRelatedSegments(TestSegmentsEndpoints):
         # Create source and related segments
         source_expression_id = self._create_test_expression(test_database, person_id)
         source_manifestation_id = self._create_test_manifestation(test_database, source_expression_id)
-        source_segmentation_id = self._create_test_segmentation(test_database, source_manifestation_id)
-        source_segment_id = self._create_test_segment(test_database, source_segmentation_id)
+        source_segmentation_id, source_segment_id = self._create_test_segmentation(test_database, source_manifestation_id)
 
         related_expression_id = self._create_test_expression(test_database, person_id)
         related_manifestation_id = self._create_test_manifestation(test_database, related_expression_id)
-        related_segmentation_id = self._create_test_segmentation(test_database, related_manifestation_id)
-        related_segment_id = self._create_test_segment(test_database, related_segmentation_id)
+        related_segmentation_id, related_segment_id = self._create_test_segmentation(test_database, related_manifestation_id)
 
         # Create relationships
         with test_database.get_session() as session:
@@ -215,8 +208,7 @@ class TestGetRelatedSegments(TestSegmentsEndpoints):
         # Create a segment without any related segments
         expression_id = self._create_test_expression(test_database, person_id)
         manifestation_id = self._create_test_manifestation(test_database, expression_id)
-        segmentation_id = self._create_test_segmentation(test_database, manifestation_id)
-        segment_id = self._create_test_segment(test_database, segmentation_id)
+        segmentation_id, segment_id = self._create_test_segmentation(test_database, manifestation_id)
 
         response = client.get(f"/v2/segments/{segment_id}/related")
 
@@ -232,20 +224,17 @@ class TestGetRelatedSegments(TestSegmentsEndpoints):
         # Create source segment
         source_expression_id = self._create_test_expression(test_database, person_id)
         source_manifestation_id = self._create_test_manifestation(test_database, source_expression_id)
-        source_segmentation_id = self._create_test_segmentation(test_database, source_manifestation_id)
-        source_segment_id = self._create_test_segment(test_database, source_segmentation_id)
+        source_segmentation_id, source_segment_id = self._create_test_segmentation(test_database, source_manifestation_id)
 
         # Create first related segment
         related_expression_1_id = self._create_test_expression(test_database, person_id)
         related_manifestation_1_id = self._create_test_manifestation(test_database, related_expression_1_id)
-        related_segmentation_1_id = self._create_test_segmentation(test_database, related_manifestation_1_id)
-        related_segment_1_id = self._create_test_segment(test_database, related_segmentation_1_id, 0, 20)
+        related_segmentation_1_id, related_segment_1_id = self._create_test_segmentation(test_database, related_manifestation_1_id, 0, 20)
 
         # Create second related segment
         related_expression_2_id = self._create_test_expression(test_database, person_id)
         related_manifestation_2_id = self._create_test_manifestation(test_database, related_expression_2_id)
-        related_segmentation_2_id = self._create_test_segmentation(test_database, related_manifestation_2_id)
-        related_segment_2_id = self._create_test_segment(test_database, related_segmentation_2_id, 5, 25)
+        related_segmentation_2_id, related_segment_2_id = self._create_test_segmentation(test_database, related_manifestation_2_id, 5, 25)
 
         # Create alignment relationships
         with test_database.get_session() as session:
