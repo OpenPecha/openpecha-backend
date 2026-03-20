@@ -217,6 +217,40 @@ class DatabaseValidator:
             )
 
     @staticmethod
+    def validate_tag_exists(tx: ManagedTransaction, tag_id: str) -> None:
+        """Validate that a tag with the given ID exists.
+
+        Raises DataValidationError if the tag does not exist.
+        """
+        query = """
+        RETURN EXISTS { (t:Tag {id: $tag_id}) } AS exists
+        """
+
+        result = tx.run(query, tag_id=tag_id)
+        record = result.single()
+
+        if not record or not record["exists"]:
+            raise DataValidationError(f"Tag with ID '{tag_id}' does not exist. Please provide a valid tag_id.")
+
+    @staticmethod
+    def validate_tags_exist(tx: ManagedTransaction, tag_ids: list[str]) -> None:
+        """Validate that all given tag IDs exist. Raises DataValidationError listing missing IDs."""
+        if not tag_ids:
+            return
+
+        query = """
+        UNWIND $tag_ids AS tag_id
+        OPTIONAL MATCH (t:Tag {id: tag_id})
+        RETURN tag_id, t IS NOT NULL AS exists
+        """
+
+        result = tx.run(query, tag_ids=tag_ids)
+        missing_tags = [record["tag_id"] for record in result if not record["exists"]]
+
+        if missing_tags:
+            raise DataValidationError(f"Referenced tags do not exist: {', '.join(missing_tags)}")
+
+    @staticmethod
     def validate_expression_title_unique(tx: ManagedTransaction, title: dict[str, str]) -> None:
         """Ensure no expression exists with the same title text and language combination."""
         if not title:

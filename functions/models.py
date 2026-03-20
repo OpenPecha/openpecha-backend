@@ -1,5 +1,5 @@
 from collections.abc import Sequence
-from enum import Enum
+from enum import StrEnum
 from typing import Annotated, Any, Literal, Self, TypeVar
 
 from pydantic import BaseModel, ConfigDict, Field, RootModel, StrictStr, StringConstraints, model_validator
@@ -16,7 +16,7 @@ def _dedupe[T](items: list[T], exclude: T) -> list[T]:
     return seen
 
 
-class TextType(str, Enum):
+class TextType(StrEnum):
     ROOT = "root"
     COMMENTARY = "commentary"
     TRANSLATION = "translation"
@@ -24,14 +24,14 @@ class TextType(str, Enum):
     NONE = "none"
 
 
-class ContributorRole(str, Enum):
+class ContributorRole(StrEnum):
     TRANSLATOR = "translator"
     REVISER = "reviser"
     AUTHOR = "author"
     SCHOLAR = "scholar"
 
 
-class AnnotationType(str, Enum):
+class AnnotationType(StrEnum):
     SEGMENTATION = "segmentation"
     ALIGNMENT = "alignment"
     PAGINATION = "pagination"
@@ -42,13 +42,13 @@ class AnnotationType(str, Enum):
     SEARCH_SEGMENTATION = "search_segmentation"
 
 
-class ManifestationType(str, Enum):
+class ManifestationType(StrEnum):
     DIPLOMATIC = "diplomatic"
     CRITICAL = "critical"
     COLLATED = "collated"
 
 
-class LicenseType(str, Enum):
+class LicenseType(StrEnum):
     # based on https://creativecommons.org/licenses/
     CC0 = "cc0"
     PUBLIC_DOMAIN_MARK = "public"
@@ -62,11 +62,11 @@ class LicenseType(str, Enum):
     UNKNOWN = "unknown"
 
 
-class NoteType(str, Enum):
+class NoteType(StrEnum):
     DURCHEN = "durchen"
 
 
-class BibliographyType(str, Enum):
+class BibliographyType(StrEnum):
     COLOPHON = "colophon"
     INCIPIT = "incipit"
     ALT_INCIPIT = "alt_incipit"
@@ -76,7 +76,7 @@ class BibliographyType(str, Enum):
     AUTHOR = "author"
 
 
-class AttributeType(str, Enum):
+class AttributeType(StrEnum):
     OCR_CONFIDENCE = "ocr_confidence"
 
 
@@ -214,6 +214,7 @@ class SegmentOutput(SegmentBase):
     id: NonEmptyStr
     manifestation_id: NonEmptyStr
     text_id: NonEmptyStr
+    tag_ids: list[str] = []
 
 
 class AlignedSegment(OpenPechaModel):
@@ -396,6 +397,7 @@ class ExpressionBase(OpenPechaModel):
 
 class ExpressionInput(ExpressionBase):
     contributions: list[ContributionInput | AIContributionModel]
+    tag_ids: list[NonEmptyStr] = []
 
 
 class ExpressionPatch(OpenPechaModel):
@@ -407,6 +409,7 @@ class ExpressionPatch(OpenPechaModel):
     language: NonEmptyStr | None = None
     category_id: NonEmptyStr | None = None
     license: LicenseType | None = None
+    tag_ids: list[NonEmptyStr] | None = None
 
     @model_validator(mode="after")
     def validate_at_least_one_field(self) -> Self:
@@ -421,6 +424,7 @@ class ExpressionPatch(OpenPechaModel):
                 self.language,
                 self.category_id,
                 self.license,
+                self.tag_ids,
             ]
         ):
             raise ValueError("At least one field must be provided for update")
@@ -439,6 +443,7 @@ class ExpressionOutput(ExpressionBase):
     commentaries: list[str] = []
     translations: list[str] = []
     editions: list[str] = []
+    tag_ids: list[str] = []
 
 
 class ManifestationBase(OpenPechaModel):
@@ -493,6 +498,19 @@ class CategoryInput(CategoryBase):
 class CategoryOutput(CategoryBase):
     id: NonEmptyStr
     children: list[str] = []
+
+
+class TagBase(OpenPechaModel):
+    title: LocalizedString
+    description: LocalizedString | None = None
+
+
+class TagInput(TagBase):
+    pass
+
+
+class TagOutput(TagBase):
+    id: NonEmptyStr
 
 
 class SearchFilterModel(OpenPechaModel):

@@ -693,6 +693,18 @@ paths:
                   schema:
                       type: string
                   description: Filter by category ID
+                - name: author_id
+                  in: query
+                  required: false
+                  schema:
+                      type: string
+                  description: Filter by author ID (Person ID)
+                - name: tag_id
+                  in: query
+                  required: false
+                  schema:
+                      type: string
+                  description: Filter by tag ID
                 - name: bdrc
                   in: query
                   required: false
@@ -2076,6 +2088,278 @@ paths:
                 "500":
                     $ref: "#/components/responses/ServerError"
 
+    /v2/tags:
+        get:
+            summary: Retrieve tags
+            description: Get all tags for an application (via X-Application header)
+            tags:
+                - Tags
+            parameters:
+                - name: X-Application
+                  in: header
+                  required: true
+                  schema:
+                      type: string
+                  description: Application context for tags
+                  example: "webuddhist"
+            responses:
+                "200":
+                    description: Tags retrieved successfully
+                    content:
+                        application/json:
+                            schema:
+                                type: array
+                                items:
+                                    $ref: "#/components/schemas/TagOutput"
+                            examples:
+                                tags_list:
+                                    summary: List of tags
+                                    value:
+                                        - id: "TAG12345678"
+                                          title:
+                                              en: "Philosophy"
+                                              bo: "གྲུབ་མཐའ"
+                                        - id: "TAG23456789"
+                                          title:
+                                              en: "Meditation"
+                                              bo: "སྒོམ"
+                                          description:
+                                              en: "Texts related to meditation practice"
+                "400":
+                    $ref: "#/components/responses/InvalidRequest"
+                "500":
+                    $ref: "#/components/responses/ServerError"
+        post:
+            summary: Create a new tag
+            description: Create a tag with localized title and optional description. Application context is provided via X-Application header. Tag titles must be unique per application.
+            tags:
+                - Tags
+            parameters:
+                - name: X-Application
+                  in: header
+                  required: true
+                  schema:
+                      type: string
+                  description: Application context for the tag
+                  example: "webuddhist"
+            requestBody:
+                required: true
+                content:
+                    application/json:
+                        schema:
+                            $ref: "#/components/schemas/TagInput"
+                        examples:
+                            tag_with_description:
+                                summary: Tag with description
+                                value:
+                                    title:
+                                        en: "Philosophy"
+                                        bo: "གྲུབ་མཐའ"
+                                    description:
+                                        en: "Texts related to philosophical traditions"
+                            tag_minimal:
+                                summary: Minimal tag
+                                value:
+                                    title:
+                                        en: "Meditation"
+            responses:
+                "201":
+                    description: Tag created successfully
+                    content:
+                        application/json:
+                            schema:
+                                type: object
+                                required:
+                                    - id
+                                properties:
+                                    id:
+                                        type: string
+                                        description: Generated tag ID
+                            examples:
+                                created:
+                                    summary: Tag created
+                                    value:
+                                        id: "TAG12345678"
+                "400":
+                    $ref: "#/components/responses/InvalidRequest"
+                "409":
+                    $ref: "#/components/responses/ConflictError"
+                "422":
+                    $ref: "#/components/responses/ValidationError"
+                "500":
+                    $ref: "#/components/responses/ServerError"
+
+    /v2/tags/{tag_id}:
+        delete:
+            summary: Delete a tag
+            description: Delete a tag by ID. Removes the tag and its associated Nomen nodes.
+            tags:
+                - Tags
+            parameters:
+                - name: X-Application
+                  in: header
+                  required: true
+                  schema:
+                      type: string
+                  description: Application context
+                  example: "webuddhist"
+                - name: tag_id
+                  in: path
+                  required: true
+                  schema:
+                      type: string
+                  description: Tag ID to delete
+            responses:
+                "200":
+                    description: Tag deleted successfully
+                    content:
+                        application/json:
+                            schema:
+                                type: object
+                                properties:
+                                    message:
+                                        type: string
+                "404":
+                    $ref: "#/components/responses/NotFound"
+                "500":
+                    $ref: "#/components/responses/ServerError"
+
+    /v2/texts/{expression_id}/tags/{tag_id}:
+        post:
+            summary: Add a tag to a text
+            description: Attach a tag to the work associated with the given expression/text.
+            tags:
+                - Tags
+                - Texts
+            parameters:
+                - name: expression_id
+                  in: path
+                  required: true
+                  schema:
+                      type: string
+                  description: Expression/text ID
+                - name: tag_id
+                  in: path
+                  required: true
+                  schema:
+                      type: string
+                  description: Tag ID to attach
+            responses:
+                "200":
+                    description: Tag added to text
+                    content:
+                        application/json:
+                            schema:
+                                type: object
+                                properties:
+                                    message:
+                                        type: string
+                "404":
+                    $ref: "#/components/responses/NotFound"
+                "500":
+                    $ref: "#/components/responses/ServerError"
+        delete:
+            summary: Remove a tag from a text
+            description: Remove a tag from the work associated with the given expression/text.
+            tags:
+                - Tags
+                - Texts
+            parameters:
+                - name: expression_id
+                  in: path
+                  required: true
+                  schema:
+                      type: string
+                  description: Expression/text ID
+                - name: tag_id
+                  in: path
+                  required: true
+                  schema:
+                      type: string
+                  description: Tag ID to remove
+            responses:
+                "200":
+                    description: Tag removed from text
+                    content:
+                        application/json:
+                            schema:
+                                type: object
+                                properties:
+                                    message:
+                                        type: string
+                "404":
+                    $ref: "#/components/responses/NotFound"
+                "500":
+                    $ref: "#/components/responses/ServerError"
+
+    /v2/segments/{segment_id}/tags/{tag_id}:
+        post:
+            summary: Add a tag to a segment
+            description: Attach a tag to a segment.
+            tags:
+                - Tags
+                - Segments
+            parameters:
+                - name: segment_id
+                  in: path
+                  required: true
+                  schema:
+                      type: string
+                  description: Segment ID
+                - name: tag_id
+                  in: path
+                  required: true
+                  schema:
+                      type: string
+                  description: Tag ID to attach
+            responses:
+                "200":
+                    description: Tag added to segment
+                    content:
+                        application/json:
+                            schema:
+                                type: object
+                                properties:
+                                    message:
+                                        type: string
+                "404":
+                    $ref: "#/components/responses/NotFound"
+                "500":
+                    $ref: "#/components/responses/ServerError"
+        delete:
+            summary: Remove a tag from a segment
+            description: Remove a tag from a segment.
+            tags:
+                - Tags
+                - Segments
+            parameters:
+                - name: segment_id
+                  in: path
+                  required: true
+                  schema:
+                      type: string
+                  description: Segment ID
+                - name: tag_id
+                  in: path
+                  required: true
+                  schema:
+                      type: string
+                  description: Tag ID to remove
+            responses:
+                "200":
+                    description: Tag removed from segment
+                    content:
+                        application/json:
+                            schema:
+                                type: object
+                                properties:
+                                    message:
+                                        type: string
+                "404":
+                    $ref: "#/components/responses/NotFound"
+                "500":
+                    $ref: "#/components/responses/ServerError"
+
     /v2/applications:
         post:
             summary: Create a new application
@@ -2342,6 +2626,44 @@ components:
                         type: string
                     description: List of child category IDs
 
+        TagInput:
+            type: object
+            required:
+                - title
+            properties:
+                title:
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: Localized tag titles (language code to text mapping)
+                description:
+                    type: object
+                    additionalProperties:
+                        type: string
+                    nullable: true
+                    description: Localized tag descriptions (language code to text mapping, optional)
+
+        TagOutput:
+            type: object
+            required:
+                - id
+                - title
+            properties:
+                id:
+                    type: string
+                    description: Tag ID
+                title:
+                    type: object
+                    additionalProperties:
+                        type: string
+                    description: Localized tag titles
+                description:
+                    type: object
+                    additionalProperties:
+                        type: string
+                    nullable: true
+                    description: Localized tag descriptions (language code to text mapping, optional)
+
         ContributionInput:
             type: object
             description: Human or AI contribution. Must provide either person_id OR person_bdrc_id for human contributions, or ai_id for AI contributions.
@@ -2439,6 +2761,11 @@ components:
                     minItems: 1
                     items:
                         $ref: "#/components/schemas/ContributionInput"
+                tag_ids:
+                    type: array
+                    items:
+                        type: string
+                    description: Tag IDs to attach to this text's work (optional)
 
         ExpressionPatch:
             type: object
@@ -2479,6 +2806,12 @@ components:
                     description: Category ID
                 license:
                     $ref: "#/components/schemas/LicenseType"
+                tag_ids:
+                    type: array
+                    nullable: true
+                    items:
+                        type: string
+                    description: Replace all tags on this text's work
 
         ExpressionOutput:
             type: object
@@ -2549,6 +2882,11 @@ components:
                     items:
                         type: string
                     description: IDs of editions (manifestations) of this text
+                tag_ids:
+                    type: array
+                    items:
+                        type: string
+                    description: Tag IDs attached to this text's work
 
         LicenseType:
             type: string
@@ -2683,6 +3021,11 @@ components:
                     items:
                         $ref: "#/components/schemas/SpanModel"
                     description: Character spans that make up this segment
+                tag_ids:
+                    type: array
+                    items:
+                        type: string
+                    description: Tag IDs attached to this segment
 
         AlignedSegment:
             type: object

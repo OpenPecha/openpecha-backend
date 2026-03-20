@@ -56,6 +56,30 @@ nodes:
         target: Category
         cardinality: one
         required: true
+      HAS_TAG:
+        target: Tag
+        cardinality: many
+        required: false
+
+  Tag:
+    properties:
+      id:
+        type: string
+        required: true
+        unique: true
+    relationships:
+      BELONGS_TO:
+        target: Application
+        cardinality: one
+        required: true
+      HAS_TITLE:
+        target: Nomen
+        cardinality: one
+        required: true
+      HAS_DESCRIPTION:
+        target: Nomen
+        cardinality: one
+        required: false
 
   Category:
     properties:
@@ -206,6 +230,10 @@ nodes:
         required: true
       ALIGNED_TO:
         target: Segment
+        cardinality: many
+        required: false
+      HAS_TAG:
+        target: Tag
         cardinality: many
         required: false
 

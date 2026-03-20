@@ -4,8 +4,8 @@ import traceback
 
 import firebase_admin
 from api.annotations import annotations_bp
-from api.applications import applications_bp
 from api.api import api_bp
+from api.applications import applications_bp
 from api.auth import validate_api_key
 from api.categories import categories_bp
 from api.editions import editions_bp
@@ -13,6 +13,7 @@ from api.languages import languages_bp
 from api.persons import persons_bp
 from api.schema import schema_bp
 from api.segments import segments_bp
+from api.tags import tags_bp
 from api.texts import texts_bp
 from exceptions import OpenPechaError
 from firebase_admin import credentials
@@ -52,6 +53,7 @@ def create_app(*, testing: bool = False) -> Flask:
     app.register_blueprint(annotations_bp, url_prefix="/v2/annotations")
     app.register_blueprint(applications_bp, url_prefix="/v2/applications")
     app.register_blueprint(categories_bp, url_prefix="/v2/categories")
+    app.register_blueprint(tags_bp, url_prefix="/v2/tags")
     app.register_blueprint(languages_bp, url_prefix="/v2/languages")
 
     @app.before_request

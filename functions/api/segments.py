@@ -4,7 +4,7 @@ import requests
 from api.decorators import validate_query_params
 from database import Database
 from exceptions import DataNotFoundError, InvalidRequestError
-from flask import Blueprint, Response, jsonify
+from flask import Blueprint, Response, jsonify, request
 from models import SearchFilterModel, SearchResponseModel, SearchResultModel
 from request_models import SearchQueryParams
 from storage import Storage
@@ -19,15 +19,17 @@ SEARCH_API_URL = "https://openpecha-search.onrender.com"
 
 @segments_bp.route("/<string:segment_id>/related", methods=["GET"], strict_slashes=False)
 def get_related(segment_id: str) -> tuple[Response, int]:
+    application = request.headers.get("X-Application")
     with Database() as db:
-        related_segments = db.segment.get_related(segment_id)
+        related_segments = db.segment.get_related(segment_id, application=application)
     return jsonify([seg.model_dump() for seg in related_segments]), 200
 
 
 @segments_bp.route("/<string:segment_id>/content", methods=["GET"], strict_slashes=False)
 def get_segment_content(segment_id: str) -> tuple[Response, int]:
+    application = request.headers.get("X-Application")
     with Database() as db:
-        segment = db.segment.get(segment_id)
+        segment = db.segment.get(segment_id, application=application)
 
     base_text = Storage().retrieve_base_text(
         expression_id=segment.text_id,
@@ -36,6 +38,20 @@ def get_segment_content(segment_id: str) -> tuple[Response, int]:
 
     content = base_text[segment.span.start : segment.span.end]
     return jsonify(content), 200
+
+
+@segments_bp.route("/<string:segment_id>/tags/<string:tag_id>", methods=["POST"], strict_slashes=False)
+def tag_segment(segment_id: str, tag_id: str) -> tuple[Response, int]:
+    with Database() as db:
+        db.tag.tag_segment(segment_id, tag_id)
+    return jsonify({"message": f"Tag '{tag_id}' added to segment '{segment_id}'"}), 200
+
+
+@segments_bp.route("/<string:segment_id>/tags/<string:tag_id>", methods=["DELETE"], strict_slashes=False)
+def untag_segment(segment_id: str, tag_id: str) -> tuple[Response, int]:
+    with Database() as db:
+        db.tag.untag_segment(segment_id, tag_id)
+    return jsonify({"message": f"Tag '{tag_id}' removed from segment '{segment_id}'"}), 200
 
 
 @segments_bp.route("/search", methods=["GET"], strict_slashes=False)

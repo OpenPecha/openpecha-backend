@@ -29,7 +29,9 @@ class SegmentDatabase:
     RETURN seg.id as segment_id,
         manif.id as manifestation_id,
         expr.id as expression_id,
-        collect({start: span.start, end: span.end}) as lines
+        collect({start: span.start, end: span.end}) as lines,
+        [(seg)-[:HAS_TAG]->(t:Tag)
+            WHERE ($application IS NULL OR (t)-[:BELONGS_TO]->(:Application {id: $application})) | t.id] as tag_ids
     """
 
     GET_RELATED_QUERY = """
@@ -46,7 +48,9 @@ class SegmentDatabase:
         COLLECT(DISTINCT {
             id: related_seg.id,
             span_start: related_span.start,
-            span_end: related_span.end
+            span_end: related_span.end,
+            tag_ids: [(related_seg)-[:HAS_TAG]->(t:Tag)
+                WHERE ($application IS NULL OR (t)-[:BELONGS_TO]->(:Application {id: $application})) | t.id]
         }) as segments
     """
 
@@ -66,12 +70,13 @@ class SegmentDatabase:
     def session(self) -> Session:
         return self._db.get_session()
 
-    def get(self, segment_id: str) -> SegmentOutput:
+    def get(self, segment_id: str, application: str | None = None) -> SegmentOutput:
         with self.session as session:
             result = session.execute_read(
                 lambda tx: tx.run(
                     SegmentDatabase.GET_QUERY,
                     segment_id=segment_id,
+                    application=application,
                 ).data()
             )
             if not result:
@@ -82,14 +87,16 @@ class SegmentDatabase:
                 manifestation_id=record["manifestation_id"],
                 text_id=record["expression_id"],
                 lines=[SpanModel(start=line["start"], end=line["end"]) for line in record["lines"]],
+                tag_ids=record.get("tag_ids") or [],
             )
 
-    def get_related(self, segment_id: str) -> list[SegmentOutput]:
+    def get_related(self, segment_id: str, application: str | None = None) -> list[SegmentOutput]:
         with self.session as session:
             result = session.execute_read(
                 lambda tx: tx.run(
                     SegmentDatabase.GET_RELATED_QUERY,
                     segment_id=segment_id,
+                    application=application,
                 ).data()
             )
             segments = []
@@ -102,6 +109,7 @@ class SegmentDatabase:
                         manifestation_id=manif_id,
                         text_id=text_id,
                         lines=[SpanModel(start=seg["span_start"], end=seg["span_end"])],
+                        tag_ids=seg.get("tag_ids") or [],
                     )
                     for seg in record["segments"]
                 )
