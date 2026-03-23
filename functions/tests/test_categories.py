@@ -142,6 +142,75 @@ class TestGetAllCategoriesV2:
         assert "children" in leaf_cat
         assert leaf_cat["children"] == []
 
+    def test_get_categories_by_category_id_returns_single_category(self, client, test_database):
+        """Test filtering by category_id returns exactly that one category"""
+        cat_data = {"title": {"en": "Specific Category"}}
+        cat = CategoryInput.model_validate(cat_data)
+        cat_id = test_database.category.create(cat, application="test_application")
+
+        other_data = {"title": {"en": "Other Category"}}
+        other = CategoryInput.model_validate(other_data)
+        test_database.category.create(other, application="test_application")
+
+        response = client.get(f"/v2/categories/?category_id={cat_id}", headers=APPLICATION_HEADER)
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 1
+        assert data[0]["id"] == cat_id
+
+    def test_get_categories_by_category_id_returns_correct_fields(self, client, test_database):
+        """Test that fetching by category_id returns a category with correct parent and children"""
+        parent_data = {"title": {"en": "Parent For ID Filter"}}
+        parent = CategoryInput.model_validate(parent_data)
+        parent_id = test_database.category.create(parent, application="test_application")
+
+        child_data = {"title": {"en": "Child For ID Filter"}, "parent_id": parent_id}
+        child = CategoryInput.model_validate(child_data)
+        child_id = test_database.category.create(child, application="test_application")
+
+        grandchild_data = {"title": {"en": "Grandchild"}, "parent_id": child_id}
+        grandchild = CategoryInput.model_validate(grandchild_data)
+        grandchild_id = test_database.category.create(grandchild, application="test_application")
+
+        response = client.get(f"/v2/categories/?category_id={child_id}", headers=APPLICATION_HEADER)
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 1
+        cat = data[0]
+        assert cat["id"] == child_id
+        assert cat["parent_id"] == parent_id
+        assert grandchild_id in cat["children"]
+
+    def test_get_categories_by_nonexistent_category_id_returns_empty(self, client, test_database):
+        """Test filtering by a non-existent category_id returns an empty list"""
+        response = client.get("/v2/categories/?category_id=nonexistent_id", headers=APPLICATION_HEADER)
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert data == []
+
+    def test_get_categories_category_id_overrides_parent_id(self, client, test_database):
+        """Test that category_id takes precedence and parent_id is ignored when category_id is set"""
+        cat_data = {"title": {"en": "Category ID Takes Precedence"}}
+        cat = CategoryInput.model_validate(cat_data)
+        cat_id = test_database.category.create(cat, application="test_application")
+
+        unrelated_parent_data = {"title": {"en": "Unrelated Parent"}}
+        unrelated_parent = CategoryInput.model_validate(unrelated_parent_data)
+        unrelated_parent_id = test_database.category.create(unrelated_parent, application="test_application")
+
+        response = client.get(
+            f"/v2/categories/?category_id={cat_id}&parent_id={unrelated_parent_id}",
+            headers=APPLICATION_HEADER,
+        )
+
+        assert response.status_code == 200
+        data = json.loads(response.data)
+        assert len(data) == 1
+        assert data[0]["id"] == cat_id
+
 
 class TestCreateCategoryV2:
     """Tests for POST /v2/categories/ endpoint (create category)"""
