@@ -156,6 +156,7 @@ class UpdateLicenseRequest(OpenPechaModel):
 
 class CategoriesQueryParams(OpenPechaModel):
     parent_id: str | None = None
+    category_id: str | None = None
     language: str = "bo"
 
 

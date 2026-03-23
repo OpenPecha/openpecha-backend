@@ -23,6 +23,7 @@ def get_categories(validated_params: CategoriesQueryParams, application: str) ->
         categories = db.category.get_all(
             application=application,
             parent_id=validated_params.parent_id,
+            category_id=validated_params.category_id,
         )
 
     return jsonify([cat.model_dump() for cat in categories]), 200

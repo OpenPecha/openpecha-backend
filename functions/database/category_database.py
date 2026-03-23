@@ -18,8 +18,11 @@ if TYPE_CHECKING:
 class CategoryDatabase:
     GET_ALL_QUERY = """
     MATCH (c:Category)-[:BELONGS_TO]->(app:Application {id: $application})
-    WHERE ($parent_id IS NULL AND NOT EXISTS { (c)-[:HAS_PARENT]->(:Category) })
-       OR (c)-[:HAS_PARENT]->(:Category {id: $parent_id})
+    WHERE ($category_id IS NOT NULL AND c.id = $category_id)
+       OR ($category_id IS NULL AND (
+              ($parent_id IS NULL AND NOT EXISTS { (c)-[:HAS_PARENT]->(:Category) })
+           OR (c)-[:HAS_PARENT]->(:Category {id: $parent_id})
+          ))
     RETURN {
         id: c.id,
         title: [(c)-[:HAS_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
@@ -65,12 +68,15 @@ class CategoryDatabase:
     def session(self) -> Session:
         return self._db.get_session()
 
-    def get_all(self, application: str, parent_id: str | None = None) -> list[CategoryOutput]:
+    def get_all(
+        self, application: str, parent_id: str | None = None, category_id: str | None = None
+    ) -> list[CategoryOutput]:
         with self.session as session:
             result = session.run(
                 CategoryDatabase.GET_ALL_QUERY,
                 application=application,
                 parent_id=parent_id,
+                category_id=category_id,
             )
             return [DataAdapter.category(record.data()["category"]) for record in result]
 
