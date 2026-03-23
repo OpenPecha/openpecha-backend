@@ -1985,6 +1985,13 @@ paths:
                       type: string
                       nullable: true
                   description: Parent category ID (null or omitted means root categories)
+                - name: category_id
+                  in: query
+                  required: false
+                  schema:
+                      type: string
+                      nullable: true
+                  description: Specific category ID to retrieve; returns that category and its descendants
                 - name: language
                   in: query
                   required: false
@@ -2018,7 +2025,7 @@ paths:
                                               bo: "ལོ་རྒྱུས"
                                           children: []
                                 child_categories:
-                                    summary: Child categories
+                                    summary: Child categories of a given parent_id
                                     value:
                                         - id: "CAT87654321"
                                           parent_id: "CAT12345678"
@@ -2026,8 +2033,19 @@ paths:
                                               en: "Poetry"
                                               bo: "སྙན་ངག"
                                           children: []
+                                specific_category:
+                                    summary: Single category fetched by category_id
+                                    value:
+                                        - id: "CAT12345678"
+                                          parent_id: null
+                                          title:
+                                              en: "Literature"
+                                              bo: "རྩོམ་རིག"
+                                          children: ["CAT87654321"]
                 "400":
                     $ref: "#/components/responses/InvalidRequest"
+                "404":
+                    $ref: "#/components/responses/NotFound"
                 "500":
                     $ref: "#/components/responses/ServerError"
         post:
