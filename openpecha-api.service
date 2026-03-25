@@ -1,0 +1,16 @@
+[Unit]
+Description=OpenPecha API (FastAPI)
+After=network.target
+
+[Service]
+User=ubuntu
+Group=ubuntu
+WorkingDirectory=/opt/openpecha-backend
+Environment="PATH=/opt/openpecha-backend/.venv/bin"
+EnvironmentFile=/opt/openpecha-backend/.env
+ExecStart=/opt/openpecha-backend/.venv/bin/gunicorn main:app -c gunicorn.conf.py
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

@@ -1,43 +1,66 @@
 # openpecha-backend
 
-## Setup instructions
+FastAPI-based backend for OpenPecha.
+
+## Project Structure
+
+```
+openpecha-backend/
+├── main.py                 # FastAPI entry point
+├── routers/                # API route handlers
+├── database/               # Database layer
+├── models.py               # Pydantic models
+├── tests/                  # Test suite
+├── requirements.txt        # Production dependencies
+├── requirements_dev.txt    # Development dependencies
+└── gunicorn.conf.py        # Production server config
+```
+
+## Setup
 
 1. Clone the repo
-2. Install Firebase CLI
 
-```
-npm install -g firebase-tools
-```
-
-3. Login to Firebase
-
-```
-firebase login
-```
-
-4. Login to Google Cloud
-
-```
-gcloud auth application-default login
-```
-
-## Preparing to build the backend
-
-1. Navigate to the `functions` directory
 2. Create a virtual environment
 
-```
-python -m venv venv
-source venv/bin/activate  # On Windows use: venv\Scripts\activate
+```bash
+python -m venv .venv
+source .venv/bin/activate  # On Windows: .venv\Scripts\activate
 ```
 
-3. Install required dependencies
+3. Install dependencies
 
-```
+```bash
 pip install -r requirements.txt
+pip install -r requirements_dev.txt  # For development
 ```
 
-## Running tests (pytest)
+4. Copy environment template and configure
+
+```bash
+cp .env.example .env
+# Edit .env with your Neo4j and AWS credentials
+```
+
+## Running the API
+
+### Development
+
+```bash
+uvicorn main:app --reload
+```
+
+The API will be available at `http://localhost:8000`
+
+- **Swagger UI**: http://localhost:8000/docs
+- **ReDoc**: http://localhost:8000/redoc
+
+### Production
+
+```bash
+gunicorn main:app -c gunicorn.conf.py
+```
+
+## Running Tests
 
 Tests spin up a disposable Neo4j container automatically via
 [testcontainers](https://testcontainers-python.readthedocs.io/). No manual Neo4j
@@ -45,170 +68,57 @@ installation or env vars are needed.
 
 ### Prerequisites
 
-1. Install dev dependencies (includes testcontainers):
+1. Install dev dependencies:
    ```bash
    pip install -r requirements_dev.txt
    ```
+
 2. You need a running **Docker-compatible runtime** (Docker Desktop, Colima,
-   Podman, etc.).
+   Podman, etc.)
 
-- **Docker Desktop** works out of the box — no extra configuration needed.
-- **Other runtimes** — set `DOCKER_HOST` before running tests:
-  ```bash
-  # Colima example
-  export DOCKER_HOST=unix://$HOME/.colima/default/docker.sock
-  ```
+   - **Docker Desktop** works out of the box
+   - **Other runtimes** — set `DOCKER_HOST`:
+     ```bash
+     export DOCKER_HOST=unix://$HOME/.colima/default/docker.sock
+     ```
 
-### Run the tests
-
-From the `functions` directory:
+### Run tests
 
 ```bash
-pytest
+pytest tests/
 ```
 
-If pytest doesn't work try with:
+Or with verbose output:
 
 ```bash
-python -m pytest
+python -m pytest tests/ -v
 ```
 
 The first run will pull the `neo4j:2025` image (~500 MB), which is cached for
 subsequent runs.
 
-## Testing the backend locally
+## Deployment
 
-Run the emulator to test Cloud Functions locally:
+Deployment is handled automatically via GitHub Actions when pushing to `main`.
 
-```
-firebase emulators:start --only functions
-```
-
-The functions will be available at:
-
-```
-"http://127.0.0.1:5001/pecha-backend/us-central1/api/{function-name}
-```
-
-## Testing the frontend locally
-
-Run the local hosting emulator:
-
-```
-firebase emulators:start --only hosting
-```
-
-The site will be available at:
-
-```
-http://localhost:5000
-```
-
-## Deploying backend
-
-Once your functions are working locally, deploy them to Firebase:
-
-### Dev (default)
-
-```
-firebase deploy --only functions
-```
-
-### Test
-
-```
-# Switch to test branch first
-git checkout test
-
-# Deploy to test project
-firebase deploy --only functions --project test
-```
-
-### Production
-
-```
-firebase deploy --only functions --project prod
-```
-
-## Deploying frontend
-
-When you’re ready to publish changes:
-
-### Dev (default)
-
-```
-firebase deploy --only hosting
-```
-
-The website will be available at:
-
-```
-https://pecha-backend-dev.web.app
-```
-
-### Production
-
-```
-firebase deploy --only hosting --project prod
-```
-
-The website will be available at:
-
-```
-https://pecha-backend.web.app
-```
-
-Then restart the emulator:
+### Manual Deployment (EC2)
 
 ```bash
-firebase emulators:start --only functions
-```
-
-## Branch Deployment Workflow
-
-Each environment runs code from its dedicated branch:
-
-- **Dev**: `dev` branch → pecha-backend-dev project
-- **Test**: `test` branch → pecha-backend-test-3a4d0 project
-- **Prod**: `main` branch → pecha-backend project
-
-### Important: Always verify which branch you're on before deploying
-
-```bash
-git branch --show-current
-```
-
-### How to Deploy Different Branches
-
-**Deploy to Dev Environment:**
-
-```bash
-git checkout dev
-firebase deploy --only functions --project dev
-```
-
-**Deploy to Test Environment:**
-
-```bash
-git checkout test
-firebase deploy --only functions --project test
-```
-
-**Deploy to Production:**
-
-```bash
-git checkout main
-firebase deploy --only functions --project prod
+ssh ubuntu@<EC2_HOST>
+cd /opt/openpecha-backend
+git pull origin main
+source .venv/bin/activate
+pip install -r requirements.txt
+sudo systemctl restart openpecha-api
 ```
 
 ### Environment Configuration
 
-Each environment automatically uses:
-
-- **Different Neo4j databases** (configured via Firebase secrets)
-- **Different storage buckets** (auto-detected by project ID)
-- **Different code versions** (from their respective git branches)
+- **Neo4j**: Configured via `NEO4J_URI`, `NEO4J_USER`, `NEO4J_PASSWORD` in
+  `.env`
+- **AWS S3**: Configured via `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`,
+  `AWS_S3_BUCKET` in `.env`
 
 ## Documentation
 
-Available at: https://pecha-backend.web.app/api
+API documentation available at: https://pecha-backend.web.app/docs

@@ -3,14 +3,14 @@ repos:
     rev: v0.14.10
     hooks:
       - id: ruff
-        files: ^functions/
+        types: [python]
         args: ["--fix"]
       - id: ruff-format
-        files: ^functions/
+        types: [python]
 
   - repo: https://github.com/RobertCraigie/pyright-python
     rev: v1.1.407
     hooks:
       - id: pyright
-        files: ^functions/
-        exclude: "tests/"
+        types: [python]
+        exclude: tests/

@@ -3,8 +3,7 @@
         "**/__pycache__": true,
         "**/.git": true,
         "**/venv": true,
-        "**/.firebase": true,
-        "**/.pytest_cache": true,
+        "**/.pytest_cache": true
     },
     "editor.formatOnSave": true,
     "[python]": {
@@ -17,7 +16,7 @@
         "source.format": "explicit"
     },
     "python.testing.pytestArgs": [
-        "functions",
+        "tests",
         "--log-cli-level=DEBUG"
     ],
     "python.testing.unittestEnabled": false,

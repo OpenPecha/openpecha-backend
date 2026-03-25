@@ -1,0 +1,98 @@
+from __future__ import annotations
+
+from logging import getLogger
+from typing import Self
+
+from neo4j import AsyncDriver, AsyncGraphDatabase, AsyncSession
+
+from .annotation.alignment_database import AlignmentDatabase
+from .annotation.attribute_database import AttributeDatabase
+from .annotation.bibliographic_database import BibliographicDatabase
+from .annotation.note_database import NoteDatabase
+from .annotation.pagination_database import PaginationDatabase
+from .annotation.segmentation_database import SegmentationDatabase
+from .api_key_database import ApiKeyDatabase
+from .application_database import ApplicationDatabase
+from .category_database import CategoryDatabase
+from .expression_database import ExpressionDatabase
+from .language_database import LanguageDatabase
+from .manifestation_database import ManifestationDatabase
+from .person_database import PersonDatabase
+from .segment_database import SegmentDatabase
+from .span_database import SpanDatabase
+from .tag_database import TagDatabase
+
+logger = getLogger(__name__)
+
+
+class AnnotationDatabase:
+    Alignment = AlignmentDatabase
+    Segmentation = SegmentationDatabase
+    Pagination = PaginationDatabase
+    Note = NoteDatabase
+    Bibliographic = BibliographicDatabase
+    Attribute = AttributeDatabase
+
+    def __init__(self, db: Database) -> None:
+        self._db = db
+        self.alignment = AlignmentDatabase(db)
+        self.segmentation = SegmentationDatabase(db)
+        self.pagination = PaginationDatabase(db)
+        self.note = NoteDatabase(db)
+        self.bibliographic = BibliographicDatabase(db)
+        self.attributes = AttributeDatabase(db)
+
+
+class Database:
+    """Async database class for Neo4j operations."""
+
+    api_key: ApiKeyDatabase
+    application: ApplicationDatabase
+    expression: ExpressionDatabase
+    manifestation: ManifestationDatabase
+    annotation: AnnotationDatabase
+    segment: SegmentDatabase
+    person: PersonDatabase
+    language: LanguageDatabase
+    category: CategoryDatabase
+    tag: TagDatabase
+    span: SpanDatabase
+
+    _driver: AsyncDriver
+
+    def __init__(self, neo4j_uri: str, neo4j_auth: tuple[str, str]) -> None:
+        self._driver = AsyncGraphDatabase.driver(neo4j_uri, auth=neo4j_auth)
+
+        self.api_key = ApiKeyDatabase(db=self)
+        self.application = ApplicationDatabase(db=self)
+        self.expression = ExpressionDatabase(db=self)
+        self.manifestation = ManifestationDatabase(db=self)
+        self.annotation = AnnotationDatabase(db=self)
+        self.segment = SegmentDatabase(db=self)
+        self.person = PersonDatabase(db=self)
+        self.language = LanguageDatabase(db=self)
+        self.category = CategoryDatabase(db=self)
+        self.tag = TagDatabase(db=self)
+        self.span = SpanDatabase(db=self)
+
+    async def verify_connectivity(self) -> None:
+        await self._driver.verify_connectivity()
+        logger.info("Async connection to neo4j established.")
+
+    def get_session(self) -> AsyncSession:
+        return self._driver.session()
+
+    async def close(self) -> None:
+        await self._driver.close()
+
+    async def __aenter__(self) -> Self:
+        await self.verify_connectivity()
+        return self
+
+    async def __aexit__(
+        self,
+        exc_type: type[BaseException] | None,
+        exc_val: BaseException | None,
+        exc_tb: object,
+    ) -> None:
+        await self.close()

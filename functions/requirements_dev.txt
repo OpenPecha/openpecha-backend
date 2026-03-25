@@ -1,9 +1,0 @@
-pytest
-pytest-cov
-python-dotenv
-ruff
-pre-commit
-pyright
-ty
-pytest-dotenv
-testcontainers[neo4j]

@@ -1,37 +1,37 @@
 [tool.pyright]
 pythonVersion = "3.13"
 typeCheckingMode = "standard"
-exclude = ["tests", "venv", ".venv"]
-include = ["functions"]
-venvPath = "functions"
-venv = "venv"
+exclude = ["tests", ".venv"]
+include = ["."]
+venvPath = "."
+venv = ".venv"
 
 [tool.pytest.ini_options]
-testpaths = ["functions/tests"]
-pythonpath = ["functions"]
+testpaths = ["tests"]
+pythonpath = ["."]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
 addopts = "--verbose"
-env_files = ["functions/.env"]
+asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
 
 [tool.coverage.run]
 omit = [
-    "functions/tests/*",
-    "functions/scripts/*",
-    "functions/firebase_config.py",
+    "tests/*",
+    "app/scripts/*",
 ]
 
 [tool.ruff]
 line-length = 120
-exclude = ["functions/tests"]
+exclude = ["tests"]
 target-version = "py313"
 
 [tool.ty.environment]
-root = ["./functions"]
+root = ["."]
 
 [tool.ty.src]
-exclude = ["functions/tests/"]
+exclude = ["tests/"]
 
 [tool.ruff.lint]
 select = ["ALL"]
@@ -47,5 +47,6 @@ ignore = [
     "PLR0911", # Too many return statements
     "PLR0913",  # Too many arguments in function definition
     "PLR0915",  # Too many statements
+    "N999",  # Invalid module name (false positive from hyphenated repo name)
 ]
 
