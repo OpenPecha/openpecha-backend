@@ -10,13 +10,7 @@ if TYPE_CHECKING:
     from database.database import Database
 from database.database_validator import DatabaseValidator
 from identifier import generate_id
-from models import (
-    AlignedSegment,
-    AlignmentInput,
-    AlignmentOutput,
-    SegmentOutput,
-    SpanModel,
-)
+from models.annotation import AlignedSegment, AlignmentInput, AlignmentOutput, SegmentOutput, Span
 
 from .segmentation_database import SegmentationDatabase
 
@@ -25,37 +19,37 @@ class AlignmentDatabase:
     GET_QUERY = """
     MATCH (source_segmentation:Segmentation)
     WHERE ($segmentation_id IS NOT NULL AND source_segmentation.id = $segmentation_id)
-       OR ($manifestation_id IS NOT NULL
-           AND EXISTS { (source_segmentation)-[:SEGMENTATION_OF]->(:Manifestation {id: $manifestation_id}) })
+       OR ($edition_id IS NOT NULL
+           AND EXISTS { (source_segmentation)-[:SEGMENTATION_OF]->(:Edition {id: $edition_id}) })
     MATCH (source_segmentation)<-[:SEGMENT_OF]-(source_segment:Segment)-[:ALIGNED_TO]->(target_segment:Segment)
-          -[:SEGMENT_OF]->(:Segmentation)-[:SEGMENTATION_OF]->(target_manifestation:Manifestation)
-    MATCH (target_manifestation)-[:MANIFESTATION_OF]->(target_expression:Expression)
+          -[:SEGMENT_OF]->(:Segmentation)-[:SEGMENTATION_OF]->(target_edition:Edition)
+    MATCH (target_edition)-[:EDITION_OF]->(target_text:Text)
     MATCH (source_span:Span)-[:SPAN_OF]->(source_segment)
-    WITH source_segmentation, source_segment, target_segment, target_manifestation, target_expression,
+    WITH source_segmentation, source_segment, target_segment, target_edition, target_text,
          min(source_span.start) AS source_min_start,
          collect({start: source_span.start, end: source_span.end}) AS source_lines
     MATCH (target_span:Span)-[:SPAN_OF]->(target_segment)
     WITH source_segmentation, source_segment, source_min_start, source_lines,
-         target_manifestation, target_expression, target_segment,
+         target_edition, target_text, target_segment,
          min(target_span.start) AS target_min_start,
          collect({start: target_span.start, end: target_span.end}) AS target_lines
     ORDER BY target_min_start
-    WITH source_segmentation, source_min_start, source_lines, target_manifestation, target_expression,
+    WITH source_segmentation, source_min_start, source_lines, target_edition, target_text,
          collect({id: target_segment.id, min_start: target_min_start, lines: target_lines}) AS aligned_targets
     ORDER BY source_min_start
-    WITH source_segmentation, target_manifestation, target_expression,
+    WITH source_segmentation, target_edition, target_text,
          collect({min_start: source_min_start, lines: source_lines, aligned_targets: aligned_targets}) AS segments
     RETURN source_segmentation.id AS segmentation_id,
-           target_manifestation.id AS target_manifestation_id,
-           target_expression.id AS target_expression_id,
+           target_edition.id AS target_edition_id,
+           target_text.id AS target_text_id,
            segments
     """
 
     CREATE_QUERY = """
-    MATCH (source_manifestation:Manifestation {id: $manifestation_id}),
-          (target_manifestation:Manifestation {id: $target_manifestation_id})
-    CREATE (source_segmentation:Segmentation {id: $source_segmentation_id})-[:SEGMENTATION_OF]->(source_manifestation),
-           (target_segmentation:Segmentation {id: $target_segmentation_id})-[:SEGMENTATION_OF]->(target_manifestation)
+    MATCH (source_edition:Edition {id: $edition_id}),
+          (target_edition:Edition {id: $target_edition_id})
+    CREATE (source_segmentation:Segmentation {id: $source_segmentation_id})-[:SEGMENTATION_OF]->(source_edition),
+           (target_segmentation:Segmentation {id: $target_segmentation_id})-[:SEGMENTATION_OF]->(target_edition)
     WITH source_segmentation, target_segmentation
     UNWIND $target_segments AS target_segment_data
     CREATE (segment:Segment {id: target_segment_data.id})-[:SEGMENT_OF]->(target_segmentation)
@@ -88,24 +82,24 @@ class AlignmentDatabase:
     @staticmethod
     def _parse_record(record: dict | Record) -> AlignmentOutput:
         segmentation_id = record["segmentation_id"]
-        target_manifestation_id = record["target_manifestation_id"]
-        target_expression_id = record["target_expression_id"]
+        target_edition_id = record["target_edition_id"]
+        target_text_id = record["target_text_id"]
 
         target_min_start_to_segment: dict[int, SegmentOutput] = {}
         target_min_starts_ordered: list[int] = []
         aligned_segments: list[AlignedSegment] = []
 
         for source_seg in record["segments"]:
-            source_lines = [SpanModel(start=line["start"], end=line["end"]) for line in source_seg["lines"]]
+            source_lines = [Span(start=line["start"], end=line["end"]) for line in source_seg["lines"]]
 
             for target_data in source_seg["aligned_targets"]:
                 target_min_start = target_data["min_start"]
                 if target_min_start not in target_min_start_to_segment:
-                    target_lines = [SpanModel(start=line["start"], end=line["end"]) for line in target_data["lines"]]
+                    target_lines = [Span(start=line["start"], end=line["end"]) for line in target_data["lines"]]
                     target_min_start_to_segment[target_min_start] = SegmentOutput(
                         id=target_data["id"],
-                        manifestation_id=target_manifestation_id,
-                        text_id=target_expression_id,
+                        edition_id=target_edition_id,
+                        text_id=target_text_id,
                         lines=target_lines,
                     )
                     target_min_starts_ordered.append(target_min_start)
@@ -118,33 +112,29 @@ class AlignmentDatabase:
 
         return AlignmentOutput(
             id=segmentation_id,
-            target_id=target_manifestation_id,
+            target_id=target_edition_id,
             target_segments=target_segments,
             aligned_segments=aligned_segments,
         )
 
     async def get(self, segmentation_id: str) -> AlignmentOutput:
         async with self._db.get_session() as session:
-            result = await session.run(
-                AlignmentDatabase.GET_QUERY, segmentation_id=segmentation_id, manifestation_id=None
-            )
+            result = await session.run(AlignmentDatabase.GET_QUERY, segmentation_id=segmentation_id, edition_id=None)
             record = await result.single()
             if record is None:
                 raise DataNotFoundError(f"Alignment with ID '{segmentation_id}' not found")
             return self._parse_record(record)
 
-    async def get_all(self, source_manifestation_id: str) -> list[AlignmentOutput]:
+    async def get_all(self, source_edition_id: str) -> list[AlignmentOutput]:
         async with self._db.get_session() as session:
-            result = await session.run(
-                AlignmentDatabase.GET_QUERY, segmentation_id=None, manifestation_id=source_manifestation_id
-            )
+            result = await session.run(AlignmentDatabase.GET_QUERY, segmentation_id=None, edition_id=source_edition_id)
             records = await result.data()
             return [self._parse_record(record) for record in records]
 
-    async def add(self, source_manifestation_id: str, alignment: AlignmentInput) -> str:
+    async def add(self, source_edition_id: str, alignment: AlignmentInput) -> str:
         async with self._db.get_session() as session:
             return await session.execute_write(
-                lambda tx: AlignmentDatabase.add_with_transaction(tx, source_manifestation_id, alignment)
+                lambda tx: AlignmentDatabase.add_with_transaction(tx, source_edition_id, alignment)
             )
 
     async def delete(self, segmentation_id: str) -> None:
@@ -158,8 +148,8 @@ class AlignmentDatabase:
         await SegmentationDatabase.delete_with_transaction(tx, aligned_segmentation_id, include_aligned=True)
 
     @staticmethod
-    async def delete_all_with_transaction(tx: AsyncManagedTransaction, manifestation_id: str) -> None:
-        result = await tx.run(AlignmentDatabase.GET_QUERY, segmentation_id=None, manifestation_id=manifestation_id)
+    async def delete_all_with_transaction(tx: AsyncManagedTransaction, edition_id: str) -> None:
+        result = await tx.run(AlignmentDatabase.GET_QUERY, segmentation_id=None, edition_id=edition_id)
         records = await result.data()
 
         for record in records:
@@ -168,7 +158,7 @@ class AlignmentDatabase:
     @staticmethod
     async def add_with_transaction(
         tx: AsyncManagedTransaction,
-        source_manifestation_id: str,
+        source_edition_id: str,
         alignment: AlignmentInput,
     ) -> str:
         source_segmentation_id = generate_id()
@@ -201,13 +191,13 @@ class AlignmentDatabase:
             for target_idx in seg.alignment_indices
         ]
 
-        await DatabaseValidator.validate_manifestation_exists(tx, source_manifestation_id)
-        await DatabaseValidator.validate_manifestation_exists(tx, alignment.target_id)
+        await DatabaseValidator.validate_edition_exists(tx, source_edition_id)
+        await DatabaseValidator.validate_edition_exists(tx, alignment.target_id)
 
         await tx.run(
             AlignmentDatabase.CREATE_QUERY,
-            manifestation_id=source_manifestation_id,
-            target_manifestation_id=alignment.target_id,
+            edition_id=source_edition_id,
+            target_edition_id=alignment.target_id,
             source_segmentation_id=source_segmentation_id,
             target_segmentation_id=target_segmentation_id,
             target_segments=target_segments_data,

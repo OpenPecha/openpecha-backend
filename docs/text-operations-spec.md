@@ -6,7 +6,7 @@ This document specifies the operation-based text editing API for the OpenPecha b
 
 ## Overview
 
-The text operations API allows clients to modify manifestation content through atomic operations (insert, delete, replace) while automatically adjusting all associated span-based annotations.
+The text operations API allows clients to modify edition content through atomic operations (insert, delete, replace) while automatically adjusting all associated span-based annotations.
 
 ### API Endpoint
 
@@ -188,7 +188,7 @@ After:  S1 [0, 10), S3 [10, 20)  ✓ (S2 deleted, S3 shifted)
 
 ### 6. Multiple Segmentations
 
-Different segmentations on the same manifestation are adjusted independently.
+Different segmentations on the same edition are adjusted independently.
 
 ```
 Segmentation A: [0, 20), [20, 40)

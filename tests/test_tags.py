@@ -6,18 +6,18 @@ Tests endpoints:
 - GET /v2/tags/ (get all tags)
 - POST /v2/tags/ (create tag)
 - DELETE /v2/tags/<tag_id> (delete tag)
-- POST /v2/texts/<expression_id>/tags/<tag_id> (tag a text)
-- DELETE /v2/texts/<expression_id>/tags/<tag_id> (untag a text)
+- POST /v2/texts/<text_id>/tags/<tag_id> (tag a text)
+- DELETE /v2/texts/<text_id>/tags/<tag_id> (untag a text)
 - POST /v2/segments/<segment_id>/tags/<tag_id> (tag a segment)
 - DELETE /v2/segments/<segment_id>/tags/<tag_id> (untag a segment)
-- Inline tagging via POST /v2/texts (create expression with tag_ids)
+- Inline tagging via POST /v2/texts (create text with tag_ids)
 - Tag filtering via GET /v2/texts?tag_id=...
 """
 
 import logging
 
 import pytest
-from models import TagInput
+from models.tag import TagInput
 
 logger = logging.getLogger(__name__)
 
@@ -54,9 +54,9 @@ async def _create_tag(client, tag_data):
     return response.json()["id"]
 
 
-async def _create_expression(client, tag_ids=None):
-    """Helper to create an expression and return its ID."""
-    expression_data = {
+async def _create_text(client, tag_ids=None):
+    """Helper to create an text and return its ID."""
+    text_data = {
         "title": {"bo": "ཚོད་ལྟའི་གཞུང་།"},
         "language": "bo",
         "category_id": "category",
@@ -64,14 +64,14 @@ async def _create_expression(client, tag_ids=None):
         "contributions": [{"person_id": "test_person", "role": "author"}],
     }
     if tag_ids is not None:
-        expression_data["tag_ids"] = tag_ids
-    response = await client.post("/v2/texts/", json=expression_data)
+        text_data["tag_ids"] = tag_ids
+    response = await client.post("/v2/texts/", json=text_data)
     assert response.status_code == 201
     return response.json()["id"]
 
 
 async def _seed_person(test_database):
-    """Seed a test person for expression creation."""
+    """Seed a test person for text creation."""
     async with test_database.get_session() as session:
         await session.run("""
             MERGE (p:Person {id: 'test_person'})
@@ -231,52 +231,52 @@ class TestTagWork:
     """Tests for tagging/untagging works via text endpoints"""
 
     async def test_tag_work(self, client, test_database):
-        """Test adding a tag to a work via expression endpoint"""
+        """Test adding a tag to a work via text endpoint"""
         await _seed_person(test_database)
         tag_id = await _create_tag(client, {"title": {"en": "Work Tag"}})
-        expression_id = await _create_expression(client)
+        text_id = await _create_text(client)
 
-        response = await client.post(f"/v2/texts/{expression_id}/tags/{tag_id}")
+        response = await client.post(f"/v2/texts/{text_id}/tags/{tag_id}")
 
         assert response.status_code == 204
 
-        get_response = await client.get(f"/v2/texts/{expression_id}")
-        expression = get_response.json()
-        assert tag_id in expression["tag_ids"]
+        get_response = await client.get(f"/v2/texts/{text_id}")
+        text = get_response.json()
+        assert tag_id in text["tag_ids"]
 
     async def test_untag_work(self, client, test_database):
-        """Test removing a tag from a work via expression endpoint"""
+        """Test removing a tag from a work via text endpoint"""
         await _seed_person(test_database)
         tag_id = await _create_tag(client, {"title": {"en": "Work Untag"}})
-        expression_id = await _create_expression(client)
+        text_id = await _create_text(client)
 
-        await client.post(f"/v2/texts/{expression_id}/tags/{tag_id}")
+        await client.post(f"/v2/texts/{text_id}/tags/{tag_id}")
 
-        response = await client.delete(f"/v2/texts/{expression_id}/tags/{tag_id}")
+        response = await client.delete(f"/v2/texts/{text_id}/tags/{tag_id}")
 
         assert response.status_code == 204
 
-        get_response = await client.get(f"/v2/texts/{expression_id}")
-        expression = get_response.json()
-        assert tag_id not in expression["tag_ids"]
+        get_response = await client.get(f"/v2/texts/{text_id}")
+        text = get_response.json()
+        assert tag_id not in text["tag_ids"]
 
     async def test_tag_work_multiple_tags(self, client, test_database):
         """Test adding multiple tags to a work"""
         await _seed_person(test_database)
         tag_id_1 = await _create_tag(client, {"title": {"en": "Multi Tag 1"}})
         tag_id_2 = await _create_tag(client, {"title": {"en": "Multi Tag 2"}})
-        expression_id = await _create_expression(client)
+        text_id = await _create_text(client)
 
-        await client.post(f"/v2/texts/{expression_id}/tags/{tag_id_1}")
-        await client.post(f"/v2/texts/{expression_id}/tags/{tag_id_2}")
+        await client.post(f"/v2/texts/{text_id}/tags/{tag_id_1}")
+        await client.post(f"/v2/texts/{text_id}/tags/{tag_id_2}")
 
-        get_response = await client.get(f"/v2/texts/{expression_id}")
-        expression = get_response.json()
-        assert tag_id_1 in expression["tag_ids"]
-        assert tag_id_2 in expression["tag_ids"]
+        get_response = await client.get(f"/v2/texts/{text_id}")
+        text = get_response.json()
+        assert tag_id_1 in text["tag_ids"]
+        assert tag_id_2 in text["tag_ids"]
 
-    async def test_tag_nonexistent_expression(self, client, test_database):
-        """Test tagging a non-existent expression returns 404"""
+    async def test_tag_nonexistent_text(self, client, test_database):
+        """Test tagging a non-existent text returns 404"""
         tag_id = await _create_tag(client, {"title": {"en": "Orphan Tag"}})
 
         response = await client.post(f"/v2/texts/nonexistent_expr/tags/{tag_id}")
@@ -286,39 +286,39 @@ class TestTagWork:
 
 @pytest.mark.asyncio(loop_scope="session")
 class TestInlineTagging:
-    """Tests for inline tag_ids on expression create and update"""
+    """Tests for inline tag_ids on text create and update"""
 
-    async def test_create_expression_with_tag_ids(self, client, test_database):
-        """Test creating an expression with inline tag_ids"""
+    async def test_create_text_with_tag_ids(self, client, test_database):
+        """Test creating an text with inline tag_ids"""
         await _seed_person(test_database)
         tag_id = await _create_tag(client, {"title": {"en": "Inline Create Tag"}})
 
-        expression_id = await _create_expression(client, tag_ids=[tag_id])
+        text_id = await _create_text(client, tag_ids=[tag_id])
 
-        get_response = await client.get(f"/v2/texts/{expression_id}")
-        expression = get_response.json()
-        assert tag_id in expression["tag_ids"]
+        get_response = await client.get(f"/v2/texts/{text_id}")
+        text = get_response.json()
+        assert tag_id in text["tag_ids"]
 
-    async def test_create_expression_without_tag_ids(self, client, test_database):
-        """Test creating an expression without tag_ids yields empty list"""
+    async def test_create_text_without_tag_ids(self, client, test_database):
+        """Test creating an text without tag_ids yields empty list"""
         await _seed_person(test_database)
 
-        expression_id = await _create_expression(client)
+        text_id = await _create_text(client)
 
-        get_response = await client.get(f"/v2/texts/{expression_id}")
-        expression = get_response.json()
-        assert expression["tag_ids"] == []
+        get_response = await client.get(f"/v2/texts/{text_id}")
+        text = get_response.json()
+        assert text["tag_ids"] == []
 
-    async def test_update_expression_tag_ids(self, client, test_database):
-        """Test updating expression tag_ids via PATCH"""
+    async def test_update_text_tag_ids(self, client, test_database):
+        """Test updating text tag_ids via PATCH"""
         await _seed_person(test_database)
         tag_id_1 = await _create_tag(client, {"title": {"en": "Patch Tag 1"}})
         tag_id_2 = await _create_tag(client, {"title": {"en": "Patch Tag 2"}})
 
-        expression_id = await _create_expression(client, tag_ids=[tag_id_1])
+        text_id = await _create_text(client, tag_ids=[tag_id_1])
 
         patch_data = {"tag_ids": [tag_id_2]}
-        response = await client.patch(f"/v2/texts/{expression_id}", json=patch_data)
+        response = await client.patch(f"/v2/texts/{text_id}", json=patch_data)
 
         assert response.status_code == 200
         data = response.json()
@@ -431,16 +431,16 @@ class TestTagFiltering:
         await _seed_person(test_database)
         tag_id = await _create_tag(client, {"title": {"en": "Filter Tag"}})
 
-        expression_id_tagged = await _create_expression(client, tag_ids=[tag_id])
-        expression_id_untagged = await _create_expression(client)
+        text_id_tagged = await _create_text(client, tag_ids=[tag_id])
+        text_id_untagged = await _create_text(client)
 
         response = await client.get(f"/v2/texts/?tag_id={tag_id}")
 
         assert response.status_code == 200
         data = response.json()
         result_ids = [expr["id"] for expr in data]
-        assert expression_id_tagged in result_ids
-        assert expression_id_untagged not in result_ids
+        assert text_id_tagged in result_ids
+        assert text_id_untagged not in result_ids
 
     async def test_filter_texts_by_nonexistent_tag_returns_empty(self, client, test_database):
         """Test filtering by non-existent tag_id returns empty list"""
@@ -497,11 +497,11 @@ class TestTagSharing:
         await _seed_person(test_database)
         tag_id = await _create_tag(client, {"title": {"en": "Shared Tag"}})
 
-        expression_id_1 = await _create_expression(client, tag_ids=[tag_id])
-        expression_id_2 = await _create_expression(client, tag_ids=[tag_id])
+        text_id_1 = await _create_text(client, tag_ids=[tag_id])
+        text_id_2 = await _create_text(client, tag_ids=[tag_id])
 
-        get_1 = await client.get(f"/v2/texts/{expression_id_1}")
-        get_2 = await client.get(f"/v2/texts/{expression_id_2}")
+        get_1 = await client.get(f"/v2/texts/{text_id_1}")
+        get_2 = await client.get(f"/v2/texts/{text_id_2}")
 
         expr_1 = get_1.json()
         expr_2 = get_2.json()
@@ -577,8 +577,8 @@ class TestTagApplicationIsolation:
 
         assert tag_id_a != tag_id_b
 
-    async def test_expression_tag_ids_filtered_by_application(self, client, test_database):
-        """When getting an expression, tag_ids should only include tags belonging to the caller's application."""
+    async def test_text_tag_ids_filtered_by_application(self, client, test_database):
+        """When getting an text, tag_ids should only include tags belonging to the caller's application."""
         await _seed_app_b(test_database)
         await _seed_person(test_database)
 
@@ -588,13 +588,13 @@ class TestTagApplicationIsolation:
         response_b_create = await client.post("/v2/tags/", json=tag_b_data, headers=APP_B_HEADER)
         tag_id_b = response_b_create.json()["id"]
 
-        expression_id = await _create_expression(client, tag_ids=[tag_id_a])
+        text_id = await _create_text(client, tag_ids=[tag_id_a])
 
-        work_id = await test_database.expression.get_work_id(expression_id)
+        work_id = await test_database.text.get_work_id(text_id)
         await test_database.tag.tag_work(work_id, tag_id_b)
 
         response_a = await client.get(
-            f"/v2/texts/{expression_id}",
+            f"/v2/texts/{text_id}",
             headers=APPLICATION_HEADER,
         )
         expr_a = response_a.json()
@@ -602,7 +602,7 @@ class TestTagApplicationIsolation:
         assert tag_id_b not in expr_a["tag_ids"]
 
         response_b = await client.get(
-            f"/v2/texts/{expression_id}",
+            f"/v2/texts/{text_id}",
             headers=APP_B_HEADER,
         )
         expr_b = response_b.json()

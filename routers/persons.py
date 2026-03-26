@@ -5,8 +5,9 @@ from fastapi import APIRouter, Depends, Path, Query
 
 from database import Database
 from dependencies import get_api_key, get_db
-from models import IdResponse, PersonInput, PersonOutput, PersonPatch
-from request_models import PersonsQueryParams
+from models.person import PersonInput, PersonOutput, PersonPatch
+from models.requests import PersonsQueryParams
+from models.responses import IdResponse
 
 logger = logging.getLogger(__name__)
 

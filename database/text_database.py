@@ -6,15 +6,9 @@ from neo4j.exceptions import ConstraintError
 
 from exceptions import DataConflictError, DataNotFoundError, DataValidationError
 from identifier import generate_id
-from models import (
-    AIContributionModel,
-    ContributionBase,
-    ContributionInput,
-    ExpressionInput,
-    ExpressionOutput,
-    ExpressionPatch,
-)
-from request_models import ExpressionFilter
+from models.contribution import AIContribution, ContributionBase, ContributionInput
+from models.requests import TextFilter
+from models.text import TextInput, TextOutput, TextPatch
 
 from .data_adapter import DataAdapter
 from .database_validator import DatabaseValidator
@@ -27,7 +21,7 @@ if TYPE_CHECKING:
     from .database import Database
 
 
-class ExpressionDatabase:
+class TextDatabase:
     def __init__(self, db: Database) -> None:
         self._db = db
 
@@ -35,15 +29,15 @@ class ExpressionDatabase:
     def session(self) -> AsyncSession:
         return self._db.get_session()
 
-    _EXPRESSION_RETURN = """
+    _TEXT_RETURN = """
     {
         id: e.id,
         bdrc: e.bdrc,
         wiki: e.wiki,
-        commentary_of: [(e)-[:COMMENTARY_OF]->(c_target:Expression) | c_target.id][0],
-        translation_of: [(e)-[:TRANSLATION_OF]->(t_target:Expression) | t_target.id][0],
-        commentaries: [(e)<-[:COMMENTARY_OF]-(c_child:Expression) | c_child.id],
-        translations: [(e)<-[:TRANSLATION_OF]-(t_child:Expression) | t_child.id],
+        commentary_of: [(e)-[:COMMENTARY_OF]->(c_target:Text) | c_target.id][0],
+        translation_of: [(e)-[:TRANSLATION_OF]->(t_target:Text) | t_target.id][0],
+        commentaries: [(e)<-[:COMMENTARY_OF]-(c_child:Text) | c_child.id],
+        translations: [(e)<-[:TRANSLATION_OF]-(t_child:Text) | t_child.id],
         contributors: (
             [(e)-[:HAS_CONTRIBUTION]->(contrib:Contribution)-[:BY]->(person:Person) | {
                 person_id: person.id,
@@ -68,21 +62,21 @@ class ExpressionDatabase:
             [(an)-[:HAS_LOCALIZATION]->(lt:LocalizedText)-[r:HAS_LANGUAGE]->(lang:Language) |
                 {language: coalesce(r.bcp47, lang.code), text: lt.text}]],
         language: [(e)-[r:HAS_LANGUAGE]->(lang:Language) | coalesce(r.bcp47, lang.code)][0],
-        category_id: [(e)-[:EXPRESSION_OF]->(work:Work)-[:HAS_CATEGORY]->(cat:Category) | cat.id][0],
+        category_id: [(e)-[:TEXT_OF]->(work:Work)-[:HAS_CATEGORY]->(cat:Category) | cat.id][0],
         license: [(e)-[:HAS_LICENSE]->(license:LicenseType) | license.name][0],
-        editions: [(e)<-[:MANIFESTATION_OF]-(m:Manifestation) | m.id],
-        tag_ids: [(e)-[:EXPRESSION_OF]->(w:Work)-[:HAS_TAG]->(t:Tag)
+        editions: [(e)<-[:EDITION_OF]-(m:Edition) | m.id],
+        tag_ids: [(e)-[:TEXT_OF]->(w:Work)-[:HAS_TAG]->(t:Tag)
             WHERE ($application IS NULL OR (t)-[:BELONGS_TO]->(:Application {id: $application})) | t.id]
-    } AS expression
+    } AS text
     """
 
     GET_QUERY = f"""
-    MATCH (e:Expression {{id: $id}})
-    RETURN {_EXPRESSION_RETURN}
+    MATCH (e:Text {{id: $id}})
+    RETURN {_TEXT_RETURN}
     """
 
     GET_ALL_QUERY = f"""
-    MATCH (e:Expression)
+    MATCH (e:Text)
     WHERE ($language IS NULL OR (e)-[:HAS_LANGUAGE]->(:Language {{code: $language}}))
     AND ($title IS NULL OR EXISTS {{
         (e)-[:HAS_TITLE]->(n:Nomen)
@@ -94,42 +88,42 @@ class ExpressionDatabase:
             WHERE toLower(lt.text) CONTAINS toLower($title)
         }}
     }})
-    AND ($category_id IS NULL OR (e)-[:EXPRESSION_OF]->(:Work)-[:HAS_CATEGORY]->(:Category {{id: $category_id}}))
+    AND ($category_id IS NULL OR (e)-[:TEXT_OF]->(:Work)-[:HAS_CATEGORY]->(:Category {{id: $category_id}}))
     AND ($author_id IS NULL OR EXISTS {{
         (e)-[:HAS_CONTRIBUTION]->(:Contribution)-[:BY]->(p:Person {{id: $author_id}})
     }})
-    AND ($tag_id IS NULL OR (e)-[:EXPRESSION_OF]->(:Work)-[:HAS_TAG]->(:Tag {{id: $tag_id}}))
+    AND ($tag_id IS NULL OR (e)-[:TEXT_OF]->(:Work)-[:HAS_TAG]->(:Tag {{id: $tag_id}}))
     AND ($bdrc IS NULL OR e.bdrc = $bdrc)
     AND ($wiki IS NULL OR e.wiki = $wiki)
     WITH e
     ORDER BY e.id
     SKIP $offset
     LIMIT $limit
-    RETURN {_EXPRESSION_RETURN}
+    RETURN {_TEXT_RETURN}
     """
 
     UPDATE_LICENSE_QUERY = """
-    MATCH (e:Expression {id: $expression_id})
+    MATCH (e:Text {id: $text_id})
     OPTIONAL MATCH (e)-[r:HAS_LICENSE]->()
     DELETE r
     WITH e
     MATCH (license:LicenseType {name: $license})
     MERGE (e)-[:HAS_LICENSE]->(license)
-    RETURN e.id as expression_id
+    RETURN e.id as text_id
     """
 
     UPDATE_LANGUAGE_QUERY = """
-    MATCH (e:Expression {id: $expression_id})
+    MATCH (e:Text {id: $text_id})
     OPTIONAL MATCH (e)-[r:HAS_LANGUAGE]->()
     DELETE r
     WITH e
     MATCH (lang:Language {code: $language_code})
     MERGE (e)-[:HAS_LANGUAGE {bcp47: $bcp47_tag}]->(lang)
-    RETURN e.id as expression_id
+    RETURN e.id as text_id
     """
 
     UPDATE_CATEGORY_QUERY = """
-    MATCH (e:Expression {id: $expression_id})-[:EXPRESSION_OF]->(w:Work)
+    MATCH (e:Text {id: $text_id})-[:TEXT_OF]->(w:Work)
     OPTIONAL MATCH (w)-[r:HAS_CATEGORY]->()
     DELETE r
     WITH w
@@ -139,59 +133,59 @@ class ExpressionDatabase:
     """
 
     UPDATE_PROPERTIES_QUERY = """
-    MATCH (e:Expression {id: $expression_id})
+    MATCH (e:Text {id: $text_id})
     SET e.bdrc = $bdrc, e.wiki = $wiki, e.date = $date
-    RETURN e.id as expression_id
+    RETURN e.id as text_id
     """
 
     DELETE_TITLE_QUERY = """
-    MATCH (e:Expression {id: $expression_id})-[:HAS_TITLE]->(n:Nomen)
+    MATCH (e:Text {id: $text_id})-[:HAS_TITLE]->(n:Nomen)
     OPTIONAL MATCH (n)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
     OPTIONAL MATCH (n)<-[:ALTERNATIVE_OF]-(alt:Nomen)-[:HAS_LOCALIZATION]->(alt_lt:LocalizedText)
     DETACH DELETE n, lt, alt, alt_lt
     """
 
     LINK_TITLE_QUERY = """
-    MATCH (e:Expression {id: $expression_id})
+    MATCH (e:Text {id: $text_id})
     MATCH (n:Nomen {id: $nomen_id})
     CREATE (e)-[:HAS_TITLE]->(n)
     """
 
-    _CREATE_EXPRESSION_LINKS = """
+    _CREATE_TEXT_LINKS = """
     MATCH (n:Nomen {id: $title_nomen_id}), (l:Language {code: $language_code})
     MATCH (license:LicenseType {name: $license})
     MERGE (e)-[:HAS_LANGUAGE {bcp47: $bcp47_tag}]->(l)
     MERGE (e)-[:HAS_TITLE]->(n)
     MERGE (e)-[:HAS_LICENSE]->(license)
-    RETURN e.id as expression_id
+    RETURN e.id as text_id
     """
 
     CREATE_STANDALONE_QUERY = f"""
     CREATE (w:Work {{id: $work_id}})
-    CREATE (e:Expression {{id: $expression_id, bdrc: $bdrc, wiki: $wiki, date: $date}})
-    MERGE (e)-[:EXPRESSION_OF {{original: $original}}]->(w)
-    {_CREATE_EXPRESSION_LINKS}
+    CREATE (e:Text {{id: $text_id, bdrc: $bdrc, wiki: $wiki, date: $date}})
+    MERGE (e)-[:TEXT_OF {{original: $original}}]->(w)
+    {_CREATE_TEXT_LINKS}
     """
 
     CREATE_TRANSLATION_QUERY = f"""
-    MATCH (target:Expression {{id: $target_id}})-[:EXPRESSION_OF]->(w:Work)
-    CREATE (e:Expression {{id: $expression_id, bdrc: $bdrc, wiki: $wiki, date: $date}})
-    MERGE (e)-[:EXPRESSION_OF {{original: false}}]->(w)
+    MATCH (target:Text {{id: $target_id}})-[:TEXT_OF]->(w:Work)
+    CREATE (e:Text {{id: $text_id, bdrc: $bdrc, wiki: $wiki, date: $date}})
+    MERGE (e)-[:TEXT_OF {{original: false}}]->(w)
     MERGE (e)-[:TRANSLATION_OF]->(target)
-    {_CREATE_EXPRESSION_LINKS}
+    {_CREATE_TEXT_LINKS}
     """
 
     CREATE_COMMENTARY_QUERY = f"""
-    MATCH (target:Expression {{id: $target_id}})
+    MATCH (target:Text {{id: $target_id}})
     CREATE (w:Work {{id: $work_id}})
-    CREATE (e:Expression {{id: $expression_id, bdrc: $bdrc, wiki: $wiki, date: $date}})
+    CREATE (e:Text {{id: $text_id, bdrc: $bdrc, wiki: $wiki, date: $date}})
     MERGE (e)-[:COMMENTARY_OF]->(target)
-    MERGE (e)-[:EXPRESSION_OF {{original: true}}]->(w)
-    {_CREATE_EXPRESSION_LINKS}
+    MERGE (e)-[:TEXT_OF {{original: true}}]->(w)
+    {_CREATE_TEXT_LINKS}
     """
 
     UPDATE_TAGS_QUERY = """
-    MATCH (e:Expression {id: $expression_id})-[:EXPRESSION_OF]->(w:Work)
+    MATCH (e:Text {id: $text_id})-[:TEXT_OF]->(w:Work)
     OPTIONAL MATCH (w)-[r:HAS_TAG]->(:Tag)
     DELETE r
     WITH w
@@ -202,7 +196,7 @@ class ExpressionDatabase:
     """
 
     GET_WORK_ID_QUERY = """
-    MATCH (e:Expression {id: $expression_id})-[:EXPRESSION_OF]->(w:Work)
+    MATCH (e:Text {id: $text_id})-[:TEXT_OF]->(w:Work)
     RETURN w.id AS work_id
     """
 
@@ -213,7 +207,7 @@ class ExpressionDatabase:
     """
 
     CREATE_CONTRIBUTION_QUERY = """
-    MATCH (e:Expression {id: $expression_id})
+    MATCH (e:Text {id: $text_id})
     MATCH (p:Person) WHERE (($person_id IS NOT NULL AND p.id = $person_id)
                             OR ($person_bdrc_id IS NOT NULL AND p.bdrc = $person_bdrc_id))
     MATCH (rt:RoleType {name: $role_name})
@@ -223,7 +217,7 @@ class ExpressionDatabase:
     """
 
     CREATE_AI_CONTRIBUTION_QUERY = """
-    MATCH (e:Expression {id: $expression_id})
+    MATCH (e:Text {id: $text_id})
     MATCH (rt:RoleType {name: $role_name})
     MERGE (ai:AI {id: $ai_id})
     CREATE (e)-[:HAS_CONTRIBUTION]->(c:Contribution)-[:BY]->(ai),
@@ -232,36 +226,36 @@ class ExpressionDatabase:
     """
 
     @staticmethod
-    def _parse_record(record: dict | Record) -> ExpressionOutput:
-        data = record.get("expression", record) if isinstance(record, dict) else record.data()["expression"]
-        return DataAdapter.expression(data)
+    def _parse_record(record: dict | Record) -> TextOutput:
+        data = record.get("text", record) if isinstance(record, dict) else record.data()["text"]
+        return DataAdapter.text(data)
 
-    async def get(self, expression_id: str, application: str | None = None) -> ExpressionOutput:
+    async def get(self, text_id: str, application: str | None = None) -> TextOutput:
         async with self.session as session:
-            result = await session.run(ExpressionDatabase.GET_QUERY, id=expression_id, application=application)
+            result = await session.run(TextDatabase.GET_QUERY, id=text_id, application=application)
             record = await result.single()
             if record is None:
-                raise DataNotFoundError(f"Expression with ID '{expression_id}' not found")
+                raise DataNotFoundError(f"Text with ID '{text_id}' not found")
             return self._parse_record(record.data())
 
-    async def get_work_id(self, expression_id: str) -> str:
+    async def get_work_id(self, text_id: str) -> str:
         async with self.session as session:
-            result = await session.run(ExpressionDatabase.GET_WORK_ID_QUERY, expression_id=expression_id)
+            result = await session.run(TextDatabase.GET_WORK_ID_QUERY, text_id=text_id)
             record = await result.single()
             if record is None:
-                raise DataNotFoundError(f"Expression with ID '{expression_id}' not found or has no associated Work")
+                raise DataNotFoundError(f"Text with ID '{text_id}' not found or has no associated Work")
             return record["work_id"]
 
     async def get_all(
-        self, offset: int, limit: int, filters: ExpressionFilter | None = None, application: str | None = None
-    ) -> list[ExpressionOutput]:
-        filters = filters or ExpressionFilter()
+        self, offset: int, limit: int, filters: TextFilter | None = None, application: str | None = None
+    ) -> list[TextOutput]:
+        filters = filters or TextFilter()
 
-        async def _get_all(tx: AsyncManagedTransaction) -> list[ExpressionOutput]:
+        async def _get_all(tx: AsyncManagedTransaction) -> list[TextOutput]:
             if filters.language:
                 await DatabaseValidator.validate_language_code_exists(tx, filters.language)
             result = await tx.run(
-                ExpressionDatabase.GET_ALL_QUERY,
+                TextDatabase.GET_ALL_QUERY,
                 offset=offset,
                 limit=limit,
                 language=filters.language,
@@ -279,105 +273,97 @@ class ExpressionDatabase:
         async with self.session as session:
             return await session.execute_read(_get_all)
 
-    async def create(self, expression: ExpressionInput) -> str:
+    async def create(self, text: TextInput) -> str:
         try:
             async with self.session as session:
-                return await session.execute_write(
-                    lambda tx: ExpressionDatabase.create_with_transaction(tx, expression)
-                )
+                return await session.execute_write(lambda tx: TextDatabase.create_with_transaction(tx, text))
         except ConstraintError as e:
             if "bdrc" in str(e).lower():
-                raise DataConflictError(f"Expression with BDRC ID '{expression.bdrc}' already exists") from e
+                raise DataConflictError(f"Text with BDRC ID '{text.bdrc}' already exists") from e
             raise
 
-    async def validate_create(self, expression: ExpressionInput) -> None:
+    async def validate_create(self, text: TextInput) -> None:
         async with self.session as session:
-            await session.execute_read(lambda tx: ExpressionDatabase._validate_create(tx, expression))
+            await session.execute_read(lambda tx: TextDatabase._validate_create(tx, text))
 
     @staticmethod
-    async def _validate_create(tx: AsyncManagedTransaction, expression: ExpressionInput) -> None:
-        await DatabaseValidator.validate_expression_title_unique(tx, expression.title.root)
-        if not expression.contributions:
+    async def _validate_create(tx: AsyncManagedTransaction, text: TextInput) -> None:
+        await DatabaseValidator.validate_text_title_unique(tx, text.title.root)
+        if not text.contributions:
             return
-        person_ids = [c.person_id for c in expression.contributions if isinstance(c, ContributionInput) and c.person_id]
+        person_ids = [c.person_id for c in text.contributions if isinstance(c, ContributionInput) and c.person_id]
         person_bdrc_ids = [
-            c.person_bdrc_id for c in expression.contributions if isinstance(c, ContributionInput) and c.person_bdrc_id
+            c.person_bdrc_id for c in text.contributions if isinstance(c, ContributionInput) and c.person_bdrc_id
         ]
         await DatabaseValidator.validate_person_references(tx, person_ids)
         await DatabaseValidator.validate_person_bdrc_references(tx, person_bdrc_ids)
 
     @staticmethod
-    async def create_with_transaction(
-        tx: AsyncManagedTransaction, expression: ExpressionInput, expression_id: str | None = None
-    ) -> str:
-        expression_id = expression_id or generate_id()
-        await ExpressionDatabase._validate_translation_language(tx, expression)
+    async def create_with_transaction(tx: AsyncManagedTransaction, text: TextInput, text_id: str | None = None) -> str:
+        text_id = text_id or generate_id()
+        await TextDatabase._validate_translation_language(tx, text)
 
         work_id = generate_id()
-        await DatabaseValidator.validate_expression_creation(tx, expression, work_id)
-        base_lang_code = expression.language.split("-")[0].lower()
+        await DatabaseValidator.validate_text_creation(tx, text, work_id)
+        base_lang_code = text.language.split("-")[0].lower()
         await DatabaseValidator.validate_language_code_exists(tx, base_lang_code)
-        await DatabaseValidator.validate_category_exists(tx, expression.category_id)
+        await DatabaseValidator.validate_category_exists(tx, text.category_id)
 
-        alt_titles = [dict(t.root) for t in expression.alt_titles] if expression.alt_titles else []
-        title_nomen_id = await NomenDatabase.create_with_transaction(tx, dict(expression.title.root), alt_titles)
+        alt_titles = [dict(t.root) for t in text.alt_titles] if text.alt_titles else []
+        title_nomen_id = await NomenDatabase.create_with_transaction(tx, dict(text.title.root), alt_titles)
 
         params: dict[str, Any] = {
-            "expression_id": expression_id,
-            "bdrc": expression.bdrc,
-            "wiki": expression.wiki,
-            "date": expression.date,
+            "text_id": text_id,
+            "bdrc": text.bdrc,
+            "wiki": text.wiki,
+            "date": text.date,
             "language_code": base_lang_code,
-            "bcp47_tag": expression.language,
+            "bcp47_tag": text.language,
             "title_nomen_id": title_nomen_id,
-            "target_id": expression.translation_of or expression.commentary_of,
-            "license": expression.license.value,
+            "target_id": text.translation_of or text.commentary_of,
+            "license": text.license.value,
         }
 
-        if expression.commentary_of:
-            await tx.run(ExpressionDatabase.CREATE_COMMENTARY_QUERY, work_id=work_id, **params)
-        elif expression.translation_of:
-            await tx.run(ExpressionDatabase.CREATE_TRANSLATION_QUERY, **params)
+        if text.commentary_of:
+            await tx.run(TextDatabase.CREATE_COMMENTARY_QUERY, work_id=work_id, **params)
+        elif text.translation_of:
+            await tx.run(TextDatabase.CREATE_TRANSLATION_QUERY, **params)
         else:
-            await tx.run(ExpressionDatabase.CREATE_STANDALONE_QUERY, work_id=work_id, original=True, **params)
+            await tx.run(TextDatabase.CREATE_STANDALONE_QUERY, work_id=work_id, original=True, **params)
 
-        if expression.category_id:
-            await tx.run(
-                ExpressionDatabase.LINK_WORK_TO_CATEGORY_QUERY, work_id=work_id, category_id=expression.category_id
-            )
+        if text.category_id:
+            await tx.run(TextDatabase.LINK_WORK_TO_CATEGORY_QUERY, work_id=work_id, category_id=text.category_id)
 
-        for contribution in expression.contributions or []:
-            await ExpressionDatabase._create_contribution(tx, expression_id, contribution)
+        for contribution in text.contributions or []:
+            await TextDatabase._create_contribution(tx, text_id, contribution)
 
-        if expression.tag_ids:
-            await DatabaseValidator.validate_tags_exist(tx, list(expression.tag_ids))
-            for tag_id in expression.tag_ids:
+        if text.tag_ids:
+            await DatabaseValidator.validate_tags_exist(tx, list(text.tag_ids))
+            for tag_id in text.tag_ids:
                 await TagDatabase.tag_work_with_transaction(tx, work_id, tag_id)
 
-        return expression_id
+        return text_id
 
     @staticmethod
-    async def _validate_translation_language(tx: AsyncManagedTransaction, expression: ExpressionInput) -> None:
-        if not expression.translation_of:
+    async def _validate_translation_language(tx: AsyncManagedTransaction, text: TextInput) -> None:
+        if not text.translation_of:
             return
-        result = await tx.run(
-            ExpressionDatabase.GET_QUERY, id=expression.translation_of, bdrc_id=None, application=None
-        )
+        result = await tx.run(TextDatabase.GET_QUERY, id=text.translation_of, bdrc_id=None, application=None)
         record = await result.single()
         if not record:
-            raise DataNotFoundError(f"Target expression '{expression.translation_of}' not found for translation")
-        target_language = record.data()["expression"]["language"]
-        if target_language == expression.language:
-            raise DataValidationError("Translation must have a different language than the target expression")
+            raise DataNotFoundError(f"Target text '{text.translation_of}' not found for translation")
+        target_language = record.data()["text"]["language"]
+        if target_language == text.language:
+            raise DataValidationError("Translation must have a different language than the target text")
 
     @staticmethod
     async def _create_contribution(
-        tx: AsyncManagedTransaction, expression_id: str, contribution: ContributionBase | AIContributionModel
+        tx: AsyncManagedTransaction, text_id: str, contribution: ContributionBase | AIContribution
     ) -> None:
         if isinstance(contribution, ContributionBase):
             result = await tx.run(
-                ExpressionDatabase.CREATE_CONTRIBUTION_QUERY,
-                expression_id=expression_id,
+                TextDatabase.CREATE_CONTRIBUTION_QUERY,
+                text_id=text_id,
                 person_id=contribution.person_id,
                 person_bdrc_id=contribution.person_bdrc_id,
                 role_name=contribution.role.value,
@@ -388,10 +374,10 @@ class ExpressionDatabase:
                     f"Person or Role not found. Person: id={contribution.person_id}, "
                     f"bdrc_id={contribution.person_bdrc_id}; Role: {contribution.role.value}"
                 )
-        elif isinstance(contribution, AIContributionModel):
+        elif isinstance(contribution, AIContribution):
             result = await tx.run(
-                ExpressionDatabase.CREATE_AI_CONTRIBUTION_QUERY,
-                expression_id=expression_id,
+                TextDatabase.CREATE_AI_CONTRIBUTION_QUERY,
+                text_id=text_id,
                 ai_id=contribution.ai_id,
                 role_name=contribution.role.value,
             )
@@ -401,10 +387,8 @@ class ExpressionDatabase:
                     f"AI contribution creation failed. AI: {contribution.ai_id}; Role: {contribution.role.value}"
                 )
 
-    async def update(
-        self, expression_id: str, patch: ExpressionPatch, application: str | None = None
-    ) -> ExpressionOutput:
-        existing = await self.get(expression_id)
+    async def update(self, text_id: str, patch: TextPatch, application: str | None = None) -> TextOutput:
+        existing = await self.get(text_id)
 
         merged_bdrc = patch.bdrc if patch.bdrc is not None else existing.bdrc
         merged_wiki = patch.wiki if patch.wiki is not None else existing.wiki
@@ -419,7 +403,7 @@ class ExpressionDatabase:
         merged_category_id = patch.category_id if patch.category_id is not None else existing.category_id
         merged_license = patch.license if patch.license is not None else existing.license
 
-        ExpressionOutput.model_validate(
+        TextOutput.model_validate(
             {
                 "id": existing.id,
                 "bdrc": merged_bdrc,
@@ -436,45 +420,41 @@ class ExpressionDatabase:
 
         async def update_transaction(tx: AsyncManagedTransaction) -> None:
             await tx.run(
-                ExpressionDatabase.UPDATE_PROPERTIES_QUERY,
-                expression_id=expression_id,
+                TextDatabase.UPDATE_PROPERTIES_QUERY,
+                text_id=text_id,
                 bdrc=merged_bdrc,
                 wiki=merged_wiki,
                 date=merged_date,
             )
 
             if patch.title is not None or patch.alt_titles is not None:
-                await tx.run(ExpressionDatabase.DELETE_TITLE_QUERY, expression_id=expression_id)
+                await tx.run(TextDatabase.DELETE_TITLE_QUERY, text_id=text_id)
                 title_nomen_id = await NomenDatabase.create_with_transaction(tx, merged_title, merged_alt_titles)
-                await tx.run(ExpressionDatabase.LINK_TITLE_QUERY, expression_id=expression_id, nomen_id=title_nomen_id)
+                await tx.run(TextDatabase.LINK_TITLE_QUERY, text_id=text_id, nomen_id=title_nomen_id)
 
             if patch.license is not None:
-                await tx.run(
-                    ExpressionDatabase.UPDATE_LICENSE_QUERY, expression_id=expression_id, license=patch.license.value
-                )
+                await tx.run(TextDatabase.UPDATE_LICENSE_QUERY, text_id=text_id, license=patch.license.value)
 
             if patch.language is not None:
                 base_lang_code = patch.language.split("-")[0].lower()
                 await tx.run(
-                    ExpressionDatabase.UPDATE_LANGUAGE_QUERY,
-                    expression_id=expression_id,
+                    TextDatabase.UPDATE_LANGUAGE_QUERY,
+                    text_id=text_id,
                     language_code=base_lang_code,
                     bcp47_tag=patch.language,
                 )
 
             if patch.category_id is not None:
-                await tx.run(
-                    ExpressionDatabase.UPDATE_CATEGORY_QUERY, expression_id=expression_id, category_id=patch.category_id
-                )
+                await tx.run(TextDatabase.UPDATE_CATEGORY_QUERY, text_id=text_id, category_id=patch.category_id)
 
             if patch.tag_ids is not None:
                 await DatabaseValidator.validate_tags_exist(tx, list(patch.tag_ids))
                 await tx.run(
-                    ExpressionDatabase.UPDATE_TAGS_QUERY,
-                    expression_id=expression_id,
+                    TextDatabase.UPDATE_TAGS_QUERY,
+                    text_id=text_id,
                     tag_ids=list(patch.tag_ids),
                 )
 
         async with self.session as session:
             await session.execute_write(update_transaction)
-            return await self.get(expression_id, application=application)
+            return await self.get(text_id, application=application)

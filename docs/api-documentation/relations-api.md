@@ -21,7 +21,7 @@ The Relations API provides a unified view of all relationships for a given expre
 ### Key Concepts
 
 - **Relation**: A directional connection between two expressions
-- **Expression**: A text in the OpenPecha system (referenced by expression_id or text_id)
+- **Expression**: A text in the OpenPecha system (referenced by text_id or text_id)
 - **Relation Type**: The nature of the relationship (TRANSLATION_OF, COMMENTARY_OF)
 - **Direction**: Whether the relation is incoming (`in`) or outgoing (`out`) from the query expression
 - **Relation Graph**: The complete network of related expressions
@@ -70,14 +70,14 @@ Retrieve all relationships for a given expression, including relation type, dire
 
 **Endpoint:**
 ```
-GET /v2/relations/expressions/{expression_id}
+GET /v2/relations/expressions/{text_id}
 ```
 
 **Parameters:**
 
 | Name | Type | Location | Required | Description |
 |------|------|----------|----------|-------------|
-| `expression_id` | string | path | Yes | The ID of the expression to retrieve relations for |
+| `text_id` | string | path | Yes | The ID of the expression to retrieve relations for |
 
 **Response: 200 OK**
 

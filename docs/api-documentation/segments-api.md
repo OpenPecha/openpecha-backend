@@ -122,7 +122,7 @@ GET /v2/segments/{segment_id}/related
 [
   {
     "id": "SEG001",
-    "manifestation_id": "M12345678",
+    "edition_id": "M12345678",
     "text_id": "E12345678",
     "lines": [
       {
@@ -133,7 +133,7 @@ GET /v2/segments/{segment_id}/related
   },
   {
     "id": "SEG002",
-    "manifestation_id": "M87654321",
+    "edition_id": "M87654321",
     "text_id": "E87654321",
     "lines": [
       {
@@ -147,8 +147,8 @@ GET /v2/segments/{segment_id}/related
 
 **Response Structure:**
 - Returns array of segment objects
-- Each segment includes its manifestation_id and text_id
-- Segments from different editions/manifestations
+- Each segment includes its edition_id and text_id
+- Segments from different editions/editions
 - Empty array `[]` if no related segments
 
 **Error Responses:**

@@ -157,7 +157,7 @@ curl -X GET "https://api-l25bgmwqoa-uc.a.run.app/v2/editions/I12345678/content?s
 
 ### Modify Edition Content
 
-Apply a text operation (INSERT, DELETE, or REPLACE) to the edition's content. This operation updates the base text in storage and automatically adjusts all affected spans on the same manifestation.
+Apply a text operation (INSERT, DELETE, or REPLACE) to the edition's content. This operation updates the base text in storage and automatically adjusts all affected spans on the same edition.
 
 **Endpoint:**
 ```
@@ -223,13 +223,13 @@ The request body must contain a text operation object. See [Text Operations Spec
 
 **Span Adjustment:**
 
-When content is modified, all annotations with spans on the same manifestation are automatically adjusted:
+When content is modified, all annotations with spans on the same edition are automatically adjusted:
 
 - **Segmentation segments**: Adjusted based on continuous span rules
 - **Pagination pages**: Adjusted based on continuous span rules
 - **Bibliography metadata**: Adjusted based on annotation span rules
 - **Durchen notes**: Adjusted based on annotation span rules
-- **Alignments**: Source segments are adjusted if they belong to the modified manifestation
+- **Alignments**: Source segments are adjusted if they belong to the modified edition
 
 See [Text Operations Specification](./text-operations-spec.md) for detailed span adjustment algorithms.
 
@@ -272,7 +272,7 @@ curl -X PATCH "https://api-l25bgmwqoa-uc.a.run.app/v2/editions/I12345678/content
 
 ### Delete Edition
 
-Delete an edition (manifestation) and all its associated data including annotations (segmentation, pagination, bibliography, durchen notes, alignments) and stored content.
+Delete an edition (edition) and all its associated data including annotations (segmentation, pagination, bibliography, durchen notes, alignments) and stored content.
 
 **Endpoint:**
 ```
@@ -306,7 +306,7 @@ curl -X DELETE "https://api-l25bgmwqoa-uc.a.run.app/v2/editions/I12345678" \
 
 ### Get Related Editions
 
-Find all manifestations that are related to the given edition through alignment relationships.
+Find all editions that are related to the given edition through alignment relationships.
 
 **Endpoint:**
 ```
@@ -358,7 +358,7 @@ GET /v2/editions/{edition_id}/related
 
 ### Get Related Segments by Span
 
-Find segments that overlap with a given character span in the edition, then return all related (aligned) segments from other manifestations.
+Find segments that overlap with a given character span in the edition, then return all related (aligned) segments from other editions.
 
 **Endpoint:**
 ```
@@ -379,7 +379,7 @@ GET /v2/editions/{edition_id}/segments/related
 [
   {
     "id": "SEG001",
-    "manifestation_id": "M12345678",
+    "edition_id": "M12345678",
     "text_id": "E12345678",
     "lines": [
       {
@@ -390,7 +390,7 @@ GET /v2/editions/{edition_id}/segments/related
   },
   {
     "id": "SEG002",
-    "manifestation_id": "M87654321",
+    "edition_id": "M87654321",
     "text_id": "E87654321",
     "lines": [
       {
@@ -427,7 +427,7 @@ curl -X GET "https://api-l25bgmwqoa-uc.a.run.app/v2/editions/I12345678/segments/
 
 ### List Editions for Text
 
-Retrieve all editions associated with a text. Optionally filter by edition type (manifestation type).
+Retrieve all editions associated with a text. Optionally filter by edition type (edition type).
 
 **Endpoint:**
 ```
@@ -806,7 +806,7 @@ GET /v2/editions/{edition_id}/annotations
       "segments": [
         {
           "id": "segment_001",
-          "manifestation_id": "M12345678",
+          "edition_id": "M12345678",
           "text_id": "E12345678",
           "lines": [
             {
@@ -975,9 +975,9 @@ Exactly one of the following annotation types must be provided:
 ```
 
 **Alignment Explanation:**
-- `target_id`: The manifestation being aligned to
-- `target_segments`: Segments in the target manifestation
-- `aligned_segments`: Segments in the current manifestation (edition_id) with indices indicating which target segments they align to
+- `target_id`: The edition being aligned to
+- `target_segments`: Segments in the target edition
+- `aligned_segments`: Segments in the current edition (edition_id) with indices indicating which target segments they align to
 
 #### 3. Pagination Annotation
 

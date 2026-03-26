@@ -1,15 +1,11 @@
-from models import (
-    AIContributionModel,
-    CategoryOutput,
-    ContributionOutput,
-    ExpressionOutput,
-    LicenseType,
-    LocalizedString,
-    ManifestationOutput,
-    ManifestationType,
-    PersonOutput,
-    TagOutput,
-)
+from models.base import LocalizedString
+from models.category import CategoryOutput
+from models.contribution import AIContribution, ContributionOutput
+from models.edition import EditionOutput
+from models.enums import EditionType, LicenseType
+from models.person import PersonOutput
+from models.tag import TagOutput
+from models.text import TextOutput
 
 
 class DataAdapter:
@@ -21,11 +17,11 @@ class DataAdapter:
         return {e["language"]: e["text"] for e in (entries or []) if "language" in e and "text" in e} or None
 
     @staticmethod
-    def contributions(items: list[dict] | None) -> list[ContributionOutput | AIContributionModel]:
-        out: list[ContributionOutput | AIContributionModel] = []
+    def contributions(items: list[dict] | None) -> list[ContributionOutput | AIContribution]:
+        out: list[ContributionOutput | AIContribution] = []
         for c in items or []:
             if c.get("ai_id"):
-                out.append(AIContributionModel(ai_id=c["ai_id"], role=c["role"]))
+                out.append(AIContribution(ai_id=c["ai_id"], role=c["role"]))
             else:
                 person_name = DataAdapter.localized_text(c.get("person_name"))
                 out.append(
@@ -39,18 +35,18 @@ class DataAdapter:
         return out
 
     @staticmethod
-    def manifestation(data: dict) -> ManifestationOutput:
+    def edition(data: dict) -> EditionOutput:
         incipit_title = DataAdapter.localized_text(data.get("incipit_title"))
         alt_incipit_titles = [
             LocalizedString(t) for a in data.get("alt_incipit_titles", []) if (t := DataAdapter.localized_text(a))
         ] or None
 
-        return ManifestationOutput(
+        return EditionOutput(
             id=data["id"],
-            text_id=data["expression_id"],
+            text_id=data["text_id"],
             bdrc=data.get("bdrc"),
             wiki=data.get("wiki"),
-            type=ManifestationType(data["type"]),
+            type=EditionType(data["type"]),
             source=data.get("source"),
             colophon=data.get("colophon"),
             incipit_title=LocalizedString(incipit_title) if incipit_title else None,
@@ -58,9 +54,9 @@ class DataAdapter:
         )
 
     @staticmethod
-    def expression(data: dict) -> ExpressionOutput:
-        """Helper method to process expression data from query results"""
-        return ExpressionOutput(
+    def text(data: dict) -> TextOutput:
+        """Helper method to process text data from query results"""
+        return TextOutput(
             id=data["id"],
             bdrc=data.get("bdrc"),
             wiki=data.get("wiki"),

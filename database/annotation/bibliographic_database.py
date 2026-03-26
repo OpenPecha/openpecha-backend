@@ -9,27 +9,23 @@ if TYPE_CHECKING:
 
     from database.database import Database
 from identifier import generate_id
-from models import (
-    BibliographicMetadataInput,
-    BibliographicMetadataOutput,
-    BibliographyType,
-    SpanModel,
-)
+from models.annotation import BibliographicMetadataInput, BibliographicMetadataOutput, Span
+from models.enums import BibliographyType
 
 
 class BibliographicDatabase:
     GET_QUERY = """
     MATCH (span:Span)-[:SPAN_OF]->(b:BibliographicMetadata)
     WHERE ($bibliographic_id IS NOT NULL AND b.id = $bibliographic_id)
-       OR ($manifestation_id IS NOT NULL
-           AND EXISTS { (b)-[:BIBLIOGRAPHY_OF]->(:Manifestation {id: $manifestation_id}) })
+       OR ($edition_id IS NOT NULL
+           AND EXISTS { (b)-[:BIBLIOGRAPHY_OF]->(:Edition {id: $edition_id}) })
     MATCH (b)-[:HAS_TYPE]->(bt:BibliographyType)
     RETURN b.id AS id, bt.name AS type, span.start AS span_start, span.end AS span_end
     ORDER BY span.start
     """
 
     CREATE_QUERY = """
-    MATCH (m:Manifestation {id: $manifestation_id})
+    MATCH (m:Edition {id: $edition_id})
     UNWIND $items AS item
     MATCH (bt:BibliographyType {name: item.type})
     WITH m, item, bt
@@ -51,42 +47,40 @@ class BibliographicDatabase:
     def _parse_record(record: dict | Record) -> BibliographicMetadataOutput:
         return BibliographicMetadataOutput(
             id=record["id"],
-            span=SpanModel(start=record["span_start"], end=record["span_end"]),
+            span=Span(start=record["span_start"], end=record["span_end"]),
             type=BibliographyType(record["type"]),
         )
 
     async def get(self, bibliographic_id: str) -> BibliographicMetadataOutput:
         async with self._db.get_session() as session:
             result = await session.run(
-                BibliographicDatabase.GET_QUERY, bibliographic_id=bibliographic_id, manifestation_id=None
+                BibliographicDatabase.GET_QUERY, bibliographic_id=bibliographic_id, edition_id=None
             )
             record = await result.single()
             if record is None:
                 raise DataNotFoundError(f"Bibliographic metadata with ID '{bibliographic_id}' not found")
             return self._parse_record(record)
 
-    async def get_all(self, manifestation_id: str) -> list[BibliographicMetadataOutput]:
+    async def get_all(self, edition_id: str) -> list[BibliographicMetadataOutput]:
         async with self._db.get_session() as session:
-            result = await session.run(
-                BibliographicDatabase.GET_QUERY, bibliographic_id=None, manifestation_id=manifestation_id
-            )
+            result = await session.run(BibliographicDatabase.GET_QUERY, bibliographic_id=None, edition_id=edition_id)
             records = await result.data()
             return [self._parse_record(record) for record in records]
 
     async def add(
         self,
-        manifestation_id: str,
+        edition_id: str,
         items: list[BibliographicMetadataInput],
     ) -> list[str]:
         async with self._db.get_session() as session:
             return await session.execute_write(
-                lambda tx: BibliographicDatabase.add_with_transaction(tx, manifestation_id, items)
+                lambda tx: BibliographicDatabase.add_with_transaction(tx, edition_id, items)
             )
 
     @staticmethod
     async def add_with_transaction(
         tx: AsyncManagedTransaction,
-        manifestation_id: str,
+        edition_id: str,
         items: list[BibliographicMetadataInput],
     ) -> list[str]:
         items_data = [
@@ -101,12 +95,12 @@ class BibliographicDatabase:
 
         result = await tx.run(
             BibliographicDatabase.CREATE_QUERY,
-            manifestation_id=manifestation_id,
+            edition_id=edition_id,
             items=items_data,
         )
         record = await result.single()
         if not record or not record["ids"]:
-            raise DataNotFoundError(f"Manifestation with ID '{manifestation_id}' not found")
+            raise DataNotFoundError(f"Edition with ID '{edition_id}' not found")
         return record["ids"]
 
     @staticmethod
@@ -118,8 +112,8 @@ class BibliographicDatabase:
             await session.execute_write(lambda tx: BibliographicDatabase.delete_with_transaction(tx, bibliographic_id))
 
     @staticmethod
-    async def delete_all_with_transaction(tx: AsyncManagedTransaction, manifestation_id: str) -> None:
-        result = await tx.run(BibliographicDatabase.GET_QUERY, bibliographic_id=None, manifestation_id=manifestation_id)
+    async def delete_all_with_transaction(tx: AsyncManagedTransaction, edition_id: str) -> None:
+        result = await tx.run(BibliographicDatabase.GET_QUERY, bibliographic_id=None, edition_id=edition_id)
         records = await result.data()
 
         for record in records:

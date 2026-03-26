@@ -23,26 +23,24 @@ import logging
 
 import pytest
 from identifier import generate_id
-from models import (
-    ContributionInput,
-    ContributorRole,
-    ExpressionInput,
-    LocalizedString,
-    ManifestationInput,
-    ManifestationType,
-    PersonInput,
+from models.annotation import (
+    AlignedSegment,
+    AlignmentInput,
+    BibliographicMetadataInput,
+    NoteInput,
+    PaginationInput,
     SegmentationInput,
     SegmentInput,
-    SpanModel,
-    PaginationInput,
-    VolumeModel,
-    PageModel,
-    AlignmentInput,
-    AlignedSegment,
-    NoteInput,
-    BibliographicMetadataInput,
-    BibliographyType,
+    Span,
+    Page,
+    Volume,
 )
+from models.base import LocalizedString
+from models.contribution import ContributionInput
+from models.edition import EditionInput, EditionType
+from models.enums import BibliographyType, ContributorRole
+from models.text import TextInput
+from models.person import PersonInput
 
 logger = logging.getLogger(__name__)
 
@@ -64,35 +62,35 @@ class TestAnnotationsEndpoints:
         """Helper to create a test person in the database"""
         return await db.person.create(person_data)
 
-    async def _create_test_expression(self, db, person_id: str, title: LocalizedString | None = None) -> str:
-        """Helper to create a test expression"""
+    async def _create_test_text(self, db, person_id: str, title: LocalizedString | None = None) -> str:
+        """Helper to create a test text"""
         if title is None:
-            title = LocalizedString({"en": "Test Expression", "bo": "བརྟག་དཔྱད།"})
-        expression_data = ExpressionInput(
+            title = LocalizedString({"en": "Test text", "bo": "བརྟག་དཔྱད།"})
+        text_data = TextInput(
             category_id="category",
             title=title,
             language="bo",
             contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
         )
-        return await db.expression.create(expression_data)
+        return await db.text.create(text_data)
 
-    async def _create_test_manifestation(
+    async def _create_test_edition(
         self,
         db,
-        expression_id: str,
+        text_id: str,
         content: str = "Sample text content",
-        manifestation_type: ManifestationType = ManifestationType.DIPLOMATIC,
+        edition_type: EditionType = EditionType.DIPLOMATIC,
         bdrc: str | None = None,
     ) -> str:
-        """Helper to create a manifestation for testing (no base text storage needed for annotation tests)"""
-        manifestation_id = generate_id()
-        manifestation_data = ManifestationInput(
-            type=manifestation_type,
-            bdrc=bdrc or f"W{manifestation_id[:8]}",
+        """Helper to create a edition for testing (no base text storage needed for annotation tests)"""
+        edition_id = generate_id()
+        edition_data = EditionInput(
+            type=edition_type,
+            bdrc=bdrc or f"W{edition_id[:8]}",
             source="Test Source",
         )
-        await db.manifestation.create(manifestation_data, manifestation_id, expression_id)
-        return manifestation_id
+        await db.edition.create(edition_data, edition_id, text_id)
+        return edition_id
 
 
 class TestGetSegmentation(TestAnnotationsEndpoints):
@@ -101,16 +99,16 @@ class TestGetSegmentation(TestAnnotationsEndpoints):
     async def test_get_segmentation_success(self, client, test_database, test_person_data):
         """Test successful segmentation retrieval"""
         person_id = await self._create_test_person(test_database, test_person_data)
-        expression_id = await self._create_test_expression(test_database, person_id)
-        manifestation_id = await self._create_test_manifestation(test_database, expression_id, "0123456789")
+        text_id = await self._create_test_text(test_database, person_id)
+        edition_id = await self._create_test_edition(test_database, text_id, "0123456789")
 
         segmentation = SegmentationInput(
             segments=[
-                SegmentInput(lines=[SpanModel(start=0, end=5)]),
-                SegmentInput(lines=[SpanModel(start=5, end=10)]),
+                SegmentInput(lines=[Span(start=0, end=5)]),
+                SegmentInput(lines=[Span(start=5, end=10)]),
             ]
         )
-        segmentation_id = await test_database.annotation.segmentation.add(manifestation_id, segmentation)
+        segmentation_id = await test_database.annotation.segmentation.add(edition_id, segmentation)
 
         response = await client.get(f"/v2/annotations/segmentation/{segmentation_id}")
 
@@ -129,16 +127,16 @@ class TestGetSegmentation(TestAnnotationsEndpoints):
     async def test_get_segmentation_with_multiple_spans(self, client, test_database, test_person_data):
         """Test segmentation with segments containing multiple spans"""
         person_id = await self._create_test_person(test_database, test_person_data)
-        expression_id = await self._create_test_expression(test_database, person_id)
-        manifestation_id = await self._create_test_manifestation(test_database, expression_id, "0123456789ABCDEF")
+        text_id = await self._create_test_text(test_database, person_id)
+        edition_id = await self._create_test_edition(test_database, text_id, "0123456789ABCDEF")
 
         segmentation = SegmentationInput(
             segments=[
-                SegmentInput(lines=[SpanModel(start=0, end=4), SpanModel(start=4, end=8)]),
-                SegmentInput(lines=[SpanModel(start=8, end=16)]),
+                SegmentInput(lines=[Span(start=0, end=4), Span(start=4, end=8)]),
+                SegmentInput(lines=[Span(start=8, end=16)]),
             ]
         )
-        segmentation_id = await test_database.annotation.segmentation.add(manifestation_id, segmentation)
+        segmentation_id = await test_database.annotation.segmentation.add(edition_id, segmentation)
 
         response = await client.get(f"/v2/annotations/segmentation/{segmentation_id}")
 
@@ -154,13 +152,13 @@ class TestDeleteSegmentation(TestAnnotationsEndpoints):
     async def test_delete_segmentation_success(self, client, test_database, test_person_data):
         """Test successful segmentation deletion"""
         person_id = await self._create_test_person(test_database, test_person_data)
-        expression_id = await self._create_test_expression(test_database, person_id)
-        manifestation_id = await self._create_test_manifestation(test_database, expression_id, "0123456789")
+        text_id = await self._create_test_text(test_database, person_id)
+        edition_id = await self._create_test_edition(test_database, text_id, "0123456789")
 
         segmentation = SegmentationInput(
-            segments=[SegmentInput(lines=[SpanModel(start=0, end=10)])]
+            segments=[SegmentInput(lines=[Span(start=0, end=10)])]
         )
-        segmentation_id = await test_database.annotation.segmentation.add(manifestation_id, segmentation)
+        segmentation_id = await test_database.annotation.segmentation.add(edition_id, segmentation)
 
         get_response = await client.get(f"/v2/annotations/segmentation/{segmentation_id}")
         assert get_response.status_code == 200
@@ -181,13 +179,13 @@ class TestDeleteSegmentation(TestAnnotationsEndpoints):
     async def test_delete_segmentation_idempotent(self, client, test_database, test_person_data):
         """Test that deleting the same segmentation twice is idempotent"""
         person_id = await self._create_test_person(test_database, test_person_data)
-        expression_id = await self._create_test_expression(test_database, person_id)
-        manifestation_id = await self._create_test_manifestation(test_database, expression_id, "0123456789")
+        text_id = await self._create_test_text(test_database, person_id)
+        edition_id = await self._create_test_edition(test_database, text_id, "0123456789")
 
         segmentation = SegmentationInput(
-            segments=[SegmentInput(lines=[SpanModel(start=0, end=10)])]
+            segments=[SegmentInput(lines=[Span(start=0, end=10)])]
         )
-        segmentation_id = await test_database.annotation.segmentation.add(manifestation_id, segmentation)
+        segmentation_id = await test_database.annotation.segmentation.add(edition_id, segmentation)
 
         first_delete = await client.delete(f"/v2/annotations/segmentation/{segmentation_id}")
         assert first_delete.status_code == 204
@@ -198,20 +196,20 @@ class TestDeleteSegmentation(TestAnnotationsEndpoints):
     async def test_delete_segmentation_rejects_aligned(self, client, test_database, test_person_data):
         """Test that deleting a segmentation that is part of an alignment returns 400"""
         person_id = await self._create_test_person(test_database, test_person_data)
-        expression_id = await self._create_test_expression(test_database, person_id)
-        source_manifestation_id = await self._create_test_manifestation(
-            test_database, expression_id, "Source text"
+        text_id = await self._create_test_text(test_database, person_id)
+        source_edition_id = await self._create_test_edition(
+            test_database, text_id, "Source text"
         )
-        target_manifestation_id = await self._create_test_manifestation(
-            test_database, expression_id, "Target text"
+        target_edition_id = await self._create_test_edition(
+            test_database, text_id, "Target text"
         )
 
         alignment = AlignmentInput(
-            target_id=target_manifestation_id,
-            target_segments=[SegmentInput(lines=[SpanModel(start=0, end=11)])],
-            aligned_segments=[AlignedSegment(lines=[SpanModel(start=0, end=11)], alignment_indices=[0])],
+            target_id=target_edition_id,
+            target_segments=[SegmentInput(lines=[Span(start=0, end=11)])],
+            aligned_segments=[AlignedSegment(lines=[Span(start=0, end=11)], alignment_indices=[0])],
         )
-        alignment_id = await test_database.annotation.alignment.add(source_manifestation_id, alignment)
+        alignment_id = await test_database.annotation.alignment.add(source_edition_id, alignment)
 
         response = await client.delete(f"/v2/annotations/segmentation/{alignment_id}")
 
@@ -228,33 +226,33 @@ class TestGetAlignment(TestAnnotationsEndpoints):
     async def test_get_alignment_success(self, client, test_database, test_person_data):
         """Test successful alignment retrieval"""
         person_id = await self._create_test_person(test_database, test_person_data)
-        expression_id = await self._create_test_expression(test_database, person_id)
-        source_manifestation_id = await self._create_test_manifestation(
-            test_database, expression_id, "Source text content"
+        text_id = await self._create_test_text(test_database, person_id)
+        source_edition_id = await self._create_test_edition(
+            test_database, text_id, "Source text content"
         )
-        target_manifestation_id = await self._create_test_manifestation(
-            test_database, expression_id, "Target text content"
+        target_edition_id = await self._create_test_edition(
+            test_database, text_id, "Target text content"
         )
 
         alignment = AlignmentInput(
-            target_id=target_manifestation_id,
+            target_id=target_edition_id,
             target_segments=[
-                SegmentInput(lines=[SpanModel(start=0, end=6)]),
-                SegmentInput(lines=[SpanModel(start=7, end=19)]),
+                SegmentInput(lines=[Span(start=0, end=6)]),
+                SegmentInput(lines=[Span(start=7, end=19)]),
             ],
             aligned_segments=[
-                AlignedSegment(lines=[SpanModel(start=0, end=6)], alignment_indices=[0]),
-                AlignedSegment(lines=[SpanModel(start=7, end=19)], alignment_indices=[1]),
+                AlignedSegment(lines=[Span(start=0, end=6)], alignment_indices=[0]),
+                AlignedSegment(lines=[Span(start=7, end=19)], alignment_indices=[1]),
             ],
         )
-        alignment_id = await test_database.annotation.alignment.add(source_manifestation_id, alignment)
+        alignment_id = await test_database.annotation.alignment.add(source_edition_id, alignment)
 
         response = await client.get(f"/v2/annotations/alignment/{alignment_id}")
 
         assert response.status_code == 200
         data = response.json()
         assert data["id"] == alignment_id
-        assert data["target_id"] == target_manifestation_id
+        assert data["target_id"] == target_edition_id
         assert len(data["target_segments"]) == 2
         assert len(data["aligned_segments"]) == 2
 
@@ -268,26 +266,26 @@ class TestGetAlignment(TestAnnotationsEndpoints):
     async def test_get_alignment_with_multiple_indices(self, client, test_database, test_person_data):
         """Test alignment where source segment aligns to multiple target segments"""
         person_id = await self._create_test_person(test_database, test_person_data)
-        expression_id = await self._create_test_expression(test_database, person_id)
-        source_manifestation_id = await self._create_test_manifestation(
-            test_database, expression_id, "Source text"
+        text_id = await self._create_test_text(test_database, person_id)
+        source_edition_id = await self._create_test_edition(
+            test_database, text_id, "Source text"
         )
-        target_manifestation_id = await self._create_test_manifestation(
-            test_database, expression_id, "Target text longer"
+        target_edition_id = await self._create_test_edition(
+            test_database, text_id, "Target text longer"
         )
 
         alignment = AlignmentInput(
-            target_id=target_manifestation_id,
+            target_id=target_edition_id,
             target_segments=[
-                SegmentInput(lines=[SpanModel(start=0, end=6)]),
-                SegmentInput(lines=[SpanModel(start=7, end=11)]),
-                SegmentInput(lines=[SpanModel(start=12, end=18)]),
+                SegmentInput(lines=[Span(start=0, end=6)]),
+                SegmentInput(lines=[Span(start=7, end=11)]),
+                SegmentInput(lines=[Span(start=12, end=18)]),
             ],
             aligned_segments=[
-                AlignedSegment(lines=[SpanModel(start=0, end=11)], alignment_indices=[0, 1, 2]),
+                AlignedSegment(lines=[Span(start=0, end=11)], alignment_indices=[0, 1, 2]),
             ],
         )
-        alignment_id = await test_database.annotation.alignment.add(source_manifestation_id, alignment)
+        alignment_id = await test_database.annotation.alignment.add(source_edition_id, alignment)
 
         response = await client.get(f"/v2/annotations/alignment/{alignment_id}")
 
@@ -300,47 +298,47 @@ class TestGetAlignment(TestAnnotationsEndpoints):
 class TestAddAlignment(TestAnnotationsEndpoints):
     """Tests for alignment creation error cases"""
 
-    async def test_add_alignment_source_manifestation_not_found(self, test_database, test_person_data):
-        """Test that adding alignment with non-existent source manifestation raises DataNotFoundError"""
+    async def test_add_alignment_source_edition_not_found(self, test_database, test_person_data):
+        """Test that adding alignment with non-existent source edition raises DataNotFoundError"""
         from exceptions import DataNotFoundError
-        from models import AlignmentInput, AlignedSegment, SegmentInput, SpanModel
+        from models.annotation import AlignmentInput, AlignedSegment, SegmentInput, Span
 
         person_id = await self._create_test_person(test_database, test_person_data)
-        expression_id = await self._create_test_expression(test_database, person_id)
-        target_manifestation_id = await self._create_test_manifestation(
-            test_database, expression_id, "Target text"
+        text_id = await self._create_test_text(test_database, person_id)
+        target_edition_id = await self._create_test_edition(
+            test_database, text_id, "Target text"
         )
 
         alignment = AlignmentInput(
-            target_id=target_manifestation_id,
-            target_segments=[SegmentInput(lines=[SpanModel(start=0, end=11)])],
-            aligned_segments=[AlignedSegment(lines=[SpanModel(start=0, end=11)], alignment_indices=[0])],
+            target_id=target_edition_id,
+            target_segments=[SegmentInput(lines=[Span(start=0, end=11)])],
+            aligned_segments=[AlignedSegment(lines=[Span(start=0, end=11)], alignment_indices=[0])],
         )
 
         with pytest.raises(DataNotFoundError) as exc_info:
-            await test_database.annotation.alignment.add("nonexistent_manifestation_id", alignment)
+            await test_database.annotation.alignment.add("nonexistent_edition_id", alignment)
 
-        assert "Manifestation with ID 'nonexistent_manifestation_id' not found" in str(exc_info.value)
+        assert "Edition with ID 'nonexistent_edition_id' not found" in str(exc_info.value)
 
-    async def test_add_alignment_target_manifestation_not_found(self, test_database, test_person_data):
-        """Test that adding alignment with non-existent target manifestation raises DataNotFoundError"""
+    async def test_add_alignment_target_edition_not_found(self, test_database, test_person_data):
+        """Test that adding alignment with non-existent target edition raises DataNotFoundError"""
         from exceptions import DataNotFoundError
-        from models import AlignmentInput, AlignedSegment, SegmentInput, SpanModel
+        from models.annotation import AlignmentInput, AlignedSegment, SegmentInput, Span
 
         person_id = await self._create_test_person(test_database, test_person_data)
-        expression_id = await self._create_test_expression(test_database, person_id)
-        source_manifestation_id = await self._create_test_manifestation(
-            test_database, expression_id, "Source text"
+        text_id = await self._create_test_text(test_database, person_id)
+        source_edition_id = await self._create_test_edition(
+            test_database, text_id, "Source text"
         )
 
         alignment = AlignmentInput(
             target_id="nonexistent_target_id",
-            target_segments=[SegmentInput(lines=[SpanModel(start=0, end=11)])],
-            aligned_segments=[AlignedSegment(lines=[SpanModel(start=0, end=11)], alignment_indices=[0])],
+            target_segments=[SegmentInput(lines=[Span(start=0, end=11)])],
+            aligned_segments=[AlignedSegment(lines=[Span(start=0, end=11)], alignment_indices=[0])],
         )
 
         with pytest.raises(DataNotFoundError) as exc_info:
-            await test_database.annotation.alignment.add(source_manifestation_id, alignment)
+            await test_database.annotation.alignment.add(source_edition_id, alignment)
 
         assert "not found" in str(exc_info.value).lower()
 
@@ -351,20 +349,20 @@ class TestDeleteAlignment(TestAnnotationsEndpoints):
     async def test_delete_alignment_success(self, client, test_database, test_person_data):
         """Test successful alignment deletion"""
         person_id = await self._create_test_person(test_database, test_person_data)
-        expression_id = await self._create_test_expression(test_database, person_id)
-        source_manifestation_id = await self._create_test_manifestation(
-            test_database, expression_id, "Source text"
+        text_id = await self._create_test_text(test_database, person_id)
+        source_edition_id = await self._create_test_edition(
+            test_database, text_id, "Source text"
         )
-        target_manifestation_id = await self._create_test_manifestation(
-            test_database, expression_id, "Target text"
+        target_edition_id = await self._create_test_edition(
+            test_database, text_id, "Target text"
         )
 
         alignment = AlignmentInput(
-            target_id=target_manifestation_id,
-            target_segments=[SegmentInput(lines=[SpanModel(start=0, end=11)])],
-            aligned_segments=[AlignedSegment(lines=[SpanModel(start=0, end=11)], alignment_indices=[0])],
+            target_id=target_edition_id,
+            target_segments=[SegmentInput(lines=[Span(start=0, end=11)])],
+            aligned_segments=[AlignedSegment(lines=[Span(start=0, end=11)], alignment_indices=[0])],
         )
-        alignment_id = await test_database.annotation.alignment.add(source_manifestation_id, alignment)
+        alignment_id = await test_database.annotation.alignment.add(source_edition_id, alignment)
 
         get_response = await client.get(f"/v2/annotations/alignment/{alignment_id}")
         assert get_response.status_code == 200
@@ -379,20 +377,20 @@ class TestDeleteAlignment(TestAnnotationsEndpoints):
     async def test_delete_alignment_removes_both_segmentations(self, client, test_database, test_person_data):
         """Test that deleting an alignment also removes both underlying segmentations"""
         person_id = await self._create_test_person(test_database, test_person_data)
-        expression_id = await self._create_test_expression(test_database, person_id)
-        source_manifestation_id = await self._create_test_manifestation(
-            test_database, expression_id, "Source text"
+        text_id = await self._create_test_text(test_database, person_id)
+        source_edition_id = await self._create_test_edition(
+            test_database, text_id, "Source text"
         )
-        target_manifestation_id = await self._create_test_manifestation(
-            test_database, expression_id, "Target text"
+        target_edition_id = await self._create_test_edition(
+            test_database, text_id, "Target text"
         )
 
         alignment = AlignmentInput(
-            target_id=target_manifestation_id,
-            target_segments=[SegmentInput(lines=[SpanModel(start=0, end=11)])],
-            aligned_segments=[AlignedSegment(lines=[SpanModel(start=0, end=11)], alignment_indices=[0])],
+            target_id=target_edition_id,
+            target_segments=[SegmentInput(lines=[Span(start=0, end=11)])],
+            aligned_segments=[AlignedSegment(lines=[Span(start=0, end=11)], alignment_indices=[0])],
         )
-        alignment_id = await test_database.annotation.alignment.add(source_manifestation_id, alignment)
+        alignment_id = await test_database.annotation.alignment.add(source_edition_id, alignment)
 
         response = await client.delete(f"/v2/annotations/alignment/{alignment_id}")
         assert response.status_code == 204
@@ -409,15 +407,15 @@ class TestDeleteAlignment(TestAnnotationsEndpoints):
     async def test_delete_alignment_rejects_regular_segmentation(self, client, test_database, test_person_data):
         """Test that deleting a regular segmentation via alignment endpoint returns 400"""
         person_id = await self._create_test_person(test_database, test_person_data)
-        expression_id = await self._create_test_expression(test_database, person_id)
-        manifestation_id = await self._create_test_manifestation(
-            test_database, expression_id, "Source text"
+        text_id = await self._create_test_text(test_database, person_id)
+        edition_id = await self._create_test_edition(
+            test_database, text_id, "Source text"
         )
 
         segmentation = SegmentationInput(
-            segments=[SegmentInput(lines=[SpanModel(start=0, end=11)])]
+            segments=[SegmentInput(lines=[Span(start=0, end=11)])]
         )
-        segmentation_id = await test_database.annotation.segmentation.add(manifestation_id, segmentation)
+        segmentation_id = await test_database.annotation.segmentation.add(edition_id, segmentation)
 
         response = await client.delete(f"/v2/annotations/alignment/{segmentation_id}")
 
@@ -434,18 +432,18 @@ class TestGetPagination(TestAnnotationsEndpoints):
     async def test_get_pagination_success(self, client, test_database, test_person_data):
         """Test successful pagination retrieval"""
         person_id = await self._create_test_person(test_database, test_person_data)
-        expression_id = await self._create_test_expression(test_database, person_id)
-        manifestation_id = await self._create_test_manifestation(test_database, expression_id, "0123456789ABCDEF")
+        text_id = await self._create_test_text(test_database, person_id)
+        edition_id = await self._create_test_edition(test_database, text_id, "0123456789ABCDEF")
 
         pagination = PaginationInput(
-            volume=VolumeModel(
+            volume=Volume(
                 pages=[
-                    PageModel(reference="1a", lines=[SpanModel(start=0, end=8)]),
-                    PageModel(reference="1b", lines=[SpanModel(start=8, end=16)]),
+                    Page(reference="1a", lines=[Span(start=0, end=8)]),
+                    Page(reference="1b", lines=[Span(start=8, end=16)]),
                 ]
             )
         )
-        pagination_id = await test_database.annotation.pagination.add(manifestation_id, pagination)
+        pagination_id = await test_database.annotation.pagination.add(edition_id, pagination)
 
         response = await client.get(f"/v2/annotations/pagination/{pagination_id}")
 
@@ -466,20 +464,20 @@ class TestGetPagination(TestAnnotationsEndpoints):
     async def test_get_pagination_with_multiple_lines_per_page(self, client, test_database, test_person_data):
         """Test pagination with pages containing multiple line spans"""
         person_id = await self._create_test_person(test_database, test_person_data)
-        expression_id = await self._create_test_expression(test_database, person_id)
-        manifestation_id = await self._create_test_manifestation(test_database, expression_id, "0123456789ABCDEF")
+        text_id = await self._create_test_text(test_database, person_id)
+        edition_id = await self._create_test_edition(test_database, text_id, "0123456789ABCDEF")
 
         pagination = PaginationInput(
-            volume=VolumeModel(
+            volume=Volume(
                 pages=[
-                    PageModel(
+                    Page(
                         reference="1a",
-                        lines=[SpanModel(start=0, end=4), SpanModel(start=4, end=8)],
+                        lines=[Span(start=0, end=4), Span(start=4, end=8)],
                     ),
                 ]
             )
         )
-        pagination_id = await test_database.annotation.pagination.add(manifestation_id, pagination)
+        pagination_id = await test_database.annotation.pagination.add(edition_id, pagination)
 
         response = await client.get(f"/v2/annotations/pagination/{pagination_id}")
 
@@ -494,15 +492,15 @@ class TestDeletePagination(TestAnnotationsEndpoints):
     async def test_delete_pagination_success(self, client, test_database, test_person_data):
         """Test successful pagination deletion"""
         person_id = await self._create_test_person(test_database, test_person_data)
-        expression_id = await self._create_test_expression(test_database, person_id)
-        manifestation_id = await self._create_test_manifestation(test_database, expression_id, "0123456789")
+        text_id = await self._create_test_text(test_database, person_id)
+        edition_id = await self._create_test_edition(test_database, text_id, "0123456789")
 
         pagination = PaginationInput(
-            volume=VolumeModel(
-                pages=[PageModel(reference="1a", lines=[SpanModel(start=0, end=10)])]
+            volume=Volume(
+                pages=[Page(reference="1a", lines=[Span(start=0, end=10)])]
             )
         )
-        pagination_id = await test_database.annotation.pagination.add(manifestation_id, pagination)
+        pagination_id = await test_database.annotation.pagination.add(edition_id, pagination)
 
         get_response = await client.get(f"/v2/annotations/pagination/{pagination_id}")
         assert get_response.status_code == 200
@@ -533,11 +531,11 @@ class TestGetDurchen(TestAnnotationsEndpoints):
         """Test successful durchen note retrieval"""
         await self._setup_note_type(test_database)
         person_id = await self._create_test_person(test_database, test_person_data)
-        expression_id = await self._create_test_expression(test_database, person_id)
-        manifestation_id = await self._create_test_manifestation(test_database, expression_id, "0123456789")
+        text_id = await self._create_test_text(test_database, person_id)
+        edition_id = await self._create_test_edition(test_database, text_id, "0123456789")
 
-        notes = [NoteInput(span=SpanModel(start=0, end=5), text="Variant reading note")]
-        note_ids = await test_database.annotation.note.add_durchen(manifestation_id, notes)
+        notes = [NoteInput(span=Span(start=0, end=5), text="Variant reading note")]
+        note_ids = await test_database.annotation.note.add_durchen(edition_id, notes)
 
         response = await client.get(f"/v2/annotations/durchen/{note_ids[0]}")
 
@@ -568,11 +566,11 @@ class TestDeleteDurchen(TestAnnotationsEndpoints):
         """Test successful durchen note deletion"""
         await self._setup_note_type(test_database)
         person_id = await self._create_test_person(test_database, test_person_data)
-        expression_id = await self._create_test_expression(test_database, person_id)
-        manifestation_id = await self._create_test_manifestation(test_database, expression_id, "0123456789")
+        text_id = await self._create_test_text(test_database, person_id)
+        edition_id = await self._create_test_edition(test_database, text_id, "0123456789")
 
-        notes = [NoteInput(span=SpanModel(start=0, end=5), text="Note to delete")]
-        note_ids = await test_database.annotation.note.add_durchen(manifestation_id, notes)
+        notes = [NoteInput(span=Span(start=0, end=5), text="Note to delete")]
+        note_ids = await test_database.annotation.note.add_durchen(edition_id, notes)
 
         get_response = await client.get(f"/v2/annotations/durchen/{note_ids[0]}")
         assert get_response.status_code == 200
@@ -604,11 +602,11 @@ class TestGetBibliographic(TestAnnotationsEndpoints):
         """Test successful bibliographic metadata retrieval"""
         await self._setup_bibliography_types(test_database)
         person_id = await self._create_test_person(test_database, test_person_data)
-        expression_id = await self._create_test_expression(test_database, person_id)
-        manifestation_id = await self._create_test_manifestation(test_database, expression_id, "0123456789")
+        text_id = await self._create_test_text(test_database, person_id)
+        edition_id = await self._create_test_edition(test_database, text_id, "0123456789")
 
-        items = [BibliographicMetadataInput(span=SpanModel(start=0, end=10), type=BibliographyType.COLOPHON)]
-        bibliographic_ids = await test_database.annotation.bibliographic.add(manifestation_id, items)
+        items = [BibliographicMetadataInput(span=Span(start=0, end=10), type=BibliographyType.COLOPHON)]
+        bibliographic_ids = await test_database.annotation.bibliographic.add(edition_id, items)
 
         response = await client.get(f"/v2/annotations/bibliographic/{bibliographic_ids[0]}")
 
@@ -630,14 +628,14 @@ class TestGetBibliographic(TestAnnotationsEndpoints):
         """Test bibliographic metadata with different types"""
         await self._setup_bibliography_types(test_database)
         person_id = await self._create_test_person(test_database, test_person_data)
-        expression_id = await self._create_test_expression(test_database, person_id)
-        manifestation_id = await self._create_test_manifestation(test_database, expression_id, "0123456789ABCDEF")
+        text_id = await self._create_test_text(test_database, person_id)
+        edition_id = await self._create_test_edition(test_database, text_id, "0123456789ABCDEF")
 
         items = [
-            BibliographicMetadataInput(span=SpanModel(start=0, end=8), type=BibliographyType.COLOPHON),
-            BibliographicMetadataInput(span=SpanModel(start=8, end=16), type=BibliographyType.INCIPIT),
+            BibliographicMetadataInput(span=Span(start=0, end=8), type=BibliographyType.COLOPHON),
+            BibliographicMetadataInput(span=Span(start=8, end=16), type=BibliographyType.INCIPIT),
         ]
-        bibliographic_ids = await test_database.annotation.bibliographic.add(manifestation_id, items)
+        bibliographic_ids = await test_database.annotation.bibliographic.add(edition_id, items)
 
         response1 = await client.get(f"/v2/annotations/bibliographic/{bibliographic_ids[0]}")
         assert response1.status_code == 200
@@ -660,11 +658,11 @@ class TestDeleteBibliographic(TestAnnotationsEndpoints):
         """Test successful bibliographic metadata deletion"""
         await self._setup_bibliography_types(test_database)
         person_id = await self._create_test_person(test_database, test_person_data)
-        expression_id = await self._create_test_expression(test_database, person_id)
-        manifestation_id = await self._create_test_manifestation(test_database, expression_id, "0123456789")
+        text_id = await self._create_test_text(test_database, person_id)
+        edition_id = await self._create_test_edition(test_database, text_id, "0123456789")
 
-        items = [BibliographicMetadataInput(span=SpanModel(start=0, end=10), type=BibliographyType.COLOPHON)]
-        bibliographic_ids = await test_database.annotation.bibliographic.add(manifestation_id, items)
+        items = [BibliographicMetadataInput(span=Span(start=0, end=10), type=BibliographyType.COLOPHON)]
+        bibliographic_ids = await test_database.annotation.bibliographic.add(edition_id, items)
 
         get_response = await client.get(f"/v2/annotations/bibliographic/{bibliographic_ids[0]}")
         assert get_response.status_code == 200
@@ -683,103 +681,103 @@ class TestDeleteBibliographic(TestAnnotationsEndpoints):
         assert response.status_code == 204
 
 
-class TestAddAnnotationManifestationNotFound(TestAnnotationsEndpoints):
-    """Tests for annotation creation with non-existent manifestation"""
+class TestAddAnnotationEditionNotFound(TestAnnotationsEndpoints):
+    """Tests for annotation creation with non-existent edition"""
 
-    async def test_add_bibliographic_manifestation_not_found(self, test_database):
-        """Test that adding bibliographic metadata with non-existent manifestation raises DataNotFoundError"""
+    async def test_add_bibliographic_edition_not_found(self, test_database):
+        """Test that adding bibliographic metadata with non-existent edition raises DataNotFoundError"""
         from exceptions import DataNotFoundError
 
         async with test_database.get_session() as session:
             await session.run("MERGE (:BibliographyType {name: 'colophon'})")
 
-        items = [BibliographicMetadataInput(span=SpanModel(start=0, end=10), type=BibliographyType.COLOPHON)]
+        items = [BibliographicMetadataInput(span=Span(start=0, end=10), type=BibliographyType.COLOPHON)]
 
         with pytest.raises(DataNotFoundError) as exc_info:
-            await test_database.annotation.bibliographic.add("nonexistent_manifestation_id", items)
+            await test_database.annotation.bibliographic.add("nonexistent_edition_id", items)
 
-        assert "Manifestation with ID 'nonexistent_manifestation_id' not found" in str(exc_info.value)
+        assert "Edition with ID 'nonexistent_edition_id' not found" in str(exc_info.value)
 
-    async def test_add_segmentation_manifestation_not_found(self, test_database):
-        """Test that adding segmentation with non-existent manifestation raises DataNotFoundError"""
+    async def test_add_segmentation_edition_not_found(self, test_database):
+        """Test that adding segmentation with non-existent edition raises DataNotFoundError"""
         from exceptions import DataNotFoundError
 
         segmentation = SegmentationInput(
-            segments=[SegmentInput(lines=[SpanModel(start=0, end=10)])]
+            segments=[SegmentInput(lines=[Span(start=0, end=10)])]
         )
 
         with pytest.raises(DataNotFoundError) as exc_info:
-            await test_database.annotation.segmentation.add("nonexistent_manifestation_id", segmentation)
+            await test_database.annotation.segmentation.add("nonexistent_edition_id", segmentation)
 
-        assert "Manifestation with ID 'nonexistent_manifestation_id' not found" in str(exc_info.value)
+        assert "Edition with ID 'nonexistent_edition_id' not found" in str(exc_info.value)
 
-    async def test_add_pagination_manifestation_not_found(self, test_database):
-        """Test that adding pagination with non-existent manifestation raises DataNotFoundError"""
+    async def test_add_pagination_edition_not_found(self, test_database):
+        """Test that adding pagination with non-existent edition raises DataNotFoundError"""
         from exceptions import DataNotFoundError
 
         pagination = PaginationInput(
-            volume=VolumeModel(pages=[PageModel(reference="1a", lines=[SpanModel(start=0, end=10)])])
+            volume=Volume(pages=[Page(reference="1a", lines=[Span(start=0, end=10)])])
         )
 
         with pytest.raises(DataNotFoundError) as exc_info:
-            await test_database.annotation.pagination.add("nonexistent_manifestation_id", pagination)
+            await test_database.annotation.pagination.add("nonexistent_edition_id", pagination)
 
-        assert "Manifestation with ID 'nonexistent_manifestation_id' not found" in str(exc_info.value)
+        assert "Edition with ID 'nonexistent_edition_id' not found" in str(exc_info.value)
 
-    async def test_add_note_manifestation_not_found(self, test_database):
-        """Test that adding durchen notes with non-existent manifestation raises DataNotFoundError"""
+    async def test_add_note_edition_not_found(self, test_database):
+        """Test that adding durchen notes with non-existent edition raises DataNotFoundError"""
         from exceptions import DataNotFoundError
 
         async with test_database.get_session() as session:
             await session.run("MERGE (:NoteType {name: 'durchen'})")
 
-        notes = [NoteInput(span=SpanModel(start=0, end=10), text="Test note")]
+        notes = [NoteInput(span=Span(start=0, end=10), text="Test note")]
 
         with pytest.raises(DataNotFoundError) as exc_info:
-            await test_database.annotation.note.add_durchen("nonexistent_manifestation_id", notes)
+            await test_database.annotation.note.add_durchen("nonexistent_edition_id", notes)
 
-        assert "Manifestation with ID 'nonexistent_manifestation_id' not found" in str(exc_info.value)
+        assert "Edition with ID 'nonexistent_edition_id' not found" in str(exc_info.value)
 
 
-class TestDeleteManifestationWithAnnotations(TestAnnotationsEndpoints):
-    """Tests for manifestation deletion with all annotation types"""
+class TestDeleteEditionWithAnnotations(TestAnnotationsEndpoints):
+    """Tests for edition deletion with all annotation types"""
 
-    async def test_delete_manifestation_deletes_all_annotations(self, client, test_database, test_person_data):
-        """Test that deleting a manifestation deletes all associated annotations"""
+    async def test_delete_edition_deletes_all_annotations(self, client, test_database, test_person_data):
+        """Test that deleting a edition deletes all associated annotations"""
         person_id = await self._create_test_person(test_database, test_person_data)
-        expression_id = await self._create_test_expression(test_database, person_id)
+        text_id = await self._create_test_text(test_database, person_id)
 
-        source_manifestation_id = await self._create_test_manifestation(
-            test_database, expression_id, "0123456789ABCDEFGHIJ"
+        source_edition_id = await self._create_test_edition(
+            test_database, text_id, "0123456789ABCDEFGHIJ"
         )
-        target_manifestation_id = await self._create_test_manifestation(
-            test_database, expression_id, "KLMNOPQRSTUVWXYZ0123"
+        target_edition_id = await self._create_test_edition(
+            test_database, text_id, "KLMNOPQRSTUVWXYZ0123"
         )
 
         segmentation = SegmentationInput(
-            segments=[SegmentInput(lines=[SpanModel(start=0, end=10)])]
+            segments=[SegmentInput(lines=[Span(start=0, end=10)])]
         )
-        segmentation_id = await test_database.annotation.segmentation.add(source_manifestation_id, segmentation)
+        segmentation_id = await test_database.annotation.segmentation.add(source_edition_id, segmentation)
 
         pagination = PaginationInput(
-            volume=VolumeModel(pages=[PageModel(reference="1a", lines=[SpanModel(start=0, end=10)])])
+            volume=Volume(pages=[Page(reference="1a", lines=[Span(start=0, end=10)])])
         )
-        pagination_id = await test_database.annotation.pagination.add(source_manifestation_id, pagination)
+        pagination_id = await test_database.annotation.pagination.add(source_edition_id, pagination)
 
         bibliographic_items = [
-            BibliographicMetadataInput(span=SpanModel(start=0, end=5), type=BibliographyType.COLOPHON)
+            BibliographicMetadataInput(span=Span(start=0, end=5), type=BibliographyType.COLOPHON)
         ]
-        bibliographic_ids = await test_database.annotation.bibliographic.add(source_manifestation_id, bibliographic_items)
+        bibliographic_ids = await test_database.annotation.bibliographic.add(source_edition_id, bibliographic_items)
 
-        note_items = [NoteInput(span=SpanModel(start=5, end=10), text="Test note")]
-        note_ids = await test_database.annotation.note.add_durchen(source_manifestation_id, note_items)
+        note_items = [NoteInput(span=Span(start=5, end=10), text="Test note")]
+        note_ids = await test_database.annotation.note.add_durchen(source_edition_id, note_items)
 
         alignment = AlignmentInput(
-            target_id=target_manifestation_id,
-            target_segments=[SegmentInput(lines=[SpanModel(start=0, end=10)])],
-            aligned_segments=[AlignedSegment(lines=[SpanModel(start=0, end=10)], alignment_indices=[0])],
+            target_id=target_edition_id,
+            target_segments=[SegmentInput(lines=[Span(start=0, end=10)])],
+            aligned_segments=[AlignedSegment(lines=[Span(start=0, end=10)], alignment_indices=[0])],
         )
-        alignment_id = await test_database.annotation.alignment.add(source_manifestation_id, alignment)
+        alignment_id = await test_database.annotation.alignment.add(source_edition_id, alignment)
 
         assert (await client.get(f"/v2/annotations/segmentation/{segmentation_id}")).status_code == 200
         assert (await client.get(f"/v2/annotations/pagination/{pagination_id}")).status_code == 200
@@ -787,7 +785,7 @@ class TestDeleteManifestationWithAnnotations(TestAnnotationsEndpoints):
         assert (await client.get(f"/v2/annotations/durchen/{note_ids[0]}")).status_code == 200
         assert (await client.get(f"/v2/annotations/alignment/{alignment_id}")).status_code == 200
 
-        await test_database.manifestation.delete(source_manifestation_id)
+        await test_database.edition.delete(source_edition_id)
 
         assert (await client.get(f"/v2/annotations/segmentation/{segmentation_id}")).status_code == 404
         assert (await client.get(f"/v2/annotations/pagination/{pagination_id}")).status_code == 404
@@ -819,16 +817,16 @@ class TestAnnotationRoundTrip(TestAnnotationsEndpoints):
     async def test_segmentation_round_trip(self, client, test_database, test_person_data):
         """Test full lifecycle of a segmentation annotation"""
         person_id = await self._create_test_person(test_database, test_person_data)
-        expression_id = await self._create_test_expression(test_database, person_id)
-        manifestation_id = await self._create_test_manifestation(test_database, expression_id, "Round trip test content")
+        text_id = await self._create_test_text(test_database, person_id)
+        edition_id = await self._create_test_edition(test_database, text_id, "Round trip test content")
 
         segmentation = SegmentationInput(
             segments=[
-                SegmentInput(lines=[SpanModel(start=0, end=10)]),
-                SegmentInput(lines=[SpanModel(start=11, end=23)]),
+                SegmentInput(lines=[Span(start=0, end=10)]),
+                SegmentInput(lines=[Span(start=11, end=23)]),
             ]
         )
-        segmentation_id = await test_database.annotation.segmentation.add(manifestation_id, segmentation)
+        segmentation_id = await test_database.annotation.segmentation.add(edition_id, segmentation)
 
         get_response = await client.get(f"/v2/annotations/segmentation/{segmentation_id}")
         assert get_response.status_code == 200
@@ -845,19 +843,19 @@ class TestAnnotationRoundTrip(TestAnnotationsEndpoints):
     async def test_pagination_round_trip(self, client, test_database, test_person_data):
         """Test full lifecycle of a pagination annotation"""
         person_id = await self._create_test_person(test_database, test_person_data)
-        expression_id = await self._create_test_expression(test_database, person_id)
-        manifestation_id = await self._create_test_manifestation(test_database, expression_id, "Pagination test content")
+        text_id = await self._create_test_text(test_database, person_id)
+        edition_id = await self._create_test_edition(test_database, text_id, "Pagination test content")
 
         pagination = PaginationInput(
-            volume=VolumeModel(
+            volume=Volume(
                 index=1,
                 pages=[
-                    PageModel(reference="1a", lines=[SpanModel(start=0, end=11)]),
-                    PageModel(reference="1b", lines=[SpanModel(start=11, end=23)]),
+                    Page(reference="1a", lines=[Span(start=0, end=11)]),
+                    Page(reference="1b", lines=[Span(start=11, end=23)]),
                 ],
             )
         )
-        pagination_id = await test_database.annotation.pagination.add(manifestation_id, pagination)
+        pagination_id = await test_database.annotation.pagination.add(edition_id, pagination)
 
         get_response = await client.get(f"/v2/annotations/pagination/{pagination_id}")
         assert get_response.status_code == 200

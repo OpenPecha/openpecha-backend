@@ -1,12 +1,13 @@
 import logging
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, Path, status
+from fastapi import APIRouter, Depends, Path, status
 
 from database import Database
-from dependencies import get_api_key, get_db
+from dependencies import RequiredAppHeader, get_api_key, get_db
 from exceptions import DataNotFoundError
-from models import IdResponse, TagInput, TagOutput
+from models.responses import IdResponse
+from models.tag import TagInput, TagOutput
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,7 @@ router = APIRouter(prefix="/v2/tags", tags=["Tags"])
 async def get_tags(
     _api_key: Annotated[str, Depends(get_api_key)],
     db: Annotated[Database, Depends(get_db)],
-    x_application: Annotated[str, Header(alias="X-Application")],
+    x_application: RequiredAppHeader,
 ) -> list[TagOutput]:
     """List all tags for an application."""
     if not await db.application.exists(x_application):
@@ -40,7 +41,7 @@ async def create_tag(
     data: TagInput,
     _api_key: Annotated[str, Depends(get_api_key)],
     db: Annotated[Database, Depends(get_db)],
-    x_application: Annotated[str, Header(alias="X-Application")],
+    x_application: RequiredAppHeader,
 ) -> IdResponse:
     """Create a new tag."""
     if not await db.application.exists(x_application):
@@ -60,7 +61,7 @@ async def delete_tag(
     tag_id: Annotated[str, Path(description="The ID of the tag")],
     _api_key: Annotated[str, Depends(get_api_key)],
     db: Annotated[Database, Depends(get_db)],
-    x_application: Annotated[str, Header(alias="X-Application")],
+    x_application: RequiredAppHeader,
 ) -> None:
     """Delete a tag."""
     if not await db.application.exists(x_application):

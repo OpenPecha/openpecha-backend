@@ -104,14 +104,14 @@ def _adjust_annotation_for_replace(
 
 class SpanDatabase:
     FIND_CONTINUOUS_SPANS_QUERY = """
-    MATCH (m:Manifestation {id: $manifestation_id})
+    MATCH (m:Edition {id: $edition_id})
         <-[:SEGMENTATION_OF]-()
         <-[:SEGMENT_OF]-(entity:Segment)
         <-[:SPAN_OF]-(span:Span)
     RETURN entity.id AS entity_id, span.start AS span_start, span.end AS span_end
     ORDER BY span.start
     UNION ALL
-    MATCH (m:Manifestation {id: $manifestation_id})
+    MATCH (m:Edition {id: $edition_id})
         <-[:PAGINATION_OF]-(:Pagination)
         <-[:VOLUME_OF]-(:Volume)
         <-[:PAGE_OF]-(entity:Page)
@@ -121,7 +121,7 @@ class SpanDatabase:
     """
 
     FIND_ANNOTATION_SPANS_QUERY = """
-    MATCH (m:Manifestation {id: $manifestation_id})
+    MATCH (m:Edition {id: $edition_id})
         <-[:NOTE_OF|BIBLIOGRAPHY_OF|ATTRIBUTE_OF]-(entity)
         <-[:SPAN_OF]-(span:Span)
     RETURN entity.id AS entity_id, span.start AS span_start, span.end AS span_end
@@ -156,14 +156,14 @@ class SpanDatabase:
         if deletes:
             await session.run(self.BATCH_DELETE_ENTITIES_QUERY, entity_ids=deletes)
 
-    async def adjust_spans_for_insert(self, manifestation_id: str, position: int, length: int) -> None:
+    async def adjust_spans_for_insert(self, edition_id: str, position: int, length: int) -> None:
         """Adjust all spans for an INSERT operation."""
         async with self._db.get_session() as session:
             updates: list[dict[str, str | int]] = []
 
             result = await session.run(
                 self.FIND_CONTINUOUS_SPANS_QUERY,
-                manifestation_id=manifestation_id,
+                edition_id=edition_id,
             )
             for record in await result.data():
                 adjusted = _adjust_continuous_for_insert(record["span_start"], record["span_end"], position, length)
@@ -172,7 +172,7 @@ class SpanDatabase:
 
             result = await session.run(
                 self.FIND_ANNOTATION_SPANS_QUERY,
-                manifestation_id=manifestation_id,
+                edition_id=edition_id,
             )
             for record in await result.data():
                 adjusted = _adjust_annotation_for_insert(record["span_start"], record["span_end"], position, length)
@@ -181,7 +181,7 @@ class SpanDatabase:
 
             await self._flush_batch(session, updates, [])
 
-    async def adjust_spans_for_delete(self, manifestation_id: str, start: int, end: int) -> None:
+    async def adjust_spans_for_delete(self, edition_id: str, start: int, end: int) -> None:
         """Adjust all spans for a DELETE operation."""
         async with self._db.get_session() as session:
             updates: list[dict[str, str | int]] = []
@@ -189,7 +189,7 @@ class SpanDatabase:
 
             result = await session.run(
                 self.FIND_CONTINUOUS_SPANS_QUERY,
-                manifestation_id=manifestation_id,
+                edition_id=edition_id,
             )
             for record in await result.data():
                 adjusted = _adjust_span_for_delete(record["span_start"], record["span_end"], start, end)
@@ -200,7 +200,7 @@ class SpanDatabase:
 
             result = await session.run(
                 self.FIND_ANNOTATION_SPANS_QUERY,
-                manifestation_id=manifestation_id,
+                edition_id=edition_id,
             )
             for record in await result.data():
                 adjusted = _adjust_span_for_delete(record["span_start"], record["span_end"], start, end)
@@ -211,7 +211,7 @@ class SpanDatabase:
 
             await self._flush_batch(session, updates, deletes)
 
-    async def adjust_spans_for_replace(self, manifestation_id: str, start: int, end: int, new_len: int) -> None:
+    async def adjust_spans_for_replace(self, edition_id: str, start: int, end: int, new_len: int) -> None:
         """Adjust all spans for a REPLACE operation."""
         async with self._db.get_session() as session:
             updates: list[dict[str, str | int]] = []
@@ -220,7 +220,7 @@ class SpanDatabase:
 
             result = await session.run(
                 self.FIND_CONTINUOUS_SPANS_QUERY,
-                manifestation_id=manifestation_id,
+                edition_id=edition_id,
             )
             for record in await result.data():
                 span_start = record["span_start"]
@@ -240,7 +240,7 @@ class SpanDatabase:
 
             result = await session.run(
                 self.FIND_ANNOTATION_SPANS_QUERY,
-                manifestation_id=manifestation_id,
+                edition_id=edition_id,
             )
             for record in await result.data():
                 adjusted = _adjust_annotation_for_replace(record["span_start"], record["span_end"], start, end, new_len)

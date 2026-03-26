@@ -1,15 +1,22 @@
 import logging
+from typing import Annotated
 
-from fastapi import Depends, Header, Request
+from fastapi import Depends, Header, Request, Security
+from fastapi.security import APIKeyHeader
 
 from database import Database
 from exceptions import UnauthorizedError
-from storage_s3 import Storage
+from storage import Storage
 
 logger = logging.getLogger(__name__)
 
 API_KEY_HEADER = "X-API-Key"
 APPLICATION_HEADER = "X-Application"
+
+api_key_header = APIKeyHeader(name=API_KEY_HEADER, auto_error=False)
+
+OptionalAppHeader = Annotated[str | None, Header(alias="X-Application")]
+RequiredAppHeader = Annotated[str, Header(alias="X-Application")]
 
 
 def get_db(request: Request) -> Database:
@@ -24,7 +31,7 @@ def get_storage(request: Request) -> Storage:
 
 async def get_api_key(
     request: Request,
-    x_api_key: str | None = Header(None, alias="X-API-Key"),
+    x_api_key: str | None = Security(api_key_header),
 ) -> str:
     """
     Validate the API key from the request header.

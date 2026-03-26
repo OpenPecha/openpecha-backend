@@ -142,7 +142,7 @@ GET /v2/annotations/segmentation/{segmentation_id}
   "segments": [
     {
       "id": "segment_001",
-      "manifestation_id": "M12345678",
+      "edition_id": "M12345678",
       "text_id": "E12345678",
       "lines": [
         {
@@ -153,7 +153,7 @@ GET /v2/annotations/segmentation/{segmentation_id}
     },
     {
       "id": "segment_002",
-      "manifestation_id": "M12345678",
+      "edition_id": "M12345678",
       "text_id": "E12345678",
       "lines": [
         {
@@ -241,7 +241,7 @@ GET /v2/annotations/alignment/{alignment_id}
   "target_segments": [
     {
       "id": "target_seg_001",
-      "manifestation_id": "M87654321",
+      "edition_id": "M87654321",
       "text_id": "E87654321",
       "lines": [
         {
@@ -252,7 +252,7 @@ GET /v2/annotations/alignment/{alignment_id}
     },
     {
       "id": "target_seg_002",
-      "manifestation_id": "M87654321",
+      "edition_id": "M87654321",
       "text_id": "E87654321",
       "lines": [
         {
@@ -286,9 +286,9 @@ GET /v2/annotations/alignment/{alignment_id}
 ```
 
 **Alignment Structure:**
-- `target_id`: The manifestation being aligned to
-- `target_segments`: Segments in the target manifestation
-- `aligned_segments`: Segments in the source manifestation with indices indicating which target segments they align to
+- `target_id`: The edition being aligned to
+- `target_segments`: Segments in the target edition
+- `aligned_segments`: Segments in the source edition with indices indicating which target segments they align to
 
 **Error Responses:**
 - `404 Not Found`: Alignment does not exist

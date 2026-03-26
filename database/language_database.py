@@ -3,7 +3,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from exceptions import DataNotFoundError, DataValidationError
-from models import LanguageResponse
+from models.responses import LanguageResponse
 
 if TYPE_CHECKING:
     from neo4j import AsyncSession

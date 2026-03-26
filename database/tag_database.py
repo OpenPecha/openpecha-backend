@@ -11,7 +11,7 @@ from .nomen_database import NomenDatabase
 if TYPE_CHECKING:
     from neo4j import AsyncManagedTransaction, AsyncSession
 
-    from models import TagInput, TagOutput
+    from models.tag import TagInput, TagOutput
 
     from .database import Database
 

@@ -30,12 +30,12 @@ class Storage:
             self._client_context = None
 
     @staticmethod
-    def _base_text_path(expression_id: str, manifestation_id: str) -> str:
-        return f"base_texts/{expression_id}/{manifestation_id}.txt"
+    def _base_text_path(text_id: str, edition_id: str) -> str:
+        return f"base_texts/{text_id}/{edition_id}.txt"
 
-    async def store_base_text(self, expression_id: str, manifestation_id: str, base_text: str) -> str:
+    async def store_base_text(self, text_id: str, edition_id: str, base_text: str) -> str:
         """Store base text to S3."""
-        key = self._base_text_path(expression_id, manifestation_id)
+        key = self._base_text_path(text_id, edition_id)
         s3 = self._client
 
         await s3.put_object(
@@ -50,9 +50,9 @@ class Storage:
         logger.info("Uploaded base text to S3: %s", url)
         return url
 
-    async def retrieve_base_text(self, expression_id: str, manifestation_id: str) -> str:
+    async def retrieve_base_text(self, text_id: str, edition_id: str) -> str:
         """Retrieve base text from S3."""
-        key = self._base_text_path(expression_id, manifestation_id)
+        key = self._base_text_path(text_id, edition_id)
         s3 = self._client
 
         try:
@@ -66,35 +66,35 @@ class Storage:
                 raise DataNotFoundError(f"File not found in S3: {key}") from e
             raise
 
-    async def delete_base_text(self, expression_id: str, manifestation_id: str) -> None:
+    async def delete_base_text(self, text_id: str, edition_id: str) -> None:
         """Delete base text from S3."""
-        key = self._base_text_path(expression_id, manifestation_id)
+        key = self._base_text_path(text_id, edition_id)
         s3 = self._client
 
         await s3.delete_object(Bucket=self.bucket_name, Key=key)
         logger.info("Deleted from S3: %s", key)
 
-    async def apply_insert(self, expression_id: str, manifestation_id: str, position: int, text: str) -> str:
+    async def apply_insert(self, text_id: str, edition_id: str, position: int, text: str) -> str:
         """Insert text at the specified position."""
-        current_text = await self.retrieve_base_text(expression_id, manifestation_id)
+        current_text = await self.retrieve_base_text(text_id, edition_id)
         updated_text = current_text[:position] + text + current_text[position:]
-        return await self.store_base_text(expression_id, manifestation_id, updated_text)
+        return await self.store_base_text(text_id, edition_id, updated_text)
 
-    async def apply_delete(self, expression_id: str, manifestation_id: str, start: int, end: int) -> str:
+    async def apply_delete(self, text_id: str, edition_id: str, start: int, end: int) -> str:
         """Delete text in the specified range [start, end)."""
-        current_text = await self.retrieve_base_text(expression_id, manifestation_id)
+        current_text = await self.retrieve_base_text(text_id, edition_id)
         updated_text = current_text[:start] + current_text[end:]
-        return await self.store_base_text(expression_id, manifestation_id, updated_text)
+        return await self.store_base_text(text_id, edition_id, updated_text)
 
-    async def apply_replace(self, expression_id: str, manifestation_id: str, start: int, end: int, text: str) -> str:
+    async def apply_replace(self, text_id: str, edition_id: str, start: int, end: int, text: str) -> str:
         """Replace text in the specified range [start, end) with new text."""
-        current_text = await self.retrieve_base_text(expression_id, manifestation_id)
+        current_text = await self.retrieve_base_text(text_id, edition_id)
         updated_text = current_text[:start] + text + current_text[end:]
-        return await self.store_base_text(expression_id, manifestation_id, updated_text)
+        return await self.store_base_text(text_id, edition_id, updated_text)
 
-    async def rollback_base_text(self, expression_id: str, manifestation_id: str) -> None:
+    async def rollback_base_text(self, text_id: str, edition_id: str) -> None:
         """Rollback to previous version (requires S3 versioning enabled)."""
-        key = self._base_text_path(expression_id, manifestation_id)
+        key = self._base_text_path(text_id, edition_id)
         s3 = self._client
 
         versions = await s3.list_object_versions(Bucket=self.bucket_name, Prefix=key)

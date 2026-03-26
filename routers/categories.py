@@ -1,12 +1,13 @@
 import logging
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Header, Query
+from fastapi import APIRouter, Depends, Query
 
 from database import Database
-from dependencies import get_api_key, get_db
+from dependencies import RequiredAppHeader, get_api_key, get_db
 from exceptions import DataNotFoundError
-from models import CategoryInput, CategoryOutput, IdResponse
+from models.category import CategoryInput, CategoryOutput
+from models.responses import IdResponse
 
 logger = logging.getLogger(__name__)
 
@@ -21,7 +22,7 @@ router = APIRouter(prefix="/v2/categories", tags=["Categories"])
 async def get_categories(
     _api_key: Annotated[str, Depends(get_api_key)],
     db: Annotated[Database, Depends(get_db)],
-    x_application: Annotated[str, Header(alias="X-Application")],
+    x_application: RequiredAppHeader,
     parent_id: Annotated[str | None, Query(description="Filter by parent category ID")] = None,
 ) -> list[CategoryOutput]:
     """List categories for an application."""
@@ -41,7 +42,7 @@ async def create_category(
     data: CategoryInput,
     _api_key: Annotated[str, Depends(get_api_key)],
     db: Annotated[Database, Depends(get_db)],
-    x_application: Annotated[str, Header(alias="X-Application")],
+    x_application: RequiredAppHeader,
 ) -> IdResponse:
     """Create a new category."""
     if not await db.application.exists(x_application):

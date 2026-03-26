@@ -5,8 +5,8 @@ from fastapi import APIRouter, Depends
 
 from database import Database
 from dependencies import get_api_key, get_db
-from models import ApplicationResponse
-from request_models import ApplicationCreateRequest
+from models.requests import ApplicationCreateRequest
+from models.responses import ApplicationResponse
 
 logger = logging.getLogger(__name__)
 

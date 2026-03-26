@@ -16,7 +16,7 @@ This document provides comprehensive documentation for all Texts-related endpoin
 
 ## Overview
 
-Texts (also known as Expressions in FRBR terminology) represent the intellectual content of a work independent of any specific physical manifestation. A text can have multiple editions (manifestations), translations, and commentaries.
+Texts (also known as Expressions in FRBR terminology) represent the intellectual content of a work independent of any specific physical edition. A text can have multiple editions (editions), translations, and commentaries.
 
 ### Key Concepts
 

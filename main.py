@@ -19,7 +19,7 @@ from routers.persons import router as persons_router
 from routers.segments import router as segments_router
 from routers.tags import router as tags_router
 from routers.texts import router as texts_router
-from storage_s3 import Storage
+from storage import Storage
 
 logger = logging.getLogger(__name__)
 

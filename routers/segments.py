@@ -2,19 +2,19 @@ import logging
 from typing import Annotated
 
 import httpx
-from fastapi import APIRouter, Depends, Header, Path, Query, status
+from fastapi import APIRouter, Depends, Path, Query, status
 
+from config import settings
 from database import Database
-from dependencies import get_api_key, get_db, get_storage
+from dependencies import OptionalAppHeader, get_api_key, get_db, get_storage
 from exceptions import DataNotFoundError, InvalidRequestError
-from models import SearchFilterModel, SearchResponseModel, SearchResultModel, SegmentOutput
-from storage_s3 import Storage
+from models.annotation import SegmentOutput
+from models.search import SearchFilter, SearchResponse, SearchResult
+from storage import Storage
 
 logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/v2/segments", tags=["Segments"])
-
-SEARCH_API_URL = "https://openpecha-search.onrender.com"
 
 
 @router.get(
@@ -26,7 +26,7 @@ async def get_related(
     segment_id: Annotated[str, Path(description="The ID of the segment")],
     _api_key: Annotated[str, Depends(get_api_key)],
     db: Annotated[Database, Depends(get_db)],
-    x_application: Annotated[str | None, Header(alias="X-Application")] = None,
+    x_application: OptionalAppHeader = None,
 ) -> list[SegmentOutput]:
     """Get related segments."""
     return await db.segment.get_related(segment_id, application=x_application)
@@ -42,13 +42,13 @@ async def get_segment_content(
     _api_key: Annotated[str, Depends(get_api_key)],
     db: Annotated[Database, Depends(get_db)],
     storage: Annotated[Storage, Depends(get_storage)],
-    x_application: Annotated[str | None, Header(alias="X-Application")] = None,
+    x_application: OptionalAppHeader = None,
 ) -> str:
     """Get segment content."""
     segment = await db.segment.get(segment_id, application=x_application)
     base_text = await storage.retrieve_base_text(
-        expression_id=segment.text_id,
-        manifestation_id=segment.manifestation_id,
+        text_id=segment.text_id,
+        edition_id=segment.edition_id,
     )
     return base_text[segment.span.start : segment.span.end]
 
@@ -99,12 +99,12 @@ async def search_segments(
     *,
     return_text: bool = True,
     title: str | None = None,
-) -> SearchResponseModel:
+) -> SearchResponse:
     """Search segments."""
-    filter_obj = SearchFilterModel(title=title) if title else None
+    filter_obj = SearchFilter(title=title) if title else None
 
     try:
-        logger.info("Forwarding search request to %s/search", SEARCH_API_URL)
+        logger.info("Forwarding search request to %s/search", settings.search_api_url)
 
         params = {
             "query": query,
@@ -116,7 +116,7 @@ async def search_segments(
             params["title"] = filter_obj.title
 
         async with httpx.AsyncClient(timeout=60) as client:
-            response = await client.get(f"{SEARCH_API_URL}/search", params=params)
+            response = await client.get(f"{settings.search_api_url}/search", params=params)
             response.raise_for_status()
             search_response_data = response.json()
 
@@ -130,7 +130,7 @@ async def search_segments(
         segment_id = result_item.get("id")
         if not segment_id:
             enriched_results.append(
-                SearchResultModel(
+                SearchResult(
                     id=result_item.get("id", ""),
                     distance=result_item.get("distance", 0.0),
                     entity=result_item.get("entity", {}),
@@ -142,12 +142,12 @@ async def search_segments(
         try:
             segment = await db.segment.get(segment_id)
             segmentation_ids = await db.segment.find_by_span(
-                manifestation_id=segment.manifestation_id,
+                edition_id=segment.edition_id,
                 start=segment.span.start,
                 end=segment.span.end,
             )
             enriched_results.append(
-                SearchResultModel(
+                SearchResult(
                     id=result_item.get("id", ""),
                     distance=result_item.get("distance", 0.0),
                     entity=result_item.get("entity", {}),
@@ -157,7 +157,7 @@ async def search_segments(
         except DataNotFoundError:
             logger.warning("Segment %s not found, skipping segmentation mapping", segment_id)
             enriched_results.append(
-                SearchResultModel(
+                SearchResult(
                     id=result_item.get("id", ""),
                     distance=result_item.get("distance", 0.0),
                     entity=result_item.get("entity", {}),
@@ -167,7 +167,7 @@ async def search_segments(
         except Exception:
             logger.exception("Error processing segment %s", segment_id)
             enriched_results.append(
-                SearchResultModel(
+                SearchResult(
                     id=result_item.get("id", ""),
                     distance=result_item.get("distance", 0.0),
                     entity=result_item.get("entity", {}),
@@ -175,7 +175,7 @@ async def search_segments(
                 )
             )
 
-    return SearchResponseModel(
+    return SearchResponse(
         query=search_response_data.get("query", query),
         search_type=search_response_data.get("search_type", search_type),
         results=enriched_results,

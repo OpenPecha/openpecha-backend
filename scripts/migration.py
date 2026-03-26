@@ -9,7 +9,7 @@ from typing import TYPE_CHECKING
 from dotenv import load_dotenv
 
 from identifier import generate_id
-from models import AttributeType, LicenseType, NoteType
+from models.enums import AttributeType, LicenseType, NoteType
 
 if TYPE_CHECKING:
     from neo4j import Session
@@ -431,6 +431,52 @@ def migrate_delete_search_segmentation_annotations(session: Session) -> int:
     return deleted
 
 
+def migrate_relabel_manifestation_to_edition(session: Session) -> dict[str, int]:
+    """Relabel Manifestation nodes to Edition nodes and rename MANIFESTATION_OF to EDITION_OF."""
+    result = session.run("""
+        MATCH (m:Manifestation)
+        SET m:Edition
+        REMOVE m:Manifestation
+        RETURN count(m) AS count
+    """).single()
+    node_count = result["count"] if result else 0
+    logger.info("Relabeled %d Manifestation nodes to Edition", node_count)
+
+    result = session.run("""
+        MATCH (m)-[r:MANIFESTATION_OF]->(e:Expression)
+        CREATE (m)-[:EDITION_OF]->(e)
+        DELETE r
+        RETURN count(r) AS count
+    """).single()
+    rel_count = result["count"] if result else 0
+    logger.info("Renamed %d MANIFESTATION_OF relationships to EDITION_OF", rel_count)
+
+    return {"nodes_relabeled": node_count, "relationships_renamed": rel_count}
+
+
+def migrate_relabel_expression_to_text(session: Session) -> dict[str, int]:
+    """Relabel Expression nodes to Text nodes and rename EXPRESSION_OF to TEXT_OF."""
+    result = session.run("""
+        MATCH (e:Expression)
+        SET e:Text
+        REMOVE e:Expression
+        RETURN count(e) AS count
+    """).single()
+    node_count = result["count"] if result else 0
+    logger.info("Relabeled %d Expression nodes to Text", node_count)
+
+    result = session.run("""
+        MATCH (e)-[r:EXPRESSION_OF]->(w:Work)
+        CREATE (e)-[:TEXT_OF {original: r.original}]->(w)
+        DELETE r
+        RETURN count(r) AS count
+    """).single()
+    rel_count = result["count"] if result else 0
+    logger.info("Renamed %d EXPRESSION_OF relationships to TEXT_OF", rel_count)
+
+    return {"nodes_relabeled": node_count, "relationships_renamed": rel_count}
+
+
 def migrate_delete_obsolete_nodes(session: Session) -> dict[str, int]:
     """Delete obsolete AnnotationType, License, Copyright, CopyrightStatus nodes."""
     counts: dict[str, int] = {}
@@ -470,6 +516,8 @@ def run_all_migrations(session: Session) -> dict[str, int | dict[str, int]]:
         "bibliography_to_metadata": migrate_bibliography_annotations(session),
         "segmentation_annotations": migrate_segmentation_annotations(session),
         "search_segmentation_deleted": migrate_delete_search_segmentation_annotations(session),
+        "manifestation_relabeled": migrate_relabel_manifestation_to_edition(session),
+        "expression_relabeled": migrate_relabel_expression_to_text(session),
         "obsolete_nodes_deleted": migrate_delete_obsolete_nodes(session),
     }
     logger.info("All migrations complete.")

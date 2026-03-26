@@ -105,7 +105,7 @@ nodes:
         cardinality: one
         required: false
 
-  Expression:
+  Text:
     properties:
       id:
         type: string
@@ -123,7 +123,7 @@ nodes:
         type: string
         required: false
     relationships:
-      EXPRESSION_OF:
+      TEXT_OF:
         target: Work
         cardinality: one
         required: true
@@ -132,11 +132,11 @@ nodes:
             type: boolean
             required: true
       TRANSLATION_OF:
-        target: Expression
+        target: Text
         cardinality: one
         required: false
       COMMENTARY_OF:
-        target: Expression
+        target: Text
         cardinality: one
         required: false
       HAS_LANGUAGE:
@@ -160,7 +160,7 @@ nodes:
         cardinality: one
         required: true
 
-  Manifestation:
+  Edition:
     properties:
       id:
         type: string
@@ -179,15 +179,15 @@ nodes:
         unique: true
     relationships:
       HAS_TYPE:
-        target: ManifestationType
+        target: EditionType
         cardinality: one
         required: true
       HAS_INCIPIT_TITLE:
         target: Nomen
         cardinality: one
         required: false
-      MANIFESTATION_OF:
-        target: Expression
+      EDITION_OF:
+        target: Text
         cardinality: one
         required: true
       HAS_SOURCE:
@@ -209,7 +209,7 @@ nodes:
         unique: true
     relationships:
       SEGMENTATION_OF:
-        target: Manifestation
+        target: Edition
         cardinality: one
         required: true
       HAS_METADATA:
@@ -259,7 +259,7 @@ nodes:
         unique: true
     relationships:
       BIBLIOGRAPHY_OF:
-        target: Manifestation
+        target: Edition
         cardinality: one
         required: true
       HAS_TYPE:
@@ -282,7 +282,7 @@ nodes:
         required: true
     relationships:
       NOTE_OF:
-        target: Manifestation
+        target: Edition
         cardinality: one
         required: true
       HAS_TYPE:
@@ -305,7 +305,7 @@ nodes:
         required: true
     relationships:
       ATTRIBUTE_OF:
-        target: Manifestation
+        target: Edition
         cardinality: one
         required: true
       HAS_TYPE:
@@ -325,7 +325,7 @@ nodes:
         unique: true
     relationships:
       PAGINATION_OF:
-        target: Manifestation
+        target: Edition
         cardinality: one
         required: true
       HAS_METADATA:
@@ -449,7 +449,7 @@ nodes:
         type: string
         required: true
 
-  ManifestationType:
+  EditionType:
     enum: true
     properties:
       name:

@@ -15,7 +15,7 @@ This document describes the Pydantic models and enums in [functions/models.py](.
 7. [Segments](#segments)
 8. [Pagination, bibliography, notes, attributes](#pagination-bibliography-notes-attributes)
 9. [Expression](#expression)
-10. [Manifestation (edition)](#manifestation-edition)
+10. [Manifestation (edition)](#edition-edition)
 11. [Category](#category)
 12. [Search](#search)
 13. [Text operations](#text-operations)
@@ -27,7 +27,7 @@ This document describes the Pydantic models and enums in [functions/models.py](.
 `functions/models.py` provides:
 
 - **Request/response models** – Input (e.g. `PersonInput`), output (e.g. `PersonOutput`), and patch (e.g. `PersonPatch`) variants for API payloads.
-- **Domain models** – Shared types for expressions, manifestations, annotations, segments, etc.
+- **Domain models** – Shared types for expressions, editions, annotations, segments, etc.
 - **Validation** – Pydantic validators enforce business rules (e.g. at most one parent for expressions, continuous spans).
 
 See the source file for full validator implementations.
@@ -49,7 +49,7 @@ See the source file for full validator implementations.
 | **TextType** | `root`, `commentary`, `translation`, `translation_source`, `none` |
 | **ContributorRole** | `translator`, `reviser`, `author`, `scholar` |
 | **AnnotationType** | `segmentation`, `alignment`, `pagination`, `version`, `bibliography`, `table_of_contents`, `durchen`, `search_segmentation` |
-| **ManifestationType** | `diplomatic`, `critical`, `collated` |
+| **EditionType** | `diplomatic`, `critical`, `collated` |
 | **LicenseType** | `cc0`, `public`, `cc-by`, `cc-by-sa`, `cc-by-nd`, `cc-by-nc`, `cc-by-nc-sa`, `cc-by-nc-nd`, `copyrighted`, `unknown` |
 | **NoteType** | `durchen` |
 | **BibliographyType** | `colophon`, `incipit`, `alt_incipit`, `alt_title`, `person`, `title`, `author` |
@@ -78,15 +78,15 @@ See the source file for full validator implementations.
 ## Annotation and span
 
 - **AnnotationModel** – `id`, `type` (AnnotationType), `aligned_to` (optional). Validator: `aligned_to` may only be set when `type` is `ALIGNMENT`.
-- **SpanModel** – `start` (≥0, inclusive), `end` (≥1, exclusive). Validator: `start` < `end`.
+- **Span** – `start` (≥0, inclusive), `end` (≥1, exclusive). Validator: `start` < `end`.
 - **AnnotationMetadata** – Empty extensible model for annotation metadata.
 
 ---
 
 ## Segments
 
-- **SegmentBase** – `lines` (list of SpanModel, min length 1). Lines must be continuous and sorted (each line’s `start` equals previous line’s `end`). Property `span` returns combined span of first and last line.
-- **SegmentInput** / **SegmentOutput** – SegmentOutput adds `id`, `manifestation_id`, `text_id`.
+- **SegmentBase** – `lines` (list of Span, min length 1). Lines must be continuous and sorted (each line’s `start` equals previous line’s `end`). Property `span` returns combined span of first and last line.
+- **SegmentInput** / **SegmentOutput** – SegmentOutput adds `id`, `edition_id`, `text_id`.
 - **AlignedSegment** – `lines`, `alignment_indices` (min length 1). Same line continuity rule.
 - **SegmentationBase** – Generic over segment type. `segments`, optional `metadata`. Validator: segments sorted by span start.
 - **SegmentationInput** / **SegmentationOutput** – SegmentationOutput adds `id`.
@@ -97,8 +97,8 @@ See the source file for full validator implementations.
 
 ## Pagination, bibliography, notes, attributes
 
-- **PageModel** – `lines` (SpanModel list), `reference`. Lines must be continuous and sorted.
-- **VolumeModel** – Optional `index`, `pages` (min length 1), optional `metadata`. Validator: pages continuous (end of one = start of next).
+- **Page** – `lines` (Span list), `reference`. Lines must be continuous and sorted.
+- **Volume** – Optional `index`, `pages` (min length 1), optional `metadata`. Validator: pages continuous (end of one = start of next).
 - **PaginationBase** – `volume`, optional `metadata`. **PaginationInput** / **PaginationOutput** (output adds `id`).
 - **BibliographicMetadataBase** – `span`, `type` (BibliographyType), optional `metadata`. **BibliographicMetadataInput** / **BibliographicMetadataOutput** (output adds `id`).
 - **NoteBase** – `span`, `text`, optional `metadata`. **NoteInput** / **NoteOutput** (output adds `id`).
@@ -109,16 +109,16 @@ See the source file for full validator implementations.
 ## Expression
 
 - **ExpressionBase** – `bdrc`, `wiki`, `date`, `title` (LocalizedString), `alt_titles`, `language`, `commentary_of`, `translation_of`, `category_id`, `license` (default PUBLIC_DOMAIN_MARK). Validators: at most one of `commentary_of` / `translation_of`; title must include an entry for the expression’s (base) language; dedupe `alt_titles`.
-- **ExpressionInput** – ExpressionBase + `contributions` (list of ContributionInput or AIContributionModel).
+- **TextInput** – ExpressionBase + `contributions` (list of ContributionInput or AIContributionModel).
 - **ExpressionPatch** – All fields optional. Validators: at least one field provided; dedupe `alt_titles` when both title and alt_titles present.
-- **ExpressionOutput** – ExpressionBase + `id`, `contributions` (ContributionOutput or AIContributionModel), `commentaries`, `translations`, `editions` (list of IDs).
+- **TextOutput** – ExpressionBase + `id`, `contributions` (ContributionOutput or AIContributionModel), `commentaries`, `translations`, `editions` (list of IDs).
 
 ---
 
 ## Manifestation (edition)
 
-- **ManifestationBase** – `bdrc`, `wiki`, `type` (ManifestationType), `source`, `colophon`, `incipit_title`, `alt_incipit_titles`. Validators: when `type` is `diplomatic`, `bdrc` required; when `type` is `critical`, `bdrc` must not be set; `alt_incipit_titles` only when `incipit_title` is set; dedupe `alt_incipit_titles`.
-- **ManifestationInput** / **ManifestationOutput** – ManifestationOutput adds `id`, `text_id`.
+- **ManifestationBase** – `bdrc`, `wiki`, `type` (EditionType), `source`, `colophon`, `incipit_title`, `alt_incipit_titles`. Validators: when `type` is `diplomatic`, `bdrc` required; when `type` is `critical`, `bdrc` must not be set; `alt_incipit_titles` only when `incipit_title` is set; dedupe `alt_incipit_titles`.
+- **EditionInput** / **EditionOutput** – EditionOutput adds `id`, `text_id`.
 
 ---
 

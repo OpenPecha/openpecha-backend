@@ -5,7 +5,13 @@ from fastapi import APIRouter, Depends, Path, status
 
 from database import Database
 from dependencies import get_api_key, get_db
-from models import AlignmentOutput, BibliographicMetadataOutput, NoteOutput, PaginationOutput, SegmentationOutput
+from models.annotation import (
+    AlignmentOutput,
+    BibliographicMetadataOutput,
+    NoteOutput,
+    PaginationOutput,
+    SegmentationOutput,
+)
 
 logger = logging.getLogger(__name__)
 

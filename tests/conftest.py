@@ -221,40 +221,40 @@ class MockS3Storage:
     def __init__(self):
         self._storage: dict[str, str] = {}
 
-    async def store_base_text(self, expression_id: str, manifestation_id: str, base_text: str) -> str:
-        key = f"base_texts/{expression_id}/{manifestation_id}.txt"
+    async def store_base_text(self, text_id: str, edition_id: str, base_text: str) -> str:
+        key = f"base_texts/{text_id}/{edition_id}.txt"
         self._storage[key] = base_text
         return f"https://mock-s3.example.com/{key}"
 
-    async def retrieve_base_text(self, expression_id: str, manifestation_id: str) -> str:
-        key = f"base_texts/{expression_id}/{manifestation_id}.txt"
+    async def retrieve_base_text(self, text_id: str, edition_id: str) -> str:
+        key = f"base_texts/{text_id}/{edition_id}.txt"
         if key not in self._storage:
             from exceptions import DataNotFoundError
 
             raise DataNotFoundError(f"File not found: {key}")
         return self._storage[key]
 
-    async def delete_base_text(self, expression_id: str, manifestation_id: str) -> None:
-        key = f"base_texts/{expression_id}/{manifestation_id}.txt"
+    async def delete_base_text(self, text_id: str, edition_id: str) -> None:
+        key = f"base_texts/{text_id}/{edition_id}.txt"
         if key in self._storage:
             del self._storage[key]
 
-    async def apply_insert(self, expression_id: str, manifestation_id: str, position: int, text: str) -> str:
-        current = await self.retrieve_base_text(expression_id, manifestation_id)
+    async def apply_insert(self, text_id: str, edition_id: str, position: int, text: str) -> str:
+        current = await self.retrieve_base_text(text_id, edition_id)
         updated = current[:position] + text + current[position:]
-        return await self.store_base_text(expression_id, manifestation_id, updated)
+        return await self.store_base_text(text_id, edition_id, updated)
 
-    async def apply_delete(self, expression_id: str, manifestation_id: str, start: int, end: int) -> str:
-        current = await self.retrieve_base_text(expression_id, manifestation_id)
+    async def apply_delete(self, text_id: str, edition_id: str, start: int, end: int) -> str:
+        current = await self.retrieve_base_text(text_id, edition_id)
         updated = current[:start] + current[end:]
-        return await self.store_base_text(expression_id, manifestation_id, updated)
+        return await self.store_base_text(text_id, edition_id, updated)
 
-    async def apply_replace(self, expression_id: str, manifestation_id: str, start: int, end: int, text: str) -> str:
-        current = await self.retrieve_base_text(expression_id, manifestation_id)
+    async def apply_replace(self, text_id: str, edition_id: str, start: int, end: int, text: str) -> str:
+        current = await self.retrieve_base_text(text_id, edition_id)
         updated = current[:start] + text + current[end:]
-        return await self.store_base_text(expression_id, manifestation_id, updated)
+        return await self.store_base_text(text_id, edition_id, updated)
 
-    async def rollback_base_text(self, expression_id: str, manifestation_id: str) -> None:
+    async def rollback_base_text(self, text_id: str, edition_id: str) -> None:
         pass  # No-op for mock
 
 

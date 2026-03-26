@@ -14,13 +14,13 @@ from .annotation.segmentation_database import SegmentationDatabase
 from .api_key_database import ApiKeyDatabase
 from .application_database import ApplicationDatabase
 from .category_database import CategoryDatabase
-from .expression_database import ExpressionDatabase
+from .edition_database import EditionDatabase
 from .language_database import LanguageDatabase
-from .manifestation_database import ManifestationDatabase
 from .person_database import PersonDatabase
 from .segment_database import SegmentDatabase
 from .span_database import SpanDatabase
 from .tag_database import TagDatabase
+from .text_database import TextDatabase
 
 logger = getLogger(__name__)
 
@@ -48,8 +48,8 @@ class Database:
 
     api_key: ApiKeyDatabase
     application: ApplicationDatabase
-    expression: ExpressionDatabase
-    manifestation: ManifestationDatabase
+    text: TextDatabase
+    edition: EditionDatabase
     annotation: AnnotationDatabase
     segment: SegmentDatabase
     person: PersonDatabase
@@ -65,8 +65,8 @@ class Database:
 
         self.api_key = ApiKeyDatabase(db=self)
         self.application = ApplicationDatabase(db=self)
-        self.expression = ExpressionDatabase(db=self)
-        self.manifestation = ManifestationDatabase(db=self)
+        self.text = TextDatabase(db=self)
+        self.edition = EditionDatabase(db=self)
         self.annotation = AnnotationDatabase(db=self)
         self.segment = SegmentDatabase(db=self)
         self.person = PersonDatabase(db=self)

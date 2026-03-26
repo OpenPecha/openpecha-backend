@@ -11,7 +11,7 @@ from .nomen_database import NomenDatabase
 if TYPE_CHECKING:
     from neo4j import AsyncManagedTransaction, AsyncSession
 
-    from models import CategoryInput, CategoryOutput
+    from models.category import CategoryInput, CategoryOutput
 
     from .database import Database
 

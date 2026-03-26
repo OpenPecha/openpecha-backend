@@ -14,7 +14,9 @@ Requires environment variables:
 
 
 import pytest
-from models import CategoryInput, ExpressionInput, PersonInput
+from models.category import CategoryInput
+from models.text import TextInput
+from models.person import PersonInput
 
 
 @pytest.fixture
@@ -28,10 +30,10 @@ async def test_person_data():
     }
 
 @pytest.fixture
-async def test_expression_data():
-    """Sample expression data for testing"""
+async def test_text_data():
+    """Sample text data for testing"""
     return {
-        "title": {"en": "Test Expression", "bo": "བརྟག་དཔྱད་ཚིག་སྒྲུབ།"},
+        "title": {"en": "Test text", "bo": "བརྟག་དཔྱད་ཚིག་སྒྲུབ།"},
         "alt_titles": [{"en": "Alternative Title", "bo": "མཚན་བྱང་གཞན།"}],
         "language": "en",
         "contributions": [],  # Will be populated with actual person IDs
@@ -63,11 +65,11 @@ class TestGetAllTextsV2:
         # Use pre-created category from conftest
         category_id = 'category'
 
-        # Create test expressions
-        expression_ids = []
+        # Create test texts
+        text_ids = []
         for i in range(25):
             expr_data = {
-                "title": {"en": f"Test Expression {i+1}", "bo": f"བརྟག་དཔྱད་ཚིག་སྒྲུབ་{i+1}།"},
+                "title": {"en": f"Test text {i+1}", "bo": f"བརྟག་དཔྱད་ཚིག་སྒྲུབ་{i+1}།"},
                 "language": "en",
                 "category_id": category_id,
                 "contributions": [{"person_id": person_id, "role": "author"}],
@@ -75,9 +77,9 @@ class TestGetAllTextsV2:
                 "wiki": f"Q789012{i+1}",
                 "date": f"2024-01-01{i+1}",
             }
-            expression = ExpressionInput.model_validate(expr_data)
-            expression_id = await test_database.expression.create(expression)
-            expression_ids.append(expression_id)
+            text = TextInput.model_validate(expr_data)
+            text_id = await test_database.text.create(text)
+            text_ids.append(text_id)
 
         response = await client.get("/v2/texts/")
 
@@ -85,9 +87,9 @@ class TestGetAllTextsV2:
         data = response.json()
         assert isinstance(data, list)
         assert len(data) == 20
-        # Verify all returned IDs are from our created expressions
+        # Verify all returned IDs are from our created texts
         returned_ids = {item["id"] for item in data}
-        assert returned_ids.issubset(set(expression_ids))
+        assert returned_ids.issubset(set(text_ids))
 
     async def test_get_all_metadata_custom_pagination(self, client, test_database, test_person_data):
         """Test custom pagination parameters"""
@@ -97,18 +99,18 @@ class TestGetAllTextsV2:
         person_id = await test_database.person.create(person)
 
         category_id = 'category'  # Use pre-created category from conftest
-        # Create multiple expressions
-        expression_ids = []
+        # Create multiple texts
+        text_ids = []
         for i in range(5):
             expr_data = {
-                "title": {"en": f"Expression {i + 1}", "bo": f"ཚིག་སྒྲུབ་{i + 1}།"},
+                "title": {"en": f"text {i + 1}", "bo": f"ཚིག་སྒྲུབ་{i + 1}།"},
                 "language": "en",
                 "category_id": category_id,
                 "contributions": [{"person_id": person_id, "role": "author"}],
             }
-            expression = ExpressionInput.model_validate(expr_data)
-            expr_id = await test_database.expression.create(expression)
-            expression_ids.append(expr_id)
+            text = TextInput.model_validate(expr_data)
+            expr_id = await test_database.text.create(text)
+            text_ids.append(expr_id)
 
         # Test limit=2, offset=1
         response = await client.get("/v2/texts?limit=2&offset=1")
@@ -116,9 +118,9 @@ class TestGetAllTextsV2:
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 2
-        # Verify returned IDs are from our created expressions (order is by id, not creation)
+        # Verify returned IDs are from our created texts (order is by id, not creation)
         returned_ids = {item["id"] for item in data}
-        assert returned_ids.issubset(set(expression_ids))
+        assert returned_ids.issubset(set(text_ids))
 
     async def test_get_all_metadata_filter_by_category(self, client, test_database, test_person_data):
         """Test filtering by category_id"""
@@ -133,25 +135,25 @@ class TestGetAllTextsV2:
         category_2 = CategoryInput.model_validate({'title': {'en': 'Category 2', 'bo': 'དེབ་སྤྱི་༢།'}})
         category_id_2 = await test_database.category.create(category_2, 'test_application')
 
-        # Create expression in category 1
+        # Create text in category 1
         expr_data_1 = {
-            "title": {"en": "Expression in Category 1", "bo": "རྩ་བའི་ཚིག་སྒྲུབ།"},
+            "title": {"en": "text in Category 1", "bo": "རྩ་བའི་ཚིག་སྒྲུབ།"},
             "language": "en",
             "contributions": [{"person_id": person_id, "role": "author"}],
             "category_id": category_id_1,
         }
-        expression_1 = ExpressionInput.model_validate(expr_data_1)
-        expr_id_1 = await test_database.expression.create(expression_1)
+        text_1 = TextInput.model_validate(expr_data_1)
+        expr_id_1 = await test_database.text.create(text_1)
 
-        # Create expression in category 2
+        # Create text in category 2
         expr_data_2 = {
-            "title": {"en": "Expression in Category 2", "bo": "སྒྱུར་བའི་ཚིག་སྒྲུབ།"},
+            "title": {"en": "text in Category 2", "bo": "སྒྱུར་བའི་ཚིག་སྒྲུབ།"},
             "language": "bo",
             "contributions": [{"person_id": person_id, "role": "author"}],
             "category_id": category_id_2,
         }
-        expression_2 = ExpressionInput.model_validate(expr_data_2)
-        expr_id_2 = await test_database.expression.create(expression_2)
+        text_2 = TextInput.model_validate(expr_data_2)
+        expr_id_2 = await test_database.text.create(text_2)
 
         # Filter by category_id_1
         response = await client.get(f"/v2/texts?category_id={category_id_1}")
@@ -179,25 +181,25 @@ class TestGetAllTextsV2:
 
 
         category_id = 'category'  # Use pre-created category from conftest
-        # Create English expression
+        # Create English text
         en_data = {
-            "title": {"en": "English Expression"},
+            "title": {"en": "English text"},
             "language": "en",
             "category_id": category_id,
             "contributions": [{"person_id": person_id, "role": "author"}],
         }
-        en_expression = ExpressionInput.model_validate(en_data)
-        en_id = await test_database.expression.create(en_expression)
+        en_text = TextInput.model_validate(en_data)
+        en_id = await test_database.text.create(en_text)
 
-        # Create Tibetan expression
+        # Create Tibetan text
         bo_data = {
             "title": {"bo": "བོད་ཡིག་ཚིག་སྒྲུབ།"},
             "category_id": category_id,
             "language": "bo",
             "contributions": [{"person_id": person_id, "role": "author"}],
         }
-        bo_expression = ExpressionInput.model_validate(bo_data)
-        bo_id = await test_database.expression.create(bo_expression)
+        bo_text = TextInput.model_validate(bo_data)
+        bo_id = await test_database.text.create(bo_text)
 
         # Filter by English
         response = await client.get("/v2/texts?language=en")
@@ -239,7 +241,7 @@ class TestGetAllTextsV2:
             }
         ]
 
-        expression_ids = []
+        text_ids = []
         for title in titles:
             expr_data = {
                 "title": title,
@@ -247,9 +249,9 @@ class TestGetAllTextsV2:
                 "category_id": category_id,
                 "contributions": [{"person_id": person_id, "role": "author"}],
             }
-            expression = ExpressionInput.model_validate(expr_data)
-            expression_id = await test_database.expression.create(expression)
-            expression_ids.append(expression_id)
+            text = TextInput.model_validate(expr_data)
+            text_id = await test_database.text.create(text)
+            text_ids.append(text_id)
 
         en_title_search_response = await client.get("/v2/texts?title=Buddha")
         assert en_title_search_response.status_code == 200
@@ -257,7 +259,7 @@ class TestGetAllTextsV2:
         assert len(data) == 2
         # Verify results contain Buddha in title (order not guaranteed)
         returned_ids = {item["id"] for item in data}
-        assert returned_ids.issubset({expression_ids[1], expression_ids[2]})
+        assert returned_ids.issubset({text_ids[1], text_ids[2]})
         for item in data:
             assert "Buddha" in item["title"]["en"]
 
@@ -266,7 +268,7 @@ class TestGetAllTextsV2:
         data = bo_title_search_response.json()
         assert len(data) == 2
         returned_ids = {item["id"] for item in data}
-        assert returned_ids.issubset({expression_ids[0], expression_ids[2]})
+        assert returned_ids.issubset({text_ids[0], text_ids[2]})
         for item in data:
             assert "དཔེ་གཞི།" in item["title"]["bo"]
 
@@ -275,7 +277,7 @@ class TestGetAllTextsV2:
         data = bo_title_search_response.json()
         assert len(data) == 2
         returned_ids = {item["id"] for item in data}
-        assert returned_ids.issubset({expression_ids[1], expression_ids[2]})
+        assert returned_ids.issubset({text_ids[1], text_ids[2]})
         for item in data:
             assert "བོད" in item["title"]["bo"]
 
@@ -299,7 +301,7 @@ class TestGetAllTextsV2:
             }
         ]
 
-        expression_ids = []
+        text_ids = []
         for title in titles:
             expr_data = {
                 "title": title,
@@ -307,9 +309,9 @@ class TestGetAllTextsV2:
                 "category_id": category_id,
                 "contributions": [{"person_id": person_id, "role": "author"}],
             }
-            expression = ExpressionInput.model_validate(expr_data)
-            expression_id = await test_database.expression.create(expression)
-            expression_ids.append(expression_id)
+            text = TextInput.model_validate(expr_data)
+            text_id = await test_database.text.create(text)
+            text_ids.append(text_id)
 
         response = await client.get("/v2/texts?title=invalid_title")
         assert response.status_code == 200
@@ -332,29 +334,29 @@ class TestGetAllTextsV2:
 
         category_id = 'category'
 
-        # Create expression by person1
+        # Create text by person1
         expr1_data = {
-            "title": {"en": "Expression by Author 1", "bo": "རྩོམ་པ་པོ་དང་པོའི་ཚིག་སྒྲུབ།"},
+            "title": {"en": "text by Author 1", "bo": "རྩོམ་པ་པོ་དང་པོའི་ཚིག་སྒྲུབ།"},
             "language": "en",
             "category_id": category_id,
             "contributions": [{"person_id": person1_id, "role": "author"}],
         }
-        expression1 = ExpressionInput.model_validate(expr1_data)
-        expr1_id = await test_database.expression.create(expression1)
+        text1 = TextInput.model_validate(expr1_data)
+        expr1_id = await test_database.text.create(text1)
 
-        # Create expression by person2
+        # Create text by person2
         expr2_data = {
-            "title": {"en": "Expression by Author 2", "bo": "རྩོམ་པ་པོ་གཉིས་པའི་ཚིག་སྒྲུབ།"},
+            "title": {"en": "text by Author 2", "bo": "རྩོམ་པ་པོ་གཉིས་པའི་ཚིག་སྒྲུབ།"},
             "language": "en",
             "category_id": category_id,
             "contributions": [{"person_id": person2_id, "role": "author"}],
         }
-        expression2 = ExpressionInput.model_validate(expr2_data)
-        expr2_id = await test_database.expression.create(expression2)
+        text2 = TextInput.model_validate(expr2_data)
+        expr2_id = await test_database.text.create(text2)
 
-        # Create expression by both authors
+        # Create text by both authors
         expr3_data = {
-            "title": {"en": "Expression by Both Authors", "bo": "རྩོམ་པ་པོ་གཉིས་ཀའི་ཚིག་སྒྲུབ།"},
+            "title": {"en": "text by Both Authors", "bo": "རྩོམ་པ་པོ་གཉིས་ཀའི་ཚིག་སྒྲུབ།"},
             "language": "bo",
             "category_id": category_id,
             "contributions": [
@@ -362,8 +364,8 @@ class TestGetAllTextsV2:
                 {"person_id": person2_id, "role": "translator"}
             ],
         }
-        expression3 = ExpressionInput.model_validate(expr3_data)
-        expr3_id = await test_database.expression.create(expression3)
+        text3 = TextInput.model_validate(expr3_data)
+        expr3_id = await test_database.text.create(text3)
 
         # Filter by person1_id
         response = await client.get(f"/v2/texts?author_id={person1_id}")
@@ -396,35 +398,35 @@ class TestGetAllTextsV2:
         person_id = await test_database.person.create(person)
 
         category_id = 'category'  # Use pre-created category from conftest
-        # Create English expression
+        # Create English text
         en_expr_data = {
-            "title": {"en": "English Root Expression"},
+            "title": {"en": "English Root text"},
             "language": "en",
             "category_id": category_id,
             "contributions": [{"person_id": person_id, "role": "author"}],
         }
-        en_expression = ExpressionInput.model_validate(en_expr_data)
-        en_id = await test_database.expression.create(en_expression)
+        en_text = TextInput.model_validate(en_expr_data)
+        en_id = await test_database.text.create(en_text)
 
-        # Create Tibetan expression with "Root" in title
+        # Create Tibetan text with "Root" in title
         bo_expr_data = {
-            "title": {"bo": "རྩ་བའི་ཚིག་སྒྲུབ།", "en": "Tibetan Root Expression"},
+            "title": {"bo": "རྩ་བའི་ཚིག་སྒྲུབ།", "en": "Tibetan Root text"},
             "language": "bo",
             "category_id": category_id,
             "contributions": [{"person_id": person_id, "role": "author"}],
         }
-        bo_expression = ExpressionInput.model_validate(bo_expr_data)
-        bo_id = await test_database.expression.create(bo_expression)
+        bo_text = TextInput.model_validate(bo_expr_data)
+        bo_id = await test_database.text.create(bo_text)
 
-        # Create another English expression without "Root" in title
+        # Create another English text without "Root" in title
         en_other_data = {
-            "title": {"en": "English Other Expression"},
+            "title": {"en": "English Other text"},
             "language": "en",
             "category_id": category_id,
             "contributions": [{"person_id": person_id, "role": "author"}],
         }
-        en_other_expression = ExpressionInput.model_validate(en_other_data)
-        await test_database.expression.create(en_other_expression)
+        en_other_text = TextInput.model_validate(en_other_data)
+        await test_database.text.create(en_other_text)
 
         # Filter by language=en AND title=Root
         response = await client.get("/v2/texts?language=en&title=Root")
@@ -451,35 +453,35 @@ class TestGetAllTextsV2:
 
         category_id = 'category'
 
-        # Create English expression by person1
+        # Create English text by person1
         expr1_data = {
-            "title": {"en": "English Expression by Author 1"},
+            "title": {"en": "English text by Author 1"},
             "language": "en",
             "category_id": category_id,
             "contributions": [{"person_id": person1_id, "role": "author"}],
         }
-        expression1 = ExpressionInput.model_validate(expr1_data)
-        expr1_id = await test_database.expression.create(expression1)
+        text1 = TextInput.model_validate(expr1_data)
+        expr1_id = await test_database.text.create(text1)
 
-        # Create Tibetan expression by person1
+        # Create Tibetan text by person1
         expr2_data = {
             "title": {"bo": "རྩོམ་པ་པོ་དང་པོའི་བོད་ཡིག"},
             "language": "bo",
             "category_id": category_id,
             "contributions": [{"person_id": person1_id, "role": "author"}],
         }
-        expression2 = ExpressionInput.model_validate(expr2_data)
-        expr2_id = await test_database.expression.create(expression2)
+        text2 = TextInput.model_validate(expr2_data)
+        expr2_id = await test_database.text.create(text2)
 
-        # Create English expression by person2
+        # Create English text by person2
         expr3_data = {
-            "title": {"en": "English Expression by Author 2"},
+            "title": {"en": "English text by Author 2"},
             "language": "en",
             "category_id": category_id,
             "contributions": [{"person_id": person2_id, "role": "author"}],
         }
-        expression3 = ExpressionInput.model_validate(expr3_data)
-        expr3_id = await test_database.expression.create(expression3)
+        text3 = TextInput.model_validate(expr3_data)
+        expr3_id = await test_database.text.create(text3)
 
         # Filter by author_id=person1_id AND language=en
         response = await client.get(f"/v2/texts?author_id={person1_id}&language=en")
@@ -538,15 +540,15 @@ class TestGetAllTextsV2:
 
         category_id = 'category'  # Use pre-created category from conftest
 
-        # Create one expression
+        # Create one text
         expr_data = {
-            "title": {"en": "Single Expression"},
+            "title": {"en": "Single text"},
             "language": "en",
             "category_id": category_id,
             "contributions": [{"person_id": person_id, "role": "author"}],
         }
-        expression = ExpressionInput.model_validate(expr_data)
-        await test_database.expression.create(expression)
+        text = TextInput.model_validate(expr_data)
+        await test_database.text.create(text)
 
         # Test limit=1 (minimum)
         response = await client.get("/v2/texts?limit=1")
@@ -571,25 +573,25 @@ class TestGetAllTextsV2:
 class TestGetSingleTextV2:
     """Tests for GET /v2/texts/{text_id} endpoint (get single text)"""
 
-    async def test_get_single_metadata_by_text_id_success(self, client, test_database, test_person_data, test_expression_data):
-        """Test successfully retrieving a single expression"""
+    async def test_get_single_metadata_by_text_id_success(self, client, test_database, test_person_data, test_text_data):
+        """Test successfully retrieving a single text"""
 
         # Create test person
         person = PersonInput.model_validate(test_person_data)
         person_id = await test_database.person.create(person)
         category_id = 'category'  # Use pre-created category from conftest
-        # Create test expression
-        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
-        test_expression_data["category_id"] = category_id
-        expression = ExpressionInput.model_validate(test_expression_data)
-        expression_id = await test_database.expression.create(expression)
+        # Create test text
+        test_text_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        test_text_data["category_id"] = category_id
+        text = TextInput.model_validate(test_text_data)
+        text_id = await test_database.text.create(text)
 
-        response = await client.get(f"/v2/texts/{expression_id}")
+        response = await client.get(f"/v2/texts/{text_id}")
 
         assert response.status_code == 200
         data = response.json()
-        assert data["id"] == expression_id
-        assert data["title"]["en"] == "Test Expression"
+        assert data["id"] == text_id
+        assert data["title"]["en"] == "Test text"
         assert data["title"]["bo"] == "བརྟག་དཔྱད་ཚིག་སྒྲུབ།"
         assert data["language"] == "en"
         assert data["date"] == "2024-01-01"
@@ -601,27 +603,27 @@ class TestGetSingleTextV2:
         assert data["translation_of"] is None
         assert data["category_id"] == category_id
 
-    async def test_get_texts_filter_by_bdrc(self, client, test_database, test_person_data, test_expression_data):
+    async def test_get_texts_filter_by_bdrc(self, client, test_database, test_person_data, test_text_data):
         """Test filtering texts by BDRC ID using query parameter"""
 
         # Create test person
         person = PersonInput.model_validate(test_person_data)
         person_id = await test_database.person.create(person)
         category_id = 'category'
-        # Create test expression
-        test_expression_data["contributions"] = [{"person_id": person_id, "role": "author"}]
-        test_expression_data["category_id"] = category_id
-        expression = ExpressionInput.model_validate(test_expression_data)
-        expression_id = await test_database.expression.create(expression)
+        # Create test text
+        test_text_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        test_text_data["category_id"] = category_id
+        text = TextInput.model_validate(test_text_data)
+        text_id = await test_database.text.create(text)
 
-        response = await client.get(f"/v2/texts?bdrc={test_expression_data['bdrc']}")
+        response = await client.get(f"/v2/texts?bdrc={test_text_data['bdrc']}")
 
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 1
-        assert data[0]["bdrc"] == test_expression_data['bdrc']
-        assert data[0]["title"]["en"] == "Test Expression"
-        assert data[0]["id"] == expression_id
+        assert data[0]["bdrc"] == test_text_data['bdrc']
+        assert data[0]["title"]["en"] == "Test text"
+        assert data[0]["id"] == text_id
 
     async def test_get_texts_filter_by_alternative_title(self, client, test_database, test_person_data):
         """Test filtering texts by alternative title"""
@@ -636,15 +638,15 @@ class TestGetSingleTextV2:
             "contributions": [{"person_id": person_id, "role": "author"}],
             "alt_titles": [{"en": "Unique Alternative Name"}, {"bo": "གཞན་མིང་།"}],
         }
-        expression = ExpressionInput.model_validate(expr_data)
-        expression_id = await test_database.expression.create(expression)
+        text = TextInput.model_validate(expr_data)
+        text_id = await test_database.text.create(text)
 
         response = await client.get("/v2/texts?title=Unique Alternative")
 
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 1
-        assert data[0]["id"] == expression_id
+        assert data[0]["id"] == text_id
         assert data[0]["title"]["en"] == "Primary Title"
 
         response_bo = await client.get("/v2/texts?title=གཞན་མིང")
@@ -652,35 +654,35 @@ class TestGetSingleTextV2:
         assert response_bo.status_code == 200
         data_bo = response_bo.json()
         assert len(data_bo) == 1
-        assert data_bo[0]["id"] == expression_id
+        assert data_bo[0]["id"] == text_id
 
     async def test_get_single_translation_metadata_success(self, client, test_database, test_person_data):
-        """Test successfully retrieving a translation expression"""
+        """Test successfully retrieving a translation text"""
 
         # Create test person
         person = PersonInput.model_validate(test_person_data)
         person_id = await test_database.person.create(person)
         category_id = 'category'  # Use pre-created category from conftest
-        # Create target ROOT expression
+        # Create target ROOT text
         root_data = {
-            "title": {"en": "Target Root Expression"},
+            "title": {"en": "Target Root text"},
             "language": "en",
             "category_id": category_id,
             "contributions": [{"person_id": person_id, "role": "author"}],
         }
-        root_expression = ExpressionInput.model_validate(root_data)
-        target_id = await test_database.expression.create(root_expression)
+        root_text = TextInput.model_validate(root_data)
+        target_id = await test_database.text.create(root_text)
 
-        # Create TRANSLATION expression
+        # Create TRANSLATION text
         translation_data = {
-            "title": {"bo": "སྒྱུར་བའི་ཚིག་སྒྲུབ།", "en": "Translation Expression"},
+            "title": {"bo": "སྒྱུར་བའི་ཚིག་སྒྲུབ།", "en": "Translation text"},
             "language": "bo",
             "category_id": category_id,
             "translation_of": target_id,
             "contributions": [{"person_id": person_id, "role": "translator"}],
         }
-        translation_expression = ExpressionInput.model_validate(translation_data)
-        translation_id = await test_database.expression.create(translation_expression)
+        translation_text = TextInput.model_validate(translation_data)
+        translation_id = await test_database.text.create(translation_text)
 
         response = await client.get(f"/v2/texts/{translation_id}")
 
@@ -692,7 +694,7 @@ class TestGetSingleTextV2:
         assert data["contributions"][0]["role"] == "translator"
 
     async def test_get_single_metadata_invalid_id(self, client, test_database):
-        """Test retrieving invalid expression id"""
+        """Test retrieving invalid text id"""
 
         response = await client.get("/v2/texts/invalid_id")
 
@@ -705,39 +707,39 @@ class TestGetSingleTextV2:
 class TestPostTextV2:
     """Tests for POST /v2/texts/ endpoint (create text)"""
 
-    async def test_create_root_expression_success(self, client, test_database, test_person_data):
-        """Test successfully creating a ROOT expression"""
+    async def test_create_root_text_success(self, client, test_database, test_person_data):
+        """Test successfully creating a ROOT text"""
         # Create test person first
         person = PersonInput.model_validate(test_person_data)
         person_id = await test_database.person.create(person)
 
         category_id = 'category'  # Use pre-created category from conftest
 
-        # Create ROOT expression (no type field, no translation_of/commentary_of)
-        expression_data = {
-            "title": {"en": "New Root Expression", "bo": "རྩ་བའི་ཚིག་སྒྲུབ་གསར་པ།"},
+        # Create ROOT text (no type field, no translation_of/commentary_of)
+        text_data = {
+            "title": {"en": "New Root text", "bo": "རྩ་བའི་ཚིག་སྒྲུབ་གསར་པ།"},
             "language": "en",
             "contributions": [{"person_id": person_id, "role": "author"}],
             "category_id": category_id,
             "license": "cc0"
         }
 
-        response = await client.post("/v2/texts", json=expression_data)
+        response = await client.post("/v2/texts", json=text_data)
 
         assert response.status_code == 201
         data = response.json()
         assert "id" in data
 
-        # Verify the expression was created by retrieving it
+        # Verify the text was created by retrieving it
         created_id = data["id"]
         verify_response = await client.get(f"/v2/texts/{created_id}")
         assert verify_response.status_code == 200
         verify_data = verify_response.json()
-        assert verify_data["title"]["en"] == "New Root Expression"
+        assert verify_data["title"]["en"] == "New Root text"
         assert verify_data["translation_of"] is None
         assert verify_data["commentary_of"] is None
 
-    async def test_create_expression_missing_json(self, client):
+    async def test_create_text_missing_json(self, client):
         """Test POST with no JSON data"""
 
         response = await client.post("/v2/texts", headers={"Content-Type": "application/json"})
@@ -746,7 +748,7 @@ class TestPostTextV2:
         data = response.json()
         assert "detail" in data
 
-    async def test_create_expression_invalid_json(self, client):
+    async def test_create_text_invalid_json(self, client):
         """Test POST with invalid JSON"""
 
         response = await client.post("/v2/texts", content="invalid json", headers={"Content-Type": "application/json"})
@@ -755,21 +757,21 @@ class TestPostTextV2:
         data = response.json()
         assert "detail" in data
 
-    async def test_create_expression_missing_required_fields(self, client):
+    async def test_create_text_missing_required_fields(self, client):
         """Test POST with missing required fields"""
 
         # Missing title field
-        expression_data = {"language": "en", "contributions": []}
+        text_data = {"language": "en", "contributions": []}
 
-        response = await client.post("/v2/texts", json=expression_data)
+        response = await client.post("/v2/texts", json=text_data)
 
         assert response.status_code == 422  # Proper validation error status
         data = response.json()
         assert "detail" in data
 
-    async def test_create_root_expression_with_both_relations_fails(self, client):
-        """Test that expression with both commentary_of and translation_of fails validation"""
-        expression_data = {
+    async def test_create_root_text_with_both_relations_fails(self, client):
+        """Test that text with both commentary_of and translation_of fails validation"""
+        text_data = {
             "title": {"en": "Test"},
             "language": "en",
             "translation_of": "some_target_id",
@@ -778,7 +780,7 @@ class TestPostTextV2:
             "license": "cc0",
         }
 
-        response = await client.post("/v2/texts", json=expression_data)
+        response = await client.post("/v2/texts", json=text_data)
 
         assert response.status_code == 422
 
@@ -789,19 +791,19 @@ class TestPostTextV2:
 
         category_id = 'category'  # Use pre-created category from conftest
 
-        # Create ROOT expression
+        # Create ROOT text
         root_data = {
-            "title": {"en": "Root Expression", "bo": "རྩ་བའི་ཚིག་སྒྲུབ་གསར་པ།"},
+            "title": {"en": "Root text", "bo": "རྩ་བའི་ཚིག་སྒྲུབ་གསར་པ།"},
             "language": "en",
             "contributions": [{"person_id": person_id, "role": "author"}],
             "category_id": category_id,
         }
-        root_expression = ExpressionInput.model_validate(root_data)
-        root_id = await test_database.expression.create(root_expression)
+        root_text = TextInput.model_validate(root_data)
+        root_id = await test_database.text.create(root_text)
 
-        # Create TRANSLATION expression
+        # Create TRANSLATION text
         translation_data = {
-            "title": {"en": "Translation Expression", "bo": "སྒྱུར་བའི་ཚིག་སྒྲུབ་གསར་པ།"},
+            "title": {"en": "Translation text", "bo": "སྒྱུར་བའི་ཚིག་སྒྲུབ་གསར་པ།"},
             "language": "bo",
             "translation_of": root_id,
             "contributions": [{"person_id": person_id, "role": "translator"}],
@@ -820,19 +822,19 @@ class TestPostTextV2:
 
         category_id = 'category'  # Use pre-created category from conftest
 
-        # Create ROOT expression
+        # Create ROOT text
         root_data = {
-            "title": {"en": "Root Expression", "bo": "རྩ་བའི་ཚིག་སྒྲུབ་གསར་པ།"},
+            "title": {"en": "Root text", "bo": "རྩ་བའི་ཚིག་སྒྲུབ་གསར་པ།"},
             "language": "en",
             "contributions": [{"person_id": person_id, "role": "author"}],
             "category_id": category_id,
         }
-        root_expression = ExpressionInput.model_validate(root_data)
-        root_id = await test_database.expression.create(root_expression)
+        root_text = TextInput.model_validate(root_data)
+        root_id = await test_database.text.create(root_text)
 
-        # Create COMMENTARY expression
+        # Create COMMENTARY text
         commentary_data = {
-            "title": {"en": "Commentary Expression", "bo": "འགྲེལ་པ།"},
+            "title": {"en": "Commentary text", "bo": "འགྲེལ་པ།"},
             "language": "bo",
             "commentary_of": root_id,
             "contributions": [{"person_id": person_id, "role": "author"}],
@@ -851,9 +853,9 @@ class TestPostTextV2:
 
         category_id = 'category'  # Use pre-created category from conftest
 
-        # Create TRANSLATION expression
+        # Create TRANSLATION text
         translation_data = {
-            "title": {"en": "Translation Expression", "bo": "སྒྱུར་བའི་ཚིག་སྒྲུབ་གསར་པ།"},
+            "title": {"en": "Translation text", "bo": "སྒྱུར་བའི་ཚིག་སྒྲུབ་གསར་པ།"},
             "language": "bo",
             "translation_of": "invalid_target",
             "contributions": [{"person_id": person_id, "role": "translator"}],
@@ -870,9 +872,9 @@ class TestPostTextV2:
 
         category_id = 'category'  # Use pre-created category from conftest
 
-        # Create COMMENTARY expression
+        # Create COMMENTARY text
         commentary_data = {
-            "title": {"en": "Commentary Expression", "bo": "འགྲེལ་པ།"},
+            "title": {"en": "Commentary text", "bo": "འགྲེལ་པ།"},
             "language": "bo",
             "commentary_of": "invalid_target",
             "contributions": [{"person_id": person_id, "role": "author"}],
@@ -888,7 +890,7 @@ class TestPostTextV2:
         person_id = await test_database.person.create(person)
 
         root_data = {
-            "title": {"en": "Root Expression", "bo": "རྩ་བའི་ཚིག་སྒྲུབ་གསར་པ།"},
+            "title": {"en": "Root text", "bo": "རྩ་བའི་ཚིག་སྒྲུབ་གསར་པ།"},
             "language": "en",
             "contributions": [{"person_id": person_id, "role": "author"}]
         }
@@ -904,9 +906,9 @@ class TestPostTextV2:
 
         category_id = 'category'  # Use pre-created category from conftest
 
-        # Create ROOT expression
+        # Create ROOT text
         root_data = {
-            "title": {"en": "Root Expression", "bo": "རྩ་བའི་ཚིག་སྒྲུབ་གསར་པ།"},
+            "title": {"en": "Root text", "bo": "རྩ་བའི་ཚིག་སྒྲུབ་གསར་པ།"},
             "language": "en",
             "contributions": [{"person_id": person_id, "role": "invalid_role"}],
             "category_id": category_id
@@ -923,7 +925,7 @@ class TestPostTextV2:
         category_id = 'category'  # Use pre-created category from conftest
 
         root_data = {
-            "title": {"en": "Root Expression", "bo": "རྩ་བའི་ཚིག་སྒྲུབ་གསར་པ།"},
+            "title": {"en": "Root text", "bo": "རྩ་བའི་ཚིག་སྒྲུབ་གསར་པ།"},
             "language": "en",
             "contributions": [{"person_id": person_id, "person_bdrc_id": "P123456", "role": "author"}],
             "category_id": category_id
@@ -941,29 +943,29 @@ class TestPostTextV2:
 
         category_id = 'category'  # Use pre-created category from conftest
 
-        # Create ROOT expression
-        expression_data = {
+        # Create ROOT text
+        text_data = {
             "bdrc": "T1234567",
-            "title": {"en": "New Root Expression", "bo": "རྩ་བའི་ཚིག་སྒྲུབ་གསར་པ།"},
+            "title": {"en": "New Root text", "bo": "རྩ་བའི་ཚིག་སྒྲུབ་གསར་པ།"},
             "language": "en",
             "contributions": [{"person_id": person_id, "role": "author"}],
             "category_id": category_id,
             "license": "cc0"
         }
-        response_1 = await client.post("/v2/texts", json=expression_data)
+        response_1 = await client.post("/v2/texts", json=text_data)
 
         assert response_1.status_code == 201
 
-        duplicate_expression_data = {
+        duplicate_text_data = {
             "bdrc": "T1234567",
-            "title": {"en": "Duplicate Root Expression", "bo": "རྩ་བའི་ཚིག་སྒྲུབ་གསར་པ།"},
+            "title": {"en": "Duplicate Root text", "bo": "རྩ་བའི་ཚིག་སྒྲུབ་གསར་པ།"},
             "language": "en",
             "contributions": [{"person_id": person_id, "role": "author"}],
             "category_id": category_id,
             "license": "cc0"
         }
 
-        response_2 = await client.post("/v2/texts", json=duplicate_expression_data)
+        response_2 = await client.post("/v2/texts", json=duplicate_text_data)
 
         assert response_2.status_code == 409
         assert "error" in response_2.json()
@@ -986,22 +988,22 @@ class TestPatchTextV2:
             "contributions": [{"person_id": person_id, "role": "author"}],
             "bdrc": "W111111",
         }
-        expression = ExpressionInput.model_validate(expr_data)
-        expression_id = await test_database.expression.create(expression)
+        text = TextInput.model_validate(expr_data)
+        text_id = await test_database.text.create(text)
 
         patch_data = {"bdrc": "W222222"}
         response = await client.patch(
-            f"/v2/texts/{expression_id}",
+            f"/v2/texts/{text_id}",
             json=patch_data,
         )
 
         assert response.status_code == 200
         data = response.json()
-        assert data["id"] == expression_id
+        assert data["id"] == text_id
         assert data["bdrc"] == "W222222"
         assert data["title"]["en"] == "Original Title"
 
-        get_response = await client.get(f"/v2/texts/{expression_id}")
+        get_response = await client.get(f"/v2/texts/{text_id}")
         assert get_response.status_code == 200
         get_data = get_response.json()
         assert get_data["bdrc"] == "W222222"
@@ -1020,12 +1022,12 @@ class TestPatchTextV2:
             "contributions": [{"person_id": person_id, "role": "author"}],
             "wiki": "Q111111",
         }
-        expression = ExpressionInput.model_validate(expr_data)
-        expression_id = await test_database.expression.create(expression)
+        text = TextInput.model_validate(expr_data)
+        text_id = await test_database.text.create(text)
 
         patch_data = {"wiki": "Q222222"}
         response = await client.patch(
-            f"/v2/texts/{expression_id}",
+            f"/v2/texts/{text_id}",
             json=patch_data,
         )
 
@@ -1033,7 +1035,7 @@ class TestPatchTextV2:
         data = response.json()
         assert data["wiki"] == "Q222222"
 
-        get_response = await client.get(f"/v2/texts/{expression_id}")
+        get_response = await client.get(f"/v2/texts/{text_id}")
         assert get_response.status_code == 200
         get_data = get_response.json()
         assert get_data["wiki"] == "Q222222"
@@ -1051,12 +1053,12 @@ class TestPatchTextV2:
             "contributions": [{"person_id": person_id, "role": "author"}],
             "date": "2024-01-01",
         }
-        expression = ExpressionInput.model_validate(expr_data)
-        expression_id = await test_database.expression.create(expression)
+        text = TextInput.model_validate(expr_data)
+        text_id = await test_database.text.create(text)
 
         patch_data = {"date": "2025-06-15"}
         response = await client.patch(
-            f"/v2/texts/{expression_id}",
+            f"/v2/texts/{text_id}",
             json=patch_data,
         )
 
@@ -1064,7 +1066,7 @@ class TestPatchTextV2:
         data = response.json()
         assert data["date"] == "2025-06-15"
 
-        get_response = await client.get(f"/v2/texts/{expression_id}")
+        get_response = await client.get(f"/v2/texts/{text_id}")
         assert get_response.status_code == 200
         get_data = get_response.json()
         assert get_data["date"] == "2025-06-15"
@@ -1081,12 +1083,12 @@ class TestPatchTextV2:
             "category_id": category_id,
             "contributions": [{"person_id": person_id, "role": "author"}],
         }
-        expression = ExpressionInput.model_validate(expr_data)
-        expression_id = await test_database.expression.create(expression)
+        text = TextInput.model_validate(expr_data)
+        text_id = await test_database.text.create(text)
 
         patch_data = {"title": {"en": "Updated Title", "bo": "གསར་བསྒྱུར་མཚན་བྱང་།"}}
         response = await client.patch(
-            f"/v2/texts/{expression_id}",
+            f"/v2/texts/{text_id}",
             json=patch_data,
         )
 
@@ -1095,7 +1097,7 @@ class TestPatchTextV2:
         assert data["title"]["en"] == "Updated Title"
         assert data["title"]["bo"] == "གསར་བསྒྱུར་མཚན་བྱང་།"
 
-        get_response = await client.get(f"/v2/texts/{expression_id}")
+        get_response = await client.get(f"/v2/texts/{text_id}")
         assert get_response.status_code == 200
         get_data = get_response.json()
         assert get_data["title"]["en"] == "Updated Title"
@@ -1114,12 +1116,12 @@ class TestPatchTextV2:
             "contributions": [{"person_id": person_id, "role": "author"}],
             "alt_titles": [{"en": "Old Alt Title"}],
         }
-        expression = ExpressionInput.model_validate(expr_data)
-        expression_id = await test_database.expression.create(expression)
+        text = TextInput.model_validate(expr_data)
+        text_id = await test_database.text.create(text)
 
         patch_data = {"alt_titles": [{"en": "New Alt Title 1"}, {"en": "New Alt Title 2"}]}
         response = await client.patch(
-            f"/v2/texts/{expression_id}",
+            f"/v2/texts/{text_id}",
             json=patch_data,
         )
 
@@ -1131,7 +1133,7 @@ class TestPatchTextV2:
         assert "New Alt Title 1" in alt_titles_en
         assert "New Alt Title 2" in alt_titles_en
 
-        get_response = await client.get(f"/v2/texts/{expression_id}")
+        get_response = await client.get(f"/v2/texts/{text_id}")
         assert get_response.status_code == 200
         get_data = get_response.json()
         assert len(get_data["alt_titles"]) == 2
@@ -1149,12 +1151,12 @@ class TestPatchTextV2:
             "contributions": [{"person_id": person_id, "role": "author"}],
             "license": "public",
         }
-        expression = ExpressionInput.model_validate(expr_data)
-        expression_id = await test_database.expression.create(expression)
+        text = TextInput.model_validate(expr_data)
+        text_id = await test_database.text.create(text)
 
         patch_data = {"license": "cc0"}
         response = await client.patch(
-            f"/v2/texts/{expression_id}",
+            f"/v2/texts/{text_id}",
             json=patch_data,
         )
 
@@ -1162,7 +1164,7 @@ class TestPatchTextV2:
         data = response.json()
         assert data["license"] == "cc0"
 
-        get_response = await client.get(f"/v2/texts/{expression_id}")
+        get_response = await client.get(f"/v2/texts/{text_id}")
         assert get_response.status_code == 200
         get_data = get_response.json()
         assert get_data["license"] == "cc0"
@@ -1182,8 +1184,8 @@ class TestPatchTextV2:
             "wiki": "Q333333",
             "license": "public",
         }
-        expression = ExpressionInput.model_validate(expr_data)
-        expression_id = await test_database.expression.create(expression)
+        text = TextInput.model_validate(expr_data)
+        text_id = await test_database.text.create(text)
 
         patch_data = {
             "title": {"en": "Updated"},
@@ -1192,7 +1194,7 @@ class TestPatchTextV2:
             "license": "cc-by",
         }
         response = await client.patch(
-            f"/v2/texts/{expression_id}",
+            f"/v2/texts/{text_id}",
             json=patch_data,
         )
 
@@ -1203,7 +1205,7 @@ class TestPatchTextV2:
         assert data["wiki"] == "Q444444"
         assert data["license"] == "cc-by"
 
-        get_response = await client.get(f"/v2/texts/{expression_id}")
+        get_response = await client.get(f"/v2/texts/{text_id}")
         assert get_response.status_code == 200
         get_data = get_response.json()
         assert get_data["title"]["en"] == "Updated"
@@ -1236,12 +1238,12 @@ class TestPatchTextV2:
             "category_id": category_id,
             "contributions": [{"person_id": person_id, "role": "author"}],
         }
-        expression = ExpressionInput.model_validate(expr_data)
-        expression_id = await test_database.expression.create(expression)
+        text = TextInput.model_validate(expr_data)
+        text_id = await test_database.text.create(text)
 
         patch_data = {}
         response = await client.patch(
-            f"/v2/texts/{expression_id}",
+            f"/v2/texts/{text_id}",
             json=patch_data,
         )
 
@@ -1261,12 +1263,12 @@ class TestPatchTextV2:
             "category_id": category_id,
             "contributions": [{"person_id": person_id, "role": "author"}],
         }
-        expression = ExpressionInput.model_validate(expr_data)
-        expression_id = await test_database.expression.create(expression)
+        text = TextInput.model_validate(expr_data)
+        text_id = await test_database.text.create(text)
 
         patch_data = {"unknown_field": "value"}
         response = await client.patch(
-            f"/v2/texts/{expression_id}",
+            f"/v2/texts/{text_id}",
             json=patch_data,
         )
 
@@ -1291,12 +1293,12 @@ class TestPatchTextV2:
             "date": "2024-01-01",
             "license": "public",
         }
-        expression = ExpressionInput.model_validate(expr_data)
-        expression_id = await test_database.expression.create(expression)
+        text = TextInput.model_validate(expr_data)
+        text_id = await test_database.text.create(text)
 
         patch_data = {"bdrc": "W202020"}
         response = await client.patch(
-            f"/v2/texts/{expression_id}",
+            f"/v2/texts/{text_id}",
             json=patch_data,
         )
 
@@ -1310,7 +1312,7 @@ class TestPatchTextV2:
         assert data["license"] == "public"
         assert len(data["alt_titles"]) == 1
 
-        get_response = await client.get(f"/v2/texts/{expression_id}")
+        get_response = await client.get(f"/v2/texts/{text_id}")
         assert get_response.status_code == 200
         get_data = get_response.json()
         assert get_data["bdrc"] == "W202020"
@@ -1320,7 +1322,7 @@ class TestPatchTextV2:
         assert get_data["license"] == "public"
 
     async def test_patch_text_with_tibetan_title(self, client, test_database, test_person_data):
-        """Test patching with Tibetan title (must include expression's language)"""
+        """Test patching with Tibetan title (must include text's language)"""
         person = PersonInput.model_validate(test_person_data)
         person_id = await test_database.person.create(person)
 
@@ -1331,12 +1333,12 @@ class TestPatchTextV2:
             "category_id": category_id,
             "contributions": [{"person_id": person_id, "role": "author"}],
         }
-        expression = ExpressionInput.model_validate(expr_data)
-        expression_id = await test_database.expression.create(expression)
+        text = TextInput.model_validate(expr_data)
+        text_id = await test_database.text.create(text)
 
         patch_data = {"title": {"en": "Updated English", "bo": "བོད་སྐད་མཚན་བྱང་།"}}
         response = await client.patch(
-            f"/v2/texts/{expression_id}",
+            f"/v2/texts/{text_id}",
             json=patch_data,
         )
 
@@ -1345,14 +1347,14 @@ class TestPatchTextV2:
         assert data["title"]["en"] == "Updated English"
         assert data["title"]["bo"] == "བོད་སྐད་མཚན་བྱང་།"
 
-        get_response = await client.get(f"/v2/texts/{expression_id}")
+        get_response = await client.get(f"/v2/texts/{text_id}")
         assert get_response.status_code == 200
         get_data = get_response.json()
         assert get_data["title"]["en"] == "Updated English"
         assert get_data["title"]["bo"] == "བོད་སྐད་མཚན་བྱང་།"
 
-    async def test_patch_text_title_missing_expression_language_rejected(self, client, test_database, test_person_data):
-        """Test that patching title without expression's language is rejected"""
+    async def test_patch_text_title_missing_text_language_rejected(self, client, test_database, test_person_data):
+        """Test that patching title without text's language is rejected"""
         person = PersonInput.model_validate(test_person_data)
         person_id = await test_database.person.create(person)
 
@@ -1363,12 +1365,12 @@ class TestPatchTextV2:
             "category_id": category_id,
             "contributions": [{"person_id": person_id, "role": "author"}],
         }
-        expression = ExpressionInput.model_validate(expr_data)
-        expression_id = await test_database.expression.create(expression)
+        text = TextInput.model_validate(expr_data)
+        text_id = await test_database.text.create(text)
 
         patch_data = {"title": {"bo": "བོད་སྐད་མཚན་བྱང་།"}}
         response = await client.patch(
-            f"/v2/texts/{expression_id}",
+            f"/v2/texts/{text_id}",
             json=patch_data,
         )
 
@@ -1377,7 +1379,7 @@ class TestPatchTextV2:
         assert "detail" in data
         assert "language" in data["detail"].lower()
 
-        get_response = await client.get(f"/v2/texts/{expression_id}")
+        get_response = await client.get(f"/v2/texts/{text_id}")
         assert get_response.status_code == 200
         get_data = get_response.json()
         assert get_data["title"]["en"] == "English Title"
@@ -1395,12 +1397,12 @@ class TestPatchTextV2:
             "contributions": [{"person_id": person_id, "role": "author"}],
             "alt_titles": [{"en": "Alt Title 1"}, {"en": "Alt Title 2"}],
         }
-        expression = ExpressionInput.model_validate(expr_data)
-        expression_id = await test_database.expression.create(expression)
+        text = TextInput.model_validate(expr_data)
+        text_id = await test_database.text.create(text)
 
         patch_data = {"alt_titles": []}
         response = await client.patch(
-            f"/v2/texts/{expression_id}",
+            f"/v2/texts/{text_id}",
             json=patch_data,
         )
 
@@ -1408,7 +1410,7 @@ class TestPatchTextV2:
         data = response.json()
         assert data["alt_titles"] is None or data["alt_titles"] == []
 
-        get_response = await client.get(f"/v2/texts/{expression_id}")
+        get_response = await client.get(f"/v2/texts/{text_id}")
         assert get_response.status_code == 200
         get_data = get_response.json()
         assert get_data["alt_titles"] is None or get_data["alt_titles"] == []
@@ -1425,12 +1427,12 @@ class TestPatchTextV2:
             "category_id": category_id,
             "contributions": [{"person_id": person_id, "role": "author"}],
         }
-        expression = ExpressionInput.model_validate(expr_data)
-        expression_id = await test_database.expression.create(expression)
+        text = TextInput.model_validate(expr_data)
+        text_id = await test_database.text.create(text)
 
         patch_data = {"language": "bo-Latn"}
         response = await client.patch(
-            f"/v2/texts/{expression_id}",
+            f"/v2/texts/{text_id}",
             json=patch_data,
         )
 
@@ -1438,7 +1440,7 @@ class TestPatchTextV2:
         data = response.json()
         assert data["language"] == "bo-Latn"
 
-        get_response = await client.get(f"/v2/texts/{expression_id}")
+        get_response = await client.get(f"/v2/texts/{text_id}")
         assert get_response.status_code == 200
         get_data = get_response.json()
         assert get_data["language"] == "bo-Latn"
@@ -1455,11 +1457,11 @@ class TestPatchTextV2:
             "category_id": category_id,
             "contributions": [{"person_id": person_id, "role": "author"}],
         }
-        expression = ExpressionInput.model_validate(expr_data)
-        expression_id = await test_database.expression.create(expression)
+        text = TextInput.model_validate(expr_data)
+        text_id = await test_database.text.create(text)
 
         response = await client.patch(
-            f"/v2/texts/{expression_id}",
+            f"/v2/texts/{text_id}",
             content="invalid json",
             headers={"Content-Type": "application/json"},
         )
@@ -1480,12 +1482,12 @@ class TestPatchTextV2:
             "category_id": category_id,
             "contributions": [{"person_id": person_id, "role": "author"}],
         }
-        expression = ExpressionInput.model_validate(expr_data)
-        expression_id = await test_database.expression.create(expression)
+        text = TextInput.model_validate(expr_data)
+        text_id = await test_database.text.create(text)
 
         patch_data = {"title": "not a dict"}
         response = await client.patch(
-            f"/v2/texts/{expression_id}",
+            f"/v2/texts/{text_id}",
             json=patch_data,
         )
 
@@ -1493,7 +1495,7 @@ class TestPatchTextV2:
         data = response.json()
         assert "detail" in data
 
-        get_response = await client.get(f"/v2/texts/{expression_id}")
+        get_response = await client.get(f"/v2/texts/{text_id}")
         assert get_response.status_code == 200
         get_data = get_response.json()
         assert get_data["title"]["en"] == "Test Text"
@@ -1510,12 +1512,12 @@ class TestPatchTextV2:
             "category_id": category_id,
             "contributions": [{"person_id": person_id, "role": "author"}],
         }
-        expression = ExpressionInput.model_validate(expr_data)
-        expression_id = await test_database.expression.create(expression)
+        text = TextInput.model_validate(expr_data)
+        text_id = await test_database.text.create(text)
 
         patch_data = {"title": {}}
         response = await client.patch(
-            f"/v2/texts/{expression_id}",
+            f"/v2/texts/{text_id}",
             json=patch_data,
         )
 
@@ -1523,7 +1525,7 @@ class TestPatchTextV2:
         data = response.json()
         assert "detail" in data
 
-        get_response = await client.get(f"/v2/texts/{expression_id}")
+        get_response = await client.get(f"/v2/texts/{text_id}")
         assert get_response.status_code == 200
         get_data = get_response.json()
         assert get_data["title"]["en"] == "Test Text"
@@ -1540,12 +1542,12 @@ class TestPatchTextV2:
             "category_id": category_id,
             "contributions": [{"person_id": person_id, "role": "author"}],
         }
-        expression = ExpressionInput.model_validate(expr_data)
-        expression_id = await test_database.expression.create(expression)
+        text = TextInput.model_validate(expr_data)
+        text_id = await test_database.text.create(text)
 
         patch_data = {"license": "invalid_license"}
         response = await client.patch(
-            f"/v2/texts/{expression_id}",
+            f"/v2/texts/{text_id}",
             json=patch_data,
         )
 
@@ -1553,7 +1555,7 @@ class TestPatchTextV2:
         data = response.json()
         assert "detail" in data
 
-        get_response = await client.get(f"/v2/texts/{expression_id}")
+        get_response = await client.get(f"/v2/texts/{text_id}")
         assert get_response.status_code == 200
         get_data = get_response.json()
         assert get_data["license"] == "public"
@@ -1570,15 +1572,15 @@ class TestPatchTextV2:
             "category_id": category_id,
             "contributions": [{"person_id": person_id, "role": "author"}],
         }
-        expression = ExpressionInput.model_validate(expr_data)
-        expression_id = await test_database.expression.create(expression)
+        text = TextInput.model_validate(expr_data)
+        text_id = await test_database.text.create(text)
 
         patch_data = {
             "title": {"en": "New Primary"},
             "alt_titles": [{"en": "New Primary"}, {"en": "Different Alt"}],
         }
         response = await client.patch(
-            f"/v2/texts/{expression_id}",
+            f"/v2/texts/{text_id}",
             json=patch_data,
         )
 
@@ -1588,7 +1590,7 @@ class TestPatchTextV2:
         assert "New Primary" not in alt_titles_en
         assert "Different Alt" in alt_titles_en
 
-        get_response = await client.get(f"/v2/texts/{expression_id}")
+        get_response = await client.get(f"/v2/texts/{text_id}")
         assert get_response.status_code == 200
         get_data = get_response.json()
         assert get_data["title"]["en"] == "New Primary"
@@ -1608,12 +1610,12 @@ class TestPatchTextV2:
             "category_id": category_id,
             "contributions": [{"person_id": person_id, "role": "author"}],
         }
-        expression = ExpressionInput.model_validate(expr_data)
-        expression_id = await test_database.expression.create(expression)
+        text = TextInput.model_validate(expr_data)
+        text_id = await test_database.text.create(text)
 
         patch_data = {"title": {"xx": "Invalid Language"}}
         response = await client.patch(
-            f"/v2/texts/{expression_id}",
+            f"/v2/texts/{text_id}",
             json=patch_data,
         )
 
@@ -1621,7 +1623,7 @@ class TestPatchTextV2:
         data = response.json()
         assert "detail" in data
 
-        get_response = await client.get(f"/v2/texts/{expression_id}")
+        get_response = await client.get(f"/v2/texts/{text_id}")
         assert get_response.status_code == 200
         get_data = get_response.json()
         assert get_data["title"]["en"] == "Test Text"
@@ -1638,10 +1640,10 @@ class TestPatchTextV2:
             "category_id": category_id,
             "contributions": [{"person_id": person_id, "role": "author"}],
         }
-        expression = ExpressionInput.model_validate(expr_data)
-        expression_id = await test_database.expression.create(expression)
+        text = TextInput.model_validate(expr_data)
+        text_id = await test_database.text.create(text)
 
-        verify_response = await client.get(f"/v2/texts/{expression_id}")
+        verify_response = await client.get(f"/v2/texts/{text_id}")
         assert verify_response.status_code == 200
         verify_data = verify_response.json()
         assert verify_data["title"]["en"] == "Original English Title"
@@ -1649,7 +1651,7 @@ class TestPatchTextV2:
 
         patch_data = {"title": {"en": "Updated English Title", "bo": "བོད་ཡིག་མཚན་བྱང་།"}}
         response = await client.patch(
-            f"/v2/texts/{expression_id}",
+            f"/v2/texts/{text_id}",
             json=patch_data,
         )
 
@@ -1658,7 +1660,7 @@ class TestPatchTextV2:
         assert data["title"]["en"] == "Updated English Title"
         assert data["title"]["bo"] == "བོད་ཡིག་མཚན་བྱང་།"
 
-        get_response = await client.get(f"/v2/texts/{expression_id}")
+        get_response = await client.get(f"/v2/texts/{text_id}")
         assert get_response.status_code == 200
         get_data = get_response.json()
         assert get_data["title"]["en"] == "Updated English Title"
@@ -1676,12 +1678,12 @@ class TestPatchTextV2:
             "category_id": category_id,
             "contributions": [{"person_id": person_id, "role": "author"}],
         }
-        expression = ExpressionInput.model_validate(expr_data)
-        expression_id = await test_database.expression.create(expression)
+        text = TextInput.model_validate(expr_data)
+        text_id = await test_database.text.create(text)
 
         patch_data = {"title": {"en": "English Title", "bo": "བོད་ཡིག་མཚན་བྱང་།"}}
         response = await client.patch(
-            f"/v2/texts/{expression_id}",
+            f"/v2/texts/{text_id}",
             json=patch_data,
         )
 
@@ -1690,7 +1692,7 @@ class TestPatchTextV2:
         assert data["title"]["en"] == "English Title"
         assert data["title"]["bo"] == "བོད་ཡིག་མཚན་བྱང་།"
 
-        get_response = await client.get(f"/v2/texts/{expression_id}")
+        get_response = await client.get(f"/v2/texts/{text_id}")
         assert get_response.status_code == 200
         get_data = get_response.json()
         assert get_data["title"]["en"] == "English Title"
@@ -1709,14 +1711,14 @@ class TestPatchTextV2:
             "contributions": [{"person_id": person_id, "role": "author"}],
             "license": "public",
         }
-        expression = ExpressionInput.model_validate(expr_data)
-        expression_id = await test_database.expression.create(expression)
+        text = TextInput.model_validate(expr_data)
+        text_id = await test_database.text.create(text)
 
         valid_licenses = ["cc0", "cc-by", "cc-by-sa", "copyrighted", "unknown"]
         for license_value in valid_licenses:
             patch_data = {"license": license_value}
             response = await client.patch(
-                f"/v2/texts/{expression_id}",
+                f"/v2/texts/{text_id}",
                 json=patch_data,
             )
 
@@ -1724,7 +1726,7 @@ class TestPatchTextV2:
             data = response.json()
             assert data["license"] == license_value
 
-            get_response = await client.get(f"/v2/texts/{expression_id}")
+            get_response = await client.get(f"/v2/texts/{text_id}")
             assert get_response.status_code == 200
             get_data = get_response.json()
             assert get_data["license"] == license_value
@@ -1741,11 +1743,11 @@ class TestPatchTextV2:
             "category_id": category_id,
             "contributions": [{"person_id": person_id, "role": "author"}],
         }
-        expression = ExpressionInput.model_validate(expr_data)
-        expression_id = await test_database.expression.create(expression)
+        text = TextInput.model_validate(expr_data)
+        text_id = await test_database.text.create(text)
 
         response = await client.patch(
-            f"/v2/texts/{expression_id}",
+            f"/v2/texts/{text_id}",
             headers={"Content-Type": "application/json"},
         )
 
@@ -1763,25 +1765,25 @@ class TestGetEditionsV2:
         person = PersonInput.model_validate(test_person_data)
         return await db.person.create(person)
 
-    async def _create_test_expression(self, db, person_id, title=None):
-        """Helper to create a test expression"""
+    async def _create_test_text(self, db, person_id, title=None):
+        """Helper to create a test text"""
         if title is None:
-            title = {"en": "Test Expression", "bo": "བརྟག་དཔྱད།"}
+            title = {"en": "Test text", "bo": "བརྟག་དཔྱད།"}
         expr_data = {
             "title": title,
             "language": "en",
             "category_id": "category",
             "contributions": [{"person_id": person_id, "role": "author"}],
         }
-        expression = ExpressionInput.model_validate(expr_data)
-        return await db.expression.create(expression)
+        text = TextInput.model_validate(expr_data)
+        return await db.text.create(text)
 
     async def test_get_editions_empty_list(self, client, test_database, test_person_data):
-        """Test getting editions for an expression with no editions"""
+        """Test getting editions for an text with no editions"""
         person_id = await self._create_test_person(test_database, test_person_data)
-        expression_id = await self._create_test_expression(test_database, person_id)
+        text_id = await self._create_test_text(test_database, person_id)
 
-        response = await client.get(f"/v2/texts/{expression_id}/editions")
+        response = await client.get(f"/v2/texts/{text_id}/editions")
 
         assert response.status_code == 200
         data = response.json()
@@ -1791,7 +1793,7 @@ class TestGetEditionsV2:
     async def test_get_editions_single_diplomatic(self, client, test_database, test_person_data):
         """Test getting a single diplomatic edition"""
         person_id = await self._create_test_person(test_database, test_person_data)
-        expression_id = await self._create_test_expression(test_database, person_id)
+        text_id = await self._create_test_text(test_database, person_id)
 
         edition_data = {
             "content": "Test content for diplomatic edition",
@@ -1806,24 +1808,24 @@ class TestGetEditionsV2:
                 }
             },
         }
-        post_response = await client.post(f"/v2/texts/{expression_id}/editions", json=edition_data)
+        post_response = await client.post(f"/v2/texts/{text_id}/editions", json=edition_data)
         assert post_response.status_code == 201
-        manifestation_id = post_response.json()["id"]
+        edition_id = post_response.json()["id"]
 
-        response = await client.get(f"/v2/texts/{expression_id}/editions")
+        response = await client.get(f"/v2/texts/{text_id}/editions")
 
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 1
-        assert data[0]["id"] == manifestation_id
+        assert data[0]["id"] == edition_id
         assert data[0]["type"] == "diplomatic"
         assert data[0]["bdrc"] == "W12345"
-        assert data[0]["text_id"] == expression_id
+        assert data[0]["text_id"] == text_id
 
     async def test_get_editions_single_critical(self, client, test_database, test_person_data):
         """Test getting a single critical edition"""
         person_id = await self._create_test_person(test_database, test_person_data)
-        expression_id = await self._create_test_expression(test_database, person_id)
+        text_id = await self._create_test_text(test_database, person_id)
 
         edition_data = {
             "content": "Test content for critical edition",
@@ -1835,22 +1837,22 @@ class TestGetEditionsV2:
                 "segments": [{"lines": [{"start": 0, "end": 33}]}]
             },
         }
-        post_response = await client.post(f"/v2/texts/{expression_id}/editions", json=edition_data)
+        post_response = await client.post(f"/v2/texts/{text_id}/editions", json=edition_data)
         assert post_response.status_code == 201
-        manifestation_id = post_response.json()["id"]
+        edition_id = post_response.json()["id"]
 
-        response = await client.get(f"/v2/texts/{expression_id}/editions")
+        response = await client.get(f"/v2/texts/{text_id}/editions")
 
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 1
-        assert data[0]["id"] == manifestation_id
+        assert data[0]["id"] == edition_id
         assert data[0]["type"] == "critical"
 
     async def test_get_editions_multiple_editions(self, client, test_database, test_person_data):
-        """Test getting multiple editions for an expression"""
+        """Test getting multiple editions for an text"""
         person_id = await self._create_test_person(test_database, test_person_data)
-        expression_id = await self._create_test_expression(test_database, person_id)
+        text_id = await self._create_test_text(test_database, person_id)
 
         diplomatic_data = {
             "content": "Diplomatic content",
@@ -1865,7 +1867,7 @@ class TestGetEditionsV2:
                 }
             },
         }
-        post_response_1 = await client.post(f"/v2/texts/{expression_id}/editions", json=diplomatic_data)
+        post_response_1 = await client.post(f"/v2/texts/{text_id}/editions", json=diplomatic_data)
         assert post_response_1.status_code == 201
         diplomatic_id = post_response_1.json()["id"]
 
@@ -1882,11 +1884,11 @@ class TestGetEditionsV2:
                 }
             },
         }
-        post_response_2 = await client.post(f"/v2/texts/{expression_id}/editions", json=diplomatic_data_2)
+        post_response_2 = await client.post(f"/v2/texts/{text_id}/editions", json=diplomatic_data_2)
         assert post_response_2.status_code == 201
         diplomatic_id_2 = post_response_2.json()["id"]
 
-        response = await client.get(f"/v2/texts/{expression_id}/editions")
+        response = await client.get(f"/v2/texts/{text_id}/editions")
 
         assert response.status_code == 200
         data = response.json()
@@ -1898,7 +1900,7 @@ class TestGetEditionsV2:
     async def test_get_editions_filter_by_diplomatic_type(self, client, test_database, test_person_data):
         """Test filtering editions by diplomatic type"""
         person_id = await self._create_test_person(test_database, test_person_data)
-        expression_id = await self._create_test_expression(test_database, person_id)
+        text_id = await self._create_test_text(test_database, person_id)
 
         diplomatic_data = {
             "content": "Diplomatic content",
@@ -1913,7 +1915,7 @@ class TestGetEditionsV2:
                 }
             },
         }
-        post_response_1 = await client.post(f"/v2/texts/{expression_id}/editions", json=diplomatic_data)
+        post_response_1 = await client.post(f"/v2/texts/{text_id}/editions", json=diplomatic_data)
         assert post_response_1.status_code == 201
         diplomatic_id = post_response_1.json()["id"]
 
@@ -1927,10 +1929,10 @@ class TestGetEditionsV2:
                 "segments": [{"lines": [{"start": 0, "end": 16}]}]
             },
         }
-        post_response_2 = await client.post(f"/v2/texts/{expression_id}/editions", json=critical_data)
+        post_response_2 = await client.post(f"/v2/texts/{text_id}/editions", json=critical_data)
         assert post_response_2.status_code == 201
 
-        response = await client.get(f"/v2/texts/{expression_id}/editions?edition_type=diplomatic")
+        response = await client.get(f"/v2/texts/{text_id}/editions?edition_type=diplomatic")
 
         assert response.status_code == 200
         data = response.json()
@@ -1941,7 +1943,7 @@ class TestGetEditionsV2:
     async def test_get_editions_filter_by_critical_type(self, client, test_database, test_person_data):
         """Test filtering editions by critical type"""
         person_id = await self._create_test_person(test_database, test_person_data)
-        expression_id = await self._create_test_expression(test_database, person_id)
+        text_id = await self._create_test_text(test_database, person_id)
 
         diplomatic_data = {
             "content": "Diplomatic content",
@@ -1956,7 +1958,7 @@ class TestGetEditionsV2:
                 }
             },
         }
-        post_response_1 = await client.post(f"/v2/texts/{expression_id}/editions", json=diplomatic_data)
+        post_response_1 = await client.post(f"/v2/texts/{text_id}/editions", json=diplomatic_data)
         assert post_response_1.status_code == 201
 
         critical_data = {
@@ -1969,11 +1971,11 @@ class TestGetEditionsV2:
                 "segments": [{"lines": [{"start": 0, "end": 16}]}]
             },
         }
-        post_response_2 = await client.post(f"/v2/texts/{expression_id}/editions", json=critical_data)
+        post_response_2 = await client.post(f"/v2/texts/{text_id}/editions", json=critical_data)
         assert post_response_2.status_code == 201
         critical_id = post_response_2.json()["id"]
 
-        response = await client.get(f"/v2/texts/{expression_id}/editions?edition_type=critical")
+        response = await client.get(f"/v2/texts/{text_id}/editions?edition_type=critical")
 
         assert response.status_code == 200
         data = response.json()
@@ -1984,7 +1986,7 @@ class TestGetEditionsV2:
     async def test_get_editions_filter_returns_empty_when_no_match(self, client, test_database, test_person_data):
         """Test filtering returns empty list when no editions match the type"""
         person_id = await self._create_test_person(test_database, test_person_data)
-        expression_id = await self._create_test_expression(test_database, person_id)
+        text_id = await self._create_test_text(test_database, person_id)
 
         diplomatic_data = {
             "content": "Diplomatic content",
@@ -1999,17 +2001,17 @@ class TestGetEditionsV2:
                 }
             },
         }
-        post_response = await client.post(f"/v2/texts/{expression_id}/editions", json=diplomatic_data)
+        post_response = await client.post(f"/v2/texts/{text_id}/editions", json=diplomatic_data)
         assert post_response.status_code == 201
 
-        response = await client.get(f"/v2/texts/{expression_id}/editions?edition_type=critical")
+        response = await client.get(f"/v2/texts/{text_id}/editions?edition_type=critical")
 
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 0
 
-    async def test_get_editions_invalid_expression_id(self, client, test_database):
-        """Test getting editions for a non-existent expression returns empty list"""
+    async def test_get_editions_invalid_text_id(self, client, test_database):
+        """Test getting editions for a non-existent text returns empty list"""
         response = await client.get("/v2/texts/non-existent-id/editions")
 
         assert response.status_code == 200
@@ -2020,9 +2022,9 @@ class TestGetEditionsV2:
     async def test_get_editions_invalid_edition_type(self, client, test_database, test_person_data):
         """Test filtering with invalid edition type returns 422"""
         person_id = await self._create_test_person(test_database, test_person_data)
-        expression_id = await self._create_test_expression(test_database, person_id)
+        text_id = await self._create_test_text(test_database, person_id)
 
-        response = await client.get(f"/v2/texts/{expression_id}/editions?edition_type=invalid_type")
+        response = await client.get(f"/v2/texts/{text_id}/editions?edition_type=invalid_type")
 
         assert response.status_code == 422
         data = response.json()
@@ -2031,7 +2033,7 @@ class TestGetEditionsV2:
     async def test_get_editions_returns_all_metadata_fields(self, client, test_database, test_person_data):
         """Test that returned editions include all expected metadata fields"""
         person_id = await self._create_test_person(test_database, test_person_data)
-        expression_id = await self._create_test_expression(test_database, person_id)
+        text_id = await self._create_test_text(test_database, person_id)
 
         edition_data = {
             "content": "Test content with all fields",
@@ -2049,18 +2051,18 @@ class TestGetEditionsV2:
                 }
             },
         }
-        post_response = await client.post(f"/v2/texts/{expression_id}/editions", json=edition_data)
+        post_response = await client.post(f"/v2/texts/{text_id}/editions", json=edition_data)
         assert post_response.status_code == 201
-        manifestation_id = post_response.json()["id"]
+        edition_id = post_response.json()["id"]
 
-        response = await client.get(f"/v2/texts/{expression_id}/editions")
+        response = await client.get(f"/v2/texts/{text_id}/editions")
 
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 1
         edition = data[0]
-        assert edition["id"] == manifestation_id
-        assert edition["text_id"] == expression_id
+        assert edition["id"] == edition_id
+        assert edition["text_id"] == text_id
         assert edition["type"] == "diplomatic"
         assert edition["bdrc"] == "W99999"
         assert edition["wiki"] == "Q88888"
@@ -2071,7 +2073,7 @@ class TestGetEditionsV2:
     async def test_get_editions_no_filter_returns_all_types(self, client, test_database, test_person_data):
         """Test that no filter returns all edition types"""
         person_id = await self._create_test_person(test_database, test_person_data)
-        expression_id = await self._create_test_expression(test_database, person_id)
+        text_id = await self._create_test_text(test_database, person_id)
 
         diplomatic_data = {
             "content": "Diplomatic content",
@@ -2086,7 +2088,7 @@ class TestGetEditionsV2:
                 }
             },
         }
-        post_response_1 = await client.post(f"/v2/texts/{expression_id}/editions", json=diplomatic_data)
+        post_response_1 = await client.post(f"/v2/texts/{text_id}/editions", json=diplomatic_data)
         assert post_response_1.status_code == 201
 
         critical_data = {
@@ -2099,10 +2101,10 @@ class TestGetEditionsV2:
                 "segments": [{"lines": [{"start": 0, "end": 16}]}]
             },
         }
-        post_response_2 = await client.post(f"/v2/texts/{expression_id}/editions", json=critical_data)
+        post_response_2 = await client.post(f"/v2/texts/{text_id}/editions", json=critical_data)
         assert post_response_2.status_code == 201
 
-        response = await client.get(f"/v2/texts/{expression_id}/editions")
+        response = await client.get(f"/v2/texts/{text_id}/editions")
 
         assert response.status_code == 200
         data = response.json()
@@ -2111,19 +2113,19 @@ class TestGetEditionsV2:
         assert "diplomatic" in types
         assert "critical" in types
 
-    async def test_get_editions_different_expressions_isolated(self, client, test_database, test_person_data):
-        """Test that editions from different expressions are isolated"""
+    async def test_get_editions_different_texts_isolated(self, client, test_database, test_person_data):
+        """Test that editions from different texts are isolated"""
         person_id = await self._create_test_person(test_database, test_person_data)
 
-        expression_id_1 = await self._create_test_expression(
-            test_database, person_id, title={"en": "Expression 1"}
+        text_id_1 = await self._create_test_text(
+            test_database, person_id, title={"en": "text 1"}
         )
-        expression_id_2 = await self._create_test_expression(
-            test_database, person_id, title={"en": "Expression 2"}
+        text_id_2 = await self._create_test_text(
+            test_database, person_id, title={"en": "text 2"}
         )
 
         edition_data_1 = {
-            "content": "Content for expression 1",
+            "content": "Content for text 1",
             "metadata": {
                 "type": "diplomatic",
                 "bdrc": "W11111",
@@ -2135,12 +2137,12 @@ class TestGetEditionsV2:
                 }
             },
         }
-        post_response_1 = await client.post(f"/v2/texts/{expression_id_1}/editions", json=edition_data_1)
+        post_response_1 = await client.post(f"/v2/texts/{text_id_1}/editions", json=edition_data_1)
         assert post_response_1.status_code == 201
         edition_id_1 = post_response_1.json()["id"]
 
         edition_data_2 = {
-            "content": "Content for expression 2",
+            "content": "Content for text 2",
             "metadata": {
                 "type": "diplomatic",
                 "bdrc": "W22222",
@@ -2152,28 +2154,28 @@ class TestGetEditionsV2:
                 }
             },
         }
-        post_response_2 = await client.post(f"/v2/texts/{expression_id_2}/editions", json=edition_data_2)
+        post_response_2 = await client.post(f"/v2/texts/{text_id_2}/editions", json=edition_data_2)
         assert post_response_2.status_code == 201
         edition_id_2 = post_response_2.json()["id"]
 
-        response_1 = await client.get(f"/v2/texts/{expression_id_1}/editions")
+        response_1 = await client.get(f"/v2/texts/{text_id_1}/editions")
         assert response_1.status_code == 200
         data_1 = response_1.json()
         assert len(data_1) == 1
         assert data_1[0]["id"] == edition_id_1
-        assert data_1[0]["text_id"] == expression_id_1
+        assert data_1[0]["text_id"] == text_id_1
 
-        response_2 = await client.get(f"/v2/texts/{expression_id_2}/editions")
+        response_2 = await client.get(f"/v2/texts/{text_id_2}/editions")
         assert response_2.status_code == 200
         data_2 = response_2.json()
         assert len(data_2) == 1
         assert data_2[0]["id"] == edition_id_2
-        assert data_2[0]["text_id"] == expression_id_2
+        assert data_2[0]["text_id"] == text_id_2
 
     async def test_get_editions_with_tibetan_content(self, client, test_database, test_person_data):
         """Test getting editions with Tibetan incipit titles"""
         person_id = await self._create_test_person(test_database, test_person_data)
-        expression_id = await self._create_test_expression(test_database, person_id)
+        text_id = await self._create_test_text(test_database, person_id)
 
         edition_data = {
             "content": "བོད་སྐད་ཀྱི་ཡིག་ཆ།",
@@ -2189,10 +2191,10 @@ class TestGetEditionsV2:
                 }
             },
         }
-        post_response = await client.post(f"/v2/texts/{expression_id}/editions", json=edition_data)
+        post_response = await client.post(f"/v2/texts/{text_id}/editions", json=edition_data)
         assert post_response.status_code == 201
 
-        response = await client.get(f"/v2/texts/{expression_id}/editions")
+        response = await client.get(f"/v2/texts/{text_id}/editions")
 
         assert response.status_code == 200
         data = response.json()
@@ -2203,7 +2205,7 @@ class TestGetEditionsV2:
     async def test_get_editions_round_trip(self, client, test_database, test_person_data):
         """Test creating an edition and retrieving it via get_editions"""
         person_id = await self._create_test_person(test_database, test_person_data)
-        expression_id = await self._create_test_expression(test_database, person_id)
+        text_id = await self._create_test_text(test_database, person_id)
 
         edition_data = {
             "content": "Round trip test content",
@@ -2220,18 +2222,18 @@ class TestGetEditionsV2:
                 }
             },
         }
-        post_response = await client.post(f"/v2/texts/{expression_id}/editions", json=edition_data)
+        post_response = await client.post(f"/v2/texts/{text_id}/editions", json=edition_data)
         assert post_response.status_code == 201
-        manifestation_id = post_response.json()["id"]
+        edition_id = post_response.json()["id"]
 
-        response = await client.get(f"/v2/texts/{expression_id}/editions")
+        response = await client.get(f"/v2/texts/{text_id}/editions")
 
         assert response.status_code == 200
         data = response.json()
         assert len(data) == 1
         edition = data[0]
-        assert edition["id"] == manifestation_id
-        assert edition["text_id"] == expression_id
+        assert edition["id"] == edition_id
+        assert edition["text_id"] == text_id
         assert edition["type"] == "diplomatic"
         assert edition["bdrc"] == "W55555"
         assert edition["wiki"] == "Q66666"

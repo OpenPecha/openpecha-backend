@@ -17,15 +17,12 @@ import pytest
 import pytest_asyncio
 from exceptions import DataNotFoundError, DataValidationError
 from identifier import generate_id
-from models import (
-    ContributionInput,
-    ContributorRole,
-    ExpressionInput,
-    LocalizedString,
-    ManifestationInput,
-    ManifestationType,
-    PersonInput,
-)
+from models.base import LocalizedString
+from models.contribution import ContributionInput
+from models.edition import EditionInput, EditionType
+from models.enums import ContributorRole
+from models.text import TextInput
+from models.person import PersonInput
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -133,30 +130,30 @@ class TestDatabase:
         assert retrieved_person.alt_names[0].root == {"en": "Alternative Name"}  # Still empty
 
 
-    async def test_expressions_query_structure(self, test_database):
-        """Test expressions query with empty database"""
+    async def test_texts_query_structure(self, test_database):
+        """Test texts query with empty database"""
         db = test_database
 
-        # Test expressions query with no data
-        result = await db.expression.get_all(offset=0, limit=10, filters=None)
+        # Test texts query with no data
+        result = await db.text.get_all(offset=0, limit=10, filters=None)
         assert isinstance(result, list)
         assert len(result) == 0  # Empty database
 
 
-    async def test_expression_not_found(self, test_database):
-        """Test retrieving non-existent expression"""
+    async def test_text_not_found(self, test_database):
+        """Test retrieving non-existent text"""
         db = test_database
 
-        with pytest.raises(DataNotFoundError, match="Expression with ID 'nonexistent' not found"):
-            await db.expression.get("nonexistent")
+        with pytest.raises(DataNotFoundError, match="Text with ID 'nonexistent' not found"):
+            await db.text.get("nonexistent")
 
 
-    async def test_manifestation_not_found(self, test_database):
-        """Test retrieving manifestations for non-existent expression"""
-        # Test that getting manifestations for non-existent expression returns empty list
-        manifestations = await test_database.manifestation.get_all("nonexistent-expression-id")
-        assert isinstance(manifestations, list)
-        assert len(manifestations) == 0
+    async def test_edition_not_found(self, test_database):
+        """Test retrieving editions for non-existent text"""
+        # Test that getting editions for non-existent text returns empty list
+        editions = await test_database.edition.get_all("nonexistent-text-id")
+        assert isinstance(editions, list)
+        assert len(editions) == 0
 
 
     async def test_database_connection_parameters(self, test_database):
@@ -170,8 +167,8 @@ class TestDatabase:
             assert record["message"] == "test connection"
 
 
-    async def test_create_root_expression_success(self, test_database):
-        """Test successful creation of ROOT type expression with all components"""
+    async def test_create_root_text_success(self, test_database):
+        """Test successful creation of ROOT type text with all components"""
 
         # First create a person to reference in contributions
         person = PersonInput(
@@ -182,8 +179,8 @@ class TestDatabase:
         )
         person_id = await test_database.person.create(person)
 
-        # Create ROOT expression (no commentary_of or translation_of)
-        expression = ExpressionInput(
+        # Create ROOT text (no commentary_of or translation_of)
+        text = TextInput(
             category_id="category",
             bdrc="W789012",
             wiki="Q789012",
@@ -194,57 +191,57 @@ class TestDatabase:
             contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
         )
 
-        # Create the expression
-        expression_id = await test_database.expression.create(expression)
+        # Create the text
+        text_id = await test_database.text.create(text)
 
-        # Verify the expression was created
-        assert expression_id is not None
-        assert len(expression_id) > 0
+        # Verify the text was created
+        assert text_id is not None
+        assert len(text_id) > 0
 
-        # Verify we can retrieve the expression
-        retrieved_expression = await test_database.expression.get(expression_id)
-        assert retrieved_expression.id == expression_id
-        assert retrieved_expression.bdrc == "W789012"
-        assert retrieved_expression.wiki == "Q789012"
-        assert retrieved_expression.date == "2024-01-15"
-        assert retrieved_expression.language == "bo"
+        # Verify we can retrieve the text
+        retrieved_text = await test_database.text.get(text_id)
+        assert retrieved_text.id == text_id
+        assert retrieved_text.bdrc == "W789012"
+        assert retrieved_text.wiki == "Q789012"
+        assert retrieved_text.date == "2024-01-15"
+        assert retrieved_text.language == "bo"
 
         # Verify title
-        assert "bo" in retrieved_expression.title.root
-        assert "en" in retrieved_expression.title.root
-        assert retrieved_expression.title.root["bo"] == "དམ་པའི་ཆོས་པདྨ་དཀར་པོ།"
+        assert "bo" in retrieved_text.title.root
+        assert "en" in retrieved_text.title.root
+        assert retrieved_text.title.root["bo"] == "དམ་པའི་ཆོས་པདྨ་དཀར་པོ།"
 
         # Verify alt_titles
-        assert retrieved_expression.alt_titles is not None
-        assert len(retrieved_expression.alt_titles) == 1
-        assert "bo" in retrieved_expression.alt_titles[0].root
-        assert retrieved_expression.alt_titles[0].root["bo"] == "པདྨ་དཀར་པོའི་མདོ།"
+        assert retrieved_text.alt_titles is not None
+        assert len(retrieved_text.alt_titles) == 1
+        assert "bo" in retrieved_text.alt_titles[0].root
+        assert retrieved_text.alt_titles[0].root["bo"] == "པདྨ་དཀར་པོའི་མདོ།"
 
         # Verify contributions
-        assert len(retrieved_expression.contributions) == 1
-        contribution = retrieved_expression.contributions[0]
+        assert len(retrieved_text.contributions) == 1
+        contribution = retrieved_text.contributions[0]
         assert contribution.person_id == person_id
         assert contribution.role == ContributorRole.AUTHOR
 
 
-    async def test_create_root_expression_missing_person(self, test_database):
-        """Test that creating expression with non-existent person fails and rolls back"""
+    async def test_create_root_text_missing_person(self, test_database):
+        """Test that creating text with non-existent person fails and rolls back"""
 
-        expression = ExpressionInput(
+        text = TextInput(
             category_id="category",
-            title=LocalizedString({"en": "Test Expression"}),
+            title=LocalizedString({"en": "Test text"}),
             language="en",
             contributions=[ContributionInput(person_id="non-existent-person-id", role=ContributorRole.AUTHOR)],
         )
 
         # Should raise DataValidationError for missing person
         with pytest.raises(DataValidationError) as exc_info:
-            await test_database.expression.create(expression)
+            await test_database.text.create(text)
 
         assert "non-existent-person-id" in str(exc_info.value)
 
 
-    async def test_create_root_expression_language_support(self, test_database):
+    async def test_create_root_text_language_support(self, test_database):
         """Test that various language codes including BCP47 variants are properly supported"""
 
         # Create a person
@@ -262,7 +259,7 @@ class TestDatabase:
         ]
 
         for input_lang, title_dict in test_cases:
-            expression = ExpressionInput(
+            text = TextInput(
                 category_id="category",
                 title=LocalizedString(title_dict),
                 language=input_lang,
@@ -270,16 +267,16 @@ class TestDatabase:
             )
 
             # Should create successfully
-            expression_id = await test_database.expression.create(expression)
-            assert expression_id is not None
+            text_id = await test_database.text.create(text)
+            assert text_id is not None
 
             # Verify BCP47 language code is preserved
-            retrieved = await test_database.expression.get(expression_id)
+            retrieved = await test_database.text.get(text_id)
             assert retrieved.language == input_lang
 
 
-    async def test_create_root_expression_multiple_contributions(self, test_database):
-        """Test creating expression with multiple contributors"""
+    async def test_create_root_text_multiple_contributions(self, test_database):
+        """Test creating text with multiple contributors"""
         # Create multiple persons
         author = PersonInput(
             name=LocalizedString({"en": "Primary Author"}),
@@ -291,7 +288,7 @@ class TestDatabase:
         )
         reviser_id = await test_database.person.create(reviser)
 
-        expression = ExpressionInput(
+        text = TextInput(
             category_id="category",
             title=LocalizedString({"en": "Multi-Contributor Work"}),
             language="en",
@@ -301,8 +298,8 @@ class TestDatabase:
             ],
         )
 
-        expression_id = await test_database.expression.create(expression)
-        retrieved = await test_database.expression.get(expression_id)
+        text_id = await test_database.text.create(text)
+        retrieved = await test_database.text.get(text_id)
 
         # Verify both contributions
         assert len(retrieved.contributions) == 2
@@ -318,36 +315,36 @@ class TestDatabase:
         assert reviser_id in person_ids
 
 
-    async def test_create_root_expression_minimal_data(self, test_database):
-        """Test creating expression with minimal required data"""
+    async def test_create_root_text_minimal_data(self, test_database):
+        """Test creating text with minimal required data"""
         # Create a person
         person = PersonInput(
             name=LocalizedString({"en": "Minimal Person"}),
         )
         person_id = await test_database.person.create(person)
 
-        # Minimal expression (no bdrc, wiki, date, alt_titles)
-        expression = ExpressionInput(
+        # Minimal text (no bdrc, wiki, date, alt_titles)
+        text = TextInput(
             category_id="category",
-            title=LocalizedString({"en": "Minimal Expression"}),
+            title=LocalizedString({"en": "Minimal text"}),
             language="en",
             contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
         )
 
-        expression_id = await test_database.expression.create(expression)
-        retrieved = await test_database.expression.get(expression_id)
+        text_id = await test_database.text.create(text)
+        retrieved = await test_database.text.get(text_id)
 
-        assert retrieved.id == expression_id
+        assert retrieved.id == text_id
         assert retrieved.bdrc is None
         assert retrieved.wiki is None
         assert retrieved.date is None
         assert retrieved.alt_titles is None or len(retrieved.alt_titles) == 0
-        assert retrieved.title.root["en"] == "Minimal Expression"
+        assert retrieved.title.root["en"] == "Minimal text"
         assert len(retrieved.contributions) == 1
 
 
-    async def test_create_root_expression_with_bdrc_id(self, test_database):
-        """Test creating expression with contribution using person_bdrc_id instead of person_id"""
+    async def test_create_root_text_with_bdrc_id(self, test_database):
+        """Test creating text with contribution using person_bdrc_id instead of person_id"""
         # Create a person with BDRC ID
         person = PersonInput(
             name=LocalizedString({"en": "BDRC Person", "bo": "བདྲ་ཅ་མི་སྣ།"}),
@@ -355,10 +352,10 @@ class TestDatabase:
         )
         person_id = await test_database.person.create(person)
 
-        # Create expression using person_bdrc_id instead of person_id
-        expression = ExpressionInput(
+        # Create text using person_bdrc_id instead of person_id
+        text = TextInput(
             category_id="category",
-            title=LocalizedString({"en": "Expression with BDRC Contributor"}),
+            title=LocalizedString({"en": "text with BDRC Contributor"}),
             language="en",
             contributions=[
                 ContributionInput(
@@ -368,13 +365,13 @@ class TestDatabase:
             ],
         )
 
-        # Should successfully create expression using BDRC ID
-        expression_id = await test_database.expression.create(expression)
-        retrieved = await test_database.expression.get(expression_id)
+        # Should successfully create text using BDRC ID
+        text_id = await test_database.text.create(text)
+        retrieved = await test_database.text.get(text_id)
 
-        # Verify the expression was created correctly
-        assert retrieved.id == expression_id
-        assert retrieved.title.root["en"] == "Expression with BDRC Contributor"
+        # Verify the text was created correctly
+        assert retrieved.id == text_id
+        assert retrieved.title.root["en"] == "text with BDRC Contributor"
         assert len(retrieved.contributions) == 1
 
         # Verify the contribution is linked to the correct person
@@ -384,11 +381,11 @@ class TestDatabase:
         assert contribution.role == ContributorRole.AUTHOR
 
 
-    async def test_create_root_expression_missing_person_bdrc_id(self, test_database):
-        """Test that creating expression with non-existent person_bdrc_id fails"""
-        expression = ExpressionInput(
+    async def test_create_root_text_missing_person_bdrc_id(self, test_database):
+        """Test that creating text with non-existent person_bdrc_id fails"""
+        text = TextInput(
             category_id="category",
-            title=LocalizedString({"en": "Test Expression"}),
+            title=LocalizedString({"en": "Test text"}),
             language="en",
             contributions=[
                 ContributionInput(person_bdrc_id="P999999", role=ContributorRole.AUTHOR)
@@ -397,26 +394,26 @@ class TestDatabase:
 
         # Should raise DataValidationError for missing person
         with pytest.raises(DataValidationError) as exc_info:
-            await test_database.expression.create(expression)
+            await test_database.text.create(text)
 
         assert "P999999" in str(exc_info.value)
 
 
-    async def test_create_translation_expression_success(self, test_database):
-        """Test creating a translation expression that links to parent"""
-        # First create a root expression (parent)
+    async def test_create_translation_text_success(self, test_database):
+        """Test creating a translation text that links to parent"""
+        # First create a root text (parent)
         person = PersonInput(
             name=LocalizedString({"en": "Original Author"}),
         )
         person_id = await test_database.person.create(person)
 
-        root_expression = ExpressionInput(
+        root_text = TextInput(
             category_id="category",
             title=LocalizedString({"en": "Original Text"}),
             language="en",
             contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
         )
-        root_expression_id = await test_database.expression.create(root_expression)
+        root_text_id = await test_database.text.create(root_text)
 
         # Create translator person
         translator = PersonInput(
@@ -424,47 +421,47 @@ class TestDatabase:
         )
         translator_id = await test_database.person.create(translator)
 
-        # Now create a translation expression using translation_of
-        translation_expression = ExpressionInput(
+        # Now create a translation text using translation_of
+        translation_text = TextInput(
             category_id="category",
             title=LocalizedString({"bo": "བསྒྱུར་བ།"}),
             language="bo",
-            translation_of=root_expression_id,
+            translation_of=root_text_id,
             contributions=[ContributionInput(person_id=translator_id, role=ContributorRole.TRANSLATOR)],
         )
 
-        translation_id = await test_database.expression.create(translation_expression)
-        retrieved = await test_database.expression.get(translation_id)
+        translation_id = await test_database.text.create(translation_text)
+        retrieved = await test_database.text.get(translation_id)
 
         # Verify the translation was created correctly
         assert retrieved.id == translation_id
-        assert retrieved.translation_of == root_expression_id
+        assert retrieved.translation_of == root_text_id
         assert retrieved.title.root["bo"] == "བསྒྱུར་བ།"
         assert retrieved.language == "bo"
         assert len(retrieved.contributions) == 1
         assert retrieved.contributions[0].role == ContributorRole.TRANSLATOR
 
 
-    async def test_create_expression_both_commentary_and_translation_fails(self, test_database):
-        """Test that creating expression with both commentary_of and translation_of fails validation"""
+    async def test_create_text_both_commentary_and_translation_fails(self, test_database):
+        """Test that creating text with both commentary_of and translation_of fails validation"""
         # Create a person for the contribution
         person = PersonInput(
             name=LocalizedString({"en": "Author"}),
         )
         person_id = await test_database.person.create(person)
 
-        # Create a root expression first
-        root_expression = ExpressionInput(
+        # Create a root text first
+        root_text = TextInput(
             category_id="category",
             title=LocalizedString({"en": "Root Text"}),
             language="en",
             contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
         )
-        root_id = await test_database.expression.create(root_expression)
+        root_id = await test_database.text.create(root_text)
 
-        # Try to create expression with both commentary_of and translation_of - should fail validation
+        # Try to create text with both commentary_of and translation_of - should fail validation
         with pytest.raises(ValueError, match="Cannot be both a commentary and translation"):
-            ExpressionInput(
+            TextInput(
                 category_id="category",
                 title=LocalizedString({"bo": "བསྒྱུར་བ།"}),
                 language="bo",
@@ -474,7 +471,7 @@ class TestDatabase:
             )
 
 
-    async def test_create_translation_expression_nonexistent_target(self, test_database):
+    async def test_create_translation_text_nonexistent_target(self, test_database):
         """Test that creating translation with non-existent target fails"""
         # Create a person for the contribution
         person = PersonInput(
@@ -483,7 +480,7 @@ class TestDatabase:
         person_id = await test_database.person.create(person)
 
         # Create translation with non-existent target
-        translation_expression = ExpressionInput(
+        translation_text = TextInput(
             category_id="category",
             title=LocalizedString({"bo": "བསྒྱུར་བ།"}),
             language="bo",
@@ -493,24 +490,24 @@ class TestDatabase:
 
         # Should fail when trying to create in database
         with pytest.raises(Exception):
-            await test_database.expression.create(translation_expression)
+            await test_database.text.create(translation_text)
 
 
-    async def test_create_commentary_expression_success(self, test_database):
-        """Test creating a commentary expression using commentary_of"""
-        # First create a root expression (parent)
+    async def test_create_commentary_text_success(self, test_database):
+        """Test creating a commentary text using commentary_of"""
+        # First create a root text (parent)
         person = PersonInput(
             name=LocalizedString({"en": "Original Author"}),
         )
         person_id = await test_database.person.create(person)
 
-        root_expression = ExpressionInput(
+        root_text = TextInput(
             category_id="category",
             title=LocalizedString({"en": "Original Text"}),
             language="en",
             contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
         )
-        root_expression_id = await test_database.expression.create(root_expression)
+        root_text_id = await test_database.text.create(root_text)
 
         # Create commentator person
         commentator = PersonInput(
@@ -518,21 +515,21 @@ class TestDatabase:
         )
         commentator_id = await test_database.person.create(commentator)
 
-        # Now create a commentary expression using commentary_of
-        commentary_expression = ExpressionInput(
+        # Now create a commentary text using commentary_of
+        commentary_text = TextInput(
             category_id="category",
             title=LocalizedString({"bo": "འགྲེལ་པ།"}),
             language="bo",
-            commentary_of=root_expression_id,
+            commentary_of=root_text_id,
             contributions=[ContributionInput(person_id=commentator_id, role=ContributorRole.AUTHOR)],
         )
 
-        commentary_id = await test_database.expression.create(commentary_expression)
-        retrieved = await test_database.expression.get(commentary_id)
+        commentary_id = await test_database.text.create(commentary_text)
+        retrieved = await test_database.text.get(commentary_id)
 
         # Verify the commentary was created correctly
         assert retrieved.id == commentary_id
-        assert retrieved.commentary_of == root_expression_id
+        assert retrieved.commentary_of == root_text_id
         assert retrieved.bdrc is None
         assert retrieved.wiki is None
         assert retrieved.date is None
@@ -543,7 +540,7 @@ class TestDatabase:
         assert retrieved.contributions[0].role == ContributorRole.AUTHOR
 
 
-    async def test_create_commentary_expression_nonexistent_target(self, test_database):
+    async def test_create_commentary_text_nonexistent_target(self, test_database):
         """Test that creating commentary with non-existent target fails"""
         # Create a person for the contribution
         person = PersonInput(
@@ -551,8 +548,8 @@ class TestDatabase:
         )
         person_id = await test_database.person.create(person)
 
-        # Create commentary expression with non-existent target
-        commentary_expression = ExpressionInput(
+        # Create commentary text with non-existent target
+        commentary_text = TextInput(
             category_id="category",
             title=LocalizedString({"bo": "འགྲེལ་པ།"}),
             language="bo",
@@ -562,24 +559,24 @@ class TestDatabase:
 
         # Should fail when trying to create in database
         with pytest.raises(Exception):
-            await test_database.expression.create(commentary_expression)
+            await test_database.text.create(commentary_text)
 
 
-    async def test_create_commentary_expression_with_multiple_contributions(self, test_database):
-        """Test creating commentary expression with multiple contributors"""
-        # Create target expression
+    async def test_create_commentary_text_with_multiple_contributions(self, test_database):
+        """Test creating commentary text with multiple contributors"""
+        # Create target text
         author = PersonInput(
             name=LocalizedString({"en": "Original Author"}),
         )
         author_id = await test_database.person.create(author)
 
-        root_expression = ExpressionInput(
+        root_text = TextInput(
             category_id="category",
             title=LocalizedString({"en": "Original Text"}),
             language="en",
             contributions=[ContributionInput(person_id=author_id, role=ContributorRole.AUTHOR)],
         )
-        root_expression_id = await test_database.expression.create(root_expression)
+        root_text_id = await test_database.text.create(root_text)
 
         # Create multiple contributors for commentary
         commentator = PersonInput(
@@ -593,19 +590,19 @@ class TestDatabase:
         reviser_id = await test_database.person.create(reviser)
 
         # Create commentary with multiple contributions
-        commentary_expression = ExpressionInput(
+        commentary_text = TextInput(
             category_id="category",
             title=LocalizedString({"bo": "འགྲེལ་པ།"}),
             language="bo",
-            commentary_of=root_expression_id,
+            commentary_of=root_text_id,
             contributions=[
                 ContributionInput(person_id=commentator_id, role=ContributorRole.AUTHOR),
                 ContributionInput(person_id=reviser_id, role=ContributorRole.REVISER),
             ],
         )
 
-        commentary_id = await test_database.expression.create(commentary_expression)
-        retrieved = await test_database.expression.get(commentary_id)
+        commentary_id = await test_database.text.create(commentary_text)
+        retrieved = await test_database.text.get(commentary_id)
 
         # Verify multiple contributions
         assert len(retrieved.contributions) == 2
@@ -613,393 +610,393 @@ class TestDatabase:
         assert ContributorRole.AUTHOR in contribution_roles
         assert ContributorRole.REVISER in contribution_roles
 
-    # Manifestation Tests
+    # Editions Tests
 
-    async def test_get_manifestations_by_expression_empty(self, test_database):
-        """Test getting manifestations for expression with no manifestations."""
-        # Create a basic expression first
+    async def test_get_editions_by_text_empty(self, test_database):
+        """Test getting editions for text with no editions."""
+        # Create a basic text first
         person = PersonInput(
             name=LocalizedString({"en": "Test Author"}),
         )
         person_id = await test_database.person.create(person)
 
-        expression = ExpressionInput(
+        text = TextInput(
             category_id="category",
-            title=LocalizedString({"en": "Test Expression"}),
+            title=LocalizedString({"en": "Test text"}),
             language="en",
             contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
         )
-        expression_id = await test_database.expression.create(expression)
+        text_id = await test_database.text.create(text)
 
-        # Get manifestations for expression with no manifestations
-        manifestations = await test_database.manifestation.get_all(expression_id)
-        assert manifestations == []
+        # Get editions for text with no editions
+        editions = await test_database.edition.get_all(text_id)
+        assert editions == []
 
 
-    async def test_get_manifestations_by_expression_with_different_types(self, test_database):
-        """Test getting manifestations for different expression types (ROOT, TRANSLATION, COMMENTARY)."""
+    async def test_get_editions_by_text_with_different_types(self, test_database):
+        """Test getting editions for different text types (ROOT, TRANSLATION, COMMENTARY)."""
         # Create person
         person = PersonInput(
             name=LocalizedString({"en": "Test Author"}),
         )
         person_id = await test_database.person.create(person)
 
-        # Test ROOT expression
-        root_expression = ExpressionInput(
+        # Test ROOT text
+        root_text = TextInput(
             category_id="category",
-            title=LocalizedString({"en": "Root Expression"}),
+            title=LocalizedString({"en": "Root text"}),
             language="en",
             contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
         )
-        root_id = await test_database.expression.create(root_expression)
-        root_manifestations = await test_database.manifestation.get_all(root_id)
-        assert isinstance(root_manifestations, list)
+        root_id = await test_database.text.create(root_text)
+        root_editions = await test_database.edition.get_all(root_id)
+        assert isinstance(root_editions, list)
 
-        # Test TRANSLATION expression
-        translation_expression = ExpressionInput(
+        # Test TRANSLATION text
+        translation_text = TextInput(
             category_id="category",
             title=LocalizedString({"bo": "འགྱུར་བ།"}),
             language="bo",
             translation_of=root_id,
             contributions=[ContributionInput(person_id=person_id, role=ContributorRole.TRANSLATOR)],
         )
-        translation_id = await test_database.expression.create(translation_expression)
-        translation_manifestations = await test_database.manifestation.get_all(translation_id)
-        assert isinstance(translation_manifestations, list)
+        translation_id = await test_database.text.create(translation_text)
+        translation_editions = await test_database.edition.get_all(translation_id)
+        assert isinstance(translation_editions, list)
 
-        # Test COMMENTARY expression
-        commentary_expression = ExpressionInput(
+        # Test COMMENTARY text
+        commentary_text = TextInput(
             category_id="category",
             title=LocalizedString({"bo": "འགྲེལ་པ།"}),
             language="bo",
             commentary_of=root_id,
             contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
         )
-        commentary_id = await test_database.expression.create(commentary_expression)
-        commentary_manifestations = await test_database.manifestation.get_all(commentary_id)
-        assert isinstance(commentary_manifestations, list)
+        commentary_id = await test_database.text.create(commentary_text)
+        commentary_editions = await test_database.edition.get_all(commentary_id)
+        assert isinstance(commentary_editions, list)
 
 
-    async def test_create_manifestation_basic(self, test_database):
-        """Test creating a basic manifestation."""
-        # Create expression first
+    async def test_create_edition_basic(self, test_database):
+        """Test creating a basic edition."""
+        # Create text first
         person = PersonInput(
             name=LocalizedString({"en": "Test Author"}),
         )
         person_id = await test_database.person.create(person)
 
-        expression = ExpressionInput(
+        text = TextInput(
             category_id="category",
-            title=LocalizedString({"en": "Test Expression"}),
+            title=LocalizedString({"en": "Test text"}),
             language="en",
             contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
         )
-        expression_id = await test_database.expression.create(expression)
+        text_id = await test_database.text.create(text)
 
-        manifestation = ManifestationInput(
-            type=ManifestationType.CRITICAL,
+        edition = EditionInput(
+            type=EditionType.CRITICAL,
             source="Test Source",
             colophon="Test colophon",
         )
 
-        # Create manifestation in database
-        manifestation_id = generate_id()
-        await test_database.manifestation.create(manifestation, manifestation_id, expression_id)
+        # Create edition in database
+        edition_id = generate_id()
+        await test_database.edition.create(edition, edition_id, text_id)
 
-        # Verify we can get raw manifestations list
-        retrieved_manifestations = await test_database.manifestation.get_all(expression_id)
-        assert isinstance(retrieved_manifestations, list)
-        assert len(retrieved_manifestations) == 1
-        assert retrieved_manifestations[0].id == manifestation_id
+        # Verify we can get raw editions list
+        retrieved_editions = await test_database.edition.get_all(text_id)
+        assert isinstance(retrieved_editions, list)
+        assert len(retrieved_editions) == 1
+        assert retrieved_editions[0].id == edition_id
 
 
-    async def test_create_and_retrieve_manifestation(self, test_database):
-        """Test creating a manifestation and retrieving it."""
-        # Create expression first
+    async def test_create_and_retrieve_edition(self, test_database):
+        """Test creating a edition and retrieving it."""
+        # Create text first
         person = PersonInput(
             name=LocalizedString({"en": "Test Author"}),
         )
         person_id = await test_database.person.create(person)
 
-        expression = ExpressionInput(
+        text = TextInput(
             category_id="category",
-            title=LocalizedString({"en": "Test Expression"}),
+            title=LocalizedString({"en": "Test text"}),
             language="en",
             contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
         )
-        expression_id = await test_database.expression.create(expression)
+        text_id = await test_database.text.create(text)
 
-        manifestation = ManifestationInput(
-            type=ManifestationType.CRITICAL,
+        edition = EditionInput(
+            type=EditionType.CRITICAL,
             source="Test Source",
         )
 
-        # Create manifestation in database
-        manifestation_id = generate_id()
-        await test_database.manifestation.create(manifestation, manifestation_id, expression_id)
+        # Create edition in database
+        edition_id = generate_id()
+        await test_database.edition.create(edition, edition_id, text_id)
 
         # Retrieve and verify
-        retrieved_manifestations = await test_database.manifestation.get_all(expression_id)
-        assert len(retrieved_manifestations) == 1
+        retrieved_editions = await test_database.edition.get_all(text_id)
+        assert len(retrieved_editions) == 1
 
-        retrieved = retrieved_manifestations[0]
-        assert retrieved.id == manifestation_id
-        assert retrieved.type == ManifestationType.CRITICAL
+        retrieved = retrieved_editions[0]
+        assert retrieved.id == edition_id
+        assert retrieved.type == EditionType.CRITICAL
 
 
-    async def test_create_multiple_manifestations_for_expression(self, test_database):
-        """Test creating multiple manifestations for the same expression."""
-        # Create expression first
+    async def test_create_multiple_editions_for_text(self, test_database):
+        """Test creating multiple editions for the same text."""
+        # Create text first
         person = PersonInput(
             name=LocalizedString({"en": "Test Author"}),
         )
         person_id = await test_database.person.create(person)
 
-        expression = ExpressionInput(
+        text = TextInput(
             category_id="category",
-            title=LocalizedString({"en": "Test Expression"}),
+            title=LocalizedString({"en": "Test text"}),
             language="en",
             contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
         )
-        expression_id = await test_database.expression.create(expression)
+        text_id = await test_database.text.create(text)
 
-        # Create first manifestation (CRITICAL)
-        manifestation1 = ManifestationInput(
-            type=ManifestationType.CRITICAL,
+        # Create first edition (CRITICAL)
+        edition1 = EditionInput(
+            type=EditionType.CRITICAL,
             source="Test Source 1",
-            colophon="First manifestation",
+            colophon="First edition",
         )
-        manifestation1_id = generate_id()
-        await test_database.manifestation.create(manifestation1, manifestation1_id, expression_id)
+        edition1_id = generate_id()
+        await test_database.edition.create(edition1, edition1_id, text_id)
 
-        # Create second manifestation (DIPLOMATIC - requires bdrc)
-        manifestation2 = ManifestationInput(
-            type=ManifestationType.DIPLOMATIC,
+        # Create second edition (DIPLOMATIC - requires bdrc)
+        edition2 = EditionInput(
+            type=EditionType.DIPLOMATIC,
             bdrc="W12345",
             source="Test Source 2",
-            colophon="Second manifestation",
+            colophon="Second edition",
         )
-        manifestation2_id = generate_id()
-        await test_database.manifestation.create(manifestation2, manifestation2_id, expression_id)
+        edition2_id = generate_id()
+        await test_database.edition.create(edition2, edition2_id, text_id)
 
-        # Retrieve all manifestations
-        retrieved_manifestations = await test_database.manifestation.get_all(expression_id)
-        assert len(retrieved_manifestations) == 2
+        # Retrieve all editions
+        retrieved_editions = await test_database.edition.get_all(text_id)
+        assert len(retrieved_editions) == 2
 
-        # Verify both manifestations are present
-        retrieved_ids = {m.id for m in retrieved_manifestations}
-        assert manifestation1_id in retrieved_ids
-        assert manifestation2_id in retrieved_ids
+        # Verify both editions are present
+        retrieved_ids = {m.id for m in retrieved_editions}
+        assert edition1_id in retrieved_ids
+        assert edition2_id in retrieved_ids
 
         # Verify types
-        retrieved_types = {m.type for m in retrieved_manifestations}
-        assert ManifestationType.CRITICAL in retrieved_types
-        assert ManifestationType.DIPLOMATIC in retrieved_types
+        retrieved_types = {m.type for m in retrieved_editions}
+        assert EditionType.CRITICAL in retrieved_types
+        assert EditionType.DIPLOMATIC in retrieved_types
 
 
-    async def test_create_manifestation_nonexistent_expression(self, test_database):
-        """Test that creating manifestation for non-existent expression fails."""
-        manifestation = ManifestationInput(
-            type=ManifestationType.CRITICAL,
+    async def test_create_edition_nonexistent_text(self, test_database):
+        """Test that creating edition for non-existent text fails."""
+        edition = EditionInput(
+            type=EditionType.CRITICAL,
             source="Test Source",
         )
 
-        # Should raise DataValidationError for non-existent expression
-        with pytest.raises(DataValidationError, match="Expression nonexistent-id does not exist"):
-            await test_database.manifestation.create(manifestation, generate_id(), "nonexistent-id")
+        # Should raise DataValidationError for non-existent text
+        with pytest.raises(DataValidationError, match="Text nonexistent-id does not exist"):
+            await test_database.edition.create(edition, generate_id(), "nonexistent-id")
 
 
-    async def test_create_manifestation_with_source(self, test_database):
+    async def test_create_edition_with_source(self, test_database):
         """Test that source field is stored in Source node and retrieved correctly."""
-        # Create expression first
+        # Create text first
         person = PersonInput(
             name=LocalizedString({"en": "Test Author"}),
         )
         person_id = await test_database.person.create(person)
 
-        expression = ExpressionInput(
+        text = TextInput(
             category_id="category",
-            title=LocalizedString({"en": "Test Expression"}),
+            title=LocalizedString({"en": "Test text"}),
             language="en",
             contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
         )
-        expression_id = await test_database.expression.create(expression)
+        text_id = await test_database.text.create(text)
 
-        # Create manifestation with source
-        manifestation = ManifestationInput(
-            type=ManifestationType.CRITICAL,
+        # Create edition with source
+        edition = EditionInput(
+            type=EditionType.CRITICAL,
             source="BDRC Library",
             colophon="Test colophon",
         )
-        manifestation_id = generate_id()
-        await test_database.manifestation.create(manifestation, manifestation_id, expression_id)
+        edition_id = generate_id()
+        await test_database.edition.create(edition, edition_id, text_id)
 
         # Retrieve and verify source is returned
-        retrieved = await test_database.manifestation.get(manifestation_id)
-        assert retrieved.id == manifestation_id
+        retrieved = await test_database.edition.get(edition_id)
+        assert retrieved.id == edition_id
         assert retrieved.source == "BDRC Library"
         assert retrieved.colophon == "Test colophon"
-        assert retrieved.type == ManifestationType.CRITICAL
+        assert retrieved.type == EditionType.CRITICAL
 
 
-    async def test_create_manifestation_without_source(self, test_database):
-        """Test that manifestation without source works correctly."""
-        # Create expression first
+    async def test_create_edition_without_source(self, test_database):
+        """Test that edition without source works correctly."""
+        # Create text first
         person = PersonInput(
             name=LocalizedString({"en": "Test Author"}),
         )
         person_id = await test_database.person.create(person)
 
-        expression = ExpressionInput(
+        text = TextInput(
             category_id="category",
-            title=LocalizedString({"en": "Test Expression"}),
+            title=LocalizedString({"en": "Test text"}),
             language="en",
             contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
         )
-        expression_id = await test_database.expression.create(expression)
+        text_id = await test_database.text.create(text)
 
-        # Create manifestation without source
-        manifestation = ManifestationInput(
-            type=ManifestationType.CRITICAL,
+        # Create edition without source
+        edition = EditionInput(
+            type=EditionType.CRITICAL,
         )
-        manifestation_id = generate_id()
-        await test_database.manifestation.create(manifestation, manifestation_id, expression_id)
+        edition_id = generate_id()
+        await test_database.edition.create(edition, edition_id, text_id)
 
         # Retrieve and verify source is None
-        retrieved = await test_database.manifestation.get(manifestation_id)
-        assert retrieved.id == manifestation_id
+        retrieved = await test_database.edition.get(edition_id)
+        assert retrieved.id == edition_id
         assert retrieved.source is None
-        assert retrieved.type == ManifestationType.CRITICAL
+        assert retrieved.type == EditionType.CRITICAL
 
 
-    async def test_create_manifestation_with_expression(self, test_database):
-        """Test creating manifestation with expression in same transaction."""
-        # Create a person for the expression contribution
+    async def test_create_edition_with_text(self, test_database):
+        """Test creating edition with text in same transaction."""
+        # Create a person for the text contribution
         person = PersonInput(
             name=LocalizedString({"en": "Test Author"}),
         )
         person_id = await test_database.person.create(person)
 
-        # Create expression input (not yet in database)
-        expression = ExpressionInput(
+        # Create text input (not yet in database)
+        text = TextInput(
             category_id="category",
-            title=LocalizedString({"en": "New Expression Created With Manifestation"}),
+            title=LocalizedString({"en": "New text Created With Edition"}),
             language="en",
             contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
         )
 
-        # Create manifestation input
-        manifestation = ManifestationInput(
-            type=ManifestationType.CRITICAL,
+        # Create edition input
+        edition = EditionInput(
+            type=EditionType.CRITICAL,
             source="Test Source",
             colophon="Test colophon",
         )
 
         # Create both in same transaction
-        manifestation_id = generate_id()
-        expression_id = generate_id()
-        await test_database.manifestation.create(
-            manifestation, manifestation_id, expression_id, expression=expression
+        edition_id = generate_id()
+        text_id = generate_id()
+        await test_database.edition.create(
+            edition, edition_id, text_id, text=text
         )
 
-        # Verify expression was created
-        retrieved_expression = await test_database.expression.get(expression_id)
-        assert retrieved_expression.id == expression_id
-        assert retrieved_expression.title.root["en"] == "New Expression Created With Manifestation"
-        assert len(retrieved_expression.contributions) == 1
+        # Verify text was created
+        retrieved_text = await test_database.text.get(text_id)
+        assert retrieved_text.id == text_id
+        assert retrieved_text.title.root["en"] == "New text Created With Edition"
+        assert len(retrieved_text.contributions) == 1
 
-        # Verify manifestation was created and linked
-        retrieved_manifestation = await test_database.manifestation.get(manifestation_id)
-        assert retrieved_manifestation.id == manifestation_id
-        assert retrieved_manifestation.source == "Test Source"
-        assert retrieved_manifestation.type == ManifestationType.CRITICAL
+        # Verify edition was created and linked
+        retrieved_edition = await test_database.edition.get(edition_id)
+        assert retrieved_edition.id == edition_id
+        assert retrieved_edition.source == "Test Source"
+        assert retrieved_edition.type == EditionType.CRITICAL
 
-        # Verify manifestation is linked to expression
-        manifestations = await test_database.manifestation.get_all(expression_id)
-        assert len(manifestations) == 1
-        assert manifestations[0].id == manifestation_id
+        # Verify edition is linked to text
+        editions = await test_database.edition.get_all(text_id)
+        assert len(editions) == 1
+        assert editions[0].id == edition_id
 
 
-    async def test_create_manifestation_with_expression_rollback_on_invalid_person(self, test_database):
-        """Test that transaction rolls back if expression creation fails due to invalid person."""
-        # Create expression with non-existent person
-        expression = ExpressionInput(
+    async def test_create_edition_with_text_rollback_on_invalid_person(self, test_database):
+        """Test that transaction rolls back if text creation fails due to invalid person."""
+        # Create text with non-existent person
+        text = TextInput(
             category_id="category",
-            title=LocalizedString({"en": "Expression With Invalid Person"}),
+            title=LocalizedString({"en": "text With Invalid Person"}),
             language="en",
             contributions=[ContributionInput(person_id="nonexistent-person-id", role=ContributorRole.AUTHOR)],
         )
 
-        manifestation = ManifestationInput(
-            type=ManifestationType.CRITICAL,
+        edition = EditionInput(
+            type=EditionType.CRITICAL,
             source="Test Source",
         )
 
-        manifestation_id = generate_id()
-        expression_id = generate_id()
+        edition_id = generate_id()
+        text_id = generate_id()
 
-        # Should fail due to invalid person in expression
+        # Should fail due to invalid person in text
         with pytest.raises(DataValidationError, match="nonexistent-person-id"):
-            await test_database.manifestation.create(
-                manifestation, manifestation_id, expression_id, expression=expression
+            await test_database.edition.create(
+                edition, edition_id, text_id, text=text
             )
 
         # Verify nothing was created (transaction rolled back)
         with pytest.raises(DataNotFoundError):
-            await test_database.expression.get(expression_id)
+            await test_database.text.get(text_id)
 
         with pytest.raises(DataNotFoundError):
-            await test_database.manifestation.get(manifestation_id)
+            await test_database.edition.get(edition_id)
 
 
-    async def test_create_manifestation_with_translation_expression(self, test_database):
-        """Test creating manifestation with translation expression in same transaction."""
+    async def test_create_edition_with_translation_text(self, test_database):
+        """Test creating edition with translation text in same transaction."""
         # Create person
         person = PersonInput(
             name=LocalizedString({"en": "Author"}),
         )
         person_id = await test_database.person.create(person)
 
-        # Create root expression first (parent)
-        root_expression = ExpressionInput(
+        # Create root text first (parent)
+        root_text = TextInput(
             category_id="category",
             title=LocalizedString({"en": "Root Text"}),
             language="en",
             contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
         )
-        root_expression_id = await test_database.expression.create(root_expression)
+        root_text_id = await test_database.text.create(root_text)
 
-        # Create translation expression input
-        translation_expression = ExpressionInput(
+        # Create translation text input
+        translation_text = TextInput(
             category_id="category",
             title=LocalizedString({"bo": "བསྒྱུར་བ།"}),
             language="bo",
-            translation_of=root_expression_id,
+            translation_of=root_text_id,
             contributions=[ContributionInput(person_id=person_id, role=ContributorRole.TRANSLATOR)],
         )
 
-        manifestation = ManifestationInput(
-            type=ManifestationType.DIPLOMATIC,
+        edition = EditionInput(
+            type=EditionType.DIPLOMATIC,
             bdrc="W12345",
         )
 
         # Create both in same transaction
-        manifestation_id = generate_id()
+        edition_id = generate_id()
         translation_id = generate_id()
-        await test_database.manifestation.create(
-            manifestation, manifestation_id, translation_id, expression=translation_expression
+        await test_database.edition.create(
+            edition, edition_id, translation_id, text=translation_text
         )
 
-        # Verify translation expression was created with parent link
-        retrieved_expression = await test_database.expression.get(translation_id)
-        assert retrieved_expression.id == translation_id
-        assert retrieved_expression.translation_of == root_expression_id
-        assert retrieved_expression.language == "bo"
+        # Verify translation text was created with parent link
+        retrieved_text = await test_database.text.get(translation_id)
+        assert retrieved_text.id == translation_id
+        assert retrieved_text.translation_of == root_text_id
+        assert retrieved_text.language == "bo"
 
-        # Verify manifestation was created
-        retrieved_manifestation = await test_database.manifestation.get(manifestation_id)
-        assert retrieved_manifestation.id == manifestation_id
-        assert retrieved_manifestation.type == ManifestationType.DIPLOMATIC
+        # Verify edition was created
+        retrieved_edition = await test_database.edition.get(edition_id)
+        assert retrieved_edition.id == edition_id
+        assert retrieved_edition.type == EditionType.DIPLOMATIC
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -1007,33 +1004,33 @@ class TestSpanDatabase:
     """Tests for SpanDatabase span adjustment functionality."""
 
     async def _create_test_setup(self, test_database):
-        """Helper to create expression, manifestation, segmentation, and segment for testing."""
+        """Helper to create text, edition, segmentation, and segment for testing."""
         person = PersonInput(name=LocalizedString({"en": "Test Author"}))
         person_id = await test_database.person.create(person)
 
-        expression = ExpressionInput(
+        text = TextInput(
             category_id="category",
-            title=LocalizedString({"en": "Test Expression"}),
+            title=LocalizedString({"en": "Test text"}),
             language="en",
             contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
         )
-        expression_id = await test_database.expression.create(expression)
+        text_id = await test_database.text.create(text)
 
-        manifestation = ManifestationInput(type=ManifestationType.CRITICAL)
-        manifestation_id = generate_id()
-        await test_database.manifestation.create(manifestation, manifestation_id, expression_id)
+        edition = EditionInput(type=EditionType.CRITICAL)
+        edition_id = generate_id()
+        await test_database.edition.create(edition, edition_id, text_id)
 
         segment_id = generate_id()
         segmentation_id = generate_id()
         async with test_database.get_session() as session:
             await session.run(
                 """
-                MATCH (m:Manifestation {id: $manifestation_id})
+                MATCH (m:Edition {id: $edition_id})
                 CREATE (segmentation:Segmentation {id: $segmentation_id})-[:SEGMENTATION_OF]->(m)
                 CREATE (seg:Segment {id: $segment_id})-[:SEGMENT_OF]->(segmentation)
                 CREATE (span:Span {start: $start, end: $end})-[:SPAN_OF]->(seg)
                 """,
-                manifestation_id=manifestation_id,
+                edition_id=edition_id,
                 segmentation_id=segmentation_id,
                 segment_id=segment_id,
                 start=0,
@@ -1041,41 +1038,41 @@ class TestSpanDatabase:
             )
 
         return {
-            "expression_id": expression_id,
-            "manifestation_id": manifestation_id,
+            "text_id": text_id,
+            "edition_id": edition_id,
             "segment_id": segment_id,
             "segmentation_id": segmentation_id,
         }
 
-    async def _add_note(self, test_database, manifestation_id: str, start: int, end: int) -> str:
+    async def _add_note(self, test_database, edition_id: str, start: int, end: int) -> str:
         """Helper to add a note with a span."""
         note_id = generate_id()
         async with test_database.get_session() as session:
             await session.run(
                 """
-                MATCH (m:Manifestation {id: $manifestation_id}), (nt:NoteType {name: 'durchen'})
+                MATCH (m:Edition {id: $edition_id}), (nt:NoteType {name: 'durchen'})
                 CREATE (span:Span {start: $start, end: $end})-[:SPAN_OF]->(n:Note {id: $note_id, text: 'test'})
                 CREATE (n)-[:NOTE_OF]->(m)
                 CREATE (n)-[:HAS_TYPE]->(nt)
                 """,
-                manifestation_id=manifestation_id,
+                edition_id=edition_id,
                 note_id=note_id,
                 start=start,
                 end=end,
             )
         return note_id
 
-    async def _add_second_segment(self, test_database, manifestation_id: str, start: int, end: int) -> str:
+    async def _add_second_segment(self, test_database, edition_id: str, start: int, end: int) -> str:
         """Helper to add a second segment."""
         segment_id = generate_id()
         async with test_database.get_session() as session:
             await session.run(
                 """
-                MATCH (m:Manifestation {id: $manifestation_id})<-[:SEGMENTATION_OF]-(segmentation:Segmentation)
+                MATCH (m:Edition {id: $edition_id})<-[:SEGMENTATION_OF]-(segmentation:Segmentation)
                 CREATE (seg:Segment {id: $segment_id})-[:SEGMENT_OF]->(segmentation)
                 CREATE (span:Span {start: $start, end: $end})-[:SPAN_OF]->(seg)
                 """,
-                manifestation_id=manifestation_id,
+                edition_id=edition_id,
                 segment_id=segment_id,
                 start=start,
                 end=end,

@@ -13,8 +13,8 @@ from .nomen_database import NomenDatabase
 if TYPE_CHECKING:
     from neo4j import AsyncManagedTransaction, AsyncSession
 
-    from models import PersonInput, PersonOutput, PersonPatch
-    from request_models import PersonFilter
+    from models.person import PersonInput, PersonOutput, PersonPatch
+    from models.requests import PersonFilter
 
     from .database import Database
 

@@ -2,25 +2,21 @@ from typing import Self
 
 from pydantic import Field, model_validator
 
-from models import (
+from .annotation import (
     AlignmentInput,
     AlignmentOutput,
-    AnnotationType,
     BibliographicMetadataInput,
     BibliographicMetadataOutput,
-    LicenseType,
-    LocalizedString,
-    ManifestationInput,
-    ManifestationType,
-    NonEmptyStr,
     NoteInput,
     NoteOutput,
-    OpenPechaModel,
     PaginationInput,
     PaginationOutput,
     SegmentationInput,
     SegmentationOutput,
 )
+from .base import LocalizedString, NonEmptyStr, OpenPechaModel
+from .edition import EditionInput
+from .enums import AnnotationType, EditionType, LicenseType
 
 
 class PaginationParams(OpenPechaModel):
@@ -28,7 +24,7 @@ class PaginationParams(OpenPechaModel):
     offset: int = Field(default=0, ge=0)
 
 
-class ExpressionFilter(OpenPechaModel):
+class TextFilter(OpenPechaModel):
     language: str | None = None
     title: str | None = None
     category_id: str | None = None
@@ -38,7 +34,7 @@ class ExpressionFilter(OpenPechaModel):
     wiki: str | None = None
 
 
-class TextsQueryParams(PaginationParams, ExpressionFilter):
+class TextsQueryParams(PaginationParams, TextFilter):
     pass
 
 
@@ -53,7 +49,7 @@ class PersonsQueryParams(PaginationParams, PersonFilter):
 
 
 class EditionsQueryParams(OpenPechaModel):
-    edition_type: ManifestationType | None = None
+    edition_type: EditionType | None = None
 
 
 class SpanQueryParams(OpenPechaModel):
@@ -120,19 +116,19 @@ class AnnotationRequestOutput(OpenPechaModel):
 
 
 class EditionRequestModel(OpenPechaModel):
-    metadata: ManifestationInput
+    metadata: EditionInput
     pagination: PaginationInput | None = None
     segmentation: SegmentationInput | None = None
     content: NonEmptyStr
 
     @model_validator(mode="after")
     def validate_annotation(self) -> Self:
-        if self.metadata.type is ManifestationType.CRITICAL:
+        if self.metadata.type is EditionType.CRITICAL:
             if not self.segmentation:
                 raise ValueError("Critical editions must have segmentation_annotation")
             if self.pagination:
                 raise ValueError("Critical editions must not have pagination_annotation")
-        elif self.metadata.type is ManifestationType.DIPLOMATIC:
+        elif self.metadata.type is EditionType.DIPLOMATIC:
             if not self.pagination:
                 raise ValueError("Diplomatic editions must have pagination_annotation")
             if self.segmentation:

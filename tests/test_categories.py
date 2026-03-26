@@ -14,7 +14,7 @@ Requires environment variables:
 import logging
 
 import pytest
-from models import CategoryInput
+from models.category import CategoryInput
 
 logger = logging.getLogger(__name__)
 

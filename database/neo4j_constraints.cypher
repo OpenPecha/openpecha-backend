@@ -5,14 +5,14 @@
 // Person nodes - each person must have a unique ID
 CREATE CONSTRAINT person_id_unique IF NOT EXISTS FOR (p:Person) REQUIRE p.id IS UNIQUE;
 
-// Expression nodes - each expression must have a unique ID
-CREATE CONSTRAINT expression_id_unique IF NOT EXISTS FOR (e:Expression) REQUIRE e.id IS UNIQUE;
+// Text nodes - each text must have a unique ID
+CREATE CONSTRAINT text_id_unique IF NOT EXISTS FOR (e:Text) REQUIRE e.id IS UNIQUE;
 
 // Work nodes - each work must have a unique ID
 CREATE CONSTRAINT work_id_unique IF NOT EXISTS FOR (w:Work) REQUIRE w.id IS UNIQUE;
 
-// Manifestation nodes - each manifestation must have a unique ID
-CREATE CONSTRAINT manifestation_id_unique IF NOT EXISTS FOR (m:Manifestation) REQUIRE m.id IS UNIQUE;
+// Edition nodes - each edition must have a unique ID
+CREATE CONSTRAINT edition_id_unique IF NOT EXISTS FOR (m:Edition) REQUIRE m.id IS UNIQUE;
 
 // Annotation nodes - each annotation must have a unique ID
 CREATE CONSTRAINT annotation_id_unique IF NOT EXISTS FOR (a:Annotation) REQUIRE a.id IS UNIQUE;
@@ -33,8 +33,8 @@ CREATE CONSTRAINT role_type_name_unique IF NOT EXISTS FOR (rt:RoleType) REQUIRE 
 // AnnotationType nodes - each annotation type must have a unique name
 CREATE CONSTRAINT annotation_type_name_unique IF NOT EXISTS FOR (at:AnnotationType) REQUIRE at.name IS UNIQUE;
 
-// ManifestationType nodes - each manifestation type must have a unique name
-CREATE CONSTRAINT manifestation_type_name_unique IF NOT EXISTS FOR (mt:ManifestationType) REQUIRE mt.name IS UNIQUE;
+// EditionType nodes - each edition type must have a unique name
+CREATE CONSTRAINT edition_type_name_unique IF NOT EXISTS FOR (mt:EditionType) REQUIRE mt.name IS UNIQUE;
 
 // LicenseType nodes - each license type must have a unique name
 CREATE CONSTRAINT license_type_name_unique IF NOT EXISTS FOR (lt:LicenseType) REQUIRE lt.name IS UNIQUE;
@@ -49,11 +49,11 @@ CREATE CONSTRAINT person_bdrc_unique IF NOT EXISTS FOR (p:Person) REQUIRE p.bdrc
 // Person nodes - Wiki IDs must be unique when present
 CREATE CONSTRAINT person_wiki_unique IF NOT EXISTS FOR (p:Person) REQUIRE p.wiki IS UNIQUE;
 
-// Expression nodes - BDRC IDs must be unique when present
-CREATE CONSTRAINT expression_bdrc_unique IF NOT EXISTS FOR (e:Expression) REQUIRE e.bdrc IS UNIQUE;
+// Text nodes - BDRC IDs must be unique when present
+CREATE CONSTRAINT text_bdrc_unique IF NOT EXISTS FOR (e:Text) REQUIRE e.bdrc IS UNIQUE;
 
-// Expression nodes - Wiki IDs must be unique when present
-CREATE CONSTRAINT expression_wiki_unique IF NOT EXISTS FOR (e:Expression) REQUIRE e.wiki IS UNIQUE;
+// Text nodes - Wiki IDs must be unique when present
+CREATE CONSTRAINT text_wiki_unique IF NOT EXISTS FOR (e:Text) REQUIRE e.wiki IS UNIQUE;
 
 // Work nodes - BDRC IDs must be unique when present
 CREATE CONSTRAINT work_bdrc_unique IF NOT EXISTS FOR (w:Work) REQUIRE w.bdrc IS UNIQUE;
@@ -61,11 +61,11 @@ CREATE CONSTRAINT work_bdrc_unique IF NOT EXISTS FOR (w:Work) REQUIRE w.bdrc IS 
 // Work nodes - Wiki IDs must be unique when present
 CREATE CONSTRAINT work_wiki_unique IF NOT EXISTS FOR (w:Work) REQUIRE w.wiki IS UNIQUE;
 
-// Manifestation nodes - BDRC IDs must be unique when present
-CREATE CONSTRAINT manifestation_bdrc_unique IF NOT EXISTS FOR (m:Manifestation) REQUIRE m.bdrc IS UNIQUE;
+// Edition nodes - BDRC IDs must be unique when present
+CREATE CONSTRAINT edition_bdrc_unique IF NOT EXISTS FOR (m:Edition) REQUIRE m.bdrc IS UNIQUE;
 
-// Manifestation nodes - Wiki IDs must be unique when present
-CREATE CONSTRAINT manifestation_wiki_unique IF NOT EXISTS FOR (m:Manifestation) REQUIRE m.wiki IS UNIQUE;
+// Edition nodes - Wiki IDs must be unique when present
+CREATE CONSTRAINT edition_wiki_unique IF NOT EXISTS FOR (m:Edition) REQUIRE m.wiki IS UNIQUE;
 
 // Nomen nodes - each nomen must have a unique ID
 CREATE CONSTRAINT nomen_id_unique IF NOT EXISTS FOR (n:Nomen) REQUIRE n.id IS UNIQUE;

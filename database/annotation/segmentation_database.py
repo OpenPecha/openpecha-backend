@@ -9,20 +9,15 @@ if TYPE_CHECKING:
 
     from database.database import Database
 from identifier import generate_id
-from models import (
-    SegmentationInput,
-    SegmentationOutput,
-    SegmentOutput,
-    SpanModel,
-)
+from models.annotation import SegmentationInput, SegmentationOutput, SegmentOutput, Span
 
 
 class SegmentationDatabase:
     GET_QUERY = """
-    MATCH (segmentation:Segmentation)-[:SEGMENTATION_OF]->(manifestation:Manifestation)
+    MATCH (segmentation:Segmentation)-[:SEGMENTATION_OF]->(edition:Edition)
     WHERE ($segmentation_id IS NOT NULL AND segmentation.id = $segmentation_id)
-       OR ($manifestation_id IS NOT NULL AND manifestation.id = $manifestation_id)
-    MATCH (manifestation)-[:MANIFESTATION_OF]->(expression:Expression)
+       OR ($edition_id IS NOT NULL AND edition.id = $edition_id)
+    MATCH (edition)-[:EDITION_OF]->(text:Text)
     MATCH (segment:Segment)-[:SEGMENT_OF]->(segmentation)
     CALL (segment) {
         MATCH (span:Span)-[:SPAN_OF]->(segment)
@@ -30,13 +25,13 @@ class SegmentationDatabase:
         RETURN collect({start: span.start, end: span.end}) AS lines,
                min(span.start) AS min_start
     }
-    WITH segmentation, manifestation, expression, segment, lines, min_start
+    WITH segmentation, edition, text, segment, lines, min_start
     ORDER BY min_start
-    WITH segmentation, manifestation, expression, collect({id: segment.id, lines: lines}) AS segments
-    RETURN segmentation.id AS id, manifestation.id AS manifestation_id, expression.id AS expression_id, segments
+    WITH segmentation, edition, text, collect({id: segment.id, lines: lines}) AS segments
+    RETURN segmentation.id AS id, edition.id AS edition_id, text.id AS text_id, segments
     """
     CREATE_QUERY = """
-    MATCH (m:Manifestation {id: $manifestation_id})
+    MATCH (m:Edition {id: $edition_id})
     CREATE (segmentation:Segmentation {id: $segmentation_id})-[:SEGMENTATION_OF]->(m)
     WITH segmentation
     UNWIND $segments AS segment_data
@@ -64,14 +59,14 @@ class SegmentationDatabase:
 
     @staticmethod
     def _parse_record(record: dict | Record) -> SegmentationOutput:
-        manifestation_id = record["manifestation_id"]
-        expression_id = record["expression_id"]
+        edition_id = record["edition_id"]
+        text_id = record["text_id"]
         segments = [
             SegmentOutput(
                 id=seg["id"],
-                manifestation_id=manifestation_id,
-                text_id=expression_id,
-                lines=[SpanModel(start=line["start"], end=line["end"]) for line in seg["lines"]],
+                edition_id=edition_id,
+                text_id=text_id,
+                lines=[Span(start=line["start"], end=line["end"]) for line in seg["lines"]],
             )
             for seg in record["segments"]
         ]
@@ -79,21 +74,21 @@ class SegmentationDatabase:
 
     async def get(self, segmentation_id: str) -> SegmentationOutput:
         async with self._db.get_session() as session:
-            result = await session.run(self.GET_QUERY, segmentation_id=segmentation_id, manifestation_id=None)
+            result = await session.run(self.GET_QUERY, segmentation_id=segmentation_id, edition_id=None)
             record = await result.single()
             if record is None:
                 raise DataNotFoundError(f"Segmentation with ID '{segmentation_id}' not found")
             return self._parse_record(record)
 
-    async def get_all(self, manifestation_id: str) -> list[SegmentationOutput]:
+    async def get_all(self, edition_id: str) -> list[SegmentationOutput]:
         async with self._db.get_session() as session:
-            result = await session.run(self.GET_QUERY, segmentation_id=None, manifestation_id=manifestation_id)
+            result = await session.run(self.GET_QUERY, segmentation_id=None, edition_id=edition_id)
             records = await result.data()
             return [self._parse_record(record) for record in records]
 
     @staticmethod
     async def add_with_transaction(
-        tx: AsyncManagedTransaction, manifestation_id: str, segmentation: SegmentationInput
+        tx: AsyncManagedTransaction, edition_id: str, segmentation: SegmentationInput
     ) -> str:
         segmentation_id = generate_id()
 
@@ -107,19 +102,19 @@ class SegmentationDatabase:
 
         result = await tx.run(
             SegmentationDatabase.CREATE_QUERY,
-            manifestation_id=manifestation_id,
+            edition_id=edition_id,
             segmentation_id=segmentation_id,
             segments=segments_data,
         )
         record = await result.single()
         if not record or record["segment_count"] == 0:
-            raise DataNotFoundError(f"Manifestation with ID '{manifestation_id}' not found")
+            raise DataNotFoundError(f"Edition with ID '{edition_id}' not found")
         return segmentation_id
 
-    async def add(self, manifestation_id: str, segmentation: SegmentationInput) -> str:
+    async def add(self, edition_id: str, segmentation: SegmentationInput) -> str:
         async with self._db.get_session() as session:
             return await session.execute_write(
-                lambda tx: SegmentationDatabase.add_with_transaction(tx, manifestation_id, segmentation)
+                lambda tx: SegmentationDatabase.add_with_transaction(tx, edition_id, segmentation)
             )
 
     @staticmethod
@@ -140,8 +135,8 @@ class SegmentationDatabase:
             await session.execute_write(lambda tx: SegmentationDatabase.delete_with_transaction(tx, segmentation_id))
 
     @staticmethod
-    async def delete_all_with_transaction(tx: AsyncManagedTransaction, manifestation_id: str) -> None:
-        result = await tx.run(SegmentationDatabase.GET_QUERY, segmentation_id=None, manifestation_id=manifestation_id)
+    async def delete_all_with_transaction(tx: AsyncManagedTransaction, edition_id: str) -> None:
+        result = await tx.run(SegmentationDatabase.GET_QUERY, segmentation_id=None, edition_id=edition_id)
         records = await result.data()
 
         for record in records:
@@ -149,15 +144,13 @@ class SegmentationDatabase:
 
     @staticmethod
     async def update_with_transaction(
-        tx: AsyncManagedTransaction, segmentation_id: str, manifestation_id: str, segmentation: SegmentationInput
+        tx: AsyncManagedTransaction, segmentation_id: str, edition_id: str, segmentation: SegmentationInput
     ) -> str:
         await SegmentationDatabase.delete_with_transaction(tx, segmentation_id)
-        return await SegmentationDatabase.add_with_transaction(tx, manifestation_id, segmentation)
+        return await SegmentationDatabase.add_with_transaction(tx, edition_id, segmentation)
 
-    async def update(self, segmentation_id: str, manifestation_id: str, segmentation: SegmentationInput) -> str:
+    async def update(self, segmentation_id: str, edition_id: str, segmentation: SegmentationInput) -> str:
         async with self._db.get_session() as session:
             return await session.execute_write(
-                lambda tx: SegmentationDatabase.update_with_transaction(
-                    tx, segmentation_id, manifestation_id, segmentation
-                )
+                lambda tx: SegmentationDatabase.update_with_transaction(tx, segmentation_id, edition_id, segmentation)
             )

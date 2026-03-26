@@ -15,7 +15,7 @@ Requires environment variables:
 import logging
 
 import pytest
-from models import PersonInput
+from models.person import PersonInput
 
 logger = logging.getLogger(__name__)
 

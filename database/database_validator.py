@@ -3,10 +3,8 @@ import logging
 from neo4j import AsyncManagedTransaction
 
 from exceptions import DataNotFoundError, DataValidationError, InvalidRequestError
-from models import (
-    ContributionInput,
-    ExpressionInput,
-)
+from models.contribution import ContributionInput
+from models.text import TextInput
 
 logger = logging.getLogger(__name__)
 
@@ -52,21 +50,19 @@ class DatabaseValidator:
             raise DataValidationError(f"Referenced person BDRC IDs do not exist: {', '.join(missing_persons)}")
 
     @staticmethod
-    async def validate_expression_creation(
-        tx: AsyncManagedTransaction, expression: ExpressionInput, work_id: str
-    ) -> None:
-        if not expression.commentary_of and not expression.translation_of:
-            await DatabaseValidator.validate_original_expression_uniqueness(tx, work_id)
+    async def validate_text_creation(tx: AsyncManagedTransaction, text: TextInput, work_id: str) -> None:
+        if not text.commentary_of and not text.translation_of:
+            await DatabaseValidator.validate_original_text_uniqueness(tx, work_id)
 
-        if expression.contributions:
+        if text.contributions:
             person_ids = [
                 contrib.person_id
-                for contrib in expression.contributions
+                for contrib in text.contributions
                 if isinstance(contrib, ContributionInput) and contrib.person_id
             ]
             person_bdrc_ids = [
                 contrib.person_bdrc_id
-                for contrib in expression.contributions
+                for contrib in text.contributions
                 if isinstance(contrib, ContributionInput) and contrib.person_bdrc_id
             ]
 
@@ -74,10 +70,10 @@ class DatabaseValidator:
             await DatabaseValidator.validate_person_bdrc_references(tx, person_bdrc_ids)
 
     @staticmethod
-    async def validate_original_expression_uniqueness(tx: AsyncManagedTransaction, work_id: str) -> None:
+    async def validate_original_text_uniqueness(tx: AsyncManagedTransaction, work_id: str) -> None:
         query = """
         MATCH (w:Work {id: $work_id})
-        RETURN count { (w)<-[:EXPRESSION_OF {original: true}]-(:Expression) } AS existing_count
+        RETURN count { (w)<-[:TEXT_OF {original: true}]-(:Text) } AS existing_count
         """
 
         result = await tx.run(query, work_id=work_id)
@@ -85,34 +81,32 @@ class DatabaseValidator:
 
         if record and record["existing_count"] > 0:
             raise DataValidationError(
-                f"Work {work_id} already has an original expression. Only one original expression per work is allowed."
+                f"Work {work_id} already has an original text. Only one original text per work is allowed."
             )
 
     @staticmethod
-    async def validate_expression_exists(tx: AsyncManagedTransaction, expression_id: str) -> None:
+    async def validate_text_exists(tx: AsyncManagedTransaction, text_id: str) -> None:
         query = """
-        RETURN EXISTS { (e:Expression {id: $expression_id}) } AS exists
+        RETURN EXISTS { (e:Text {id: $text_id}) } AS exists
         """
 
-        result = await tx.run(query, expression_id=expression_id)
+        result = await tx.run(query, text_id=text_id)
         record = await result.single()
 
         if not record or not record["exists"]:
-            raise DataValidationError(
-                f"Expression {expression_id} does not exist. Cannot create manifestation for non-existent expression."
-            )
+            raise DataValidationError(f"Text {text_id} does not exist. Cannot create edition for non-existent text.")
 
     @staticmethod
-    async def validate_manifestation_exists(tx: AsyncManagedTransaction, manifestation_id: str) -> None:
+    async def validate_edition_exists(tx: AsyncManagedTransaction, edition_id: str) -> None:
         query = """
-        RETURN EXISTS { (m:Manifestation {id: $manifestation_id}) } AS exists
+        RETURN EXISTS { (m:Edition {id: $edition_id}) } AS exists
         """
 
-        result = await tx.run(query, manifestation_id=manifestation_id)
+        result = await tx.run(query, edition_id=edition_id)
         record = await result.single()
 
         if not record or not record["exists"]:
-            raise DataNotFoundError(f"Manifestation with ID '{manifestation_id}' not found")
+            raise DataNotFoundError(f"Edition with ID '{edition_id}' not found")
 
     @staticmethod
     async def validate_language_code_exists(tx: AsyncManagedTransaction, language_code: str) -> None:
@@ -199,15 +193,15 @@ class DatabaseValidator:
             raise DataValidationError(f"Referenced tags do not exist: {', '.join(missing_tags)}")
 
     @staticmethod
-    async def validate_expression_title_unique(tx: AsyncManagedTransaction, title: dict[str, str]) -> None:
-        """Ensure no expression exists with the same title text and language combination."""
+    async def validate_text_title_unique(tx: AsyncManagedTransaction, title: dict[str, str]) -> None:
+        """Ensure no text exists with the same title text and language combination."""
         if not title:
             return
 
         query = """
         UNWIND $titles AS item
         RETURN EXISTS {
-            MATCH (e:Expression)-[:HAS_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText {text: item.text})
+            MATCH (e:Text)-[:HAS_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText {text: item.text})
                   -[:HAS_LANGUAGE]->(lang:Language {code: item.lang})
         } AS exists
         """
@@ -218,4 +212,4 @@ class DatabaseValidator:
 
         for record in records:
             if record["exists"]:
-                raise DataValidationError("Expression with the same title and language already exists")
+                raise DataValidationError("Text with the same title and language already exists")
