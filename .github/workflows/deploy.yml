@@ -3,6 +3,7 @@ name: Deploy to EC2
 on:
     push:
         branches:
+            - dev
             - main
     workflow_dispatch:
 
@@ -30,7 +31,6 @@ jobs:
     deploy:
         needs: test
         runs-on: ubuntu-latest
-        if: github.ref == 'refs/heads/main'
 
         steps:
             - uses: actions/checkout@v4
@@ -38,13 +38,14 @@ jobs:
             - name: Deploy to EC2
               uses: appleboy/ssh-action@v1.0.3
               with:
-                  host: ${{ secrets.EC2_HOST }}
+                  host: ${{ github.ref_name == 'main' && secrets.PROD_EC2_HOST || secrets.DEV_EC2_HOST }}
                   username: ubuntu
-                  key: ${{ secrets.EC2_SSH_KEY }}
+                  key: ${{ github.ref_name == 'main' && secrets.PROD_EC2_SSH_KEY || secrets.DEV_EC2_SSH_KEY }}
                   script: |
                       cd /opt/openpecha-backend
-                      git pull origin main
-                      echo "COMMIT_SHA=$(git rev-parse HEAD)" > .env
+                      git fetch origin ${{ github.ref_name }}
+                      git checkout ${{ github.ref_name }}
+                      git pull origin ${{ github.ref_name }}
                       source .venv/bin/activate
                       pip install -r requirements.txt
                       sudo systemctl restart openpecha-api

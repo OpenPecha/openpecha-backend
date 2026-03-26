@@ -4,5 +4,5 @@ gunicorn==25.1.0
 pydantic==2.12.5
 pydantic-settings==2.13.1
 neo4j==6.1.0
-aioboto3[s3]==13.4.0
+aioboto3==13.4.0
 httpx==0.28.1

@@ -6,17 +6,17 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 
-    neo4j_uri: str = "bolt://localhost:7687"
-    neo4j_username: str = "neo4j"
+    neo4j_uri: str = ""
+    neo4j_username: str = ""
     neo4j_password: str = ""
-    neo4j_database: str = "neo4j"
+    neo4j_database: str = ""
 
     aws_s3_bucket: str = ""
-    aws_region: str = "us-east-1"
+    aws_region: str = ""
     aws_access_key_id: str = ""
     aws_secret_access_key: str = ""
 
-    search_api_url: str = "https://sqs-search-segmenter-api.onrender.com"
+    search_api_url: str = ""
 
 
 settings = Settings()
