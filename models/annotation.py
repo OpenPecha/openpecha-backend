@@ -1,7 +1,7 @@
 from collections.abc import Sequence
 from typing import Any, Self, TypeVar
 
-from pydantic import Field, model_validator
+from pydantic import ConfigDict, Field, model_validator
 
 from .base import NonEmptyStr, OpenPechaModel
 from .enums import AnnotationType, AttributeType, BibliographyType
@@ -137,6 +137,8 @@ class Page(OpenPechaModel):
 
 
 class Volume(OpenPechaModel):
+    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True, json_schema_mode_override="validation")
+
     index: int | None = None
     pages: list[Page] = Field(min_length=1)
     metadata: AnnotationMetadata | None = None

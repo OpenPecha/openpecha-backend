@@ -10,6 +10,7 @@ from pydantic import ValidationError
 from config import settings
 from database import Database
 from exceptions import OpenPechaError
+from observability import setup_telemetry, shutdown_telemetry
 from routers.annotations import router as annotations_router
 from routers.applications import router as applications_router
 from routers.categories import router as categories_router
@@ -30,6 +31,8 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(name)s - %(message)s")
     logger.info("Starting OpenPecha API")
 
+    setup_telemetry(app)
+
     if not app.state.testing and settings.neo4j_uri:
         db = Database(neo4j_uri=settings.neo4j_uri, neo4j_auth=(settings.neo4j_username, settings.neo4j_password))
         await db.verify_connectivity()
@@ -46,6 +49,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         logger.info("Skipping database initialization (testing mode or no NEO4J_URI)")
         yield
 
+    shutdown_telemetry()
     logger.info("Shutting down OpenPecha API")
 
 
@@ -62,7 +66,7 @@ def create_app(*, testing: bool = False) -> FastAPI:
     app.state.testing = testing
 
     app.add_middleware(
-        CORSMiddleware,
+        CORSMiddleware,  # type: ignore[arg-type]
         allow_origins=["*"],
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["*"],
