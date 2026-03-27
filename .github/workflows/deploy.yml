@@ -45,7 +45,7 @@ jobs:
                   AWS_REGION: ${{ vars.AWS_REGION }}
                   AWS_S3_BUCKET: ${{ vars.AWS_S3_BUCKET }}
                   SEARCH_API_URL: ${{ vars.SEARCH_API_URL }}
-                  ENVIRONMENT: ${{ github.environment }}
+                  ENVIRONMENT: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
                   OTEL_ENABLED: ${{ vars.OTEL_ENABLED }}
                   OTEL_SERVICE_NAME: ${{ vars.OTEL_SERVICE_NAME }}
                   OTEL_EXPORTER_OTLP_ENDPOINT: ${{ vars.OTEL_EXPORTER_OTLP_ENDPOINT }}
