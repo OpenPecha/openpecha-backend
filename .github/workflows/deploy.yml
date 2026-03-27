@@ -11,7 +11,7 @@ jobs:
     test:
         runs-on: ubuntu-latest
         steps:
-            - uses: actions/checkout@v4
+            - uses: actions/checkout@v5
 
             - name: Set up Python
               uses: actions/setup-python@v5
@@ -31,21 +31,52 @@ jobs:
     deploy:
         needs: test
         runs-on: ubuntu-latest
+        environment: ${{ github.ref_name == 'main' && 'prod' || 'dev' }}
 
         steps:
-            - uses: actions/checkout@v4
-
             - name: Deploy to EC2
               uses: appleboy/ssh-action@v1.0.3
+              env:
+                  NEO4J_URI: ${{ vars.NEO4J_URI }}
+                  NEO4J_USERNAME: ${{ vars.NEO4J_USERNAME }}
+                  NEO4J_PASSWORD: ${{ secrets.NEO4J_PASSWORD }}
+                  AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+                  AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+                  AWS_REGION: ${{ vars.AWS_REGION }}
+                  AWS_S3_BUCKET: ${{ vars.AWS_S3_BUCKET }}
+                  SEARCH_API_URL: ${{ vars.SEARCH_API_URL }}
+                  ENVIRONMENT: ${{ github.environment }}
+                  OTEL_ENABLED: ${{ vars.OTEL_ENABLED }}
+                  OTEL_SERVICE_NAME: ${{ vars.OTEL_SERVICE_NAME }}
+                  OTEL_EXPORTER_OTLP_ENDPOINT: ${{ vars.OTEL_EXPORTER_OTLP_ENDPOINT }}
+                  OTEL_EXPORTER_OTLP_HEADERS: ${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
               with:
-                  host: ${{ github.ref_name == 'main' && secrets.PROD_EC2_HOST || secrets.DEV_EC2_HOST }}
+                  host: ${{ vars.EC2_HOST }}
                   username: ubuntu
-                  key: ${{ github.ref_name == 'main' && secrets.PROD_EC2_SSH_KEY || secrets.DEV_EC2_SSH_KEY }}
+                  key: ${{ secrets.EC2_SSH_KEY }}
+                  envs: NEO4J_URI,NEO4J_USERNAME,NEO4J_PASSWORD,AWS_ACCESS_KEY_ID,AWS_SECRET_ACCESS_KEY,AWS_REGION,AWS_S3_BUCKET,SEARCH_API_URL,ENVIRONMENT,OTEL_ENABLED,OTEL_SERVICE_NAME,OTEL_EXPORTER_OTLP_ENDPOINT,OTEL_EXPORTER_OTLP_HEADERS
                   script: |
                       cd /opt/openpecha-backend
                       git fetch origin ${{ github.ref_name }}
                       git checkout ${{ github.ref_name }}
                       git pull origin ${{ github.ref_name }}
+
+                      printf '%s\n' \
+                      "NEO4J_URI=${NEO4J_URI}" \
+                      "NEO4J_USERNAME=${NEO4J_USERNAME}" \
+                      "NEO4J_PASSWORD=${NEO4J_PASSWORD}" \
+                      "AWS_ACCESS_KEY_ID=${AWS_ACCESS_KEY_ID}" \
+                      "AWS_SECRET_ACCESS_KEY=${AWS_SECRET_ACCESS_KEY}" \
+                      "AWS_REGION=${AWS_REGION}" \
+                      "AWS_S3_BUCKET=${AWS_S3_BUCKET}" \
+                      "SEARCH_API_URL=${SEARCH_API_URL}" \
+                      "ENVIRONMENT=${ENVIRONMENT}" \
+                      "OTEL_ENABLED=${OTEL_ENABLED}" \
+                      "OTEL_SERVICE_NAME=${OTEL_SERVICE_NAME}" \
+                      "OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT}" \
+                      "OTEL_EXPORTER_OTLP_HEADERS=${OTEL_EXPORTER_OTLP_HEADERS}" \
+                      > .env
+
                       source .venv/bin/activate
                       pip install -r requirements.txt
                       sudo systemctl restart openpecha-api
