@@ -36,7 +36,18 @@ class SegmentDatabase:
     MATCH (source_seg:Segment {id: $segment_id})
         -[:SEGMENT_OF]->(:Segmentation)
         -[:SEGMENTATION_OF]->(source_manif:Edition)
-    MATCH (source_seg)-[:ALIGNED_TO]-{1,10}(related_seg:Segment)
+
+    // Find all transitively aligned segments (up to 5 hops to prevent infinite loops)
+    CALL {
+        WITH source_seg
+        MATCH (source_seg)-[:ALIGNED_TO*1..5]-(transitive_seg:Segment)
+        WHERE transitive_seg <> source_seg
+        RETURN collect(DISTINCT transitive_seg.id) as aligned_segment_ids
+    }
+
+    // Get the actual segment objects
+    UNWIND aligned_segment_ids as seg_id
+    MATCH (related_seg:Segment {id: seg_id})
         -[:SEGMENT_OF]->(:Segmentation)
         -[:SEGMENTATION_OF]->(related_manif:Edition)
         -[:EDITION_OF]->(related_expr:Text)
@@ -59,7 +70,18 @@ class SegmentDatabase:
     MATCH (source_seg)
         -[:SEGMENT_OF]->(:Segmentation)
         -[:SEGMENTATION_OF]->(source_manif:Edition)
-    MATCH (source_seg)-[:ALIGNED_TO]-{1,10}(related_seg:Segment)
+
+    // Find all transitively aligned segments (up to 5 hops to prevent infinite loops)
+    CALL {
+        WITH source_seg
+        MATCH (source_seg)-[:ALIGNED_TO*1..5]-(transitive_seg:Segment)
+        WHERE transitive_seg <> source_seg
+        RETURN collect(DISTINCT transitive_seg.id) as aligned_segment_ids
+    }
+
+    // Get the actual segment objects
+    UNWIND aligned_segment_ids as seg_id
+    MATCH (related_seg:Segment {id: seg_id})
         -[:SEGMENT_OF]->(:Segmentation)
         -[:SEGMENTATION_OF]->(related_manif:Edition)
         -[:EDITION_OF]->(related_expr:Text)

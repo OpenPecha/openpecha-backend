@@ -70,6 +70,8 @@ class EditionDatabase:
     MATCH (source:Edition {{id: $edition_id}})<-[:SEGMENTATION_OF]-(:Segmentation)<-[:SEGMENT_OF]-(:Segment)
           -[:ALIGNED_TO]-(:Segment)-[:SEGMENT_OF]->(:Segmentation)-[:SEGMENTATION_OF]->(m:Edition)
           -[:EDITION_OF]->(e:Text)
+    WHERE m.id <> $edition_id
+    WITH DISTINCT m, e
     {_EDITION_RETURN}
 
     UNION
@@ -78,6 +80,7 @@ class EditionDatabase:
     MATCH (source:Edition {{id: $edition_id}})-[:EDITION_OF]->(:Text)
           -[:TRANSLATION_OF|:COMMENTARY_OF]-(e:Text)<-[:EDITION_OF]-(m:Edition)
     WHERE m.id <> $edition_id
+    WITH DISTINCT m, e
     {_EDITION_RETURN}
     """
 

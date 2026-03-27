@@ -96,6 +96,22 @@ CREATE INDEX volume_index_index IF NOT EXISTS FOR (v:Volume) ON (v.index);
 // Index on BibliographicMetadata id for faster lookups
 CREATE INDEX bibliographic_id_index IF NOT EXISTS FOR (b:BibliographicMetadata) ON (b.id);
 
+// Tag nodes - each tag must have a unique ID
+CREATE CONSTRAINT tag_id_unique IF NOT EXISTS FOR (t:Tag) REQUIRE t.id IS UNIQUE;
+
 // Application nodes - each application must have a unique ID (slug)
 CREATE CONSTRAINT application_id_unique IF NOT EXISTS
 FOR (a:Application) REQUIRE a.id IS UNIQUE;
+
+// Index on Source name for MERGE lookups during edition creation
+CREATE INDEX source_name_index IF NOT EXISTS FOR (s:Source) ON (s.name);
+
+// Index on Span start/end for range queries (find_by_span)
+CREATE INDEX span_start_index IF NOT EXISTS FOR (s:Span) ON (s.start);
+CREATE INDEX span_end_index IF NOT EXISTS FOR (s:Span) ON (s.end);
+
+// Index on Attribute id for faster lookups
+CREATE INDEX attribute_id_index IF NOT EXISTS FOR (a:Attribute) ON (a.id);
+
+// Index on ApiKey id for faster lookups
+CREATE CONSTRAINT api_key_id_unique IF NOT EXISTS FOR (ak:ApiKey) REQUIRE ak.id IS UNIQUE;
