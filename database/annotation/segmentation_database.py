@@ -21,6 +21,7 @@ class SegmentationDatabase:
     MATCH (segment:Segment)-[:SEGMENT_OF]->(segmentation)
     CALL (segment) {
         MATCH (span:Span)-[:SPAN_OF]->(segment)
+        WHERE span.start < span.end
         WITH span ORDER BY span.start
         RETURN collect({start: span.start, end: span.end}) AS lines,
                min(span.start) AS min_start
