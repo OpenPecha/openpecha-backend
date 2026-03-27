@@ -486,6 +486,125 @@ class TestCategoryDescription:
         assert seeded_cat.get("description") is None
 
 
+@pytest.mark.asyncio(loop_scope="session")
+class TestGetCategoryById:
+    """Tests for GET /v2/categories/{category_id} endpoint"""
+
+    async def test_get_category_returns_seeded_category(self, client, test_database):
+        """Test fetching the seeded category by ID returns it with correct fields"""
+        response = await client.get("/v2/categories/category")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == "category"
+        assert "title" in data
+        assert data["title"]["en"] == "Test Category"
+        assert data["title"]["bo"] == "ཚིག་སྒྲུབ་གསར་པ།"
+        assert data.get("parent_id") is None
+        assert isinstance(data["children"], list)
+
+    async def test_get_category_not_found(self, client, test_database):
+        """Test fetching a non-existent category returns 404"""
+        response = await client.get("/v2/categories/nonexistent_id")
+
+        assert response.status_code == 404
+        data = response.json()
+        assert "error" in data
+
+    async def test_get_category_includes_full_children(self, client, test_database):
+        """Test that children are returned as full objects, not just IDs"""
+        parent = CategoryInput.model_validate({"title": {"en": "Parent For Detail Test"}})
+        parent_id = await test_database.category.create(parent, application="test_application")
+
+        child1 = CategoryInput.model_validate({"title": {"en": "Child One"}, "parent_id": parent_id})
+        child1_id = await test_database.category.create(child1, application="test_application")
+
+        child2 = CategoryInput.model_validate(
+            {"title": {"en": "Child Two"}, "description": {"en": "A child with description"}, "parent_id": parent_id}
+        )
+        child2_id = await test_database.category.create(child2, application="test_application")
+
+        response = await client.get(f"/v2/categories/{parent_id}")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == parent_id
+        assert len(data["children"]) == 2
+
+        child_ids = [c["id"] for c in data["children"]]
+        assert child1_id in child_ids
+        assert child2_id in child_ids
+
+        child2_data = next(c for c in data["children"] if c["id"] == child2_id)
+        assert child2_data["title"]["en"] == "Child Two"
+        assert child2_data["description"]["en"] == "A child with description"
+        assert child2_data["parent_id"] == parent_id
+
+    async def test_get_category_no_children(self, client, test_database):
+        """Test fetching a leaf category returns an empty children list"""
+        leaf = CategoryInput.model_validate({"title": {"en": "Leaf For Detail Test"}})
+        leaf_id = await test_database.category.create(leaf, application="test_application")
+
+        response = await client.get(f"/v2/categories/{leaf_id}")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == leaf_id
+        assert data["children"] == []
+
+    async def test_get_category_children_include_grandchild_ids(self, client, test_database):
+        """Test that each child in the response carries its own children as IDs"""
+        grandparent = CategoryInput.model_validate({"title": {"en": "Grandparent Detail"}})
+        grandparent_id = await test_database.category.create(grandparent, application="test_application")
+
+        parent = CategoryInput.model_validate({"title": {"en": "Parent Detail"}, "parent_id": grandparent_id})
+        parent_id = await test_database.category.create(parent, application="test_application")
+
+        grandchild = CategoryInput.model_validate({"title": {"en": "Grandchild Detail"}, "parent_id": parent_id})
+        grandchild_id = await test_database.category.create(grandchild, application="test_application")
+
+        response = await client.get(f"/v2/categories/{grandparent_id}")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == grandparent_id
+        assert len(data["children"]) == 1
+
+        child_data = data["children"][0]
+        assert child_data["id"] == parent_id
+        assert isinstance(child_data["children"], list)
+        assert grandchild_id in child_data["children"]
+
+    async def test_get_category_with_description(self, client, test_database):
+        """Test fetching a category that has a description returns it"""
+        cat = CategoryInput.model_validate(
+            {"title": {"en": "Category With Desc"}, "description": {"en": "Some description", "bo": "འགྲེལ་བཤད།"}}
+        )
+        cat_id = await test_database.category.create(cat, application="test_application")
+
+        response = await client.get(f"/v2/categories/{cat_id}")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["description"]["en"] == "Some description"
+        assert data["description"]["bo"] == "འགྲེལ་བཤད།"
+
+    async def test_get_category_with_parent_id(self, client, test_database):
+        """Test that parent_id is correctly set on a child category"""
+        parent = CategoryInput.model_validate({"title": {"en": "Parent For Parent ID Test"}})
+        parent_id = await test_database.category.create(parent, application="test_application")
+
+        child = CategoryInput.model_validate({"title": {"en": "Child For Parent ID Test"}, "parent_id": parent_id})
+        child_id = await test_database.category.create(child, application="test_application")
+
+        response = await client.get(f"/v2/categories/{child_id}")
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == child_id
+        assert data["parent_id"] == parent_id
+
+
 async def _seed_app_b(test_database):
     """Seed a second application for isolation tests."""
     async with test_database.get_session() as session:
