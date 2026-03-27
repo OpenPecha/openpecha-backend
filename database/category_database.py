@@ -11,7 +11,7 @@ from .nomen_database import NomenDatabase
 if TYPE_CHECKING:
     from neo4j import AsyncManagedTransaction, AsyncSession
 
-    from models.category import CategoryInput, CategoryOutput
+    from models.category import CategoryDetailOutput, CategoryInput, CategoryOutput
 
     from .database import Database
 
@@ -48,6 +48,29 @@ class CategoryDatabase:
         RETURN c.id AS category_id
     """
 
+    GET_BY_ID_QUERY = """
+    MATCH (c:Category {id: $category_id})
+    RETURN {
+        id: c.id,
+        title: [(c)-[:HAS_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
+            -[:HAS_LANGUAGE]->(l:Language) | {language: l.code, text: lt.text}],
+        description: [(c)-[:HAS_DESCRIPTION]->(dn:Nomen)-[:HAS_LOCALIZATION]->(dlt:LocalizedText)
+            -[:HAS_LANGUAGE]->(dl:Language) | {language: dl.code, text: dlt.text}],
+        parent_id: [(c)-[:HAS_PARENT]->(parent:Category) | parent.id][0],
+        children: [
+            (child:Category)-[:HAS_PARENT]->(c) | {
+                id: child.id,
+                title: [(child)-[:HAS_TITLE]->(cn:Nomen)-[:HAS_LOCALIZATION]->(clt:LocalizedText)
+                    -[:HAS_LANGUAGE]->(cl:Language) | {language: cl.code, text: clt.text}],
+                description: [(child)-[:HAS_DESCRIPTION]->(cdn:Nomen)-[:HAS_LOCALIZATION]->(cdlt:LocalizedText)
+                    -[:HAS_LANGUAGE]->(cdl:Language) | {language: cdl.code, text: cdlt.text}],
+                parent_id: c.id,
+                children: [(grandchild:Category)-[:HAS_PARENT]->(child) | grandchild.id]
+            }
+        ]
+    } AS category
+    """
+
     FIND_EXISTING_QUERY = """
         MATCH (c:Category)-[:BELONGS_TO]->(app:Application {id: $application})
         WHERE ($parent_id IS NULL AND NOT EXISTS { (c)-[:HAS_PARENT]->(:Category) })
@@ -75,6 +98,14 @@ class CategoryDatabase:
             )
             records = await result.data()
             return [DataAdapter.category(record["category"]) for record in records]
+
+    async def get_by_id(self, category_id: str) -> CategoryDetailOutput | None:
+        async with self.session as session:
+            result = await session.run(CategoryDatabase.GET_BY_ID_QUERY, category_id=category_id)
+            record = await result.single()
+            if record is None:
+                return None
+            return DataAdapter.category_detail(record["category"])
 
     async def create(self, category: CategoryInput, application: str) -> str:
         async def create_transaction(tx: AsyncManagedTransaction) -> str:

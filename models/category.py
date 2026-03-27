@@ -16,3 +16,8 @@ class CategoryInput(CategoryBase):
 class CategoryOutput(CategoryBase):
     id: NonEmptyStr
     children: list[str] = Field(default_factory=list)
+
+
+class CategoryDetailOutput(CategoryBase):
+    id: NonEmptyStr
+    children: list[CategoryOutput] = Field(default_factory=list)

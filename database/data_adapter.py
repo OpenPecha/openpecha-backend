@@ -1,5 +1,5 @@
 from models.base import LocalizedString
-from models.category import CategoryOutput
+from models.category import CategoryDetailOutput, CategoryOutput
 from models.contribution import AIContribution, ContributionOutput
 from models.edition import EditionOutput
 from models.enums import EditionType, LicenseType
@@ -100,6 +100,17 @@ class DataAdapter:
             description=LocalizedString(desc) if desc else None,
             parent_id=data.get("parent_id"),
             children=data.get("children") or [],
+        )
+
+    @staticmethod
+    def category_detail(data: dict) -> CategoryDetailOutput:
+        desc = DataAdapter.localized_text(data.get("description"))
+        return CategoryDetailOutput(
+            id=data["id"],
+            title=LocalizedString(DataAdapter.localized_text(data["title"]) or {}),
+            description=LocalizedString(desc) if desc else None,
+            parent_id=data.get("parent_id"),
+            children=[DataAdapter.category(child) for child in data.get("children") or []],
         )
 
     @staticmethod
