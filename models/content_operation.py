@@ -1,6 +1,6 @@
 from typing import Annotated, Literal, Self
 
-from pydantic import Field, RootModel, model_validator
+from pydantic import ConfigDict, Field, RootModel, model_validator
 
 from .base import OpenPechaModel
 
@@ -10,7 +10,7 @@ class SegmentContentInput(OpenPechaModel):
 
 
 class ContentOperationBase(OpenPechaModel):
-    pass
+    model_config = ConfigDict(str_strip_whitespace=False)
 
 
 class InsertOperation(ContentOperationBase):

@@ -21,7 +21,7 @@ logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 
 def load_constraints_file() -> list[str]:
-    constraints_path = Path(__file__).parent.parent / "neo4j_constraints.cypher"
+    constraints_path = Path(__file__).parent.parent / "database" / "neo4j_constraints.cypher"
     if not constraints_path.exists():
         return []
     with open(constraints_path) as f:

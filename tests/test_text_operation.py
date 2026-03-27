@@ -3,7 +3,7 @@
 import pytest
 from pydantic import ValidationError
 
-from models.text_operation import DeleteOperation, InsertOperation, ReplaceOperation, TextOperation
+from models.content_operation import ContentOperation as TextOperation, DeleteOperation, InsertOperation, ReplaceOperation
 
 
 class TestTextOperationValidation:
