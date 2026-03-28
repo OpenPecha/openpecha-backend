@@ -1,10 +1,13 @@
 import logging
-
-from neo4j import AsyncManagedTransaction
+from typing import TYPE_CHECKING
 
 from exceptions import DataNotFoundError, DataValidationError, InvalidRequestError
 from models.contribution import ContributionInput
-from models.text import TextInput
+
+if TYPE_CHECKING:
+    from neo4j import AsyncManagedTransaction
+
+    from models.text import TextInput
 
 logger = logging.getLogger(__name__)
 

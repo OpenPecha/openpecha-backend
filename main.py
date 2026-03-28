@@ -1,6 +1,6 @@
 import logging
-from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
+from typing import TYPE_CHECKING
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,6 +21,9 @@ from routers.segments import router as segments_router
 from routers.tags import router as tags_router
 from routers.texts import router as texts_router
 from storage import Storage
+
+if TYPE_CHECKING:
+    from collections.abc import AsyncGenerator, Awaitable, Callable
 
 logger = logging.getLogger(__name__)
 
@@ -56,7 +59,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 def create_app(*, testing: bool = False) -> FastAPI:
     app = FastAPI(
         title="OpenPecha API v2",
-        version="2.1.0",
+        version="2.2.0",
         lifespan=lifespan,
         docs_url="/docs",
         redoc_url="/redoc",
@@ -66,7 +69,7 @@ def create_app(*, testing: bool = False) -> FastAPI:
     app.state.testing = testing
 
     app.add_middleware(
-        CORSMiddleware,  # type: ignore[arg-type]
+        CORSMiddleware,
         allow_origins=["*"],
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
         allow_headers=["*"],

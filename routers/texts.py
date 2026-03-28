@@ -1,18 +1,20 @@
 import logging
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 from fastapi import APIRouter, BackgroundTasks, Depends, Path, Query, status
 
 from background_tasks import trigger_search_segmenter
-from database import Database
 from dependencies import OptionalAppHeader, get_api_key, get_db, get_storage
 from identifier import generate_id
-from models.edition import EditionOutput
-from models.enums import EditionType
-from models.requests import EditionRequestModel, TextsQueryParams
 from models.responses import IdResponse
-from models.text import TextInput, TextOutput, TextPatch
-from storage import Storage
+
+if TYPE_CHECKING:
+    from database import Database
+    from models.edition import EditionOutput
+    from models.enums import EditionType
+    from models.requests import EditionRequestModel, TextsQueryParams
+    from models.text import TextInput, TextOutput, TextPatch
+    from storage import Storage
 
 logger = logging.getLogger(__name__)
 

@@ -2,7 +2,7 @@
     "files.exclude": {
         "**/__pycache__": true,
         "**/.git": true,
-        "**/venv": true,
+        "**/.venv": true,
         "**/.pytest_cache": true
     },
     "editor.formatOnSave": true,

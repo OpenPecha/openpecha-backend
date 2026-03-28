@@ -1,13 +1,15 @@
 import logging
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 from fastapi import APIRouter, Depends, Query
 
-from database import Database
 from dependencies import RequiredAppHeader, get_api_key, get_db
 from exceptions import DataNotFoundError
-from models.category import CategoryInput, CategoryOutput
 from models.responses import IdResponse
+
+if TYPE_CHECKING:
+    from database import Database
+    from models.category import CategoryInput, CategoryOutput
 
 logger = logging.getLogger(__name__)
 

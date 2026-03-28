@@ -1,9 +1,11 @@
-from typing import Self
+from typing import TYPE_CHECKING, Self
 
 from pydantic import model_validator
 
 from .base import LocalizedString, NonEmptyStr, OpenPechaModel
-from .enums import ContributorRole
+
+if TYPE_CHECKING:
+    from .enums import ContributorRole
 
 
 class AIContribution(OpenPechaModel):

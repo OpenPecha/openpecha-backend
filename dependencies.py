@@ -1,12 +1,14 @@
 import logging
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 from fastapi import Depends, Header, Request, Security
 from fastapi.security import APIKeyHeader
 
-from database import Database
 from exceptions import UnauthorizedError
-from storage import Storage
+
+if TYPE_CHECKING:
+    from database import Database
+    from storage import Storage
 
 logger = logging.getLogger(__name__)
 

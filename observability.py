@@ -18,9 +18,8 @@ import functools
 import logging
 import os
 import re
-from typing import Any, LiteralString
+from typing import TYPE_CHECKING, Any, LiteralString, cast
 
-from fastapi import FastAPI
 from neo4j import AsyncResult, AsyncSession, Query
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
@@ -32,7 +31,11 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
 from opentelemetry.trace import StatusCode
 
+if TYPE_CHECKING:
+    from fastapi import FastAPI
+
 logger = logging.getLogger(__name__)
+
 
 _state: dict[str, bool] = {"neo4j_patched": False}
 
@@ -87,7 +90,7 @@ def _instrument_neo4j_driver() -> None:
                 span.record_exception(exc)
                 raise
 
-    AsyncSession.run = traced_run  # type: ignore[assignment]
+    AsyncSession.run = cast("Any", traced_run)
     _state["neo4j_patched"] = True
     logger.info("Neo4j AsyncSession.run() instrumented for tracing")
 
@@ -103,7 +106,7 @@ def setup_telemetry(app: FastAPI) -> None:
     resource = Resource.create(
         {
             "service.name": service_name,
-            "service.version": "2.1.0",
+            "service.version": "2.2.0",
             "deployment.environment": environment,
         }
     )

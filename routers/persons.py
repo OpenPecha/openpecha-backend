@@ -1,13 +1,15 @@
 import logging
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 from fastapi import APIRouter, Depends, Path, Query
 
-from database import Database
 from dependencies import get_api_key, get_db
-from models.person import PersonInput, PersonOutput, PersonPatch
 from models.requests import PersonsQueryParams
 from models.responses import IdResponse
+
+if TYPE_CHECKING:
+    from database import Database
+    from models.person import PersonInput, PersonOutput, PersonPatch
 
 logger = logging.getLogger(__name__)
 

@@ -1,18 +1,20 @@
 import asyncio
 import logging
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 from fastapi import APIRouter, Depends, Path, Query, status
 
-from database import Database
 from dependencies import get_api_key, get_db, get_storage
-from models.annotation import SegmentOutput
 from models.content_operation import ContentOperation, DeleteOperation, InsertOperation, ReplaceOperation
-from models.edition import EditionOutput
 from models.enums import AnnotationType
 from models.requests import AnnotationRequestInput, AnnotationRequestOutput, SpanQueryParams
 from models.responses import IdsResponse
-from storage import Storage
+
+if TYPE_CHECKING:
+    from database import Database
+    from models.annotation import SegmentOutput
+    from models.edition import EditionOutput
+    from storage import Storage
 
 logger = logging.getLogger(__name__)
 

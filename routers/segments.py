@@ -1,16 +1,18 @@
 import logging
-from typing import Annotated
+from typing import TYPE_CHECKING, Annotated
 
 import httpx
 from fastapi import APIRouter, Depends, Path, Query, status
 
 from config import settings
-from database import Database
 from dependencies import OptionalAppHeader, get_api_key, get_db, get_storage
 from exceptions import DataNotFoundError, InvalidRequestError
-from models.annotation import SegmentOutput
 from models.search import SearchFilter, SearchResponse, SearchResult
-from storage import Storage
+
+if TYPE_CHECKING:
+    from database import Database
+    from models.annotation import SegmentOutput
+    from storage import Storage
 
 logger = logging.getLogger(__name__)
 

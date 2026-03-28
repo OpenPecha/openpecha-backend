@@ -1,7 +1,3 @@
-"""Database migration script for OpenPecha backend."""
-
-from __future__ import annotations
-
 import logging
 import sys
 from typing import TYPE_CHECKING
@@ -553,7 +549,10 @@ if __name__ == "__main__":
         logger.error("NEO4J_URI and NEO4J_PASSWORD environment variables must be set")
         sys.exit(1)
 
-    driver = GraphDatabase.driver(uri, auth=(username, password))  # type: ignore[arg-type]
+    uri = str(uri)
+    password = str(password)
+
+    driver = GraphDatabase.driver(uri, auth=(username, password))
     try:
         with driver.session() as session:
             results = run_all_migrations(session)

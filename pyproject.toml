@@ -1,5 +1,5 @@
 [tool.pyright]
-pythonVersion = "3.13"
+pythonVersion = "3.14"
 typeCheckingMode = "standard"
 exclude = ["tests", ".venv"]
 include = ["."]
@@ -25,7 +25,7 @@ omit = [
 [tool.ruff]
 line-length = 120
 exclude = ["tests"]
-target-version = "py313"
+target-version = "py314"
 
 [tool.ty.environment]
 root = ["."]

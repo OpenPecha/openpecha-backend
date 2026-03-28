@@ -1,21 +1,23 @@
-from typing import Self
+from typing import TYPE_CHECKING, Self
 
 from pydantic import Field, model_validator
 
-from .annotation import (
-    AlignmentInput,
-    AlignmentOutput,
-    BibliographicMetadataInput,
-    BibliographicMetadataOutput,
-    NoteInput,
-    NoteOutput,
-    PaginationInput,
-    PaginationOutput,
-    SegmentationInput,
-    SegmentationOutput,
-)
+if TYPE_CHECKING:
+    from .annotation import (
+        AlignmentInput,
+        AlignmentOutput,
+        BibliographicMetadataInput,
+        BibliographicMetadataOutput,
+        NoteInput,
+        NoteOutput,
+        PaginationInput,
+        PaginationOutput,
+        SegmentationInput,
+        SegmentationOutput,
+    )
+    from .edition import EditionInput
+
 from .base import LocalizedString, NonEmptyStr, OpenPechaModel
-from .edition import EditionInput
 from .enums import AnnotationType, EditionType, LicenseType
 
 
