@@ -18,8 +18,9 @@ import functools
 import logging
 import os
 import re
-from typing import TYPE_CHECKING, Any, LiteralString, cast
+from typing import Any, LiteralString, cast
 
+from fastapi import FastAPI
 from neo4j import AsyncResult, AsyncSession, Query
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
@@ -31,11 +32,7 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor, ConsoleSpanExporter
 from opentelemetry.trace import StatusCode
 
-if TYPE_CHECKING:
-    from fastapi import FastAPI
-
 logger = logging.getLogger(__name__)
-
 
 _state: dict[str, bool] = {"neo4j_patched": False}
 

@@ -1,12 +1,10 @@
-from typing import TYPE_CHECKING, Any, Self, TypeVar
+from collections.abc import Sequence
+from typing import Any, Self, TypeVar
 
 from pydantic import ConfigDict, Field, model_validator
 
 from .base import NonEmptyStr, OpenPechaModel
 from .enums import AnnotationType, AttributeType, BibliographyType
-
-if TYPE_CHECKING:
-    from collections.abc import Sequence
 
 
 class Annotation(OpenPechaModel):

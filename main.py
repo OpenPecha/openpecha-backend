@@ -1,6 +1,6 @@
 import logging
+from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
-from typing import TYPE_CHECKING
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
@@ -21,9 +21,6 @@ from routers.segments import router as segments_router
 from routers.tags import router as tags_router
 from routers.texts import router as texts_router
 from storage import Storage
-
-if TYPE_CHECKING:
-    from collections.abc import AsyncGenerator, Awaitable, Callable
 
 logger = logging.getLogger(__name__)
 
