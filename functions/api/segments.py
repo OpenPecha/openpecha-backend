@@ -56,9 +56,9 @@ def get_related_texts_by_segment(segment_id: str) -> tuple[Response, int]:
 def get_segment_content(segment_id: str) -> tuple[Response, int]:
     db = Neo4JDatabase()
 
-    segment, _, expression_id = db.get_segment(segment_id)
+    segment, manifestation_id, expression_id = db.get_segment(segment_id)
 
-    pecha = Storage().retrieve_pecha(expression_id)
+    pecha = Storage().retrieve_base_text(expression_id, manifestation_id)
     base_text = next(iter(pecha.bases.values()))
 
     return jsonify({"content": base_text[segment.span[0] : segment.span[1]]}), 200
