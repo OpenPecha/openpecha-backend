@@ -6,10 +6,10 @@ from fastapi import APIRouter, Depends, Path, status
 from dependencies import RequiredAppHeader, get_api_key, get_db
 from exceptions import DataNotFoundError
 from models.responses import IdResponse
+from models.tag import TagInput, TagOutput
 
 if TYPE_CHECKING:
     from database import Database
-    from models.tag import TagInput, TagOutput
 
 logger = logging.getLogger(__name__)
 

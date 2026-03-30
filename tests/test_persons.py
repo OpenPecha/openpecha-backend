@@ -199,7 +199,9 @@ class TestGetAllPersonsV2:
         assert response.status_code == 422
         data = response.json()
         assert "detail" in data
-        assert "greater than or equal to 1" in data["detail"]
+        detail = data["detail"]
+        assert isinstance(detail, list)
+        assert any("greater than or equal to 1" in str(error.get("msg", "")) for error in detail)
 
     async def test_get_all_persons_invalid_limit_too_high(self, client, test_database):
         """Test pagination with limit greater than 100"""
@@ -207,7 +209,9 @@ class TestGetAllPersonsV2:
         assert response.status_code == 422
         data = response.json()
         assert "detail" in data
-        assert "less than or equal to 100" in data["detail"]
+        detail = data["detail"]
+        assert isinstance(detail, list)
+        assert any("less than or equal to 100" in str(error.get("msg", "")) for error in detail)
 
     async def test_get_all_persons_invalid_offset_negative(self, client, test_database):
         """Test pagination with negative offset"""
@@ -215,7 +219,9 @@ class TestGetAllPersonsV2:
         assert response.status_code == 422
         data = response.json()
         assert "detail" in data
-        assert "greater than or equal to 0" in data["detail"]
+        detail = data["detail"]
+        assert isinstance(detail, list)
+        assert any("greater than or equal to 0" in str(error.get("msg", "")) for error in detail)
 
     async def test_get_all_persons_offset_beyond_results(self, client, test_database):
         """Test pagination with offset beyond available results"""

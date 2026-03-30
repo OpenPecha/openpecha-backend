@@ -6,14 +6,13 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Path, Query, status
 from background_tasks import trigger_search_segmenter
 from dependencies import OptionalAppHeader, get_api_key, get_db, get_storage
 from identifier import generate_id
+from models.edition import EditionOutput
+from models.requests import EditionRequestModel, EditionsQueryParams, TextsQueryParams
 from models.responses import IdResponse
+from models.text import TextInput, TextOutput, TextPatch
 
 if TYPE_CHECKING:
     from database import Database
-    from models.edition import EditionOutput
-    from models.enums import EditionType
-    from models.requests import EditionRequestModel, TextsQueryParams
-    from models.text import TextInput, TextOutput, TextPatch
     from storage import Storage
 
 logger = logging.getLogger(__name__)
@@ -36,7 +35,7 @@ async def get_all_texts(
     return await db.text.get_all(
         offset=params.offset,
         limit=params.limit,
-        filters=params,
+        filters=params,  # TextsQueryParams inherits from TextFilter, so this works
         application=x_application,
     )
 
@@ -81,14 +80,14 @@ async def create_text(
 )
 async def get_editions(
     text_id: Annotated[str, Path(description="The ID of the text")],
+    params: Annotated[EditionsQueryParams, Query()],
     _api_key: Annotated[str, Depends(get_api_key)],
     db: Annotated[Database, Depends(get_db)],
-    edition_type: EditionType | None = None,
 ) -> list[EditionOutput]:
     """List all editions for a text."""
     return await db.edition.get_all(
         text_id=text_id,
-        edition_type=edition_type,
+        edition_type=params.edition_type,
     )
 
 

@@ -7,11 +7,12 @@ from fastapi import APIRouter, Depends, Path, Query, status
 from config import settings
 from dependencies import OptionalAppHeader, get_api_key, get_db, get_storage
 from exceptions import DataNotFoundError, InvalidRequestError
+from models.annotation import SegmentOutput
+from models.requests import SegmentsQueryParams
 from models.search import SearchFilter, SearchResponse, SearchResult
 
 if TYPE_CHECKING:
     from database import Database
-    from models.annotation import SegmentOutput
     from storage import Storage
 
 logger = logging.getLogger(__name__)
@@ -94,31 +95,27 @@ async def untag_segment(
 )
 async def search_segments(
     query: Annotated[str, Query(description="Search query")],
+    params: Annotated[SegmentsQueryParams, Query()],
     _api_key: Annotated[str, Depends(get_api_key)],
     db: Annotated[Database, Depends(get_db)],
-    search_type: str = "semantic",
-    limit: int = 10,
-    *,
-    return_text: bool = True,
-    title: str | None = None,
 ) -> SearchResponse:
     """Search segments."""
-    filter_obj = SearchFilter(title=title) if title else None
+    filter_obj = SearchFilter(title=params.title) if params.title else None
 
     try:
         logger.info("Forwarding search request to %s/search", settings.search_api_url)
 
-        params = {
+        request_params = {
             "query": query,
-            "search_type": search_type,
-            "limit": limit,
-            "return_text": return_text,
+            "search_type": params.search_type,
+            "limit": params.limit,
+            "return_text": params.return_text,
         }
         if filter_obj and filter_obj.title:
-            params["title"] = filter_obj.title
+            request_params["title"] = filter_obj.title
 
         async with httpx.AsyncClient(timeout=60) as client:
-            response = await client.get(f"{settings.search_api_url}/search", params=params)
+            response = await client.get(f"{settings.search_api_url}/search", params=request_params)
             response.raise_for_status()
             search_response_data = response.json()
 
@@ -179,7 +176,6 @@ async def search_segments(
 
     return SearchResponse(
         query=search_response_data.get("query", query),
-        search_type=search_response_data.get("search_type", search_type),
         results=enriched_results,
         count=len(enriched_results),
     )

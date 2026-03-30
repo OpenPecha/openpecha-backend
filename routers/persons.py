@@ -4,12 +4,12 @@ from typing import TYPE_CHECKING, Annotated
 from fastapi import APIRouter, Depends, Path, Query
 
 from dependencies import get_api_key, get_db
+from models.person import PersonInput, PersonOutput, PersonPatch
 from models.requests import PersonsQueryParams
 from models.responses import IdResponse
 
 if TYPE_CHECKING:
     from database import Database
-    from models.person import PersonInput, PersonOutput, PersonPatch
 
 logger = logging.getLogger(__name__)
 
@@ -36,17 +36,11 @@ async def get_person(
     description="Retrieve a paginated list of persons.",
 )
 async def get_all_persons(
+    params: Annotated[PersonsQueryParams, Query()],
     _api_key: Annotated[str, Depends(get_api_key)],
     db: Annotated[Database, Depends(get_db)],
-    offset: int = 0,
-    limit: int = 20,
-    name: Annotated[str | None, Query(description="Filter by name")] = None,
-    bdrc: Annotated[str | None, Query(description="Filter by BDRC ID")] = None,
-    wiki: Annotated[str | None, Query(description="Filter by Wiki ID")] = None,
 ) -> list[PersonOutput]:
     """List all persons with optional filtering."""
-
-    params = PersonsQueryParams(offset=offset, limit=limit, name=name, bdrc=bdrc, wiki=wiki)
     return await db.person.get_all(offset=params.offset, limit=params.limit, filters=params)
 
 

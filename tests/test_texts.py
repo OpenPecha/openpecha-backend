@@ -1377,7 +1377,15 @@ class TestPatchTextV2:
         assert response.status_code == 422
         data = response.json()
         assert "detail" in data
-        assert "language" in data["detail"].lower()
+        # Handle both FastAPI field validation (list) and Pydantic model validation (string)
+        detail = data["detail"]
+        if isinstance(detail, list):
+            # FastAPI field validation errors
+            assert any("language" in str(error.get("msg", "")).lower() for error in detail)
+        else:
+            # Pydantic model validation error
+            assert isinstance(detail, str)
+            assert "language" in detail.lower()
 
         get_response = await client.get(f"/v2/texts/{text_id}")
         assert get_response.status_code == 200

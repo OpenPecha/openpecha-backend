@@ -1,29 +1,27 @@
-from typing import TYPE_CHECKING, Self
+from typing import Self
 
 from pydantic import Field, model_validator
 
-if TYPE_CHECKING:
-    from .annotation import (
-        AlignmentInput,
-        AlignmentOutput,
-        BibliographicMetadataInput,
-        BibliographicMetadataOutput,
-        NoteInput,
-        NoteOutput,
-        PaginationInput,
-        PaginationOutput,
-        SegmentationInput,
-        SegmentationOutput,
-    )
-    from .edition import EditionInput
-
+from .annotation import (
+    AlignmentInput,
+    AlignmentOutput,
+    BibliographicMetadataInput,
+    BibliographicMetadataOutput,
+    NoteInput,
+    NoteOutput,
+    PaginationInput,
+    PaginationOutput,
+    SegmentationInput,
+    SegmentationOutput,
+)
 from .base import LocalizedString, NonEmptyStr, OpenPechaModel
+from .edition import EditionInput
 from .enums import AnnotationType, EditionType, LicenseType
 
 
 class PaginationParams(OpenPechaModel):
-    limit: int = Field(default=20, ge=1, le=100)
-    offset: int = Field(default=0, ge=0)
+    limit: int = Field(default=20, ge=1, le=100, description="Maximum number of items to return")
+    offset: int = Field(default=0, ge=0, description="Number of items to skip")
 
 
 class TextFilter(OpenPechaModel):
@@ -41,9 +39,9 @@ class TextsQueryParams(PaginationParams, TextFilter):
 
 
 class PersonFilter(OpenPechaModel):
-    name: str | None = None
-    bdrc: str | None = None
-    wiki: str | None = None
+    name: str | None = Field(None, description="Filter by person name")
+    bdrc: str | None = Field(None, description="Filter by BDRC ID")
+    wiki: str | None = Field(None, description="Filter by Wiki ID")
 
 
 class PersonsQueryParams(PaginationParams, PersonFilter):
@@ -51,7 +49,7 @@ class PersonsQueryParams(PaginationParams, PersonFilter):
 
 
 class EditionsQueryParams(OpenPechaModel):
-    edition_type: EditionType | None = None
+    edition_type: EditionType | None = Field(None, description="Filter by edition type")
 
 
 class SpanQueryParams(OpenPechaModel):
@@ -168,8 +166,15 @@ class ApplicationCreateRequest(OpenPechaModel):
 
 
 class SearchQueryParams(OpenPechaModel):
-    query: NonEmptyStr
-    search_type: str = "hybrid"
-    limit: int = Field(default=10, ge=1, le=100)
-    title: str | None = None
-    return_text: bool = True
+    query: NonEmptyStr = Field(..., description="Search query")
+    search_type: str = Field(default="hybrid", description="Type of search")
+    limit: int = Field(default=10, ge=1, le=100, description="Maximum number of results")
+    title: str | None = Field(None, description="Filter by title")
+    return_text: bool = Field(default=True, description="Include full text content")
+
+
+class SegmentsQueryParams(OpenPechaModel):
+    search_type: str = Field(default="semantic", description="Type of segment search")
+    limit: int = Field(default=10, ge=1, le=100, description="Maximum number of results")
+    return_text: bool = Field(default=True, description="Include text content")
+    title: str | None = Field(None, description="Filter by title")

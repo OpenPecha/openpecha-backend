@@ -16,6 +16,5 @@ class SearchResult(OpenPechaModel):
 
 class SearchResponse(OpenPechaModel):
     query: str
-    search_type: str
     results: list[SearchResult]
     count: int

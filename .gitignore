@@ -173,5 +173,6 @@ cython_debug/
 storage.rules
 .secret.local
 .ruff_cache/
+.windsurf/
 
 docker-compose.yaml

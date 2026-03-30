@@ -1,12 +1,10 @@
-from typing import TYPE_CHECKING, Self
+from typing import Self
 
 from pydantic import Field, model_validator
 
 from .base import LocalizedString, NonEmptyStr, OpenPechaModel, _dedupe
+from .contribution import AIContribution, ContributionInput, ContributionOutput
 from .enums import LicenseType
-
-if TYPE_CHECKING:
-    from .contribution import AIContribution, ContributionInput, ContributionOutput
 
 
 class TextBase(OpenPechaModel):

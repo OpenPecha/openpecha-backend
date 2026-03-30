@@ -33,6 +33,9 @@ root = ["."]
 [tool.ty.src]
 exclude = ["tests/"]
 
+[tool.fastapi]
+entrypoint = "main:app"
+
 [tool.ruff.lint]
 select = ["ALL"]
 ignore = [
@@ -43,6 +46,7 @@ ignore = [
     "EM102",
     "C901",
     "TD",
+    "TC001", # Move application import into a type-checking block
     "PLR2004", # Magic value used in comparison
     "PLR0911", # Too many return statements
     "PLR0913",  # Too many arguments in function definition
