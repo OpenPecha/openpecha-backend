@@ -21,6 +21,7 @@ class SegmentDatabase:
         -[:SEGMENTATION_OF]->(manif:Edition)
         -[:EDITION_OF]->(expr:Text)
     MATCH (span:Span)-[:SPAN_OF]->(seg)
+    WHERE span.start < span.end
     WITH seg, manif, expr, span
     ORDER BY span.start
     RETURN seg.id as segment_id,
@@ -41,6 +42,7 @@ class SegmentDatabase:
         -[:EDITION_OF]->(related_expr:Text)
     WHERE related_manif <> source_manif
     MATCH (related_span:Span)-[:SPAN_OF]->(related_seg)
+    WHERE related_span.start < related_span.end
     RETURN related_manif.id as edition_id, related_expr.id as text_id,
         COLLECT(DISTINCT {
             id: related_seg.id,
@@ -63,6 +65,7 @@ class SegmentDatabase:
         -[:EDITION_OF]->(related_expr:Text)
     WHERE related_manif <> source_manif
     MATCH (related_span:Span)-[:SPAN_OF]->(related_seg)
+    WHERE related_span.start < related_span.end
     RETURN related_manif.id as edition_id, related_expr.id as text_id,
         COLLECT(DISTINCT {
             id: related_seg.id,

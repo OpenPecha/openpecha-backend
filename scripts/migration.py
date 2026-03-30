@@ -431,6 +431,19 @@ def migrate_delete_search_segmentation_annotations(session: Session) -> int:
     return deleted
 
 
+def migrate_relabel_manifestation_type_to_edition_type(session: Session) -> int:
+    """Relabel ManifestationType nodes to EditionType."""
+    result = session.run("""
+        MATCH (mt:ManifestationType)
+        SET mt:EditionType
+        REMOVE mt:ManifestationType
+        RETURN count(mt) AS count
+    """).single()
+    count = result["count"] if result else 0
+    logger.info("Relabeled %d ManifestationType nodes to EditionType", count)
+    return count
+
+
 def migrate_relabel_manifestation_to_edition(session: Session) -> dict[str, int]:
     """Relabel Manifestation nodes to Edition nodes and rename MANIFESTATION_OF to EDITION_OF."""
     result = session.run("""
@@ -516,6 +529,7 @@ def run_all_migrations(session: Session) -> dict[str, int | dict[str, int]]:
         "bibliography_to_metadata": migrate_bibliography_annotations(session),
         "segmentation_annotations": migrate_segmentation_annotations(session),
         "search_segmentation_deleted": migrate_delete_search_segmentation_annotations(session),
+        "manifestation_type_relabeled": migrate_relabel_manifestation_type_to_edition_type(session),
         "manifestation_relabeled": migrate_relabel_manifestation_to_edition(session),
         "expression_relabeled": migrate_relabel_expression_to_text(session),
         "obsolete_nodes_deleted": migrate_delete_obsolete_nodes(session),
