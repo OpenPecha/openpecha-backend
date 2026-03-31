@@ -16,9 +16,10 @@ from models.enums import BibliographyType
 class BibliographicDatabase:
     GET_QUERY = """
     MATCH (span:Span)-[:SPAN_OF]->(b:BibliographicMetadata)
-    WHERE ($bibliographic_id IS NOT NULL AND b.id = $bibliographic_id)
-       OR ($edition_id IS NOT NULL
-           AND EXISTS { (b)-[:BIBLIOGRAPHY_OF]->(:Edition {id: $edition_id}) })
+    WHERE span.start < span.end
+      AND (($bibliographic_id IS NOT NULL AND b.id = $bibliographic_id)
+        OR ($edition_id IS NOT NULL
+            AND EXISTS { (b)-[:BIBLIOGRAPHY_OF]->(:Edition {id: $edition_id}) }))
     MATCH (b)-[:HAS_TYPE]->(bt:BibliographyType)
     RETURN b.id AS id, bt.name AS type, span.start AS span_start, span.end AS span_end
     ORDER BY span.start

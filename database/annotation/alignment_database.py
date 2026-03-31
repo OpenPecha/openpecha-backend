@@ -25,10 +25,12 @@ class AlignmentDatabase:
           -[:SEGMENT_OF]->(:Segmentation)-[:SEGMENTATION_OF]->(target_edition:Edition)
     MATCH (target_edition)-[:EDITION_OF]->(target_text:Text)
     MATCH (source_span:Span)-[:SPAN_OF]->(source_segment)
+    WHERE source_span.start < source_span.end
     WITH source_segmentation, source_segment, target_segment, target_edition, target_text,
          min(source_span.start) AS source_min_start,
          collect({start: source_span.start, end: source_span.end}) AS source_lines
     MATCH (target_span:Span)-[:SPAN_OF]->(target_segment)
+    WHERE target_span.start < target_span.end
     WITH source_segmentation, source_segment, source_min_start, source_lines,
          target_edition, target_text, target_segment,
          min(target_span.start) AS target_min_start,

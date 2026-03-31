@@ -15,10 +15,11 @@ from models.annotation import NoteInput, NoteOutput, Span
 class NoteDatabase:
     GET_QUERY = """
     MATCH (span:Span)-[:SPAN_OF]->(n:Note)
-    WHERE ($note_id IS NOT NULL AND n.id = $note_id)
-       OR ($edition_id IS NOT NULL
-           AND EXISTS { (n)-[:NOTE_OF]->(:Edition {id: $edition_id}) }
-           AND EXISTS { (n)-[:HAS_TYPE]->(:NoteType {name: $note_type}) })
+    WHERE span.start < span.end
+      AND (($note_id IS NOT NULL AND n.id = $note_id)
+        OR ($edition_id IS NOT NULL
+            AND EXISTS { (n)-[:NOTE_OF]->(:Edition {id: $edition_id}) }
+            AND EXISTS { (n)-[:HAS_TYPE]->(:NoteType {name: $note_type}) }))
     RETURN n.id AS note_id, n.text AS text, span.start AS span_start, span.end AS span_end
     ORDER BY span.start
     """
