@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Query
 from database import Database
 from dependencies import RequiredAppHeader, get_api_key, get_db
 from exceptions import DataNotFoundError
-from models.category import CategoryDetailOutput, CategoryInput, CategoryOutput
+from models.category import CategoryInput, CategoryOutput
 from models.responses import IdResponse
 
 logger = logging.getLogger(__name__)
@@ -40,7 +40,7 @@ async def get_category(
     category_id: str,
     _api_key: Annotated[str, Depends(get_api_key)],
     db: Annotated[Database, Depends(get_db)],
-) -> CategoryDetailOutput:
+) -> CategoryOutput:
     """Get a category with its children by ID."""
     category = await db.category.get_by_id(category_id)
     if category is None:
