@@ -617,7 +617,7 @@ Can be combined with either segmentation or pagination:
 - `incipit_title`: Opening words/incipit
 - `author`: Author attribution
 
-#### Example Requests
+#### Example Requests 
 
 **Critical Edition with Segmentation:**
 
