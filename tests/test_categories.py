@@ -511,8 +511,8 @@ class TestGetCategoryById:
         data = response.json()
         assert "error" in data
 
-    async def test_get_category_includes_full_children(self, client, test_database):
-        """Test that children are returned as full objects, not just IDs"""
+    async def test_get_category_includes_children_ids(self, client, test_database):
+        """Test that children are returned as a list of IDs"""
         parent = CategoryInput.model_validate({"title": {"en": "Parent For Detail Test"}})
         parent_id = await test_database.category.create(parent, application="test_application")
 
@@ -530,15 +530,8 @@ class TestGetCategoryById:
         data = response.json()
         assert data["id"] == parent_id
         assert len(data["children"]) == 2
-
-        child_ids = [c["id"] for c in data["children"]]
-        assert child1_id in child_ids
-        assert child2_id in child_ids
-
-        child2_data = next(c for c in data["children"] if c["id"] == child2_id)
-        assert child2_data["title"]["en"] == "Child Two"
-        assert child2_data["description"]["en"] == "A child with description"
-        assert child2_data["parent_id"] == parent_id
+        assert child1_id in data["children"]
+        assert child2_id in data["children"]
 
     async def test_get_category_no_children(self, client, test_database):
         """Test fetching a leaf category returns an empty children list"""
@@ -552,8 +545,8 @@ class TestGetCategoryById:
         assert data["id"] == leaf_id
         assert data["children"] == []
 
-    async def test_get_category_children_include_grandchild_ids(self, client, test_database):
-        """Test that each child in the response carries its own children as IDs"""
+    async def test_get_category_children_are_direct_child_ids(self, client, test_database):
+        """Test that children field contains only direct child IDs"""
         grandparent = CategoryInput.model_validate({"title": {"en": "Grandparent Detail"}})
         grandparent_id = await test_database.category.create(grandparent, application="test_application")
 
@@ -561,19 +554,16 @@ class TestGetCategoryById:
         parent_id = await test_database.category.create(parent, application="test_application")
 
         grandchild = CategoryInput.model_validate({"title": {"en": "Grandchild Detail"}, "parent_id": parent_id})
-        grandchild_id = await test_database.category.create(grandchild, application="test_application")
+        await test_database.category.create(grandchild, application="test_application")
 
         response = await client.get(f"/v2/categories/{grandparent_id}")
 
         assert response.status_code == 200
         data = response.json()
         assert data["id"] == grandparent_id
+        assert isinstance(data["children"], list)
         assert len(data["children"]) == 1
-
-        child_data = data["children"][0]
-        assert child_data["id"] == parent_id
-        assert isinstance(child_data["children"], list)
-        assert grandchild_id in child_data["children"]
+        assert data["children"][0] == parent_id
 
     async def test_get_category_with_description(self, client, test_database):
         """Test fetching a category that has a description returns it"""
