@@ -46,6 +46,7 @@ jobs:
             - name: Create Deployment Script
               run: |
                   cat << 'EOF' > deploy_script.sh
+                  #!/bin/bash
                   set -e
                   export HOME=/root
                   cd /opt/openpecha-backend || exit 1
