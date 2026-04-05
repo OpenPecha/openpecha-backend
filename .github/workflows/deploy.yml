@@ -47,6 +47,7 @@ jobs:
               run: |
                   cat << 'EOF' > deploy_script.sh
                   set -e
+                  export HOME=/root
                   cd /opt/openpecha-backend || exit 1
 
                   git config --global --add safe.directory /opt/openpecha-backend
