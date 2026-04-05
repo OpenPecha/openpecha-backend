@@ -71,6 +71,9 @@ jobs:
                   source .venv/bin/activate
                   pip install -r requirements.txt
 
+                  OWNER=$(stat -c '%U:%G' .)
+                  chown -R "$OWNER" .
+
                   sudo systemctl restart openpecha-api
                   EOF
 
