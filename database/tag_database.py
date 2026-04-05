@@ -19,10 +19,10 @@ class TagDatabase:
     MATCH (t:Tag)-[:BELONGS_TO]->(app:Application {id: $application})
     RETURN {
         id: t.id,
-        title: [(t)-[:HAS_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
-            -[:HAS_LANGUAGE]->(l:Language) | {language: l.code, text: lt.text}],
-        description: [(t)-[:HAS_DESCRIPTION]->(dn:Nomen)-[:HAS_LOCALIZATION]->(dlt:LocalizedText)
-            -[:HAS_LANGUAGE]->(dl:Language) | {language: dl.code, text: dlt.text}]
+        title: apoc.map.fromPairs([(t)-[:HAS_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
+            -[:HAS_LANGUAGE]->(l:Language) | [l.code, lt.text]]),
+        description: apoc.map.fromPairs([(t)-[:HAS_DESCRIPTION]->(dn:Nomen)-[:HAS_LOCALIZATION]->(dlt:LocalizedText)
+            -[:HAS_LANGUAGE]->(dl:Language) | [dl.code, dlt.text]])
     } AS tag
     """
 

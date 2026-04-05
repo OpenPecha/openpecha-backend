@@ -21,10 +21,10 @@ class CategoryDatabase:
        OR (c)-[:HAS_PARENT]->(:Category {id: $parent_id})
     RETURN {
         id: c.id,
-        title: [(c)-[:HAS_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
-            -[:HAS_LANGUAGE]->(l:Language) | {language: l.code, text: lt.text}],
-        description: [(c)-[:HAS_DESCRIPTION]->(dn:Nomen)-[:HAS_LOCALIZATION]->(dlt:LocalizedText)
-            -[:HAS_LANGUAGE]->(dl:Language) | {language: dl.code, text: dlt.text}],
+        title: apoc.map.fromPairs([(c)-[:HAS_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
+            -[:HAS_LANGUAGE]->(l:Language) | [l.code, lt.text]]),
+        description: apoc.map.fromPairs([(c)-[:HAS_DESCRIPTION]->(dn:Nomen)-[:HAS_LOCALIZATION]->(dlt:LocalizedText)
+            -[:HAS_LANGUAGE]->(dl:Language) | [dl.code, dlt.text]]),
         parent_id: [(c)-[:HAS_PARENT]->(parent:Category) | parent.id][0],
         children: [(child:Category)-[:HAS_PARENT]->(c) | child.id]
     } AS category

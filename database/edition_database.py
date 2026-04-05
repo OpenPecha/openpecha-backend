@@ -29,10 +29,10 @@ logger = logging.getLogger(__name__)
 class EditionDatabase:
     DELETE_QUERY = """
     MATCH (m:Edition {id: $edition_id})
+    OPTIONAL MATCH (m)-[:HAS_SOURCE]->(s:Source)
+    WITH m, s, size([(s)<-[:HAS_SOURCE]-(:Edition) | 1]) AS source_refs
     OPTIONAL MATCH (m)-[:HAS_INCIPIT_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
     OPTIONAL MATCH (n)<-[:ALTERNATIVE_OF]-(alt:Nomen)-[:HAS_LOCALIZATION]->(alt_lt:LocalizedText)
-    OPTIONAL MATCH (m)-[:HAS_SOURCE]->(s:Source)
-    WITH m, n, lt, alt, alt_lt, s, size([(s)<-[:HAS_SOURCE]-(:Edition) | 1]) AS source_refs
     DETACH DELETE m, n, lt, alt, alt_lt
     WITH s, source_refs WHERE s IS NOT NULL AND source_refs <= 1
     DELETE s
@@ -43,12 +43,12 @@ class EditionDatabase:
         id: m.id, bdrc: m.bdrc, wiki: m.wiki, colophon: m.colophon,
         source: [(m)-[:HAS_SOURCE]->(s:Source) | s.name][0],
         type: [(m)-[:HAS_TYPE]->(mt:EditionType) | mt.name][0],
-        incipit_title: [(m)-[:HAS_INCIPIT_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->
+        incipit_title: apoc.map.fromPairs([(m)-[:HAS_INCIPIT_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->
             (lt:LocalizedText)-[r:HAS_LANGUAGE]->(l:Language) |
-            {language: coalesce(r.bcp47, l.code), text: lt.text}],
+            [coalesce(r.bcp47, l.code), lt.text]]),
         alt_incipit_titles: [(m)-[:HAS_INCIPIT_TITLE]->(:Nomen)<-[:ALTERNATIVE_OF]-(an:Nomen) |
-            [(an)-[:HAS_LOCALIZATION]->(lt:LocalizedText)-[r:HAS_LANGUAGE]->(l:Language) |
-                {language: coalesce(r.bcp47, l.code), text: lt.text}]],
+            apoc.map.fromPairs([(an)-[:HAS_LOCALIZATION]->(lt:LocalizedText)-[r:HAS_LANGUAGE]->(l:Language) |
+                [coalesce(r.bcp47, l.code), lt.text]])],
         text_id: e.id
     } as edition
     """
@@ -176,7 +176,6 @@ class EditionDatabase:
         await PaginationDatabase.delete_all_with_transaction(tx, edition_id)
         await BibliographicDatabase.delete_all_with_transaction(tx, edition_id)
         await NoteDatabase.delete_all_with_transaction(tx, edition_id)
-
         await tx.run(EditionDatabase.DELETE_QUERY, edition_id=edition_id)
 
     async def validate_create(

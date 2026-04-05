@@ -12,18 +12,13 @@ class DataAdapter:
     """Adapters for converting database data formats to Pydantic models."""
 
     @staticmethod
-    def localized_text(entries: list[dict[str, str]] | None) -> dict[str, str] | None:
-        """Convert list of {language, text} dicts to a localized text dict."""
-        return {e["language"]: e["text"] for e in (entries or []) if "language" in e and "text" in e} or None
-
-    @staticmethod
     def contributions(items: list[dict] | None) -> list[ContributionOutput | AIContribution]:
         out: list[ContributionOutput | AIContribution] = []
         for c in items or []:
             if c.get("ai_id"):
                 out.append(AIContribution(ai_id=c["ai_id"], role=c["role"]))
             else:
-                person_name = DataAdapter.localized_text(c.get("person_name"))
+                person_name = c.get("person_name")
                 out.append(
                     ContributionOutput(
                         person_id=c.get("person_id"),
@@ -36,10 +31,8 @@ class DataAdapter:
 
     @staticmethod
     def edition(data: dict) -> EditionOutput:
-        incipit_title = DataAdapter.localized_text(data.get("incipit_title"))
-        alt_incipit_titles = [
-            LocalizedString(t) for a in data.get("alt_incipit_titles", []) if (t := DataAdapter.localized_text(a))
-        ] or None
+        incipit_title = data.get("incipit_title")
+        alt_incipit_titles = [LocalizedString(a) for a in data.get("alt_incipit_titles", []) if a] or None
 
         return EditionOutput(
             id=data["id"],
@@ -66,11 +59,8 @@ class DataAdapter:
             translations=data.get("translations") or [],
             contributions=DataAdapter.contributions(data.get("contributors")),
             date=data.get("date"),
-            title=LocalizedString(DataAdapter.localized_text(data["title"]) or {}),
-            alt_titles=[
-                LocalizedString(t) for alt in data.get("alt_titles", []) if (t := DataAdapter.localized_text(alt))
-            ]
-            or None,
+            title=LocalizedString(data.get("title") or {}),
+            alt_titles=[LocalizedString(alt) for alt in data.get("alt_titles", []) if alt] or None,
             language=data["language"],
             category_id=data["category_id"],
             license=LicenseType(data.get("license") or LicenseType.PUBLIC_DOMAIN_MARK.value),
@@ -84,19 +74,16 @@ class DataAdapter:
             id=data["id"],
             bdrc=data.get("bdrc"),
             wiki=data.get("wiki"),
-            name=LocalizedString(DataAdapter.localized_text(data["name"]) or {}),
-            alt_names=[
-                LocalizedString(t) for alt in data.get("alt_names", []) if (t := DataAdapter.localized_text(alt))
-            ]
-            or None,
+            name=LocalizedString(data.get("name") or {}),
+            alt_names=[LocalizedString(alt) for alt in data.get("alt_names", []) if alt] or None,
         )
 
     @staticmethod
     def category(data: dict) -> CategoryOutput:
-        desc = DataAdapter.localized_text(data.get("description"))
+        desc = data.get("description")
         return CategoryOutput(
             id=data["id"],
-            title=LocalizedString(DataAdapter.localized_text(data["title"]) or {}),
+            title=LocalizedString(data.get("title") or {}),
             description=LocalizedString(desc) if desc else None,
             parent_id=data.get("parent_id"),
             children=data.get("children") or [],
@@ -104,9 +91,9 @@ class DataAdapter:
 
     @staticmethod
     def tag(data: dict) -> TagOutput:
-        desc = DataAdapter.localized_text(data.get("description"))
+        desc = data.get("description")
         return TagOutput(
             id=data["id"],
-            title=LocalizedString(DataAdapter.localized_text(data["title"]) or {}),
+            title=LocalizedString(data.get("title") or {}),
             description=LocalizedString(desc) if desc else None,
         )

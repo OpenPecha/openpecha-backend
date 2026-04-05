@@ -107,7 +107,7 @@ def _neo4j_container():
     if os.environ.get("DOCKER_HOST") and not os.environ.get("TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE"):
         os.environ["TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE"] = "/var/run/docker.sock"
 
-    container = Neo4jContainer("neo4j:2025")
+    container = Neo4jContainer("neo4j:2026.03.1").with_env("NEO4J_PLUGINS", '["apoc"]')
     container.start()
 
     test_uri = container.get_connection_url()

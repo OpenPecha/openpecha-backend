@@ -23,17 +23,11 @@ class PersonDatabase:
         id: p.id,
         bdrc: p.bdrc,
         wiki: p.wiki,
-        name: [(p)-[:HAS_NAME]->(n:Nomen)-[:HAS_LOCALIZATION]->
-               (lt:LocalizedText)-[:HAS_LANGUAGE]->(l:Language) | {
-                   language: l.code,
-                   text: lt.text
-               }],
-        alt_names: [(p)-[:HAS_NAME]->(:Nomen)<-[:ALTERNATIVE_OF]-(an:Nomen) | [
-                       (an)-[:HAS_LOCALIZATION]->(at:LocalizedText)-[:HAS_LANGUAGE]->(al:Language) | {
-                           language: al.code,
-                           text: at.text
-                       }
-                   ]]
+        name: apoc.map.fromPairs([(p)-[:HAS_NAME]->(n:Nomen)-[:HAS_LOCALIZATION]->
+               (lt:LocalizedText)-[:HAS_LANGUAGE]->(l:Language) | [l.code, lt.text]]),
+        alt_names: [(p)-[:HAS_NAME]->(:Nomen)<-[:ALTERNATIVE_OF]-(an:Nomen) |
+                       apoc.map.fromPairs([(an)-[:HAS_LOCALIZATION]->(at:LocalizedText)
+                           -[:HAS_LANGUAGE]->(al:Language) | [al.code, at.text]])]
     }
     """
 

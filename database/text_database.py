@@ -41,10 +41,10 @@ class TextDatabase:
                 person_id: person.id,
                 person_bdrc_id: person.bdrc,
                 role: [(contrib)-[:WITH_ROLE]->(role:RoleType) | role.name][0],
-                person_name: [(person)-[:HAS_NAME]->(n:Nomen)-[:HAS_LOCALIZATION]->
+                person_name: apoc.map.fromPairs([(person)-[:HAS_NAME]->(n:Nomen)-[:HAS_LOCALIZATION]->
                     (lt:LocalizedText)-[r:HAS_LANGUAGE]->(lang:Language)
                     WHERE NOT EXISTS { (n)-[:ALTERNATIVE_OF]->(:Nomen) } |
-                    {language: coalesce(r.bcp47, lang.code), text: lt.text}]
+                    [coalesce(r.bcp47, lang.code), lt.text]])
             }]
             +
             [(e)-[:HAS_CONTRIBUTION]->(contrib:Contribution)-[:BY]->(ai:AI) | {
@@ -53,12 +53,13 @@ class TextDatabase:
             }]
         ),
         date: e.date,
-        title: [(e)-[:HAS_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)-[r:HAS_LANGUAGE]->(lang:Language)
+        title: apoc.map.fromPairs([(e)-[:HAS_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->
+            (lt:LocalizedText)-[r:HAS_LANGUAGE]->(lang:Language)
             WHERE NOT EXISTS { (n)-[:ALTERNATIVE_OF]->(:Nomen) } |
-            {language: coalesce(r.bcp47, lang.code), text: lt.text}],
+            [coalesce(r.bcp47, lang.code), lt.text]]),
         alt_titles: [(e)-[:HAS_TITLE]->(:Nomen)<-[:ALTERNATIVE_OF]-(an:Nomen) |
-            [(an)-[:HAS_LOCALIZATION]->(lt:LocalizedText)-[r:HAS_LANGUAGE]->(lang:Language) |
-                {language: coalesce(r.bcp47, lang.code), text: lt.text}]],
+            apoc.map.fromPairs([(an)-[:HAS_LOCALIZATION]->(lt:LocalizedText)-[r:HAS_LANGUAGE]->(lang:Language) |
+                [coalesce(r.bcp47, lang.code), lt.text]])],
         language: [(e)-[r:HAS_LANGUAGE]->(lang:Language) | coalesce(r.bcp47, lang.code)][0],
         category_id: [(e)-[:TEXT_OF]->(work:Work)-[:HAS_CATEGORY]->(cat:Category) | cat.id][0],
         license: [(e)-[:HAS_LICENSE]->(license:LicenseType) | license.name][0],
