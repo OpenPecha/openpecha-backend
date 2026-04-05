@@ -105,3 +105,4 @@ jobs:
                       --query "{Status:Status,Output:StandardOutputContent,Error:StandardErrorContent}" \
                       --output table
                     exit $EXIT_CODE
+                  fi
