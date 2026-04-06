@@ -18,5 +18,7 @@ class Settings(BaseSettings):
 
     search_api_url: str = ""
 
+    environment: str = ""
+
 
 settings = Settings()

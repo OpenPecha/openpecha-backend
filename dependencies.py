@@ -4,6 +4,7 @@ from typing import Annotated
 from fastapi import Depends, Header, Request, Security
 from fastapi.security import APIKeyHeader
 
+from config import settings
 from database import Database
 from exceptions import UnauthorizedError
 from storage import Storage
@@ -38,7 +39,7 @@ async def get_api_key(
     Returns the validated API key.
     Raises UnauthorizedError if the key is missing or invalid.
     """
-    if request.app.state.testing:
+    if request.app.state.testing or settings.environment == "dev":
         return "test-api-key"
 
     if not x_api_key:
@@ -66,8 +67,8 @@ async def get_application(
     Returns the application ID.
     Raises UnauthorizedError if validation fails.
     """
-    if request.app.state.testing:
-        return x_application or "test-application"
+    if request.app.state.testing or settings.environment == "dev":
+        return x_application or "dev-application"
 
     if not x_application:
         raise UnauthorizedError(f"Missing required header: {APPLICATION_HEADER}")
