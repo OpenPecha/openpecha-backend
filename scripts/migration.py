@@ -364,7 +364,7 @@ def migrate_segmentation_annotations(session: Session, batch_size: int = 50) -> 
             UNWIND $data AS row
             MATCH (a:Annotation) WHERE elementId(a) = row.eid
             MATCH (s:Segment)-[:SEGMENTATION_OF]->(a)
-            WHERE s.span_start IS NOT NULL
+            WHERE s.span_start IS NOT NULL AND s.span_end IS NOT NULL
             CREATE (:Span {start: s.span_start, end: s.span_end})-[:SPAN_OF]->(s)
             RETURN count(*) AS spans_created
             """,
