@@ -4,19 +4,7 @@ from typing import Any, Self, TypeVar
 from pydantic import ConfigDict, Field, model_validator
 
 from .base import NonEmptyStr, OpenPechaModel
-from .enums import AnnotationType, AttributeType, BibliographyType
-
-
-class Annotation(OpenPechaModel):
-    id: NonEmptyStr
-    type: AnnotationType
-    aligned_to: NonEmptyStr | None = None
-
-    @model_validator(mode="after")
-    def validate_aligned_to(self) -> Self:
-        if self.aligned_to is not None and self.type != AnnotationType.ALIGNMENT:
-            raise ValueError("aligned_to can only be set when annotation type is ALIGNMENT")
-        return self
+from .enums import AttributeType, BibliographyType
 
 
 class Span(OpenPechaModel):

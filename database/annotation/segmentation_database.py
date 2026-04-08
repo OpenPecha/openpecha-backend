@@ -43,9 +43,10 @@ class SegmentationDatabase:
     """
 
     DELETE_QUERY = """
-    MATCH (seg:Segmentation {id: $segmentation_id})
-    OPTIONAL MATCH (span:Span)-[:SPAN_OF]->(segment:Segment)-[:SEGMENT_OF]->(seg)
-    DETACH DELETE span, segment, seg
+    MATCH (segmentation:Segmentation {id: $segmentation_id})
+    OPTIONAL MATCH (segment:Segment)-[:SEGMENT_OF]->(segmentation)
+    OPTIONAL MATCH (span:Span)-[:SPAN_OF]->(segment)
+    DETACH DELETE span, segment, segmentation
     """
 
     CHECK_ALIGNMENT_QUERY = """

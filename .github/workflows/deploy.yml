@@ -71,7 +71,21 @@ jobs:
                   OTEL_EXPORTER_OTLP_HEADERS=${{ secrets.OTEL_EXPORTER_OTLP_HEADERS }}
                   ENV_EOF
 
-                  [ -d ".venv" ] || python3 -m venv .venv
+                  REQUIRED_PYTHON=python3.14
+
+                  if ! command -v $REQUIRED_PYTHON &> /dev/null; then
+                    echo "Error: Python 3.14 is not installed on the target server"
+                    exit 1
+                  fi
+
+                  if [ -d ".venv" ]; then
+                    VENV_PYTHON=$(.venv/bin/python3 --version 2>&1 | awk '{print $2}' | cut -d. -f1,2)
+                    if [ "$VENV_PYTHON" != "3.14" ]; then
+                      rm -rf .venv
+                    fi
+                  fi
+
+                  [ -d ".venv" ] || $REQUIRED_PYTHON -m venv .venv
                   source .venv/bin/activate
                   pip install -r requirements.txt
 
