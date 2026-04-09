@@ -893,14 +893,14 @@ class TestAddPagination(TestAnnotationsEndpoints):
         pagination_data = {
             "volumes": [
                 {
-                    "index": 0,
+                    "index": 1,
                     "pages": [
                         {"reference": "1a", "lines": [{"start": 0, "end": 8}]},
                         {"reference": "1b", "lines": [{"start": 8, "end": 16}]},
                     ]
                 },
                 {
-                    "index": 1,
+                    "index": 2,
                     "pages": [
                         {"reference": "2a", "lines": [{"start": 0, "end": 10}]},
                         {"reference": "2b", "lines": [{"start": 10, "end": 20}]},
@@ -922,13 +922,13 @@ class TestAddPagination(TestAnnotationsEndpoints):
         assert len(data["volumes"]) == 2
         
         # Verify first volume
-        assert data["volumes"][0]["index"] == 0
+        assert data["volumes"][0]["index"] == 1
         assert len(data["volumes"][0]["pages"]) == 2
         assert data["volumes"][0]["pages"][0]["reference"] == "1a"
         assert data["volumes"][0]["pages"][1]["reference"] == "1b"
         
         # Verify second volume
-        assert data["volumes"][1]["index"] == 1
+        assert data["volumes"][1]["index"] == 2
         assert len(data["volumes"][1]["pages"]) == 2
         assert data["volumes"][1]["pages"][0]["reference"] == "2a"
         assert data["volumes"][1]["pages"][1]["reference"] == "2b"
@@ -1006,7 +1006,7 @@ class TestAddPagination(TestAnnotationsEndpoints):
                     ]
                 },
                 {
-                    "index": 2,  # Missing index 1 - not continuous
+                    "index": 3,  # Missing index 2 - not continuous
                     "pages": [
                         {"reference": "3a", "lines": [{"start": 0, "end": 10}]},
                     ]
@@ -1047,4 +1047,4 @@ class TestAddPagination(TestAnnotationsEndpoints):
         data = get_response.json()
         
         assert len(data["volumes"]) == 1
-        assert data["volumes"][0]["index"] == 0
+        assert data["volumes"][0]["index"] == None

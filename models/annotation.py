@@ -157,8 +157,8 @@ class PaginationBase(OpenPechaModel):
             if len(set(indexes)) != len(indexes):
                 raise ValueError("volume indexes must be unique")
             sorted_indexes = sorted([i for i in indexes if i is not None])
-            if sorted_indexes != list(range(len(indexes))):
-                raise ValueError("volume indexes must form a continuous sequence starting from 0")
+            if sorted_indexes != list(range(1, len(indexes) + 1)):
+                raise ValueError("volume indexes must form a continuous sequence starting from 1")
         return self
 
 
