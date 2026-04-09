@@ -6,6 +6,7 @@ if TYPE_CHECKING:
     from neo4j import AsyncManagedTransaction, Record
 
     from database.database import Database
+from database.database_validator import DatabaseValidator
 from identifier import generate_id
 from models.annotation import SegmentationInput, SegmentationOutput, SegmentOutput, Span
 
@@ -84,9 +85,7 @@ class SegmentationDatabase:
 
     async def get_all(self, edition_id: str) -> list[SegmentationOutput]:
         async with self._db.get_session() as session:
-            result = await session.run(self.GET_QUERY, segmentation_id=None, edition_id=edition_id)
-            records = await result.data()
-            return [self._parse_record(record) for record in records]
+            return await session.execute_read(lambda tx: SegmentationDatabase.get_all_with_transaction(tx, edition_id))
 
     @staticmethod
     async def add_with_transaction(
@@ -118,6 +117,17 @@ class SegmentationDatabase:
             return await session.execute_write(
                 lambda tx: SegmentationDatabase.add_with_transaction(tx, edition_id, segmentation)
             )
+
+    @staticmethod
+    async def get_all_with_transaction(tx: AsyncManagedTransaction, edition_id: str) -> list[SegmentationOutput]:
+        await DatabaseValidator.validate_edition_exists(tx, edition_id)
+        result = await tx.run(
+            SegmentationDatabase.GET_QUERY,
+            segmentation_id=None,
+            edition_id=edition_id,
+        )
+        records = await result.data()
+        return [SegmentationDatabase._parse_record(record) for record in records]
 
     @staticmethod
     async def delete_with_transaction(

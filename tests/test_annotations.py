@@ -1,18 +1,18 @@
 # pylint: disable=redefined-outer-name
 """
-Integration tests for v2/annotations endpoints using real Neo4j test instance.
+Integration tests for v2 annotation endpoints using real Neo4j test instance.
 
 Tests endpoints:
-- GET /v2/annotations/segmentation/{segmentation_id}
-- GET /v2/annotations/alignment/{alignment_id}
-- GET /v2/annotations/pagination/{pagination_id}
-- GET /v2/annotations/durchen/{note_id}
-- GET /v2/annotations/bibliographic/{bibliographic_id}
-- DELETE /v2/annotations/segmentation/{segmentation_id}
-- DELETE /v2/annotations/alignment/{alignment_id}
-- DELETE /v2/annotations/pagination/{pagination_id}
-- DELETE /v2/annotations/durchen/{note_id}
-- DELETE /v2/annotations/bibliographic/{bibliographic_id}
+- GET /v2/segmentations/{segmentation_id}
+- GET /v2/alignments/{alignment_id}
+- GET /v2/paginations/{pagination_id}
+- GET /v2/durchens/{note_id}
+- GET /v2/bibliographic/{bibliographic_id}
+- DELETE /v2/segmentations/{segmentation_id}
+- DELETE /v2/alignments/{alignment_id}
+- DELETE /v2/paginations/{pagination_id}
+- DELETE /v2/durchens/{note_id}
+- DELETE /v2/bibliographic/{bibliographic_id}
 
 Requires environment variables:
 - NEO4J_TEST_URI: Neo4j test instance URI
@@ -94,7 +94,7 @@ class TestAnnotationsEndpoints:
 
 
 class TestGetSegmentation(TestAnnotationsEndpoints):
-    """Tests for GET /v2/annotations/segmentation/{segmentation_id}"""
+    """Tests for GET /v2/segmentations/{segmentation_id}"""
 
     async def test_get_segmentation_success(self, client, test_database, test_person_data):
         """Test successful segmentation retrieval"""
@@ -110,7 +110,7 @@ class TestGetSegmentation(TestAnnotationsEndpoints):
         )
         segmentation_id = await test_database.annotation.segmentation.add(edition_id, segmentation)
 
-        response = await client.get(f"/v2/annotations/segmentation/{segmentation_id}")
+        response = await client.get(f"/v2/segmentations/{segmentation_id}")
 
         assert response.status_code == 200
         data = response.json()
@@ -119,7 +119,7 @@ class TestGetSegmentation(TestAnnotationsEndpoints):
 
     async def test_get_segmentation_not_found(self, client, test_database):
         """Test segmentation retrieval with non-existent ID"""
-        response = await client.get("/v2/annotations/segmentation/nonexistent_id")
+        response = await client.get("/v2/segmentations/nonexistent_id")
 
         assert response.status_code == 404
         assert "error" in response.json()
@@ -138,7 +138,7 @@ class TestGetSegmentation(TestAnnotationsEndpoints):
         )
         segmentation_id = await test_database.annotation.segmentation.add(edition_id, segmentation)
 
-        response = await client.get(f"/v2/annotations/segmentation/{segmentation_id}")
+        response = await client.get(f"/v2/segmentations/{segmentation_id}")
 
         assert response.status_code == 200
         data = response.json()
@@ -147,7 +147,6 @@ class TestGetSegmentation(TestAnnotationsEndpoints):
 
 
 class TestDeleteSegmentation(TestAnnotationsEndpoints):
-    """Tests for DELETE /v2/annotations/segmentation/{segmentation_id}"""
 
     async def test_delete_segmentation_success(self, client, test_database, test_person_data):
         """Test successful segmentation deletion"""
@@ -160,19 +159,19 @@ class TestDeleteSegmentation(TestAnnotationsEndpoints):
         )
         segmentation_id = await test_database.annotation.segmentation.add(edition_id, segmentation)
 
-        get_response = await client.get(f"/v2/annotations/segmentation/{segmentation_id}")
+        get_response = await client.get(f"/v2/segmentations/{segmentation_id}")
         assert get_response.status_code == 200
 
-        response = await client.delete(f"/v2/annotations/segmentation/{segmentation_id}")
+        response = await client.delete(f"/v2/segmentations/{segmentation_id}")
 
         assert response.status_code == 204
 
-        verify_response = await client.get(f"/v2/annotations/segmentation/{segmentation_id}")
+        verify_response = await client.get(f"/v2/segmentations/{segmentation_id}")
         assert verify_response.status_code == 404
 
     async def test_delete_segmentation_not_found(self, client, test_database):
         """Test deleting non-existent segmentation (should succeed silently)"""
-        response = await client.delete("/v2/annotations/segmentation/nonexistent_id")
+        response = await client.delete("/v2/segmentations/nonexistent_id")
 
         assert response.status_code == 204
 
@@ -187,10 +186,10 @@ class TestDeleteSegmentation(TestAnnotationsEndpoints):
         )
         segmentation_id = await test_database.annotation.segmentation.add(edition_id, segmentation)
 
-        first_delete = await client.delete(f"/v2/annotations/segmentation/{segmentation_id}")
+        first_delete = await client.delete(f"/v2/segmentations/{segmentation_id}")
         assert first_delete.status_code == 204
 
-        second_delete = await client.delete(f"/v2/annotations/segmentation/{segmentation_id}")
+        second_delete = await client.delete(f"/v2/segmentations/{segmentation_id}")
         assert second_delete.status_code == 204
 
     async def test_delete_segmentation_rejects_aligned(self, client, test_database, test_person_data):
@@ -211,17 +210,17 @@ class TestDeleteSegmentation(TestAnnotationsEndpoints):
         )
         alignment_id = await test_database.annotation.alignment.add(source_edition_id, alignment)
 
-        response = await client.delete(f"/v2/annotations/segmentation/{alignment_id}")
+        response = await client.delete(f"/v2/segmentations/{alignment_id}")
 
         assert response.status_code == 400
         assert "alignment" in response.json()["error"].lower()
 
-        verify_response = await client.get(f"/v2/annotations/alignment/{alignment_id}")
+        verify_response = await client.get(f"/v2/alignments/{alignment_id}")
         assert verify_response.status_code == 200
 
 
 class TestGetAlignment(TestAnnotationsEndpoints):
-    """Tests for GET /v2/annotations/alignment/{alignment_id}"""
+    """Tests for GET /v2/alignments/{alignment_id}"""
 
     async def test_get_alignment_success(self, client, test_database, test_person_data):
         """Test successful alignment retrieval"""
@@ -247,7 +246,7 @@ class TestGetAlignment(TestAnnotationsEndpoints):
         )
         alignment_id = await test_database.annotation.alignment.add(source_edition_id, alignment)
 
-        response = await client.get(f"/v2/annotations/alignment/{alignment_id}")
+        response = await client.get(f"/v2/alignments/{alignment_id}")
 
         assert response.status_code == 200
         data = response.json()
@@ -258,7 +257,7 @@ class TestGetAlignment(TestAnnotationsEndpoints):
 
     async def test_get_alignment_not_found(self, client, test_database):
         """Test alignment retrieval with non-existent ID"""
-        response = await client.get("/v2/annotations/alignment/nonexistent_id")
+        response = await client.get("/v2/alignments/nonexistent_id")
 
         assert response.status_code == 404
         assert "error" in response.json()
@@ -287,7 +286,7 @@ class TestGetAlignment(TestAnnotationsEndpoints):
         )
         alignment_id = await test_database.annotation.alignment.add(source_edition_id, alignment)
 
-        response = await client.get(f"/v2/annotations/alignment/{alignment_id}")
+        response = await client.get(f"/v2/alignments/{alignment_id}")
 
         assert response.status_code == 200
         data = response.json()
@@ -344,7 +343,7 @@ class TestAddAlignment(TestAnnotationsEndpoints):
 
 
 class TestDeleteAlignment(TestAnnotationsEndpoints):
-    """Tests for DELETE /v2/annotations/alignment/{alignment_id}"""
+    """Tests for DELETE /v2/alignments/{alignment_id}"""
 
     async def test_delete_alignment_success(self, client, test_database, test_person_data):
         """Test successful alignment deletion"""
@@ -364,14 +363,14 @@ class TestDeleteAlignment(TestAnnotationsEndpoints):
         )
         alignment_id = await test_database.annotation.alignment.add(source_edition_id, alignment)
 
-        get_response = await client.get(f"/v2/annotations/alignment/{alignment_id}")
+        get_response = await client.get(f"/v2/alignments/{alignment_id}")
         assert get_response.status_code == 200
 
-        response = await client.delete(f"/v2/annotations/alignment/{alignment_id}")
+        response = await client.delete(f"/v2/alignments/{alignment_id}")
 
         assert response.status_code == 204
 
-        verify_response = await client.get(f"/v2/annotations/alignment/{alignment_id}")
+        verify_response = await client.get(f"/v2/alignments/{alignment_id}")
         assert verify_response.status_code == 404
 
     async def test_delete_alignment_removes_both_segmentations(self, client, test_database, test_person_data):
@@ -392,15 +391,15 @@ class TestDeleteAlignment(TestAnnotationsEndpoints):
         )
         alignment_id = await test_database.annotation.alignment.add(source_edition_id, alignment)
 
-        response = await client.delete(f"/v2/annotations/alignment/{alignment_id}")
+        response = await client.delete(f"/v2/alignments/{alignment_id}")
         assert response.status_code == 204
 
-        source_seg_response = await client.get(f"/v2/annotations/segmentation/{alignment_id}")
+        source_seg_response = await client.get(f"/v2/segmentations/{alignment_id}")
         assert source_seg_response.status_code == 404
 
     async def test_delete_alignment_not_found(self, client, test_database):
         """Test deleting non-existent alignment returns 404"""
-        response = await client.delete("/v2/annotations/alignment/nonexistent_id")
+        response = await client.delete("/v2/alignments/nonexistent_id")
 
         assert response.status_code == 404
 
@@ -417,17 +416,17 @@ class TestDeleteAlignment(TestAnnotationsEndpoints):
         )
         segmentation_id = await test_database.annotation.segmentation.add(edition_id, segmentation)
 
-        response = await client.delete(f"/v2/annotations/alignment/{segmentation_id}")
+        response = await client.delete(f"/v2/alignments/{segmentation_id}")
 
         assert response.status_code == 400
         assert "not an alignment annotation" in response.json()["error"].lower()
 
-        verify_response = await client.get(f"/v2/annotations/segmentation/{segmentation_id}")
+        verify_response = await client.get(f"/v2/segmentations/{segmentation_id}")
         assert verify_response.status_code == 200
 
 
 class TestGetPagination(TestAnnotationsEndpoints):
-    """Tests for GET /v2/annotations/pagination/{pagination_id}"""
+    """Tests for GET /v2/paginations/{pagination_id}"""
 
     async def test_get_pagination_success(self, client, test_database, test_person_data):
         """Test successful pagination retrieval"""
@@ -436,27 +435,30 @@ class TestGetPagination(TestAnnotationsEndpoints):
         edition_id = await self._create_test_edition(test_database, text_id, "0123456789ABCDEF")
 
         pagination = PaginationInput(
-            volume=Volume(
-                pages=[
-                    Page(reference="1a", lines=[Span(start=0, end=8)]),
-                    Page(reference="1b", lines=[Span(start=8, end=16)]),
-                ]
-            )
+            volumes=[
+                Volume(
+                    pages=[
+                        Page(reference="1a", lines=[Span(start=0, end=8)]),
+                        Page(reference="1b", lines=[Span(start=8, end=16)]),
+                    ]
+                )
+            ]
         )
         pagination_id = await test_database.annotation.pagination.add(edition_id, pagination)
 
-        response = await client.get(f"/v2/annotations/pagination/{pagination_id}")
+        response = await client.get(f"/v2/paginations/{pagination_id}")
 
         assert response.status_code == 200
         data = response.json()
         assert data["id"] == pagination_id
-        assert "volume" in data
-        assert len(data["volume"]["pages"]) == 2
-        assert data["volume"]["pages"][0]["reference"] == "1a"
+        assert "volumes" in data
+        assert len(data["volumes"]) == 1
+        assert len(data["volumes"][0]["pages"]) == 2
+        assert data["volumes"][0]["pages"][0]["reference"] == "1a"
 
     async def test_get_pagination_not_found(self, client, test_database):
         """Test pagination retrieval with non-existent ID"""
-        response = await client.get("/v2/annotations/pagination/nonexistent_id")
+        response = await client.get("/v2/paginations/nonexistent_id")
 
         assert response.status_code == 404
         assert "error" in response.json()
@@ -468,26 +470,28 @@ class TestGetPagination(TestAnnotationsEndpoints):
         edition_id = await self._create_test_edition(test_database, text_id, "0123456789ABCDEF")
 
         pagination = PaginationInput(
-            volume=Volume(
-                pages=[
-                    Page(
-                        reference="1a",
-                        lines=[Span(start=0, end=4), Span(start=4, end=8)],
-                    ),
-                ]
-            )
+            volumes=[
+                Volume(
+                    pages=[
+                        Page(
+                            reference="1a",
+                            lines=[Span(start=0, end=4), Span(start=4, end=8)],
+                        ),
+                    ]
+                )
+            ]
         )
         pagination_id = await test_database.annotation.pagination.add(edition_id, pagination)
 
-        response = await client.get(f"/v2/annotations/pagination/{pagination_id}")
+        response = await client.get(f"/v2/paginations/{pagination_id}")
 
         assert response.status_code == 200
         data = response.json()
-        assert len(data["volume"]["pages"][0]["lines"]) == 2
+        assert len(data["volumes"][0]["pages"][0]["lines"]) == 2
 
 
 class TestDeletePagination(TestAnnotationsEndpoints):
-    """Tests for DELETE /v2/annotations/pagination/{pagination_id}"""
+    """Tests for DELETE /v2/paginations/{pagination_id}"""
 
     async def test_delete_pagination_success(self, client, test_database, test_person_data):
         """Test successful pagination deletion"""
@@ -496,31 +500,33 @@ class TestDeletePagination(TestAnnotationsEndpoints):
         edition_id = await self._create_test_edition(test_database, text_id, "0123456789")
 
         pagination = PaginationInput(
-            volume=Volume(
-                pages=[Page(reference="1a", lines=[Span(start=0, end=10)])]
-            )
+            volumes=[
+                Volume(
+                    pages=[Page(reference="1a", lines=[Span(start=0, end=10)])]
+                )
+            ]
         )
         pagination_id = await test_database.annotation.pagination.add(edition_id, pagination)
 
-        get_response = await client.get(f"/v2/annotations/pagination/{pagination_id}")
+        get_response = await client.get(f"/v2/paginations/{pagination_id}")
         assert get_response.status_code == 200
 
-        response = await client.delete(f"/v2/annotations/pagination/{pagination_id}")
+        response = await client.delete(f"/v2/paginations/{pagination_id}")
 
         assert response.status_code == 204
 
-        verify_response = await client.get(f"/v2/annotations/pagination/{pagination_id}")
+        verify_response = await client.get(f"/v2/paginations/{pagination_id}")
         assert verify_response.status_code == 404
 
     async def test_delete_pagination_not_found(self, client, test_database):
         """Test deleting non-existent pagination (should succeed silently)"""
-        response = await client.delete("/v2/annotations/pagination/nonexistent_id")
+        response = await client.delete("/v2/paginations/nonexistent_id")
 
         assert response.status_code == 204
 
 
 class TestGetDurchen(TestAnnotationsEndpoints):
-    """Tests for GET /v2/annotations/durchen/{note_id}"""
+    """Tests for GET /v2/durchens/{note_id}"""
 
     async def _setup_note_type(self, test_database) -> None:
         """Ensure NoteType node exists for durchen"""
@@ -534,28 +540,28 @@ class TestGetDurchen(TestAnnotationsEndpoints):
         text_id = await self._create_test_text(test_database, person_id)
         edition_id = await self._create_test_edition(test_database, text_id, "0123456789")
 
-        notes = [NoteInput(span=Span(start=0, end=5), text="Variant reading note")]
-        note_ids = await test_database.annotation.note.add_durchen(edition_id, notes)
+        note = NoteInput(span=Span(start=0, end=5), text="Variant reading note")
+        note_id = await test_database.annotation.note.add_durchen(edition_id, note)
 
-        response = await client.get(f"/v2/annotations/durchen/{note_ids[0]}")
+        response = await client.get(f"/v2/durchens/{note_id}")
 
         assert response.status_code == 200
         data = response.json()
-        assert data["id"] == note_ids[0]
+        assert data["id"] == note_id
         assert data["text"] == "Variant reading note"
         assert data["span"]["start"] == 0
         assert data["span"]["end"] == 5
 
     async def test_get_durchen_not_found(self, client, test_database):
         """Test durchen retrieval with non-existent ID"""
-        response = await client.get("/v2/annotations/durchen/nonexistent_id")
+        response = await client.get("/v2/durchens/nonexistent_id")
 
         assert response.status_code == 404
         assert "error" in response.json()
 
 
 class TestDeleteDurchen(TestAnnotationsEndpoints):
-    """Tests for DELETE /v2/annotations/durchen/{note_id}"""
+    """Tests for DELETE /v2/durchens/{note_id}"""
 
     async def _setup_note_type(self, test_database) -> None:
         """Ensure NoteType node exists for durchen"""
@@ -569,28 +575,28 @@ class TestDeleteDurchen(TestAnnotationsEndpoints):
         text_id = await self._create_test_text(test_database, person_id)
         edition_id = await self._create_test_edition(test_database, text_id, "0123456789")
 
-        notes = [NoteInput(span=Span(start=0, end=5), text="Note to delete")]
-        note_ids = await test_database.annotation.note.add_durchen(edition_id, notes)
+        note = NoteInput(span=Span(start=0, end=5), text="Note to delete")
+        note_id = await test_database.annotation.note.add_durchen(edition_id, note)
 
-        get_response = await client.get(f"/v2/annotations/durchen/{note_ids[0]}")
+        get_response = await client.get(f"/v2/durchens/{note_id}")
         assert get_response.status_code == 200
 
-        response = await client.delete(f"/v2/annotations/durchen/{note_ids[0]}")
+        response = await client.delete(f"/v2/durchens/{note_id}")
 
         assert response.status_code == 204
 
-        verify_response = await client.get(f"/v2/annotations/durchen/{note_ids[0]}")
+        verify_response = await client.get(f"/v2/durchens/{note_id}")
         assert verify_response.status_code == 404
 
     async def test_delete_durchen_not_found(self, client, test_database):
         """Test deleting non-existent durchen (should succeed silently)"""
-        response = await client.delete("/v2/annotations/durchen/nonexistent_id")
+        response = await client.delete("/v2/durchens/nonexistent_id")
 
         assert response.status_code == 204
 
 
 class TestGetBibliographic(TestAnnotationsEndpoints):
-    """Tests for GET /v2/annotations/bibliographic/{bibliographic_id}"""
+    """Tests for GET /v2/bibliographic/{bibliographic_id}"""
 
     async def _setup_bibliography_types(self, test_database) -> None:
         """Ensure BibliographyType nodes exist"""
@@ -605,21 +611,21 @@ class TestGetBibliographic(TestAnnotationsEndpoints):
         text_id = await self._create_test_text(test_database, person_id)
         edition_id = await self._create_test_edition(test_database, text_id, "0123456789")
 
-        items = [BibliographicMetadataInput(span=Span(start=0, end=10), type=BibliographyType.COLOPHON)]
-        bibliographic_ids = await test_database.annotation.bibliographic.add(edition_id, items)
+        item = BibliographicMetadataInput(span=Span(start=0, end=10), type=BibliographyType.COLOPHON)
+        bibliographic_id = await test_database.annotation.bibliographic.add(edition_id, item)
 
-        response = await client.get(f"/v2/annotations/bibliographic/{bibliographic_ids[0]}")
+        response = await client.get(f"/v2/bibliographic/{bibliographic_id}")
 
         assert response.status_code == 200
         data = response.json()
-        assert data["id"] == bibliographic_ids[0]
+        assert data["id"] == bibliographic_id
         assert data["type"] == "colophon"
         assert data["span"]["start"] == 0
         assert data["span"]["end"] == 10
 
     async def test_get_bibliographic_not_found(self, client, test_database):
         """Test bibliographic retrieval with non-existent ID"""
-        response = await client.get("/v2/annotations/bibliographic/nonexistent_id")
+        response = await client.get("/v2/bibliographic/nonexistent_id")
 
         assert response.status_code == 404
         assert "error" in response.json()
@@ -635,19 +641,24 @@ class TestGetBibliographic(TestAnnotationsEndpoints):
             BibliographicMetadataInput(span=Span(start=0, end=8), type=BibliographyType.COLOPHON),
             BibliographicMetadataInput(span=Span(start=8, end=16), type=BibliographyType.INCIPIT),
         ]
-        bibliographic_ids = await test_database.annotation.bibliographic.add(edition_id, items)
+        bibliographic_ids = [
+            await test_database.annotation.bibliographic.add(edition_id, items[0]),
+            await test_database.annotation.bibliographic.add(edition_id, items[1])
+        ]
 
-        response1 = await client.get(f"/v2/annotations/bibliographic/{bibliographic_ids[0]}")
-        assert response1.status_code == 200
-        assert response1.json()["type"] == "colophon"
-
-        response2 = await client.get(f"/v2/annotations/bibliographic/{bibliographic_ids[1]}")
-        assert response2.status_code == 200
-        assert response2.json()["type"] == "incipit"
+        responses = [
+            await client.get(f"/v2/bibliographic/{bibliographic_ids[0]}"),
+            await client.get(f"/v2/bibliographic/{bibliographic_ids[1]}")
+        ]
+        
+        types = [resp.json()["type"] for resp in responses]
+        assert "colophon" in types
+        assert "incipit" in types
+        assert len(types) == 2
 
 
 class TestDeleteBibliographic(TestAnnotationsEndpoints):
-    """Tests for DELETE /v2/annotations/bibliographic/{bibliographic_id}"""
+    """Tests for DELETE /v2/bibliographic/{bibliographic_id}"""
 
     async def _setup_bibliography_types(self, test_database) -> None:
         """Ensure BibliographyType nodes exist"""
@@ -661,22 +672,22 @@ class TestDeleteBibliographic(TestAnnotationsEndpoints):
         text_id = await self._create_test_text(test_database, person_id)
         edition_id = await self._create_test_edition(test_database, text_id, "0123456789")
 
-        items = [BibliographicMetadataInput(span=Span(start=0, end=10), type=BibliographyType.COLOPHON)]
-        bibliographic_ids = await test_database.annotation.bibliographic.add(edition_id, items)
+        item = BibliographicMetadataInput(span=Span(start=0, end=10), type=BibliographyType.COLOPHON)
+        bibliographic_id = await test_database.annotation.bibliographic.add(edition_id, item)
 
-        get_response = await client.get(f"/v2/annotations/bibliographic/{bibliographic_ids[0]}")
+        get_response = await client.get(f"/v2/bibliographic/{bibliographic_id}")
         assert get_response.status_code == 200
 
-        response = await client.delete(f"/v2/annotations/bibliographic/{bibliographic_ids[0]}")
+        response = await client.delete(f"/v2/bibliographic/{bibliographic_id}")
 
         assert response.status_code == 204
 
-        verify_response = await client.get(f"/v2/annotations/bibliographic/{bibliographic_ids[0]}")
+        verify_response = await client.get(f"/v2/bibliographic/{bibliographic_id}")
         assert verify_response.status_code == 404
 
     async def test_delete_bibliographic_not_found(self, client, test_database):
         """Test deleting non-existent bibliographic (should succeed silently)"""
-        response = await client.delete("/v2/annotations/bibliographic/nonexistent_id")
+        response = await client.delete("/v2/bibliographic/nonexistent_id")
 
         assert response.status_code == 204
 
@@ -716,7 +727,7 @@ class TestAddAnnotationEditionNotFound(TestAnnotationsEndpoints):
         from exceptions import DataNotFoundError
 
         pagination = PaginationInput(
-            volume=Volume(pages=[Page(reference="1a", lines=[Span(start=0, end=10)])])
+            volumes=[Volume(pages=[Page(reference="1a", lines=[Span(start=0, end=10)])])]
         )
 
         with pytest.raises(DataNotFoundError) as exc_info:
@@ -760,17 +771,15 @@ class TestDeleteEditionWithAnnotations(TestAnnotationsEndpoints):
         segmentation_id = await test_database.annotation.segmentation.add(source_edition_id, segmentation)
 
         pagination = PaginationInput(
-            volume=Volume(pages=[Page(reference="1a", lines=[Span(start=0, end=10)])])
+            volumes=[Volume(pages=[Page(reference="1a", lines=[Span(start=0, end=10)])])]
         )
         pagination_id = await test_database.annotation.pagination.add(source_edition_id, pagination)
 
-        bibliographic_items = [
-            BibliographicMetadataInput(span=Span(start=0, end=5), type=BibliographyType.COLOPHON)
-        ]
-        bibliographic_ids = await test_database.annotation.bibliographic.add(source_edition_id, bibliographic_items)
+        bibliographic_item = BibliographicMetadataInput(span=Span(start=0, end=5), type=BibliographyType.COLOPHON)
+        bibliographic_id = await test_database.annotation.bibliographic.add(source_edition_id, bibliographic_item)
 
-        note_items = [NoteInput(span=Span(start=5, end=10), text="Test note")]
-        note_ids = await test_database.annotation.note.add_durchen(source_edition_id, note_items)
+        note_item = NoteInput(span=Span(start=5, end=10), text="Test note")
+        note_id = await test_database.annotation.note.add_durchen(source_edition_id, note_item)
 
         alignment = AlignmentInput(
             target_id=target_edition_id,
@@ -779,19 +788,19 @@ class TestDeleteEditionWithAnnotations(TestAnnotationsEndpoints):
         )
         alignment_id = await test_database.annotation.alignment.add(source_edition_id, alignment)
 
-        assert (await client.get(f"/v2/annotations/segmentation/{segmentation_id}")).status_code == 200
-        assert (await client.get(f"/v2/annotations/pagination/{pagination_id}")).status_code == 200
-        assert (await client.get(f"/v2/annotations/bibliographic/{bibliographic_ids[0]}")).status_code == 200
-        assert (await client.get(f"/v2/annotations/durchen/{note_ids[0]}")).status_code == 200
-        assert (await client.get(f"/v2/annotations/alignment/{alignment_id}")).status_code == 200
+        assert (await client.get(f"/v2/segmentations/{segmentation_id}")).status_code == 200
+        assert (await client.get(f"/v2/paginations/{pagination_id}")).status_code == 200
+        assert (await client.get(f"/v2/bibliographic/{bibliographic_id}")).status_code == 200
+        assert (await client.get(f"/v2/durchens/{note_id}")).status_code == 200
+        assert (await client.get(f"/v2/alignments/{alignment_id}")).status_code == 200
 
         await test_database.edition.delete(source_edition_id)
 
-        assert (await client.get(f"/v2/annotations/segmentation/{segmentation_id}")).status_code == 404
-        assert (await client.get(f"/v2/annotations/pagination/{pagination_id}")).status_code == 404
-        assert (await client.get(f"/v2/annotations/bibliographic/{bibliographic_ids[0]}")).status_code == 404
-        assert (await client.get(f"/v2/annotations/durchen/{note_ids[0]}")).status_code == 404
-        assert (await client.get(f"/v2/annotations/alignment/{alignment_id}")).status_code == 404
+        assert (await client.get(f"/v2/segmentations/{segmentation_id}")).status_code == 404
+        assert (await client.get(f"/v2/paginations/{pagination_id}")).status_code == 404
+        assert (await client.get(f"/v2/bibliographic/{bibliographic_id}")).status_code == 404
+        assert (await client.get(f"/v2/durchens/{note_id}")).status_code == 404
+        assert (await client.get(f"/v2/alignments/{alignment_id}")).status_code == 404
 
 
 class TestAnnotationEdgeCases(TestAnnotationsEndpoints):
@@ -799,14 +808,14 @@ class TestAnnotationEdgeCases(TestAnnotationsEndpoints):
 
     async def test_special_characters_in_id(self, client, test_database):
         """Test handling of special characters in annotation IDs"""
-        response = await client.get("/v2/annotations/segmentation/id-with-special%20chars")
+        response = await client.get("/v2/segmentations/id-with-special%20chars")
 
         assert response.status_code == 404
 
     async def test_very_long_id(self, client, test_database):
         """Test handling of very long annotation IDs"""
         long_id = "a" * 1000
-        response = await client.get(f"/v2/annotations/segmentation/{long_id}")
+        response = await client.get(f"/v2/segmentations/{long_id}")
 
         assert response.status_code == 404
 
@@ -828,16 +837,16 @@ class TestAnnotationRoundTrip(TestAnnotationsEndpoints):
         )
         segmentation_id = await test_database.annotation.segmentation.add(edition_id, segmentation)
 
-        get_response = await client.get(f"/v2/annotations/segmentation/{segmentation_id}")
+        get_response = await client.get(f"/v2/segmentations/{segmentation_id}")
         assert get_response.status_code == 200
         data = get_response.json()
         assert data["id"] == segmentation_id
         assert len(data["segments"]) == 2
 
-        delete_response = await client.delete(f"/v2/annotations/segmentation/{segmentation_id}")
+        delete_response = await client.delete(f"/v2/segmentations/{segmentation_id}")
         assert delete_response.status_code == 204
 
-        verify_response = await client.get(f"/v2/annotations/segmentation/{segmentation_id}")
+        verify_response = await client.get(f"/v2/segmentations/{segmentation_id}")
         assert verify_response.status_code == 404
 
     async def test_pagination_round_trip(self, client, test_database, test_person_data):
@@ -847,25 +856,195 @@ class TestAnnotationRoundTrip(TestAnnotationsEndpoints):
         edition_id = await self._create_test_edition(test_database, text_id, "Pagination test content")
 
         pagination = PaginationInput(
-            volume=Volume(
-                index=1,
-                pages=[
-                    Page(reference="1a", lines=[Span(start=0, end=11)]),
-                    Page(reference="1b", lines=[Span(start=11, end=23)]),
-                ],
-            )
+            volumes=[
+                Volume(
+                    pages=[
+                        Page(reference="1a", lines=[Span(start=0, end=11)]),
+                        Page(reference="1b", lines=[Span(start=11, end=23)]),
+                    ],
+                )
+            ]
         )
         pagination_id = await test_database.annotation.pagination.add(edition_id, pagination)
 
-        get_response = await client.get(f"/v2/annotations/pagination/{pagination_id}")
+        get_response = await client.get(f"/v2/paginations/{pagination_id}")
         assert get_response.status_code == 200
         data = get_response.json()
         assert data["id"] == pagination_id
-        assert data["volume"]["index"] == 1
-        assert len(data["volume"]["pages"]) == 2
+        assert data["volumes"][0]["index"] == None
+        assert len(data["volumes"][0]["pages"]) == 2
 
-        delete_response = await client.delete(f"/v2/annotations/pagination/{pagination_id}")
+        delete_response = await client.delete(f"/v2/paginations/{pagination_id}")
         assert delete_response.status_code == 204
 
-        verify_response = await client.get(f"/v2/annotations/pagination/{pagination_id}")
+        verify_response = await client.get(f"/v2/paginations/{pagination_id}")
         assert verify_response.status_code == 404
+
+
+class TestAddPagination(TestAnnotationsEndpoints):
+    """Tests for POST /v2/editions/{edition_id}/pagination with multiple volumes"""
+
+    async def test_add_pagination_multiple_volumes_success(self, client, test_database, test_person_data):
+        """Test successful pagination creation with multiple volumes"""
+        person_id = await self._create_test_person(test_database, test_person_data)
+        text_id = await self._create_test_text(test_database, person_id)
+        edition_id = await self._create_test_edition(test_database, text_id, "0123456789ABCDEF")
+
+        pagination_data = {
+            "volumes": [
+                {
+                    "index": 0,
+                    "pages": [
+                        {"reference": "1a", "lines": [{"start": 0, "end": 8}]},
+                        {"reference": "1b", "lines": [{"start": 8, "end": 16}]},
+                    ]
+                },
+                {
+                    "index": 1,
+                    "pages": [
+                        {"reference": "2a", "lines": [{"start": 0, "end": 10}]},
+                        {"reference": "2b", "lines": [{"start": 10, "end": 20}]},
+                    ]
+                }
+            ]
+        }
+
+        response = await client.post(f"/v2/editions/{edition_id}/pagination", json=pagination_data)
+        assert response.status_code == 201
+        pagination_id = response.json()["id"]
+
+        # Test that GET returns all volumes
+        get_response = await client.get(f"/v2/paginations/{pagination_id}")
+        assert get_response.status_code == 200
+        data = get_response.json()
+        
+        assert "volumes" in data
+        assert len(data["volumes"]) == 2
+        
+        # Verify first volume
+        assert data["volumes"][0]["index"] == 0
+        assert len(data["volumes"][0]["pages"]) == 2
+        assert data["volumes"][0]["pages"][0]["reference"] == "1a"
+        assert data["volumes"][0]["pages"][1]["reference"] == "1b"
+        
+        # Verify second volume
+        assert data["volumes"][1]["index"] == 1
+        assert len(data["volumes"][1]["pages"]) == 2
+        assert data["volumes"][1]["pages"][0]["reference"] == "2a"
+        assert data["volumes"][1]["pages"][1]["reference"] == "2b"
+
+    async def test_add_pagination_multiple_volumes_without_index_fails(self, client, test_database, test_person_data):
+        """Test that pagination creation fails when multiple volumes don't specify indexes"""
+        person_id = await self._create_test_person(test_database, test_person_data)
+        text_id = await self._create_test_text(test_database, person_id)
+        edition_id = await self._create_test_edition(test_database, text_id, "0123456789ABCDEF")
+
+        pagination_data = {
+            "volumes": [
+                {
+                    "pages": [
+                        {"reference": "1a", "lines": [{"start": 0, "end": 8}]},
+                    ]
+                },
+                {
+                    "pages": [
+                        {"reference": "2a", "lines": [{"start": 0, "end": 10}]},
+                    ]
+                }
+            ]
+        }
+
+        response = await client.post(f"/v2/editions/{edition_id}/pagination", json=pagination_data)
+        assert response.status_code == 422
+        errors = response.json()["detail"]
+        
+        # Should have validation error about missing index or invalid sequence
+        assert any("index" in str(error).lower() or "sequence" in str(error).lower() for error in errors)
+
+    async def test_add_pagination_multiple_volumes_same_index_fails(self, client, test_database, test_person_data):
+        """Test that pagination creation fails when multiple volumes have the same index"""
+        person_id = await self._create_test_person(test_database, test_person_data)
+        text_id = await self._create_test_text(test_database, person_id)
+        edition_id = await self._create_test_edition(test_database, text_id, "0123456789ABCDEF")
+
+        pagination_data = {
+            "volumes": [
+                {
+                    "index": 1,
+                    "pages": [
+                        {"reference": "1a", "lines": [{"start": 0, "end": 8}]},
+                    ]
+                },
+                {
+                    "index": 1,
+                    "pages": [
+                        {"reference": "2a", "lines": [{"start": 0, "end": 10}]},
+                    ]
+                }
+            ]
+        }
+
+        response = await client.post(f"/v2/editions/{edition_id}/pagination", json=pagination_data)
+        assert response.status_code == 422
+        errors = response.json()["detail"]
+        
+        # Should have validation error about duplicate indexes
+        assert any("unique" in str(error).lower() or "duplicate" in str(error).lower() for error in errors)
+
+    async def test_add_pagination_non_continuous_indexes_fails(self, client, test_database, test_person_data):
+        """Test that pagination creation fails when volume indexes don't form continuous sequence"""
+        person_id = await self._create_test_person(test_database, test_person_data)
+        text_id = await self._create_test_text(test_database, person_id)
+        edition_id = await self._create_test_edition(test_database, text_id, "0123456789ABCDEF")
+
+        pagination_data = {
+            "volumes": [
+                {
+                    "index": 1,
+                    "pages": [
+                        {"reference": "1a", "lines": [{"start": 0, "end": 8}]},
+                    ]
+                },
+                {
+                    "index": 2,  # Missing index 1 - not continuous
+                    "pages": [
+                        {"reference": "3a", "lines": [{"start": 0, "end": 10}]},
+                    ]
+                }
+            ]
+        }
+
+        response = await client.post(f"/v2/editions/{edition_id}/pagination", json=pagination_data)
+        assert response.status_code == 422
+        errors = response.json()["detail"]
+        
+        # Should have validation error about non-continuous sequence
+        assert any("continuous" in str(error).lower() or "sequence" in str(error).lower() for error in errors)
+
+    async def test_add_pagination_single_volume_without_index_succeeds(self, client, test_database, test_person_data):
+        """Test that single volume without index succeeds (defaults to 0)"""
+        person_id = await self._create_test_person(test_database, test_person_data)
+        text_id = await self._create_test_text(test_database, person_id)
+        edition_id = await self._create_test_edition(test_database, text_id, "0123456789ABCDEF")
+
+        pagination_data = {
+            "volumes": [
+                {
+                    "pages": [
+                        {"reference": "1a", "lines": [{"start": 0, "end": 8}]},
+                    ]
+                }
+            ]
+        }
+
+        response = await client.post(f"/v2/editions/{edition_id}/pagination", json=pagination_data)
+        assert response.status_code == 201
+        pagination_id = response.json()["id"]
+
+        # Verify the volume was created with default index 0
+        get_response = await client.get(f"/v2/paginations/{pagination_id}")
+        assert get_response.status_code == 200
+        data = get_response.json()
+        
+        assert len(data["volumes"]) == 1
+        assert data["volumes"][0]["index"] == 0

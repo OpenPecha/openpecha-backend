@@ -364,7 +364,6 @@ GET /v2/annotations/pagination/{pagination_id}
 {
   "id": "pag_abc123",
   "volume": {
-    "index": 1,
     "pages": [
       {
         "reference": "folio_1a",

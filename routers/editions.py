@@ -1,16 +1,26 @@
-import asyncio
 import logging
 from typing import TYPE_CHECKING, Annotated
 
 from fastapi import APIRouter, Depends, Path, Query, status
 
 from dependencies import get_api_key, get_db, get_storage
-from models.annotation import SegmentOutput
+from models.annotation import (
+    AlignmentInput,
+    AlignmentOutput,
+    BibliographicMetadataInput,
+    BibliographicMetadataOutput,
+    NoteInput,
+    NoteOutput,
+    PaginationInput,
+    PaginationOutput,
+    SegmentationInput,
+    SegmentationOutput,
+    SegmentOutput,
+)
 from models.content_operation import ContentOperation, DeleteOperation, InsertOperation, ReplaceOperation
 from models.edition import EditionOutput
-from models.enums import AnnotationType
-from models.requests import AnnotationRequestInput, AnnotationRequestOutput, SpanQueryParams
-from models.responses import IdsResponse
+from models.requests import SpanQueryParams
+from models.responses import IdResponse
 
 if TYPE_CHECKING:
     from database import Database
@@ -22,7 +32,7 @@ router = APIRouter(prefix="/v2/editions", tags=["Editions"])
 
 
 @router.get(
-    "/{edition_id}/metadata",
+    "/{edition_id}",
     summary="Get edition metadata",
     description="Retrieve metadata for a specific edition.",
 )
@@ -59,65 +69,152 @@ async def get_content(
     return base_text
 
 
-@router.post(
-    "/{edition_id}/annotations",
-    status_code=status.HTTP_201_CREATED,
-    summary="Add annotation",
-    description="Add an annotation to an edition.",
+@router.get(
+    "/{edition_id}/segmentations",
+    summary="Get segmentation annotations",
+    description="Retrieve all segmentation annotations for an edition.",
 )
-async def post_annotation(
+async def get_segmentation_annotations(
     edition_id: Annotated[str, Path(description="The ID of the edition")],
-    data: AnnotationRequestInput,
     _api_key: Annotated[str, Depends(get_api_key)],
     db: Annotated[Database, Depends(get_db)],
-) -> IdsResponse:
-    """Add an annotation to an edition."""
-    ids: list[str] = []
-    if data.segmentation is not None:
-        ids.append(await db.annotation.segmentation.add(edition_id, data.segmentation))
-    elif data.alignment is not None:
-        ids.append(await db.annotation.alignment.add(edition_id, data.alignment))
-    elif data.pagination is not None:
-        ids.append(await db.annotation.pagination.add(edition_id, data.pagination))
-    elif data.bibliographic_metadata is not None:
-        ids.extend(await db.annotation.bibliographic.add(edition_id, data.bibliographic_metadata))
-    elif data.durchen_notes is not None:
-        ids.extend(await db.annotation.note.add_durchen(edition_id, data.durchen_notes))
+) -> list[SegmentationOutput]:
+    return await db.annotation.segmentation.get_all(edition_id)
 
-    return IdsResponse(ids=ids)
+
+@router.post(
+    "/{edition_id}/segmentations",
+    status_code=status.HTTP_201_CREATED,
+    summary="Add segmentation annotation",
+    description="Add a segmentation annotation to an edition.",
+)
+async def post_segmentation_annotation(
+    edition_id: Annotated[str, Path(description="The ID of the edition")],
+    data: SegmentationInput,
+    _api_key: Annotated[str, Depends(get_api_key)],
+    db: Annotated[Database, Depends(get_db)],
+) -> IdResponse:
+    """Add a segmentation annotation to an edition."""
+    annotation_id = await db.annotation.segmentation.add(edition_id, data)
+    return IdResponse(id=annotation_id)
 
 
 @router.get(
-    "/{edition_id}/annotations",
-    summary="Get annotations",
-    description="Retrieve annotations for an edition.",
-    response_model_exclude_none=True,
+    "/{edition_id}/alignments",
+    summary="Get alignment annotations",
+    description="Retrieve all alignment annotations for an edition.",
 )
-async def get_annotations(
+async def get_alignment_annotations(
     edition_id: Annotated[str, Path(description="The ID of the edition")],
     _api_key: Annotated[str, Depends(get_api_key)],
     db: Annotated[Database, Depends(get_db)],
-    annotation_type: Annotated[list[AnnotationType] | None, Query(alias="type")] = None,
-) -> AnnotationRequestOutput:
-    """Get annotations for an edition."""
-    requested_types = annotation_type or list(AnnotationType)
-    await db.edition.get(edition_id=edition_id)
+) -> list[AlignmentOutput]:
+    return await db.annotation.alignment.get_all(edition_id)
 
-    tasks: dict[str, asyncio.Task] = {}
-    async with asyncio.TaskGroup() as tg:
-        if AnnotationType.SEGMENTATION in requested_types:
-            tasks["segmentations"] = tg.create_task(db.annotation.segmentation.get_all(edition_id))
-        if AnnotationType.ALIGNMENT in requested_types:
-            tasks["alignments"] = tg.create_task(db.annotation.alignment.get_all(edition_id))
-        if AnnotationType.PAGINATION in requested_types:
-            tasks["pagination"] = tg.create_task(db.annotation.pagination.get_all(edition_id))
-        if AnnotationType.BIBLIOGRAPHY in requested_types:
-            tasks["bibliographic_metadata"] = tg.create_task(db.annotation.bibliographic.get_all(edition_id))
-        if AnnotationType.DURCHEN in requested_types:
-            tasks["durchen_notes"] = tg.create_task(db.annotation.note.get_all(edition_id))
 
-    result = {key: (task.result() or None) for key, task in tasks.items()}
-    return AnnotationRequestOutput.model_validate(result)
+@router.post(
+    "/{edition_id}/alignments",
+    status_code=status.HTTP_201_CREATED,
+    summary="Add alignment annotation",
+    description="Add an alignment annotation to an edition.",
+)
+async def post_alignment_annotation(
+    edition_id: Annotated[str, Path(description="The ID of the edition")],
+    data: AlignmentInput,
+    _api_key: Annotated[str, Depends(get_api_key)],
+    db: Annotated[Database, Depends(get_db)],
+) -> IdResponse:
+    """Add an alignment annotation to an edition."""
+    annotation_id = await db.annotation.alignment.add(edition_id, data)
+    return IdResponse(id=annotation_id)
+
+
+@router.get(
+    "/{edition_id}/pagination",
+    summary="Get pagination annotations",
+    description="Retrieve pagination annotation for an edition.",
+)
+async def get_pagination_annotation(
+    edition_id: Annotated[str, Path(description="The ID of the edition")],
+    _api_key: Annotated[str, Depends(get_api_key)],
+    db: Annotated[Database, Depends(get_db)],
+) -> PaginationOutput | None:
+    return await db.annotation.pagination.get_all(edition_id)
+
+
+@router.post(
+    "/{edition_id}/pagination",
+    status_code=status.HTTP_201_CREATED,
+    summary="Add pagination annotation",
+    description="Add a pagination annotation to an edition.",
+)
+async def post_pagination_annotation(
+    edition_id: Annotated[str, Path(description="The ID of the edition")],
+    data: PaginationInput,
+    _api_key: Annotated[str, Depends(get_api_key)],
+    db: Annotated[Database, Depends(get_db)],
+) -> IdResponse:
+    """Add a pagination annotation to an edition."""
+    annotation_id = await db.annotation.pagination.add(edition_id, data)
+    return IdResponse(id=annotation_id)
+
+
+@router.get(
+    "/{edition_id}/bibliographic",
+    summary="Get bibliographic metadata annotations",
+    description="Retrieve all bibliographic metadata annotations for an edition.",
+)
+async def get_bibliographic_annotations(
+    edition_id: Annotated[str, Path(description="The ID of the edition")],
+    _api_key: Annotated[str, Depends(get_api_key)],
+    db: Annotated[Database, Depends(get_db)],
+) -> list[BibliographicMetadataOutput]:
+    return await db.annotation.bibliographic.get_all(edition_id)
+
+
+@router.post(
+    "/{edition_id}/bibliographic",
+    status_code=status.HTTP_201_CREATED,
+    summary="Add bibliographic metadata annotation",
+    description="Add bibliographic metadata annotation to an edition.",
+)
+async def post_bibliographic_annotation(
+    edition_id: Annotated[str, Path(description="The ID of the edition")],
+    data: BibliographicMetadataInput,
+    _api_key: Annotated[str, Depends(get_api_key)],
+    db: Annotated[Database, Depends(get_db)],
+) -> IdResponse:
+    annotation_id = await db.annotation.bibliographic.add(edition_id, data)
+    return IdResponse(id=annotation_id)
+
+
+@router.get(
+    "/{edition_id}/durchens",
+    summary="Get durchen annotations",
+    description="Retrieve all durchen annotations for an edition.",
+)
+async def get_durchen_annotations(
+    edition_id: Annotated[str, Path(description="The ID of the edition")],
+    _api_key: Annotated[str, Depends(get_api_key)],
+    db: Annotated[Database, Depends(get_db)],
+) -> list[NoteOutput]:
+    return await db.annotation.note.get_all(edition_id, "durchen")
+
+
+@router.post(
+    "/{edition_id}/durchens",
+    status_code=status.HTTP_201_CREATED,
+    summary="Add durchen annotation",
+    description="Add a durchen annotation to an edition.",
+)
+async def post_durchen_annotation(
+    edition_id: Annotated[str, Path(description="The ID of the edition")],
+    data: NoteInput,
+    _api_key: Annotated[str, Depends(get_api_key)],
+    db: Annotated[Database, Depends(get_db)],
+) -> IdResponse:
+    annotation_id = await db.annotation.note.add_durchen(edition_id, data)
+    return IdResponse(id=annotation_id)
 
 
 @router.get(
@@ -131,7 +228,6 @@ async def get_segment_related(
     _api_key: Annotated[str, Depends(get_api_key)],
     db: Annotated[Database, Depends(get_db)],
 ) -> list[SegmentOutput]:
-    """Find segments related to a span."""
     segment_ids = await db.segment.find_by_span(edition_id, span.span_start, span.span_end)
 
     if not segment_ids:
@@ -150,7 +246,6 @@ async def get_related_editions(
     _api_key: Annotated[str, Depends(get_api_key)],
     db: Annotated[Database, Depends(get_db)],
 ) -> list[EditionOutput]:
-    """Find related editions."""
     logger.info("Finding related editions for edition ID: %s", edition_id)
     return await db.edition.get_related(edition_id)
 
@@ -167,7 +262,6 @@ async def delete_edition(
     db: Annotated[Database, Depends(get_db)],
     storage: Annotated[Storage, Depends(get_storage)],
 ) -> None:
-    """Delete an edition."""
     logger.info("Deleting edition with edition ID: %s", edition_id)
     edition = await db.edition.get(edition_id=edition_id)
     await db.edition.delete(edition_id)
@@ -187,7 +281,6 @@ async def patch_content(
     db: Annotated[Database, Depends(get_db)],
     storage: Annotated[Storage, Depends(get_storage)],
 ) -> None:
-    """Apply a text operation to the edition's content."""
     op = data.operation
     logger.info("Applying %s operation to edition %s", op.type, edition_id)
 

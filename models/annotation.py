@@ -50,7 +50,7 @@ class SegmentOutput(SegmentBase):
     id: NonEmptyStr
     edition_id: NonEmptyStr
     text_id: NonEmptyStr
-    tag_ids: list[str] = Field(default_factory=list)
+    tag_ids: list[str] | None = Field(default=None)
 
 
 class AlignedSegment(OpenPechaModel):
@@ -127,7 +127,7 @@ class Page(OpenPechaModel):
 class Volume(OpenPechaModel):
     model_config = ConfigDict(extra="forbid", str_strip_whitespace=True, json_schema_mode_override="validation")
 
-    index: int | None = None
+    index: int | None = Field(default=None, ge=1, description="Volume index (1-based)")
     pages: list[Page] = Field(min_length=1)
     metadata: AnnotationMetadata | None = None
 
@@ -142,8 +142,24 @@ class Volume(OpenPechaModel):
 
 
 class PaginationBase(OpenPechaModel):
-    volume: Volume
+    volumes: list[Volume] = Field(min_length=1)
     metadata: AnnotationMetadata | None = None
+
+    @model_validator(mode="after")
+    def validate_volume_indexes(self) -> Self:
+        if len(self.volumes) == 1:
+            if self.volumes[0].index is not None:
+                raise ValueError("single volume must have index=None")
+        else:
+            indexes = [volume.index for volume in self.volumes]
+            if any(index is None for index in indexes):
+                raise ValueError("multiple volumes must have indexes")
+            if len(set(indexes)) != len(indexes):
+                raise ValueError("volume indexes must be unique")
+            sorted_indexes = sorted([i for i in indexes if i is not None])
+            if sorted_indexes != list(range(len(indexes))):
+                raise ValueError("volume indexes must form a continuous sequence starting from 0")
+        return self
 
 
 class PaginationInput(PaginationBase):

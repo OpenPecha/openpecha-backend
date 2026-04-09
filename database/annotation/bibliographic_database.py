@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING
 
+from database.database_validator import DatabaseValidator
 from exceptions import DataNotFoundError
 
 if TYPE_CHECKING:
@@ -25,12 +26,10 @@ class BibliographicDatabase:
 
     CREATE_QUERY = """
     MATCH (m:Edition {id: $edition_id})
-    UNWIND $items AS item
-    MATCH (bt:BibliographyType {name: item.type})
-    WITH m, item, bt
-    CREATE (s:Span {start: item.span_start, end: item.span_end})-[:SPAN_OF]->(b:BibliographicMetadata {id: item.id}),
+    MATCH (bt:BibliographyType {name: $type})
+    CREATE (s:Span {start: $span_start, end: $span_end})-[:SPAN_OF]->(b:BibliographicMetadata {id: $id}),
         (b)-[:BIBLIOGRAPHY_OF]->(m), (b)-[:HAS_TYPE]->(bt)
-    RETURN collect(b.id) AS ids
+    RETURN b.id AS id
     """
 
     DELETE_QUERY = """
@@ -69,38 +68,33 @@ class BibliographicDatabase:
     async def add(
         self,
         edition_id: str,
-        items: list[BibliographicMetadataInput],
-    ) -> list[str]:
+        item: BibliographicMetadataInput,
+    ) -> str:
         async with self._db.get_session() as session:
             return await session.execute_write(
-                lambda tx: BibliographicDatabase.add_with_transaction(tx, edition_id, items)
+                lambda tx: BibliographicDatabase.add_with_transaction(tx, edition_id, item)
             )
 
     @staticmethod
     async def add_with_transaction(
         tx: AsyncManagedTransaction,
         edition_id: str,
-        items: list[BibliographicMetadataInput],
-    ) -> list[str]:
-        items_data = [
-            {
-                "id": generate_id(),
-                "type": item.type.value,
-                "span_start": item.span.start,
-                "span_end": item.span.end,
-            }
-            for item in items
-        ]
+        item: BibliographicMetadataInput,
+    ) -> str:
+        await DatabaseValidator.validate_edition_exists(tx, edition_id)
 
-        result = await tx.run(
+        generated_id = generate_id()
+
+        await tx.run(
             BibliographicDatabase.CREATE_QUERY,
             edition_id=edition_id,
-            items=items_data,
+            id=generated_id,
+            type=item.type.value,
+            span_start=item.span.start,
+            span_end=item.span.end,
         )
-        record = await result.single()
-        if not record or not record["ids"]:
-            raise DataNotFoundError(f"Edition with ID '{edition_id}' not found")
-        return record["ids"]
+
+        return generated_id
 
     @staticmethod
     async def delete_with_transaction(tx: AsyncManagedTransaction, bibliographic_id: str) -> None:

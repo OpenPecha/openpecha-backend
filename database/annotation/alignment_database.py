@@ -125,11 +125,9 @@ class AlignmentDatabase:
                 raise DataNotFoundError(f"Alignment with ID '{segmentation_id}' not found")
             return self._parse_record(record)
 
-    async def get_all(self, source_edition_id: str) -> list[AlignmentOutput]:
+    async def get_all(self, edition_id: str) -> list[AlignmentOutput]:
         async with self._db.get_session() as session:
-            result = await session.run(AlignmentDatabase.GET_QUERY, segmentation_id=None, edition_id=source_edition_id)
-            records = await result.data()
-            return [self._parse_record(record) for record in records]
+            return await session.execute_read(lambda tx: AlignmentDatabase.get_all_with_transaction(tx, edition_id))
 
     async def add(self, source_edition_id: str, alignment: AlignmentInput) -> str:
         async with self._db.get_session() as session:
@@ -140,6 +138,17 @@ class AlignmentDatabase:
     async def delete(self, segmentation_id: str) -> None:
         async with self._db.get_session() as session:
             await session.execute_write(lambda tx: AlignmentDatabase.delete_with_transaction(tx, segmentation_id))
+
+    @staticmethod
+    async def get_all_with_transaction(tx: AsyncManagedTransaction, edition_id: str) -> list[AlignmentOutput]:
+        await DatabaseValidator.validate_edition_exists(tx, edition_id)
+        result = await tx.run(
+            AlignmentDatabase.GET_QUERY,
+            segmentation_id=None,
+            edition_id=edition_id,
+        )
+        records = await result.data()
+        return [AlignmentDatabase._parse_record(record) for record in records]
 
     @staticmethod
     async def delete_with_transaction(tx: AsyncManagedTransaction, segmentation_id: str) -> None:

@@ -128,7 +128,7 @@ class SegmentDatabase:
                 edition_id=record["edition_id"],
                 text_id=record["text_id"],
                 lines=[Span(start=line["start"], end=line["end"]) for line in record["lines"]],
-                tag_ids=record.get("tag_ids") or [],
+                tag_ids=record.get("tag_ids") or None,
             )
 
     @staticmethod
@@ -143,7 +143,7 @@ class SegmentDatabase:
                     edition_id=manif_id,
                     text_id=text_id,
                     lines=[Span(start=seg["span_start"], end=seg["span_end"])],
-                    tag_ids=seg.get("tag_ids") or [],
+                    tag_ids=seg.get("tag_ids") or None,
                 )
                 for seg in record["segments"]
             )

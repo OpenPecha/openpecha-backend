@@ -1811,9 +1811,9 @@ class TestGetEditionsV2:
                 "source": "Test Source",
             },
             "pagination": {
-                "volume": {
+                "volumes": [{
                     "pages": [{"reference": "1a", "lines": [{"start": 0, "end": 35}]}]
-                }
+                }]
             },
         }
         post_response = await client.post(f"/v2/texts/{text_id}/editions", json=edition_data)
@@ -1870,9 +1870,9 @@ class TestGetEditionsV2:
                 "source": "Source A",
             },
             "pagination": {
-                "volume": {
+                "volumes": [{
                     "pages": [{"reference": "1a", "lines": [{"start": 0, "end": 18}]}]
-                }
+                }]
             },
         }
         post_response_1 = await client.post(f"/v2/texts/{text_id}/editions", json=diplomatic_data)
@@ -1887,9 +1887,9 @@ class TestGetEditionsV2:
                 "source": "Source B",
             },
             "pagination": {
-                "volume": {
+                "volumes": [{
                     "pages": [{"reference": "1a", "lines": [{"start": 0, "end": 26}]}]
-                }
+                }]
             },
         }
         post_response_2 = await client.post(f"/v2/texts/{text_id}/editions", json=diplomatic_data_2)
@@ -1918,9 +1918,9 @@ class TestGetEditionsV2:
                 "source": "Source A",
             },
             "pagination": {
-                "volume": {
+                "volumes": [{
                     "pages": [{"reference": "1a", "lines": [{"start": 0, "end": 18}]}]
-                }
+                }]
             },
         }
         post_response_1 = await client.post(f"/v2/texts/{text_id}/editions", json=diplomatic_data)
@@ -1961,9 +1961,9 @@ class TestGetEditionsV2:
                 "source": "Source A",
             },
             "pagination": {
-                "volume": {
+                "volumes": [{
                     "pages": [{"reference": "1a", "lines": [{"start": 0, "end": 18}]}]
-                }
+                }]
             },
         }
         post_response_1 = await client.post(f"/v2/texts/{text_id}/editions", json=diplomatic_data)
@@ -2004,9 +2004,9 @@ class TestGetEditionsV2:
                 "source": "Source A",
             },
             "pagination": {
-                "volume": {
+                "volumes": [{
                     "pages": [{"reference": "1a", "lines": [{"start": 0, "end": 18}]}]
-                }
+                }]
             },
         }
         post_response = await client.post(f"/v2/texts/{text_id}/editions", json=diplomatic_data)
@@ -2054,9 +2054,9 @@ class TestGetEditionsV2:
                 "incipit_title": {"en": "Opening words", "bo": "དབུ་ཚིག"},
             },
             "pagination": {
-                "volume": {
+                "volumes": [{
                     "pages": [{"reference": "1a", "lines": [{"start": 0, "end": 28}]}]
-                }
+                }]
             },
         }
         post_response = await client.post(f"/v2/texts/{text_id}/editions", json=edition_data)
@@ -2091,9 +2091,9 @@ class TestGetEditionsV2:
                 "source": "Source A",
             },
             "pagination": {
-                "volume": {
+                "volumes": [{
                     "pages": [{"reference": "1a", "lines": [{"start": 0, "end": 18}]}]
-                }
+                }]
             },
         }
         post_response_1 = await client.post(f"/v2/texts/{text_id}/editions", json=diplomatic_data)
@@ -2140,9 +2140,9 @@ class TestGetEditionsV2:
                 "source": "Source 1",
             },
             "pagination": {
-                "volume": {
+                "volumes": [{
                     "pages": [{"reference": "1a", "lines": [{"start": 0, "end": 24}]}]
-                }
+                }]
             },
         }
         post_response_1 = await client.post(f"/v2/texts/{text_id_1}/editions", json=edition_data_1)
@@ -2157,9 +2157,9 @@ class TestGetEditionsV2:
                 "source": "Source 2",
             },
             "pagination": {
-                "volume": {
+                "volumes": [{
                     "pages": [{"reference": "1a", "lines": [{"start": 0, "end": 24}]}]
-                }
+                }]
             },
         }
         post_response_2 = await client.post(f"/v2/texts/{text_id_2}/editions", json=edition_data_2)
@@ -2194,9 +2194,9 @@ class TestGetEditionsV2:
                 "incipit_title": {"bo": "དབུ་ཚིག་བོད་སྐད།", "en": "Tibetan Opening"},
             },
             "pagination": {
-                "volume": {
+                "volumes": [{
                     "pages": [{"reference": "1a", "lines": [{"start": 0, "end": 17}]}]
-                }
+                }]
             },
         }
         post_response = await client.post(f"/v2/texts/{text_id}/editions", json=edition_data)
@@ -2225,9 +2225,9 @@ class TestGetEditionsV2:
                 "colophon": "Round trip colophon",
             },
             "pagination": {
-                "volume": {
+                "volumes": [{
                     "pages": [{"reference": "1a", "lines": [{"start": 0, "end": 23}]}]
-                }
+                }]
             },
         }
         post_response = await client.post(f"/v2/texts/{text_id}/editions", json=edition_data)

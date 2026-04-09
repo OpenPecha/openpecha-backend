@@ -80,11 +80,11 @@ This generic endpoint that returned any annotation type by ID no longer exists.
 
 | Annotation Type | New Endpoint                                           |
 | --------------- | ------------------------------------------------------ |
-| Segmentation    | `GET /v2/annotations/segmentation/{segmentation_id}`   |
-| Alignment       | `GET /v2/annotations/alignment/{alignment_id}`         |
-| Pagination      | `GET /v2/annotations/pagination/{pagination_id}`       |
-| Durchen (Notes) | `GET /v2/annotations/durchen/{note_id}`                |
-| Bibliographic   | `GET /v2/annotations/bibliographic/{bibliographic_id}` |
+| Segmentation    | `GET /v2/segmentations/{segmentation_id}`               |
+| Alignment       | `GET /v2/alignments/{alignment_id}`                     |
+| Pagination      | `GET /v2/paginations/{pagination_id}`                   |
+| Durchen (Notes) | `GET /v2/durchens/{note_id}`                           |
+| Bibliographic   | `GET /v2/bibliographic/{bibliographic_id}`             |
 
 **Migration Steps:**
 
@@ -149,8 +149,7 @@ models:
 ```json
 {
     "id": "pag_abc123",
-    "volume": {
-        "index": 1,
+    "volumes": [{
         "pages": [
             {
                 "reference": "folio_1a",
@@ -158,7 +157,7 @@ models:
             }
         ],
         "metadata": null
-    },
+    }],
     "metadata": null
 }
 ```
@@ -197,19 +196,23 @@ POST /v2/annotations/{instance_id}/annotation
 
 With request body containing a `type` field to specify annotation type.
 
-**New API:**
+**New API:** Use type-specific endpoints for each annotation type:
 
-```
-POST /v2/editions/{edition_id}/annotations
-```
+| Annotation Type | New Endpoint                                           |
+| --------------- | ------------------------------------------------------ |
+| Segmentation    | `POST /v2/editions/{edition_id}/segmentations`        |
+| Alignment       | `POST /v2/editions/{edition_id}/alignments`           |
+| Pagination      | `POST /v2/editions/{edition_id}/pagination`            |
+| Durchen (Notes) | `POST /v2/editions/{edition_id}/durchens`             |
+| Bibliographic   | `POST /v2/editions/{edition_id}/bibliographic`         |
 
 **Key Changes:**
 
 - Path changed from `/v2/annotations/` to `/v2/editions/`
 - Parameter renamed from `instance_id` to `edition_id`
-- Request body structure changed: instead of a `type` field, provide the
-  annotation data directly under the annotation type key
-- Response returns `{"ids": [...]}` with status `201 Created`
+- Each annotation type now has its own dedicated endpoint
+- Request body contains the annotation data directly (no wrapper object)
+- Response returns `{"id": "..."}` with single ID instead of array
 
 **Old Request Body:**
 
@@ -223,84 +226,68 @@ POST /v2/editions/{edition_id}/annotations
 }
 ```
 
-**New Request Body:**
-
-```json
-{
-    "segmentation": {
-        "segments": [
-            { "lines": [{ "start": 0, "end": 50 }] },
-            { "lines": [{ "start": 50, "end": 100 }] }
-        ]
-    }
-}
-```
-
-**Annotation Type Request Bodies:**
+**New Request Bodies:**
 
 _Segmentation:_
 
 ```json
+POST /v2/editions/{edition_id}/segmentations
 {
-    "segmentation": {
-        "segments": [
-            { "lines": [{ "start": 0, "end": 50 }] }
-        ]
-    }
+    "segments": [
+        { "lines": [{ "start": 0, "end": 50 }] },
+        { "lines": [{ "start": 50, "end": 100 }] }
+    ]
 }
 ```
 
 _Alignment:_
 
 ```json
+POST /v2/editions/{edition_id}/alignments
 {
-    "alignment": {
-        "target_id": "M87654321",
-        "target_segments": [
-            { "lines": [{ "start": 0, "end": 30 }] }
-        ],
-        "aligned_segments": [
-            { "lines": [{ "start": 0, "end": 25 }], "alignment_indices": [0] }
-        ]
-    }
+    "target_id": "M87654321",
+    "target_segments": [
+        { "lines": [{ "start": 0, "end": 30 }] }
+    ],
+    "aligned_segments": [
+        { "lines": [{ "start": 0, "end": 25 }], "alignment_indices": [0] }
+    ]
 }
 ```
 
 _Pagination:_
 
 ```json
+POST /v2/editions/{edition_id}/pagination
 {
-    "pagination": {
-        "volume": {
-            "index": 1,
-            "pages": [
-                {
-                    "reference": "folio_1a",
-                    "lines": [{ "start": 0, "end": 500 }]
-                }
-            ]
-        }
-    }
+    "volumes": [{
+        "pages": [
+            {
+                "reference": "folio_1a",
+                "lines": [{ "start": 0, "end": 500 }]
+            }
+        ]
+    }]
 }
 ```
 
 _Bibliographic Metadata:_
 
 ```json
+POST /v2/editions/{edition_id}/bibliographic
 {
-    "bibliographic_metadata": [
-        { "span": { "start": 5000, "end": 5500 }, "type": "colophon" }
-    ]
+    "span": { "start": 5000, "end": 5500 },
+    "type": "colophon"
 }
 ```
 
 _Durchen Notes:_
 
 ```json
+POST /v2/editions/{edition_id}/durchens
 {
-    "durchen_notes": [
-        { "span": { "start": 100, "end": 150 }, "text": "Variant reading" }
-    ]
+    "span": { "start": 100, "end": 150 },
+    "text": "Variant reading"
 }
 ```
 
@@ -308,7 +295,7 @@ _Durchen Notes:_
 
 ```json
 {
-    "ids": ["ann_abc123"]
+    "id": "ann_abc123"
 }
 ```
 
@@ -316,33 +303,64 @@ _Durchen Notes:_
 
 #### 4. Getting All Annotations for an Edition
 
-**New API:**
+**New API:** Use type-specific endpoints for each annotation type:
 
-```
-GET /v2/editions/{edition_id}/annotations
-GET /v2/editions/{edition_id}/annotations?type=segmentation&type=pagination
-```
+| Annotation Type | New Endpoint                                           |
+| --------------- | ------------------------------------------------------ |
+| Segmentation    | `GET /v2/editions/{edition_id}/segmentations`          |
+| Alignment       | `GET /v2/editions/{edition_id}/alignments`             |
+| Pagination      | `GET /v2/editions/{edition_id}/pagination`             |
+| Durchen (Notes) | `GET /v2/editions/{edition_id}/durchens`               |
+| Bibliographic   | `GET /v2/editions/{edition_id}/bibliographic`          |
 
-**Query Parameters:**
-
-- `type` (optional, repeatable): Filter by annotation type(s)
-  - Valid values: `segmentation`, `alignment`, `pagination`, `bibliography`,
-    `durchen`
-  - If not specified, returns all annotation types
-
-**Response:**
+**Response:** Each endpoint returns an array of that annotation type:
 
 ```json
+// GET /v2/editions/{edition_id}/segmentations
+[
+    {
+        "id": "seg_abc123",
+        "segments": [...],
+        "metadata": null
+    }
+]
+
+// GET /v2/editions/{edition_id}/pagination
 {
-  "segmentations": [...],
-  "alignments": [...],
-  "pagination": {...},
-  "bibliographic_metadata": [...],
-  "durchen_notes": [...]
+    "id": "pag_abc123",
+    "volumes": [{
+        "pages": [...]
+    }],
+    "metadata": null
 }
+
+// GET /v2/editions/{edition_id}/bibliographic
+[
+    {
+        "id": "bib_abc123",
+        "span": { "start": 5000, "end": 5500 },
+        "type": "colophon",
+        "metadata": null
+    }
+]
+
+// GET /v2/editions/{edition_id}/durchens
+[
+    {
+        "id": "note_abc123",
+        "span": { "start": 100, "end": 150 },
+        "text": "Variant reading",
+        "metadata": null
+    }
+]
 ```
 
-Fields are `null` if no annotations of that type exist or if filtered out.
+**Key Changes:**
+
+- Each annotation type now has its own dedicated endpoint
+- No more generic endpoint that returns all types in one response
+- Pagination returns a single object (not array) since only one pagination per edition
+- Bibliographic and Durchen return arrays (multiple can exist per edition)
 
 ---
 
@@ -352,11 +370,11 @@ Fields are `null` if no annotations of that type exist or if filtered out.
 
 | Annotation Type | DELETE Endpoint                                           |
 | --------------- | --------------------------------------------------------- |
-| Segmentation    | `DELETE /v2/annotations/segmentation/{segmentation_id}`   |
-| Alignment       | `DELETE /v2/annotations/alignment/{alignment_id}`         |
-| Pagination      | `DELETE /v2/annotations/pagination/{pagination_id}`       |
-| Durchen (Notes) | `DELETE /v2/annotations/durchen/{note_id}`                |
-| Bibliographic   | `DELETE /v2/annotations/bibliographic/{bibliographic_id}` |
+| Segmentation    | `DELETE /v2/segmentations/{segmentation_id}`               |
+| Alignment       | `DELETE /v2/alignments/{alignment_id}`                     |
+| Pagination      | `DELETE /v2/paginations/{pagination_id}`                   |
+| Durchen (Notes) | `DELETE /v2/durchens/{note_id}`                           |
+| Bibliographic   | `DELETE /v2/bibliographic/{bibliographic_id}`             |
 
 **Response:** `204 No Content` (empty body)
 
@@ -401,18 +419,26 @@ currently implemented** as individual GET endpoints:
 
 | Action               | Old Endpoint                                    | New Endpoint                                 |
 | -------------------- | ----------------------------------------------- | -------------------------------------------- |
-| Get segmentation     | `GET /v2/annotations/{id}`                      | `GET /v2/annotations/segmentation/{id}`      |
-| Get alignment        | `GET /v2/annotations/{id}`                      | `GET /v2/annotations/alignment/{id}`         |
-| Get pagination       | `GET /v2/annotations/{id}`                      | `GET /v2/annotations/pagination/{id}`        |
-| Get durchen          | `GET /v2/annotations/{id}`                      | `GET /v2/annotations/durchen/{id}`           |
-| Get bibliographic    | `GET /v2/annotations/{id}`                      | `GET /v2/annotations/bibliographic/{id}`     |
-| Delete segmentation  | N/A                                             | `DELETE /v2/annotations/segmentation/{id}`   |
-| Delete alignment     | N/A                                             | `DELETE /v2/annotations/alignment/{id}`      |
-| Delete pagination    | N/A                                             | `DELETE /v2/annotations/pagination/{id}`     |
-| Delete durchen       | N/A                                             | `DELETE /v2/annotations/durchen/{id}`        |
-| Delete bibliographic | N/A                                             | `DELETE /v2/annotations/bibliographic/{id}`  |
-| Add annotation       | `POST /v2/annotations/{instance_id}/annotation` | `POST /v2/editions/{edition_id}/annotations` |
-| Get all annotations  | N/A                                             | `GET /v2/editions/{edition_id}/annotations`  |
+| Get segmentation     | `GET /v2/annotations/{id}`                      | `GET /v2/segmentations/{id}`                 |
+| Get alignment        | `GET /v2/annotations/{id}`                      | `GET /v2/alignments/{id}`                    |
+| Get pagination       | `GET /v2/annotations/{id}`                      | `GET /v2/paginations/{id}`                   |
+| Get durchen          | `GET /v2/annotations/{id}`                      | `GET /v2/durchens/{id}`                      |
+| Get bibliographic    | `GET /v2/annotations/{id}`                      | `GET /v2/bibliographic/{id}`                 |
+| Delete segmentation  | N/A                                             | `DELETE /v2/segmentations/{id}`               |
+| Delete alignment     | N/A                                             | `DELETE /v2/alignments/{id}`                  |
+| Delete pagination    | N/A                                             | `DELETE /v2/paginations/{id}`                 |
+| Delete durchen       | N/A                                             | `DELETE /v2/durchens/{id}`                    |
+| Delete bibliographic | N/A                                             | `DELETE /v2/bibliographic/{id}`               |
+| Add segmentation     | `POST /v2/annotations/{instance_id}/annotation` | `POST /v2/editions/{edition_id}/segmentations`|
+| Add alignment        | `POST /v2/annotations/{instance_id}/annotation` | `POST /v2/editions/{edition_id}/alignments`   |
+| Add pagination       | `POST /v2/annotations/{instance_id}/annotation` | `POST /v2/editions/{edition_id}/pagination`   |
+| Add durchen          | `POST /v2/annotations/{instance_id}/annotation` | `POST /v2/editions/{edition_id}/durchens`     |
+| Add bibliographic    | `POST /v2/annotations/{instance_id}/annotation` | `POST /v2/editions/{edition_id}/bibliographic` |
+| Get all segmentations| N/A                                             | `GET /v2/editions/{edition_id}/segmentations` |
+| Get all alignments   | N/A                                             | `GET /v2/editions/{edition_id}/alignments`    |
+| Get all pagination   | N/A                                             | `GET /v2/editions/{edition_id}/pagination`    |
+| Get all durchen      | N/A                                             | `GET /v2/editions/{edition_id}/durchens`      |
+| Get all bibliographic| N/A                                             | `GET /v2/editions/{edition_id}/bibliographic`  |
 | Update annotation    | `PUT /v2/annotations/{id}/annotation`           | **REMOVED** (use delete + add)               |
 
 ---
@@ -828,7 +854,7 @@ The editions API (formerly "instances") has been significantly restructured:
 4. **Type field renamed** - `instance_type` → `edition_type`
 5. **Translation/Commentary endpoints REMOVED** - use separate text + edition
    creation instead
-6. **New endpoints added** - `/metadata`, `/content`
+6. **New endpoints added**
 
 ---
 
@@ -891,7 +917,7 @@ POST /v2/texts/T87654321/editions
 
 | Old Path                                           | New Path                                         |
 | -------------------------------------------------- | ------------------------------------------------ |
-| `GET /v2/instances/{instance_id}`                  | `GET /v2/editions/{edition_id}/metadata`         |
+| `GET /v2/instances/{instance_id}`                  | `GET /v2/editions/{edition_id}`         |
 | N/A                                                | `GET /v2/editions/{edition_id}/content`          |
 |                                                    | Optional: `?span_start=0&span_end=100`           |
 | `GET /v2/instances/{instance_id}/annotations`      | `GET /v2/editions/{edition_id}/annotations`      |
@@ -971,7 +997,7 @@ Text operations automatically adjust annotation spans to maintain consistency.
 | ------------------ | ---------------------------------- | ------------------------------------------------ |
 | Create translation | `POST /instances/{id}/translation` | `POST /texts` + `POST /texts/{text_id}/editions` |
 | Create commentary  | `POST /instances/{id}/commentary`  | `POST /texts` + `POST /texts/{text_id}/editions` |
-| Get metadata       | `GET /instances/{id}`              | `GET /editions/{edition_id}/metadata`            |
+| Get metadata       | `GET /instances/{id}`              | `GET /editions/{edition_id}`            |
 | Get content        | N/A                                | `GET /editions/{edition_id}/content`             |
 | Patch edition content | N/A                                              | `PATCH /v2/editions/{edition_id}/content`    |
 | Delete edition     | N/A                                | `DELETE /v2/editions/{edition_id}`               |

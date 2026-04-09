@@ -4,15 +4,10 @@ from pydantic import Field, model_validator
 
 from .annotation import (
     AlignmentInput,
-    AlignmentOutput,
     BibliographicMetadataInput,
-    BibliographicMetadataOutput,
     NoteInput,
-    NoteOutput,
     PaginationInput,
-    PaginationOutput,
     SegmentationInput,
-    SegmentationOutput,
 )
 from .base import LocalizedString, NonEmptyStr, OpenPechaModel
 from .edition import EditionInput
@@ -105,14 +100,6 @@ class AnnotationRequestInput(OpenPechaModel):
             if len(provided_keys) != 1:
                 raise ValueError(f"Exactly one annotation type must be provided, got {len(provided_keys)}")
         return data
-
-
-class AnnotationRequestOutput(OpenPechaModel):
-    segmentations: list[SegmentationOutput] | None = None
-    alignments: list[AlignmentOutput] | None = None
-    pagination: PaginationOutput | None = None
-    bibliographic_metadata: list[BibliographicMetadataOutput] | None = None
-    durchen_notes: list[NoteOutput] | None = None
 
 
 class EditionRequestModel(OpenPechaModel):

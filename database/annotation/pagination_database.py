@@ -20,15 +20,18 @@ class PaginationDatabase:
     ORDER BY volume.index, span.start
     WITH pagination, volume, page, collect({start: span.start, end: span.end}) AS lines
     WITH pagination, volume, collect({reference: page.reference, lines: lines}) AS pages
-    RETURN pagination.id AS pagination_id, volume.index AS volume_index, pages
+    WITH pagination, collect({index: volume.index, pages: pages}) AS volumes
+    RETURN pagination.id AS pagination_id, volumes
     """
 
     CREATE_QUERY = """
     MATCH (edition:Edition {id: $edition_id})
-    CREATE (pagination:Pagination {id: $pagination_id})-[:PAGINATION_OF]->(edition),
-           (volume:Volume {id: $volume_id, index: $volume_index})-[:VOLUME_OF]->(pagination)
-    WITH volume
-    UNWIND $pages AS page_data
+    CREATE (pagination:Pagination {id: $pagination_id})-[:PAGINATION_OF]->(edition)
+    WITH pagination
+    UNWIND $volumes AS volume_data
+    CREATE (volume:Volume {id: volume_data.id, index: volume_data.index})-[:VOLUME_OF]->(pagination)
+    WITH volume, volume_data
+    UNWIND volume_data.pages AS page_data
     CREATE (page:Page {id: page_data.id, reference: page_data.reference})-[:PAGE_OF]->(volume)
     WITH page, page_data
     UNWIND page_data.lines AS line
@@ -47,16 +50,19 @@ class PaginationDatabase:
 
     @staticmethod
     def _parse_record(record: dict | Record) -> PaginationOutput:
-        pages = [
-            Page(
-                reference=page_data["reference"],
-                lines=[Span(start=line["start"], end=line["end"]) for line in page_data["lines"]],
-            )
-            for page_data in record["pages"]
-        ]
+        volumes = []
+        for volume_data in record["volumes"]:
+            pages = [
+                Page(
+                    reference=page_data["reference"],
+                    lines=[Span(start=line["start"], end=line["end"]) for line in page_data["lines"]],
+                )
+                for page_data in volume_data["pages"]
+            ]
+            volumes.append(Volume(index=volume_data["index"], pages=pages))
         return PaginationOutput(
             id=record["pagination_id"],
-            volume=Volume(index=record["volume_index"], pages=pages),
+            volumes=volumes,
         )
 
     async def get(self, pagination_id: str) -> PaginationOutput:
@@ -94,24 +100,25 @@ class PaginationDatabase:
             raise DataConflictError(f"Edition '{edition_id}' already has a pagination")
 
         pagination_id = generate_id()
-        volume_id = generate_id()
 
-        pages_data = [
-            {
-                "id": generate_id(),
-                "reference": page.reference,
-                "lines": [{"start": line.start, "end": line.end} for line in page.lines],
-            }
-            for page in pagination.volume.pages
-        ]
+        volumes_data = []
+        for volume in pagination.volumes:
+            volume_id = generate_id()
+            pages_data = [
+                {
+                    "id": generate_id(),
+                    "reference": page.reference,
+                    "lines": [{"start": line.start, "end": line.end} for line in page.lines],
+                }
+                for page in volume.pages
+            ]
+            volumes_data.append({"id": volume_id, "index": volume.index, "pages": pages_data})
 
         result = await tx.run(
             PaginationDatabase.CREATE_QUERY,
             edition_id=edition_id,
             pagination_id=pagination_id,
-            volume_id=volume_id,
-            volume_index=pagination.volume.index,
-            pages=pages_data,
+            volumes=volumes_data,
         )
         record = await result.single()
         if not record or record["count"] == 0:

@@ -279,10 +279,14 @@ async def auth_client(test_database, mock_storage):
     import httpx
 
     from main import create_app
+    from config import settings
 
     fastapi_app = create_app(testing=False)
     fastapi_app.state.db = test_database
     fastapi_app.state.storage = mock_storage
+    
+    settings.environment = "test"
+    
     transport = httpx.ASGITransport(app=fastapi_app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test", follow_redirects=True) as ac:
         yield ac

@@ -65,7 +65,7 @@ Retrieve metadata for a specific edition.
 
 **Endpoint:**
 ```
-GET /v2/editions/{edition_id}/metadata
+GET /v2/editions/{edition_id}
 ```
 
 **Parameters:**
@@ -821,7 +821,6 @@ GET /v2/editions/{edition_id}/annotations
   "pagination": {
     "id": "pag_abc123",
     "volume": {
-      "index": 1,
       "pages": [
         {
           "reference": "folio_1a",
@@ -985,7 +984,6 @@ Exactly one of the following annotation types must be provided:
 {
   "pagination": {
     "volume": {
-      "index": 1,
       "pages": [
         {
           "reference": "folio_1a",
@@ -1102,7 +1100,6 @@ curl -X POST "https://api-l25bgmwqoa-uc.a.run.app/v2/editions/I12345678/annotati
   -d '{
     "pagination": {
       "volume": {
-        "index": 1,
         "pages": [
           {
             "reference": "folio_1a",

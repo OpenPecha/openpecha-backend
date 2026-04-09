@@ -11,7 +11,11 @@ from config import settings
 from database import Database
 from exceptions import OpenPechaError
 from observability import setup_telemetry, shutdown_telemetry
-from routers.annotations import router as annotations_router
+from routers.annotation.alignments import router as alignments_router
+from routers.annotation.bibliographic import router as bibliographic_router
+from routers.annotation.durchens import router as durchens_router
+from routers.annotation.paginations import router as paginations_router
+from routers.annotation.segmentations import router as segmentations_router
 from routers.applications import router as applications_router
 from routers.categories import router as categories_router
 from routers.editions import router as editions_router
@@ -121,7 +125,11 @@ def create_app(*, testing: bool = False) -> FastAPI:
     app.include_router(categories_router)
     app.include_router(tags_router)
     app.include_router(languages_router)
-    app.include_router(annotations_router)
+    app.include_router(segmentations_router)
+    app.include_router(alignments_router)
+    app.include_router(paginations_router)
+    app.include_router(bibliographic_router)
+    app.include_router(durchens_router)
     app.include_router(applications_router)
     app.include_router(segments_router)
 

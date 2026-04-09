@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING
 
+from database.database_validator import DatabaseValidator
 from exceptions import DataNotFoundError
 
 if TYPE_CHECKING:
@@ -24,12 +25,11 @@ class NoteDatabase:
 
     CREATE_QUERY = """
     MATCH (m:Edition {id: $edition_id}), (nt:NoteType {name: $note_type})
-    UNWIND $notes AS note
-    CREATE (span:Span {start: note.span_start, end: note.span_end})
-        -[:SPAN_OF]->(n:Note {id: note.note_id, text: note.text})
+    CREATE (span:Span {start: $span_start, end: $span_end})
+        -[:SPAN_OF]->(n:Note {id: $note_id, text: $text})
         -[:NOTE_OF]->(m),
         (n)-[:HAS_TYPE]->(nt)
-    RETURN collect(n.id) AS note_ids
+    RETURN n.id AS note_id
     """
 
     DELETE_QUERY = """
@@ -63,39 +63,34 @@ class NoteDatabase:
             records = await result.data()
             return [self._parse_record(record) for record in records]
 
-    async def add_durchen(self, edition_id: str, durchen_notes: list[NoteInput]) -> list[str]:
+    async def add_durchen(self, edition_id: str, note: NoteInput) -> str:
         async with self._db.get_session() as session:
             return await session.execute_write(
-                lambda tx: NoteDatabase.add_with_transaction(tx, edition_id, durchen_notes, "durchen")
+                lambda tx: NoteDatabase.add_with_transaction(tx, edition_id, note, "durchen")
             )
 
     @staticmethod
     async def add_with_transaction(
         tx: AsyncManagedTransaction,
         edition_id: str,
-        notes: list[NoteInput],
+        note: NoteInput,
         note_type: str,
-    ) -> list[str]:
-        notes_data = [
-            {
-                "note_id": generate_id(),
-                "text": note.text,
-                "span_start": note.span.start,
-                "span_end": note.span.end,
-            }
-            for note in notes
-        ]
+    ) -> str:
+        await DatabaseValidator.validate_edition_exists(tx, edition_id)
 
-        result = await tx.run(
+        generated_id = generate_id()
+
+        await tx.run(
             NoteDatabase.CREATE_QUERY,
             edition_id=edition_id,
-            notes=notes_data,
+            note_id=generated_id,
+            text=note.text,
+            span_start=note.span.start,
+            span_end=note.span.end,
             note_type=note_type,
         )
-        record = await result.single()
-        if not record or not record["note_ids"]:
-            raise DataNotFoundError(f"Edition with ID '{edition_id}' not found")
-        return record["note_ids"]
+
+        return generated_id
 
     @staticmethod
     async def delete_with_transaction(tx: AsyncManagedTransaction, note_id: str) -> None:
