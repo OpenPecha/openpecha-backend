@@ -34,6 +34,28 @@ async def get_categories(
     return await db.category.get_all(application=x_application, parent_id=parent_id)
 
 
+@router.get(
+    "/{category_id}",
+    summary="Get category by ID",
+    description="Retrieve a single category by its ID for an application.",
+)
+async def get_category_by_id(
+    category_id: str,
+    _api_key: Annotated[str, Depends(get_api_key)],
+    db: Annotated[Database, Depends(get_db)],
+    x_application: RequiredAppHeader,
+) -> CategoryOutput:
+    """Get a single category by ID."""
+    if not await db.application.exists(x_application):
+        raise DataNotFoundError(f"Application '{x_application}' not found")
+
+    category = await db.category.get_by_id(category_id, application=x_application)
+    if category is None:
+        raise DataNotFoundError(f"Category '{category_id}' not found")
+
+    return category
+
+
 @router.post(
     "",
     status_code=201,

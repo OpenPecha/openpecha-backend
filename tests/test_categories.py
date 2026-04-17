@@ -4,6 +4,7 @@ Integration tests for v2/categories endpoints using real Neo4j test instance.
 
 Tests endpoints:
 - GET /v2/categories/ (get all categories)
+- GET /v2/categories/{category_id} (get category by ID)
 - POST /v2/categories/ (create category)
 
 Requires environment variables:
@@ -19,6 +20,15 @@ from models.category import CategoryInput
 logger = logging.getLogger(__name__)
 
 APPLICATION_HEADER = {"X-Application": "test_application"}
+APP_B_HEADER = {"X-Application": "app_b"}
+
+
+async def _seed_app_b(test_database):
+    """Seed a second application for isolation tests."""
+    async with test_database.get_session() as session:
+        await session.run("""
+            MERGE (app:Application {id: 'app_b', name: 'Application B'})
+        """)
 
 
 @pytest.fixture
@@ -146,6 +156,119 @@ class TestGetAllCategoriesV2:
         assert leaf_cat is not None
         assert "children" in leaf_cat
         assert leaf_cat["children"] == []
+
+
+@pytest.mark.asyncio(loop_scope="session")
+class TestGetCategoryByIdV2:
+    """Tests for GET /v2/categories/{category_id} endpoint"""
+
+    async def test_get_seeded_category_by_id(self, client, test_database):
+        """Test retrieving the seeded category by its known ID"""
+        response = await client.get("/v2/categories/category", headers=APPLICATION_HEADER)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == "category"
+        assert data["title"]["en"] == "Test Category"
+        assert data["title"]["bo"] == "ཚིག་སྒྲུབ་གསར་པ།"
+        assert "children" in data
+        assert isinstance(data["children"], list)
+
+    async def test_get_created_category_by_id(self, client, test_database):
+        """Test retrieving a dynamically created category by ID"""
+        create_response = await client.post(
+            "/v2/categories/",
+            json={"title": {"en": "Get By Id Test"}, "description": {"en": "A test description"}},
+            headers=APPLICATION_HEADER,
+        )
+        assert create_response.status_code == 201
+        category_id = create_response.json()["id"]
+
+        response = await client.get(f"/v2/categories/{category_id}", headers=APPLICATION_HEADER)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == category_id
+        assert data["title"]["en"] == "Get By Id Test"
+        assert data["description"]["en"] == "A test description"
+        assert data["parent_id"] is None
+        assert data["children"] == []
+
+    async def test_get_category_by_id_not_found(self, client, test_database):
+        """Test requesting a non-existent category returns 404"""
+        response = await client.get("/v2/categories/nonexistent_id", headers=APPLICATION_HEADER)
+
+        assert response.status_code == 404
+        data = response.json()
+        assert "error" in data
+
+    async def test_get_category_by_id_missing_application_header(self, client, test_database):
+        """Test requesting a category without X-Application header fails"""
+        response = await client.get("/v2/categories/category")
+
+        assert response.status_code == 422
+        data = response.json()
+        assert "detail" in data
+
+    async def test_get_category_by_id_invalid_application(self, client, test_database):
+        """Test requesting a category with invalid application returns 404"""
+        response = await client.get(
+            "/v2/categories/category",
+            headers={"X-Application": "nonexistent_app"},
+        )
+
+        assert response.status_code == 404
+        data = response.json()
+        assert "error" in data
+
+    async def test_get_category_by_id_wrong_application(self, client, test_database):
+        """Test that a category from one application is not visible to another"""
+        await _seed_app_b(test_database)
+
+        create_response = await client.post(
+            "/v2/categories/",
+            json={"title": {"en": "App A Only Category"}},
+            headers=APPLICATION_HEADER,
+        )
+        assert create_response.status_code == 201
+        category_id = create_response.json()["id"]
+
+        response = await client.get(f"/v2/categories/{category_id}", headers=APP_B_HEADER)
+        assert response.status_code == 404
+
+    async def test_get_category_by_id_with_children(self, client, test_database):
+        """Test that retrieved category includes children IDs"""
+        parent_data = {"title": {"en": "Parent For GetById"}}
+        parent = CategoryInput.model_validate(parent_data)
+        parent_id = await test_database.category.create(parent, application="test_application")
+
+        child_data = {"title": {"en": "Child For GetById"}, "parent_id": parent_id}
+        child = CategoryInput.model_validate(child_data)
+        child_id = await test_database.category.create(child, application="test_application")
+
+        response = await client.get(f"/v2/categories/{parent_id}", headers=APPLICATION_HEADER)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == parent_id
+        assert child_id in data["children"]
+
+    async def test_get_category_by_id_with_parent(self, client, test_database):
+        """Test that a child category includes parent_id"""
+        parent_data = {"title": {"en": "Parent For Child GetById"}}
+        parent = CategoryInput.model_validate(parent_data)
+        parent_id = await test_database.category.create(parent, application="test_application")
+
+        child_data = {"title": {"en": "Child With Parent GetById"}, "parent_id": parent_id}
+        child = CategoryInput.model_validate(child_data)
+        child_id = await test_database.category.create(child, application="test_application")
+
+        response = await client.get(f"/v2/categories/{child_id}", headers=APPLICATION_HEADER)
+
+        assert response.status_code == 200
+        data = response.json()
+        assert data["id"] == child_id
+        assert data["parent_id"] == parent_id
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -510,17 +633,6 @@ class TestCategoryDescription:
 
         assert seeded_cat is not None
         assert seeded_cat.get("description") is None
-
-
-async def _seed_app_b(test_database):
-    """Seed a second application for isolation tests."""
-    async with test_database.get_session() as session:
-        await session.run("""
-            MERGE (app:Application {id: 'app_b', name: 'Application B'})
-        """)
-
-
-APP_B_HEADER = {"X-Application": "app_b"}
 
 
 @pytest.mark.asyncio(loop_scope="session")

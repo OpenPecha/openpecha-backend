@@ -46,6 +46,19 @@ class CategoryDatabase:
         RETURN c.id AS category_id
     """
 
+    GET_BY_ID_QUERY = """
+    MATCH (c:Category {id: $category_id})-[:BELONGS_TO]->(app:Application {id: $application})
+    RETURN {
+        id: c.id,
+        title: apoc.map.fromPairs([(c)-[:HAS_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
+            -[:HAS_LANGUAGE]->(l:Language) | [l.code, lt.text]]),
+        description: apoc.map.fromPairs([(c)-[:HAS_DESCRIPTION]->(dn:Nomen)-[:HAS_LOCALIZATION]->(dlt:LocalizedText)
+            -[:HAS_LANGUAGE]->(dl:Language) | [dl.code, dlt.text]]),
+        parent_id: [(c)-[:HAS_PARENT]->(parent:Category) | parent.id][0],
+        children: [(child:Category)-[:HAS_PARENT]->(c) | child.id]
+    } AS category
+    """
+
     FIND_EXISTING_QUERY = """
         MATCH (c:Category)-[:BELONGS_TO]->(app:Application {id: $application})
         WHERE ($parent_id IS NULL AND NOT EXISTS { (c)-[:HAS_PARENT]->(:Category) })
@@ -63,6 +76,17 @@ class CategoryDatabase:
     @property
     def session(self) -> AsyncSession:
         return self._db.get_session()
+
+    async def get_by_id(self, category_id: str, application: str) -> CategoryOutput | None:
+        async def read(tx: AsyncManagedTransaction) -> CategoryOutput | None:
+            result = await tx.run(CategoryDatabase.GET_BY_ID_QUERY, category_id=category_id, application=application)
+            record = await result.single()
+            if record is None:
+                return None
+            return DataAdapter.category(record["category"])
+
+        async with self.session as session:
+            return await session.execute_read(read)
 
     async def get_all(self, application: str, parent_id: str | None = None) -> list[CategoryOutput]:
         async def read(tx: AsyncManagedTransaction) -> list[CategoryOutput]:

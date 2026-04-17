@@ -111,8 +111,8 @@ def _instrument_neo4j_driver() -> None:
     if _state["neo4j_patched"]:
         return
 
-    AsyncSession.run = _traced_session_run  # ty: ignore[invalid-assignment]  # https://github.com/astral-sh/ty/issues/2648
-    AsyncManagedTransaction.run = _traced_tx_run  # ty: ignore[invalid-assignment]  # https://github.com/astral-sh/ty/issues/2648
+    AsyncSession.run = _traced_session_run  # ty: ignore[invalid-assignment]
+    AsyncManagedTransaction.run = _traced_tx_run  # ty: ignore[invalid-assignment]
 
     _state["neo4j_patched"] = True
     logger.info("Neo4j AsyncSession.run() and AsyncManagedTransaction.run() instrumented for tracing")
@@ -129,7 +129,7 @@ def setup_telemetry(app: FastAPI) -> None:
     resource = Resource.create(
         {
             "service.name": service_name,
-            "service.version": "2.2.0",
+            "service.version": "2.3.0",
             "deployment.environment": environment,
         }
     )
