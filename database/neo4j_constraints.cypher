@@ -20,6 +20,21 @@ CREATE CONSTRAINT annotation_id_unique IF NOT EXISTS FOR (a:Annotation) REQUIRE 
 // Segment nodes - each segment must have a unique ID
 CREATE CONSTRAINT segment_id_unique IF NOT EXISTS FOR (s:Segment) REQUIRE s.id IS UNIQUE;
 
+// Segmentation nodes - each segmentation must have a unique ID
+CREATE CONSTRAINT segmentation_id_unique IF NOT EXISTS FOR (seg:Segmentation) REQUIRE seg.id IS UNIQUE;
+
+// Pagination nodes - each pagination must have a unique ID
+CREATE CONSTRAINT pagination_id_unique IF NOT EXISTS FOR (p:Pagination) REQUIRE p.id IS UNIQUE;
+
+// Note nodes - each note must have a unique ID
+CREATE CONSTRAINT note_id_unique IF NOT EXISTS FOR (n:Note) REQUIRE n.id IS UNIQUE;
+
+// BibliographicMetadata nodes - each metadata item must have a unique ID
+CREATE CONSTRAINT bibliographic_id_unique IF NOT EXISTS FOR (b:BibliographicMetadata) REQUIRE b.id IS UNIQUE;
+
+// Attribute nodes - each attribute must have a unique ID
+CREATE CONSTRAINT attribute_id_unique IF NOT EXISTS FOR (a:Attribute) REQUIRE a.id IS UNIQUE;
+
 // =============================================================================
 // UNIQUE CONSTRAINTS FOR ENUM/LOOKUP NODES
 // =============================================================================
@@ -81,20 +96,8 @@ CREATE CONSTRAINT category_id_unique IF NOT EXISTS FOR (c:Category) REQUIRE c.id
 CREATE FULLTEXT INDEX localized_text_fulltext IF NOT EXISTS
 FOR (lt:LocalizedText) ON EACH [lt.text];
 
-// Index on Segmentation id for faster lookups
-CREATE INDEX segmentation_id_index IF NOT EXISTS FOR (seg:Segmentation) ON (seg.id);
-
-// Index on Pagination id for faster lookups
-CREATE INDEX pagination_id_index IF NOT EXISTS FOR (p:Pagination) ON (p.id);
-
-// Index on Note id for faster lookups
-CREATE INDEX note_id_index IF NOT EXISTS FOR (n:Note) ON (n.id);
-
 // Index on Volume index for ordering queries
 CREATE INDEX volume_index_index IF NOT EXISTS FOR (v:Volume) ON (v.index);
-
-// Index on BibliographicMetadata id for faster lookups
-CREATE INDEX bibliographic_id_index IF NOT EXISTS FOR (b:BibliographicMetadata) ON (b.id);
 
 // Tag nodes - each tag must have a unique ID
 CREATE CONSTRAINT tag_id_unique IF NOT EXISTS FOR (t:Tag) REQUIRE t.id IS UNIQUE;
@@ -110,8 +113,8 @@ CREATE INDEX source_name_index IF NOT EXISTS FOR (s:Source) ON (s.name);
 CREATE INDEX span_start_index IF NOT EXISTS FOR (s:Span) ON (s.start);
 CREATE INDEX span_end_index IF NOT EXISTS FOR (s:Span) ON (s.end);
 
-// Index on Attribute id for faster lookups
-CREATE INDEX attribute_id_index IF NOT EXISTS FOR (a:Attribute) ON (a.id);
-
 // Index on ApiKey id for faster lookups
 CREATE CONSTRAINT api_key_id_unique IF NOT EXISTS FOR (ak:ApiKey) REQUIRE ak.id IS UNIQUE;
+
+// ApiKey hash must be unique (used for validation on every API request)
+CREATE CONSTRAINT api_key_hash_unique IF NOT EXISTS FOR (ak:ApiKey) REQUIRE ak.api_key_hash IS UNIQUE;

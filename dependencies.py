@@ -53,6 +53,18 @@ async def get_api_key(
         raise UnauthorizedError("Invalid API key")
 
     request.state.api_key_info = result
+
+    bound_application_id = result.get("bound_application_id")
+    if bound_application_id is not None:
+        x_application = request.headers.get(APPLICATION_HEADER)
+        if x_application != bound_application_id:
+            logger.warning(
+                "API key application mismatch: key bound to %s, request for %s",
+                bound_application_id,
+                x_application,
+            )
+            raise UnauthorizedError("API key not authorized for this application")
+
     return x_api_key
 
 
@@ -72,15 +84,5 @@ async def get_application(
 
     if not x_application:
         raise UnauthorizedError(f"Missing required header: {APPLICATION_HEADER}")
-
-    api_key_info = request.state.api_key_info
-    bound_application_id = api_key_info.get("bound_application_id")
-    if bound_application_id is not None and bound_application_id != x_application:
-        logger.warning(
-            "API key application mismatch: key bound to %s, request for %s",
-            bound_application_id,
-            x_application,
-        )
-        raise UnauthorizedError("API key not authorized for this application")
 
     return x_application

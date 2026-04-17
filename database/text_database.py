@@ -142,12 +142,14 @@ class TextDatabase:
     OPTIONAL MATCH (n)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
     OPTIONAL MATCH (n)<-[:ALTERNATIVE_OF]-(alt:Nomen)-[:HAS_LOCALIZATION]->(alt_lt:LocalizedText)
     DETACH DELETE n, lt, alt, alt_lt
+    FINISH
     """
 
     LINK_TITLE_QUERY = """
     MATCH (e:Text {id: $text_id})
     MATCH (n:Nomen {id: $nomen_id})
     CREATE (e)-[:HAS_TITLE]->(n)
+    FINISH
     """
 
     _CREATE_TEXT_LINKS = """
@@ -203,6 +205,7 @@ class TextDatabase:
     MATCH (w:Work {id: $work_id})
     MATCH (c:Category {id: $category_id})
     CREATE (w)-[:HAS_CATEGORY]->(c)
+    FINISH
     """
 
     CREATE_CONTRIBUTION_QUERY = """
@@ -210,8 +213,10 @@ class TextDatabase:
     MATCH (p:Person) WHERE (($person_id IS NOT NULL AND p.id = $person_id)
                             OR ($person_bdrc_id IS NOT NULL AND p.bdrc = $person_bdrc_id))
     MATCH (rt:RoleType {name: $role_name})
-    MERGE (e)-[:HAS_CONTRIBUTION]->(c:Contribution)-[:BY]->(p)
-    MERGE (c)-[:WITH_ROLE]->(rt)
+    CREATE (c:Contribution)
+    CREATE (e)-[:HAS_CONTRIBUTION]->(c),
+           (c)-[:BY]->(p),
+           (c)-[:WITH_ROLE]->(rt)
     RETURN elementId(c) as contribution_element_id
     """
 
@@ -230,27 +235,33 @@ class TextDatabase:
         return DataAdapter.text(data)
 
     async def get(self, text_id: str, application: str | None = None) -> TextOutput:
-        async with self.session as session:
-            result = await session.run(TextDatabase.GET_QUERY, id=text_id, application=application)
+        async def read(tx: AsyncManagedTransaction) -> TextOutput:
+            result = await tx.run(TextDatabase.GET_QUERY, id=text_id, application=application)
             record = await result.single()
             if record is None:
                 raise DataNotFoundError(f"Text with ID '{text_id}' not found")
             return self._parse_record(record.data())
 
-    async def get_work_id(self, text_id: str) -> str:
         async with self.session as session:
-            result = await session.run(TextDatabase.GET_WORK_ID_QUERY, text_id=text_id)
+            return await session.execute_read(read)
+
+    async def get_work_id(self, text_id: str) -> str:
+        async def read(tx: AsyncManagedTransaction) -> str:
+            result = await tx.run(TextDatabase.GET_WORK_ID_QUERY, text_id=text_id)
             record = await result.single()
             if record is None:
                 raise DataNotFoundError(f"Text with ID '{text_id}' not found or has no associated Work")
             return record["work_id"]
+
+        async with self.session as session:
+            return await session.execute_read(read)
 
     async def get_all(
         self, offset: int, limit: int, filters: TextFilter | None = None, application: str | None = None
     ) -> list[TextOutput]:
         filters = filters or TextFilter()
 
-        async def _get_all(tx: AsyncManagedTransaction) -> list[TextOutput]:
+        async def read(tx: AsyncManagedTransaction) -> list[TextOutput]:
             if filters.language:
                 await DatabaseValidator.validate_language_code_exists(tx, filters.language)
             result = await tx.run(
@@ -266,20 +277,17 @@ class TextDatabase:
                 wiki=filters.wiki,
                 application=application,
             )
-            records = await result.data()
-            return [self._parse_record(r) for r in records]
+            return [self._parse_record(r) for r in await result.data()]
 
         async with self.session as session:
-            return await session.execute_read(_get_all)
+            return await session.execute_read(read)
 
     async def create(self, text: TextInput) -> str:
         try:
             async with self.session as session:
                 return await session.execute_write(lambda tx: TextDatabase.create_with_transaction(tx, text))
         except ConstraintError as e:
-            if "bdrc" in str(e).lower():
-                raise DataConflictError(f"Text with BDRC ID '{text.bdrc}' already exists") from e
-            raise
+            raise DataConflictError(str(e)) from e
 
     async def validate_create(self, text: TextInput) -> None:
         async with self.session as session:
@@ -455,5 +463,8 @@ class TextDatabase:
                 )
 
         async with self.session as session:
-            await session.execute_write(update_transaction)
+            try:
+                await session.execute_write(update_transaction)
+            except ConstraintError as e:
+                raise DataConflictError(str(e)) from e
             return await self.get(text_id, application=application)

@@ -12,6 +12,7 @@ class Settings(BaseSettings):
     neo4j_uri: str = ""
     neo4j_username: str = ""
     neo4j_password: str = ""
+    neo4j_database: str = "neo4j"
 
     aws_s3_bucket: str = ""
     aws_region: str = ""

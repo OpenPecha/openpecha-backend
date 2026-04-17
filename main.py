@@ -38,7 +38,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     setup_telemetry(app)
 
     if not app.state.testing and settings.neo4j_uri:
-        db = Database(neo4j_uri=settings.neo4j_uri, neo4j_auth=(settings.neo4j_username, settings.neo4j_password))
+        db = Database(
+            neo4j_uri=settings.neo4j_uri,
+            neo4j_auth=(settings.neo4j_username, settings.neo4j_password),
+            neo4j_database=settings.neo4j_database,
+        )
         await db.verify_connectivity()
         app.state.db = db
         storage = Storage(bucket_name=settings.aws_s3_bucket, region=settings.aws_region)

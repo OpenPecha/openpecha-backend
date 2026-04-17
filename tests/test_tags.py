@@ -131,7 +131,7 @@ class TestCreateTag:
     """Tests for POST /v2/tags/ endpoint"""
 
     async def test_create_tag_success(self, client, test_database, test_tag_data):
-        """Test successfully creating a tag"""
+        """Test successfully creating a tag and verifying it appears in GET"""
         response = await client.post("/v2/tags/", json=test_tag_data, headers=APPLICATION_HEADER)
 
         assert response.status_code == 201
@@ -139,13 +139,27 @@ class TestCreateTag:
         assert "id" in data
         assert data["id"] is not None
 
+        get_response = await client.get("/v2/tags/", headers=APPLICATION_HEADER)
+        tags = get_response.json()
+        created_tag = next((t for t in tags if t["id"] == data["id"]), None)
+        assert created_tag is not None
+        assert created_tag["title"]["en"] == "Philosophy"
+        assert created_tag["title"]["bo"] == "གྲུབ་མཐའ"
+
     async def test_create_tag_minimal(self, client, test_database, test_tag_data_minimal):
-        """Test creating tag with minimal data"""
+        """Test creating tag with minimal data and verifying title roundtrip"""
         response = await client.post("/v2/tags/", json=test_tag_data_minimal, headers=APPLICATION_HEADER)
 
         assert response.status_code == 201
         data = response.json()
         assert "id" in data
+
+        get_response = await client.get("/v2/tags/", headers=APPLICATION_HEADER)
+        tags = get_response.json()
+        created_tag = next((t for t in tags if t["id"] == data["id"]), None)
+        assert created_tag is not None
+        assert created_tag["title"]["en"] == "Meditation"
+        assert created_tag.get("description") is None
 
     async def test_create_tag_with_description(self, client, test_database, test_tag_data_with_description):
         """Test creating tag with description"""
@@ -224,6 +238,16 @@ class TestDeleteTag:
         assert response.status_code == 404
         data = response.json()
         assert "error" in data
+
+    async def test_delete_tag_missing_application_header(self, client, test_database):
+        """Test deleting tag without X-Application header fails"""
+        tag_id = await _create_tag(client, {"title": {"en": "Tag To Delete No Header"}})
+
+        response = await client.delete(f"/v2/tags/{tag_id}")
+
+        assert response.status_code == 422
+        data = response.json()
+        assert "detail" in data
 
 
 @pytest.mark.asyncio(loop_scope="session")

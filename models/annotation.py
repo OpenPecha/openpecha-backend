@@ -48,9 +48,25 @@ class SegmentInput(SegmentBase):
 
 class SegmentOutput(SegmentBase):
     id: NonEmptyStr
+    tag_ids: list[str] | None = Field(default=None)
+
+
+class SegmentDetail(SegmentOutput):
+    """Internal model — not exposed in API responses."""
+
     edition_id: NonEmptyStr
     text_id: NonEmptyStr
-    tag_ids: list[str] | None = Field(default=None)
+
+
+class RelatedSegmentationOutput(OpenPechaModel):
+    segmentation_id: NonEmptyStr
+    segments: list[SegmentOutput]
+
+
+class RelatedSegmentsOutput(OpenPechaModel):
+    edition_id: NonEmptyStr
+    text_id: NonEmptyStr
+    segmentations: list[RelatedSegmentationOutput]
 
 
 class AlignedSegment(OpenPechaModel):

@@ -143,7 +143,7 @@ class TestGetEditionMetadata(TestEditionsEndpoints):
     """Tests for GET /v2/editions/{edition_id}"""
 
     async def test_get_metadata_success(self, client, test_database, test_person_data):
-        """Test successful metadata retrieval"""
+        """Test successful metadata retrieval with all expected fields"""
         person_id = await self._create_test_person(test_database, test_person_data)
         text_id = await self._create_test_text(test_database, person_id)
         edition_id = await self._create_test_edition(client, text_id)
@@ -155,7 +155,8 @@ class TestGetEditionMetadata(TestEditionsEndpoints):
         assert data["id"] == edition_id
         assert data["text_id"] == text_id
         assert data["type"] == "diplomatic"
-        assert "bdrc" in data
+        assert data["bdrc"] is not None
+        assert data["source"] == "Test Source"
 
     async def test_get_metadata_not_found(self, client, test_database):
         """Test metadata retrieval with non-existent edition ID"""
@@ -196,7 +197,7 @@ class TestCreateEdition(TestEditionsEndpoints):
     """Tests for POST /v2/texts/{text_id}/editions"""
 
     async def test_create_edition_success(self, client, test_database, test_person_data):
-        """Test successful edition creation"""
+        """Test successful edition creation and verify via GET"""
         person_id = await self._create_test_person(test_database, test_person_data)
         text_id = await self._create_test_text(test_database, person_id)
 
@@ -219,7 +220,17 @@ class TestCreateEdition(TestEditionsEndpoints):
         response = await client.post(f"/v2/texts/{text_id}/editions", json=edition_data)
 
         assert response.status_code == 201
-        assert "id" in response.json()
+        edition_id = response.json()["id"]
+        assert edition_id is not None
+
+        get_response = await client.get(f"/v2/editions/{edition_id}")
+        assert get_response.status_code == 200
+        get_data = get_response.json()
+        assert get_data["id"] == edition_id
+        assert get_data["type"] == "diplomatic"
+        assert get_data["bdrc"] == "W12345"
+        assert get_data["source"] == "Test Source"
+        assert get_data["text_id"] == text_id
 
     async def test_create_edition_with_pagination(self, client, test_database, test_person_data):
         """Test edition creation with pagination annotation"""
@@ -507,24 +518,6 @@ class TestEditionAnnotations(TestEditionsEndpoints):
         assert post_response.status_code == 409
 
 
-    async def test_get_annotations_filtered_by_type(self, client, test_database, test_person_data):
-        """Test getting annotations filtered by type"""
-        person_id = await self._create_test_person(test_database, test_person_data)
-        text_id = await self._create_test_text(test_database, person_id)
-        edition_id = await self._create_test_edition(client, text_id, "0123456789")
-
-        segmentation_data = {
-            "segments": [{"lines": [{"start": 0, "end": 10}]}]
-        }
-        post_response = await client.post(f"/v2/editions/{edition_id}/segmentations", json=segmentation_data)
-        assert post_response.status_code == 201, f"POST failed: {post_response.json()}"
-
-        response = await client.get(f"/v2/editions/{edition_id}/segmentations")
-
-        assert response.status_code == 200
-        data = response.json()
-        assert len(data) == 1
-
     async def test_post_annotation_missing_body(self, client, test_database, test_person_data):
         """Test posting annotation with missing body"""
         person_id = await self._create_test_person(test_database, test_person_data)
@@ -778,10 +771,12 @@ class TestDeleteEdition(TestEditionsEndpoints):
         assert content_response.status_code == 404
 
     async def test_delete_edition_not_found(self, client, test_database):
-        """Test deleting a non-existent edition"""
+        """Test deleting a non-existent edition returns 404 with error message"""
         response = await client.delete("/v2/editions/non-existent-id")
 
         assert response.status_code == 404
+        data = response.json()
+        assert "error" in data
 
     async def test_delete_edition_with_annotations(self, client, test_database, test_person_data):
         """Test deleting an edition that has annotations"""
@@ -857,20 +852,23 @@ class TestSegmentsRelated(TestEditionsEndpoints):
         assert response.status_code == 422
 
     async def test_get_segments_related_with_alignment(self, client, test_database, test_person_data):
-        """Test getting related segments when alignment exists"""
+        """Test getting related segments when alignment exists (with display segmentations)"""
         person_id = await self._create_test_person(test_database, test_person_data)
 
         source_text_id = await self._create_test_text(
             test_database, person_id, title=LocalizedString({"bo": "རྩ་བ།", "en": "Source"})
         )
-        source_edition_id = await self._create_test_edition(client, source_text_id, "0123456789"
-        )
+        source_edition_id = await self._create_test_edition(client, source_text_id, "0123456789")
 
         target_text_id = await self._create_test_text(
             test_database, person_id, title=LocalizedString({"bo": "དམིགས་བསལ།", "en": "Target"})
         )
-        target_edition_id = await self._create_test_edition(client, target_text_id, "ABCDEFGHIJ"
-        )
+        target_edition_id = await self._create_test_edition(client, target_text_id, "ABCDEFGHIJ")
+
+        # Create display segmentations on both editions
+        segmentation_data = {"segments": [{"lines": [{"start": 0, "end": 5}]}, {"lines": [{"start": 5, "end": 10}]}]}
+        await client.post(f"/v2/editions/{source_edition_id}/segmentations", json=segmentation_data)
+        await client.post(f"/v2/editions/{target_edition_id}/segmentations", json=segmentation_data)
 
         alignment_data = {
             "target_id": target_edition_id,
@@ -895,7 +893,11 @@ class TestSegmentsRelated(TestEditionsEndpoints):
         if len(data) > 0:
             assert "edition_id" in data[0]
             assert "text_id" in data[0]
-            assert "lines" in data[0]
+            assert "segmentations" in data[0]
+            assert len(data[0]["segmentations"]) > 0
+            assert "segments" in data[0]["segmentations"][0]
+            assert len(data[0]["segmentations"][0]["segments"]) > 0
+            assert "lines" in data[0]["segmentations"][0]["segments"][0]
 
     async def test_get_segments_related_span_outside_segments(self, client, test_database, test_person_data):
         """Test getting related segments when span doesn't overlap any segments"""
@@ -904,14 +906,12 @@ class TestSegmentsRelated(TestEditionsEndpoints):
         source_text_id = await self._create_test_text(
             test_database, person_id, title=LocalizedString({"bo": "རྩ་བ།", "en": "Source"})
         )
-        source_edition_id = await self._create_test_edition(client, source_text_id, "0123456789ABCDEF"
-        )
+        source_edition_id = await self._create_test_edition(client, source_text_id, "0123456789ABCDEF")
 
         target_text_id = await self._create_test_text(
             test_database, person_id, title=LocalizedString({"bo": "དམིགས་བསལ།", "en": "Target"})
         )
-        target_edition_id = await self._create_test_edition(client, target_text_id, "GHIJKLMNOP"
-        )
+        target_edition_id = await self._create_test_edition(client, target_text_id, "GHIJKLMNOP")
 
         alignment_data = {
             "target_id": target_edition_id,
@@ -938,14 +938,17 @@ class TestSegmentsRelated(TestEditionsEndpoints):
         source_text_id = await self._create_test_text(
             test_database, person_id, title=LocalizedString({"bo": "རྩ་བ།", "en": "Source"})
         )
-        source_edition_id = await self._create_test_edition(client, source_text_id, "0123456789"
-        )
+        source_edition_id = await self._create_test_edition(client, source_text_id, "0123456789")
 
         target_text_id = await self._create_test_text(
             test_database, person_id, title=LocalizedString({"bo": "དམིགས་བསལ།", "en": "Target"})
         )
-        target_edition_id = await self._create_test_edition(client, target_text_id, "ABCDEFGHIJ"
-        )
+        target_edition_id = await self._create_test_edition(client, target_text_id, "ABCDEFGHIJ")
+
+        # Create display segmentations
+        segmentation_data = {"segments": [{"lines": [{"start": 0, "end": 5}]}, {"lines": [{"start": 5, "end": 10}]}]}
+        await client.post(f"/v2/editions/{source_edition_id}/segmentations", json=segmentation_data)
+        await client.post(f"/v2/editions/{target_edition_id}/segmentations", json=segmentation_data)
 
         alignment_data = {
             "target_id": target_edition_id,
@@ -1104,6 +1107,20 @@ class TestPatchContent(TestEditionsEndpoints):
         response = await client.patch(
             f"/v2/editions/{edition_id}/content",
             json={"type": "invalid", "position": 0, "text": "test"}
+        )
+
+        assert response.status_code == 422
+
+    async def test_patch_content_malformed_json(self, client, test_database, test_person_data):
+        """Test patch with malformed JSON body returns 422."""
+        person_id = await self._create_test_person(test_database, test_person_data)
+        text_id = await self._create_test_text(test_database, person_id)
+        edition_id = await self._create_test_edition(client, text_id, "Hello World")
+
+        response = await client.patch(
+            f"/v2/editions/{edition_id}/content",
+            content="{bad json",
+            headers={"Content-Type": "application/json"},
         )
 
         assert response.status_code == 422

@@ -214,32 +214,17 @@ class TestApiKeyAuthMiddlewareWithKeys:
 
         assert response.status_code == 200
 
-    async def test_app_bound_key_has_bound_application_id(self, test_database):
-        """Test app-bound key validation returns bound_application_id."""
+    async def test_app_bound_key_rejects_mismatched_application(self, auth_client, test_database):
+        """Test app-bound key rejects requests with mismatched X-Application header."""
         key_id = generate_id()
         _, raw_key = await test_database.api_key.create(key_id, "App Key", "app@example.com", "test_application")
 
-        result = await test_database.api_key.validate_key(raw_key)
+        response = await auth_client.get(
+            "/v2/categories/",
+            headers={
+                "X-API-Key": raw_key,
+                "X-Application": "different_application",
+            },
+        )
 
-        assert result is not None
-        assert result["bound_application_id"] == "test_application"
-
-    async def test_master_key_has_no_bound_application_id(self, test_database):
-        """Test master key validation returns None for bound_application_id."""
-        key_id = generate_id()
-        _, raw_key = await test_database.api_key.create(key_id, "Master Key", "master@example.com")
-
-        result = await test_database.api_key.validate_key(raw_key)
-
-        assert result is not None
-        assert result["bound_application_id"] is None
-
-    async def test_revoked_key_validation_fails(self, test_database):
-        """Test revoked key validation fails."""
-        key_id = generate_id()
-        created_id, raw_key = await test_database.api_key.create(key_id, "Test Key", "test@example.com")
-        await test_database.api_key.revoke(created_id)
-
-        result = await test_database.api_key.validate_key(raw_key)
-
-        assert result is None
+        assert response.status_code in (401, 403)

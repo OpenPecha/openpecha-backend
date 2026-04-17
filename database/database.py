@@ -58,8 +58,9 @@ class Database:
 
     _driver: AsyncDriver
 
-    def __init__(self, neo4j_uri: str, neo4j_auth: tuple[str, str]) -> None:
+    def __init__(self, neo4j_uri: str, neo4j_auth: tuple[str, str], neo4j_database: str = "neo4j") -> None:
         self._driver = AsyncGraphDatabase.driver(neo4j_uri, auth=neo4j_auth)
+        self._database = neo4j_database
 
         self.api_key = ApiKeyDatabase(db=self)
         self.application = ApplicationDatabase(db=self)
@@ -78,7 +79,7 @@ class Database:
         logger.info("Async connection to neo4j established.")
 
     def get_session(self) -> AsyncSession:
-        return self._driver.session()
+        return self._driver.session(database=self._database)
 
     async def close(self) -> None:
         await self._driver.close()

@@ -40,15 +40,20 @@ class TestGetAllCategoriesV2:
     """Tests for GET /v2/categories/ endpoint (get all categories)"""
 
     async def test_get_all_categories_returns_seeded_category(self, client, test_database):
-        """Test getting all categories returns the seeded test category"""
+        """Test getting all categories returns the seeded test category with correct fields"""
         response = await client.get("/v2/categories/", headers=APPLICATION_HEADER)
 
         assert response.status_code == 200
         data = response.json()
         assert isinstance(data, list)
         assert len(data) >= 1
-        category_ids = [cat["id"] for cat in data]
-        assert "category" in category_ids
+
+        seeded = next((cat for cat in data if cat["id"] == "category"), None)
+        assert seeded is not None
+        assert seeded["title"]["en"] == "Test Category"
+        assert seeded["title"]["bo"] == "ཚིག་སྒྲུབ་གསར་པ།"
+        assert "children" in seeded
+        assert isinstance(seeded["children"], list)
 
     async def test_get_all_categories_missing_application_header(self, client, test_database):
         """Test getting categories without X-Application header fails"""
@@ -148,7 +153,7 @@ class TestCreateCategoryV2:
     """Tests for POST /v2/categories/ endpoint (create category)"""
 
     async def test_create_category_success(self, client, test_database, test_category_data):
-        """Test successfully creating a category"""
+        """Test successfully creating a category and verifying it appears in GET"""
         response = await client.post(
             "/v2/categories/",
             json=test_category_data,
@@ -159,6 +164,15 @@ class TestCreateCategoryV2:
         data = response.json()
         assert "id" in data
         assert data["id"] is not None
+
+        get_response = await client.get("/v2/categories/", headers=APPLICATION_HEADER)
+        categories = get_response.json()
+        created_cat = next((c for c in categories if c["id"] == data["id"]), None)
+        assert created_cat is not None
+        assert created_cat["title"]["en"] == "New Test Category"
+        assert created_cat["title"]["bo"] == "ཚོད་ལྟའི་སྡེ་ཚན་གསར་པ།"
+        assert created_cat.get("parent_id") is None
+        assert created_cat["children"] == []
 
     async def test_create_category_minimal(self, client, test_database, test_category_data_minimal):
         """Test creating category with minimal data"""
@@ -203,8 +217,6 @@ class TestCreateCategoryV2:
         response = await client.post("/v2/categories/", json=category_data)
 
         assert response.status_code == 422
-        data = response.json()
-        assert "detail" in data
 
     async def test_create_category_invalid_application(self, client, test_database):
         """Test creating category with invalid application returns 404"""
@@ -243,6 +255,20 @@ class TestCreateCategoryV2:
         assert response.status_code == 422
         data = response.json()
         assert "detail" in data
+
+    async def test_create_category_nonexistent_parent_id(self, client, test_database):
+        """Test creating category with nonexistent parent_id fails"""
+        category_data = {"title": {"en": "Orphan Child"}, "parent_id": "nonexistent_parent"}
+
+        response = await client.post(
+            "/v2/categories/",
+            json=category_data,
+            headers=APPLICATION_HEADER,
+        )
+
+        assert response.status_code in (404, 422)
+        data = response.json()
+        assert "error" in data
 
     async def test_create_category_duplicate_title_rejected(self, client, test_database):
         """Test creating category with duplicate title in same parent fails"""

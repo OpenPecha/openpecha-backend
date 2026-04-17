@@ -1,10 +1,12 @@
 from typing import TYPE_CHECKING
 
+from neo4j.exceptions import ConstraintError
+
 from exceptions import DataNotFoundError, DataValidationError
 from models.responses import LanguageResponse
 
 if TYPE_CHECKING:
-    from neo4j import AsyncSession
+    from neo4j import AsyncManagedTransaction, AsyncSession
 
     from .database import Database
 
@@ -34,28 +36,31 @@ class LanguageDatabase:
         return self._db.get_session()
 
     async def get_all(self) -> list[LanguageResponse]:
+        async def read(tx: AsyncManagedTransaction) -> list[LanguageResponse]:
+            result = await tx.run(LanguageDatabase.GET_ALL_QUERY)
+            return [LanguageResponse(code=r["code"], name=r["name"]) for r in await result.data()]
+
         async with self.session as session:
-            result = await session.run(LanguageDatabase.GET_ALL_QUERY)
-            records = await result.data()
-            return [LanguageResponse(code=r["code"], name=r["name"]) for r in records]
+            return await session.execute_read(read)
 
     async def get(self, code: str) -> LanguageResponse:
-        async with self.session as session:
-            result = await session.run(LanguageDatabase.GET_QUERY, code=code)
+        async def read(tx: AsyncManagedTransaction) -> LanguageResponse:
+            result = await tx.run(LanguageDatabase.GET_QUERY, code=code)
             record = await result.single()
             if not record:
                 raise DataNotFoundError(f"Language with code '{code}' not found")
             return LanguageResponse(code=record["code"], name=record["name"])
 
-    async def create(self, code: str, name: str) -> str:
-        await self._validate_not_exists(code)
-
         async with self.session as session:
-            await session.run(LanguageDatabase.CREATE_QUERY, code=code, name=name)
+            return await session.execute_read(read)
+
+    async def create(self, code: str, name: str) -> str:
+        async def write(tx: AsyncManagedTransaction) -> str:
+            await tx.run(LanguageDatabase.CREATE_QUERY, code=code, name=name)
             return code
 
-    async def _validate_not_exists(self, code: str) -> None:
-        async with self.session as session:
-            result = await session.run(LanguageDatabase.GET_QUERY, code=code)
-            if await result.single():
-                raise DataValidationError(f"Language with code '{code}' already exists")
+        try:
+            async with self.session as session:
+                return await session.execute_write(write)
+        except ConstraintError as err:
+            raise DataValidationError(f"Language with code '{code}' already exists") from err

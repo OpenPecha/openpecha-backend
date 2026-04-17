@@ -14,14 +14,14 @@ Configuration (environment variables):
                                   Authorization=Basic <base64(instanceId:token)>
 """
 
-import functools
 import logging
 import os
 import re
-from typing import Any, LiteralString, cast
+from collections.abc import Callable
+from typing import Any, LiteralString
 
 from fastapi import FastAPI
-from neo4j import AsyncResult, AsyncSession, Query
+from neo4j import AsyncManagedTransaction, AsyncResult, AsyncSession, Query
 from opentelemetry import trace
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
@@ -53,43 +53,69 @@ def _extract_operation(query: str) -> str:
     return "query"
 
 
+_original_session_run = AsyncSession.run
+_original_tx_run = AsyncManagedTransaction.run
+
+
+async def _traced_session_run(
+    self: AsyncSession,
+    query: LiteralString | Query,
+    parameters: dict[str, Any] | None = None,
+    **kwargs: Any,  # noqa: ANN401
+) -> AsyncResult:
+    return await _traced_run("session", _original_session_run, self, query, parameters, **kwargs)
+
+
+async def _traced_tx_run(
+    self: AsyncManagedTransaction,
+    query: LiteralString,
+    parameters: dict[str, Any] | None = None,
+    **kwparameters: Any,  # noqa: ANN401
+) -> AsyncResult:
+    return await _traced_run("transaction", _original_tx_run, self, query, parameters, **kwparameters)
+
+
+async def _traced_run(
+    source: str,
+    original: Callable[..., Any],
+    self_arg: AsyncSession | AsyncManagedTransaction,
+    query: LiteralString | Query,
+    parameters: dict[str, Any] | None = None,
+    **kwargs: Any,  # noqa: ANN401
+) -> AsyncResult:
+    tracer = trace.get_tracer("openpecha-api")
+    query_str = str(query)
+    operation = _extract_operation(query_str)
+    truncated_query = query_str[:500] + "..." if len(query_str) > 500 else query_str
+
+    with tracer.start_as_current_span(
+        f"neo4j {operation}",
+        kind=trace.SpanKind.CLIENT,
+        attributes={
+            "db.system": "neo4j",
+            "db.name": "neo4j",
+            "db.operation.name": operation,
+            "db.query.text": truncated_query,
+            "db.neo4j.source": source,
+        },
+    ) as span:
+        try:
+            return await original(self_arg, query, parameters, **kwargs)
+        except Exception as exc:
+            span.set_status(StatusCode.ERROR, str(exc))
+            span.record_exception(exc)
+            raise
+
+
 def _instrument_neo4j_driver() -> None:
     if _state["neo4j_patched"]:
         return
 
-    original_run = AsyncSession.run
+    AsyncSession.run = _traced_session_run  # ty: ignore[invalid-assignment]  # https://github.com/astral-sh/ty/issues/2648
+    AsyncManagedTransaction.run = _traced_tx_run  # ty: ignore[invalid-assignment]  # https://github.com/astral-sh/ty/issues/2648
 
-    @functools.wraps(original_run)
-    async def traced_run(
-        self: AsyncSession, query: LiteralString | Query, parameters: dict[str, Any] | None = None, **kwargs: object
-    ) -> AsyncResult:
-        tracer = trace.get_tracer("openpecha-api")
-        query_str = str(query)
-        operation = _extract_operation(query_str)
-
-        # Truncate query for the span attribute (avoid huge attributes)
-        truncated_query = query_str[:500] + "..." if len(query_str) > 500 else query_str
-
-        with tracer.start_as_current_span(
-            f"neo4j {operation}",
-            kind=trace.SpanKind.CLIENT,
-            attributes={
-                "db.system": "neo4j",
-                "db.name": "neo4j",
-                "db.operation.name": operation,
-                "db.query.text": truncated_query,
-            },
-        ) as span:
-            try:
-                return await original_run(self, query, parameters, **kwargs)
-            except Exception as exc:
-                span.set_status(StatusCode.ERROR, str(exc))
-                span.record_exception(exc)
-                raise
-
-    AsyncSession.run = cast("Any", traced_run)
     _state["neo4j_patched"] = True
-    logger.info("Neo4j AsyncSession.run() instrumented for tracing")
+    logger.info("Neo4j AsyncSession.run() and AsyncManagedTransaction.run() instrumented for tracing")
 
 
 def setup_telemetry(app: FastAPI) -> None:

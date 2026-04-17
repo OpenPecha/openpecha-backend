@@ -174,5 +174,6 @@ storage.rules
 .secret.local
 .ruff_cache/
 .windsurf/
+bench_results.json
 
 docker-compose.yaml

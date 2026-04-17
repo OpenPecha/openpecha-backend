@@ -12,13 +12,17 @@ from models.annotation import NoteInput, NoteOutput, Span
 
 
 class NoteDatabase:
-    GET_QUERY = """
-    MATCH (span:Span)-[:SPAN_OF]->(n:Note)
+    GET_BY_ID_QUERY = """
+    MATCH (span:Span)-[:SPAN_OF]->(n:Note {id: $note_id})
     WHERE span.start < span.end
-      AND (($note_id IS NOT NULL AND n.id = $note_id)
-        OR ($edition_id IS NOT NULL
-            AND EXISTS { (n)-[:NOTE_OF]->(:Edition {id: $edition_id}) }
-            AND EXISTS { (n)-[:HAS_TYPE]->(:NoteType {name: $note_type}) }))
+    RETURN n.id AS note_id, n.text AS text, span.start AS span_start, span.end AS span_end
+    ORDER BY span.start
+    """
+
+    GET_BY_EDITION_ID_QUERY = """
+    MATCH (:Edition {id: $edition_id})<-[:NOTE_OF]-(n:Note)-[:HAS_TYPE]->(:NoteType {name: $note_type})
+    MATCH (span:Span)-[:SPAN_OF]->(n)
+    WHERE span.start < span.end
     RETURN n.id AS note_id, n.text AS text, span.start AS span_start, span.end AS span_end
     ORDER BY span.start
     """
@@ -36,6 +40,14 @@ class NoteDatabase:
     MATCH (n:Note {id: $note_id})
     OPTIONAL MATCH (span:Span)-[:SPAN_OF]->(n)
     DETACH DELETE span, n
+    FINISH
+    """
+
+    DELETE_ALL_QUERY = """
+    MATCH (n:Note)-[:NOTE_OF]->(:Edition {id: $edition_id})
+    OPTIONAL MATCH (span:Span)-[:SPAN_OF]->(n)
+    DETACH DELETE span, n
+    FINISH
     """
 
     def __init__(self, db: Database) -> None:
@@ -50,18 +62,27 @@ class NoteDatabase:
         )
 
     async def get(self, note_id: str) -> NoteOutput:
-        async with self._db.get_session() as session:
-            result = await session.run(NoteDatabase.GET_QUERY, note_id=note_id, edition_id=None, note_type=None)
+        async def read(tx: AsyncManagedTransaction) -> NoteOutput:
+            result = await tx.run(NoteDatabase.GET_BY_ID_QUERY, note_id=note_id)
             record = await result.single()
             if record is None:
                 raise DataNotFoundError(f"Note with ID '{note_id}' not found")
             return self._parse_record(record)
 
-    async def get_all(self, edition_id: str, note_type: str = "durchen") -> list[NoteOutput]:
         async with self._db.get_session() as session:
-            result = await session.run(NoteDatabase.GET_QUERY, note_id=None, edition_id=edition_id, note_type=note_type)
-            records = await result.data()
-            return [self._parse_record(record) for record in records]
+            return await session.execute_read(read)
+
+    async def get_all(self, edition_id: str, note_type: str = "durchen") -> list[NoteOutput]:
+        async def read(tx: AsyncManagedTransaction) -> list[NoteOutput]:
+            result = await tx.run(
+                NoteDatabase.GET_BY_EDITION_ID_QUERY,
+                edition_id=edition_id,
+                note_type=note_type,
+            )
+            return [self._parse_record(record) for record in await result.data()]
+
+        async with self._db.get_session() as session:
+            return await session.execute_read(read)
 
     async def add_durchen(self, edition_id: str, note: NoteInput) -> str:
         async with self._db.get_session() as session:
@@ -102,10 +123,6 @@ class NoteDatabase:
 
     @staticmethod
     async def delete_all_with_transaction(
-        tx: AsyncManagedTransaction, edition_id: str, note_type: str = "durchen"
+        tx: AsyncManagedTransaction, edition_id: str, _note_type: str = "durchen"
     ) -> None:
-        result = await tx.run(NoteDatabase.GET_QUERY, note_id=None, edition_id=edition_id, note_type=note_type)
-        records = await result.data()
-
-        for record in records:
-            await NoteDatabase.delete_with_transaction(tx, record["note_id"])
+        await tx.run(NoteDatabase.DELETE_ALL_QUERY, edition_id=edition_id)

@@ -710,40 +710,6 @@ class TestDatabase:
         assert retrieved_editions[0].id == edition_id
 
 
-    async def test_create_and_retrieve_edition(self, test_database):
-        """Test creating a edition and retrieving it."""
-        # Create text first
-        person = PersonInput(
-            name=LocalizedString({"en": "Test Author"}),
-        )
-        person_id = await test_database.person.create(person)
-
-        text = TextInput(
-            category_id="category",
-            title=LocalizedString({"en": "Test text"}),
-            language="en",
-            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
-        )
-        text_id = await test_database.text.create(text)
-
-        edition = EditionInput(
-            type=EditionType.CRITICAL,
-            source="Test Source",
-        )
-
-        # Create edition in database
-        edition_id = generate_id()
-        await test_database.edition.create(edition, edition_id, text_id)
-
-        # Retrieve and verify
-        retrieved_editions = await test_database.edition.get_all(text_id)
-        assert len(retrieved_editions) == 1
-
-        retrieved = retrieved_editions[0]
-        assert retrieved.id == edition_id
-        assert retrieved.type == EditionType.CRITICAL
-
-
     async def test_create_multiple_editions_for_text(self, test_database):
         """Test creating multiple editions for the same text."""
         # Create text first

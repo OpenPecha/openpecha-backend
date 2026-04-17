@@ -1,0 +1,1577 @@
+# pylint: disable=redefined-outer-name
+"""
+Integration tests for segment-related endpoints.
+
+Tests endpoints:
+- GET /v2/editions/{edition_id}/segments/related
+- GET /v2/segments/{segment_id}/related
+- GET /v2/segments/{segment_id}/content
+
+Requires Docker for Neo4j testcontainer.
+"""
+
+import logging
+
+import pytest
+from identifier import generate_id
+from models.base import LocalizedString
+from models.contribution import ContributionInput
+from models.edition import EditionInput, EditionType
+from models.enums import ContributorRole
+from models.person import PersonInput
+from models.text import TextInput
+
+logger = logging.getLogger(__name__)
+
+APPLICATION_HEADER = {"X-Application": "test_application"}
+
+
+class SegmentTestBase:
+    """Shared helpers for segment integration tests."""
+
+    async def _create_person(self, db) -> str:
+        return await db.person.create(
+            PersonInput(
+                name=LocalizedString({"en": "Test Author", "bo": "སློབ་དཔོན།"}),
+                bdrc="P" + generate_id()[:8],
+            )
+        )
+
+    async def _create_text(self, db, person_id, title=None, language="bo", **kwargs) -> str:
+        if title is None:
+            title = LocalizedString({"en": "Test text", "bo": "བརྟག་དཔྱད།"})
+        text_data = TextInput(
+            category_id="category",
+            title=title,
+            language=language,
+            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
+            **kwargs,
+        )
+        return await db.text.create(text_data)
+
+    async def _create_edition(self, client, text_id, content="Sample text content", edition_type=EditionType.DIPLOMATIC):
+        edition_data = {
+            "content": content,
+            "metadata": {
+                "type": edition_type.value,
+                "bdrc": f"W{generate_id()[:8]}",
+                "source": "Test Source",
+            },
+        }
+        if edition_type == EditionType.DIPLOMATIC:
+            edition_data["pagination"] = {
+                "volumes": [
+                    {"pages": [{"reference": "1a", "lines": [{"start": 0, "end": len(content)}]}]}
+                ]
+            }
+        elif edition_type == EditionType.CRITICAL:
+            edition_data["segmentation"] = {
+                "segments": [{"lines": [{"start": 0, "end": len(content)}]}]
+            }
+        response = await client.post(f"/v2/texts/{text_id}/editions", json=edition_data)
+        assert response.status_code == 201, f"Failed to create edition: {response.json()}"
+        return response.json()["id"]
+
+    async def _post_segmentation(self, client, edition_id, segments):
+        data = {"segments": [{"lines": [{"start": s[0], "end": s[1]}]} for s in segments]}
+        resp = await client.post(f"/v2/editions/{edition_id}/segmentations", json=data)
+        assert resp.status_code == 201, f"Failed to create segmentation: {resp.json()}"
+        return resp.json()["id"]
+
+    async def _post_alignment(self, client, source_edition_id, target_edition_id, source_segments, target_segments, alignment_map):
+        """Create an alignment between two editions.
+
+        Args:
+            source_segments: list of (start, end) tuples for the source (aligned) segments
+            target_segments: list of (start, end) tuples for the target segments
+            alignment_map: list of (source_idx, [target_indices]) pairs
+        """
+        aligned_segments = []
+        for src_idx, target_indices in alignment_map:
+            aligned_segments.append({
+                "lines": [{"start": source_segments[src_idx][0], "end": source_segments[src_idx][1]}],
+                "alignment_indices": target_indices,
+            })
+
+        data = {
+            "target_id": target_edition_id,
+            "target_segments": [{"lines": [{"start": t[0], "end": t[1]}]} for t in target_segments],
+            "aligned_segments": aligned_segments,
+        }
+        resp = await client.post(f"/v2/editions/{source_edition_id}/alignments", json=data)
+        assert resp.status_code == 201, f"Failed to create alignment: {resp.json()}"
+        return resp.json()["id"]
+
+    async def _get_segment_ids_from_segmentation(self, client, edition_id, segmentation_index=0):
+        resp = await client.get(f"/v2/editions/{edition_id}/segmentations")
+        assert resp.status_code == 200
+        data = resp.json()
+        if not data:
+            return []
+        return [seg["id"] for seg in data[segmentation_index]["segments"]]
+
+    async def _create_translation_text(self, db, person_id, original_text_id, language="en"):
+        return await self._create_text(
+            db, person_id,
+            title=LocalizedString({language: "Translation"}),
+            language=language,
+            translation_of=original_text_id,
+        )
+
+    async def _create_commentary_text(self, db, person_id, original_text_id):
+        return await self._create_text(
+            db, person_id,
+            title=LocalizedString({"bo": "འགྲེལ་པ།", "en": "Commentary"}),
+            commentary_of=original_text_id,
+        )
+
+    def _collect_all_segments(self, data):
+        """Flatten all segments from the response data."""
+        segments = []
+        for group in data:
+            for sgn in group["segmentations"]:
+                segments.extend(sgn["segments"])
+        return segments
+
+    def _collect_edition_ids(self, data):
+        """Collect all edition IDs from the response data."""
+        return {g["edition_id"] for g in data}
+
+
+# ---------------------------------------------------------------------------
+# GET /v2/editions/{edition_id}/segments/related
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio(loop_scope="session")
+class TestEditionSegmentsRelated(SegmentTestBase):
+    """Thorough tests for GET /v2/editions/{edition_id}/segments/related."""
+
+    # ---- basic / validation ----
+
+    async def test_nonexistent_edition_returns_empty(self, client, test_database):
+        """Querying segments/related on an edition that doesn't exist returns []."""
+        resp = await client.get("/v2/editions/nonexistent/segments/related?span_start=0&span_end=5")
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+    async def test_edition_with_no_segmentation(self, client, test_database):
+        """Edition exists but has no segmentation — should return []."""
+        person_id = await self._create_person(test_database)
+        text_id = await self._create_text(test_database, person_id)
+        edition_id = await self._create_edition(client, text_id, "Hello world!")
+        resp = await client.get(f"/v2/editions/{edition_id}/segments/related?span_start=0&span_end=5")
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+    async def test_missing_span_start(self, client, test_database):
+        """Missing span_start query param -> 422."""
+        person_id = await self._create_person(test_database)
+        text_id = await self._create_text(test_database, person_id)
+        edition_id = await self._create_edition(client, text_id, "Hello")
+        resp = await client.get(f"/v2/editions/{edition_id}/segments/related?span_end=5")
+        assert resp.status_code == 422
+
+    async def test_missing_span_end(self, client, test_database):
+        """Missing span_end query param -> 422."""
+        person_id = await self._create_person(test_database)
+        text_id = await self._create_text(test_database, person_id)
+        edition_id = await self._create_edition(client, text_id, "Hello")
+        resp = await client.get(f"/v2/editions/{edition_id}/segments/related?span_start=0")
+        assert resp.status_code == 422
+
+    async def test_span_start_greater_than_end(self, client, test_database):
+        """span_start > span_end -> 422."""
+        person_id = await self._create_person(test_database)
+        text_id = await self._create_text(test_database, person_id)
+        edition_id = await self._create_edition(client, text_id, "Hello")
+        resp = await client.get(f"/v2/editions/{edition_id}/segments/related?span_start=10&span_end=5")
+        assert resp.status_code == 422
+
+    async def test_span_start_negative(self, client, test_database):
+        """span_start < 0 -> 422."""
+        person_id = await self._create_person(test_database)
+        text_id = await self._create_text(test_database, person_id)
+        edition_id = await self._create_edition(client, text_id, "Hello")
+        resp = await client.get(f"/v2/editions/{edition_id}/segments/related?span_start=-1&span_end=5")
+        assert resp.status_code == 422
+
+    async def test_span_end_zero(self, client, test_database):
+        """span_end = 0 -> 422 (ge=1)."""
+        person_id = await self._create_person(test_database)
+        text_id = await self._create_text(test_database, person_id)
+        edition_id = await self._create_edition(client, text_id, "Hello")
+        resp = await client.get(f"/v2/editions/{edition_id}/segments/related?span_start=0&span_end=0")
+        assert resp.status_code == 422
+
+    async def test_span_start_equals_span_end(self, client, test_database):
+        """span_start == span_end -> 422 (start must be < end)."""
+        person_id = await self._create_person(test_database)
+        text_id = await self._create_text(test_database, person_id)
+        edition_id = await self._create_edition(client, text_id, "Hello")
+        resp = await client.get(f"/v2/editions/{edition_id}/segments/related?span_start=5&span_end=5")
+        assert resp.status_code == 422
+
+    # ---- segmentation exists but no alignment ----
+
+    async def test_segmentation_no_alignment(self, client, test_database):
+        """Segments exist but no alignments — should return []."""
+        person_id = await self._create_person(test_database)
+        text_id = await self._create_text(test_database, person_id)
+        edition_id = await self._create_edition(client, text_id, "0123456789")
+        await self._post_segmentation(client, edition_id, [(0, 5), (5, 10)])
+
+        resp = await client.get(f"/v2/editions/{edition_id}/segments/related?span_start=0&span_end=5")
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+    # ---- alignment exists: basic cases ----
+
+    async def test_exact_span_match_returns_aligned(self, client, test_database):
+        """Span exactly matches an alignment segment -> returns related display segments."""
+        person_id = await self._create_person(test_database)
+        src_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "རྩ་བ།", "en": "Source"})
+        )
+        src_edition_id = await self._create_edition(client, src_text_id, "0123456789")
+        await self._post_segmentation(client, src_edition_id, [(0, 5), (5, 10)])
+
+        tgt_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "དམིགས་བསལ།", "en": "Target"})
+        )
+        tgt_edition_id = await self._create_edition(client, tgt_text_id, "ABCDEFGHIJ")
+        await self._post_segmentation(client, tgt_edition_id, [(0, 5), (5, 10)])
+
+        await self._post_alignment(
+            client, src_edition_id, tgt_edition_id,
+            source_segments=[(0, 5), (5, 10)],
+            target_segments=[(0, 5), (5, 10)],
+            alignment_map=[(0, [0]), (1, [1])],
+        )
+
+        resp = await client.get(f"/v2/editions/{src_edition_id}/segments/related?span_start=0&span_end=5")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) >= 1
+        assert data[0]["edition_id"] == tgt_edition_id
+        assert data[0]["text_id"] == tgt_text_id
+        assert "segmentations" in data[0]
+        assert len(data[0]["segmentations"]) >= 1
+        assert len(data[0]["segmentations"][0]["segments"]) >= 1
+
+    async def test_span_overlapping_multiple_segments(self, client, test_database):
+        """Span overlaps two alignment segments; both should yield related display segments."""
+        person_id = await self._create_person(test_database)
+        src_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "རྩ་བ།", "en": "Src"})
+        )
+        src_edition_id = await self._create_edition(client, src_text_id, "0123456789")
+        await self._post_segmentation(client, src_edition_id, [(0, 5), (5, 10)])
+
+        tgt_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "དམིགས།", "en": "Tgt"})
+        )
+        tgt_edition_id = await self._create_edition(client, tgt_text_id, "ABCDEFGHIJ")
+        await self._post_segmentation(client, tgt_edition_id, [(0, 5), (5, 10)])
+
+        await self._post_alignment(
+            client, src_edition_id, tgt_edition_id,
+            source_segments=[(0, 5), (5, 10)],
+            target_segments=[(0, 5), (5, 10)],
+            alignment_map=[(0, [0]), (1, [1])],
+        )
+
+        resp = await client.get(f"/v2/editions/{src_edition_id}/segments/related?span_start=3&span_end=7")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) >= 1
+        all_segs = self._collect_all_segments(data)
+        assert len(all_segs) >= 2, "Should find display segments for both overlapping alignment segments"
+
+    async def test_span_no_overlap(self, client, test_database):
+        """Span is completely outside all alignment segment spans -> []."""
+        person_id = await self._create_person(test_database)
+        src_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "རྩ་བ།", "en": "Src"})
+        )
+        src_edition_id = await self._create_edition(client, src_text_id, "0123456789ABCDEF")
+        await self._post_segmentation(client, src_edition_id, [(0, 16)])
+
+        tgt_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "དམིགས།", "en": "Tgt"})
+        )
+        tgt_edition_id = await self._create_edition(client, tgt_text_id, "GHIJKLMNOP")
+        await self._post_segmentation(client, tgt_edition_id, [(0, 10)])
+
+        await self._post_alignment(
+            client, src_edition_id, tgt_edition_id,
+            source_segments=[(0, 5)],
+            target_segments=[(0, 5)],
+            alignment_map=[(0, [0])],
+        )
+
+        resp = await client.get(f"/v2/editions/{src_edition_id}/segments/related?span_start=10&span_end=15")
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+    # ---- many-to-one / one-to-many alignment ----
+
+    async def test_many_to_one_alignment(self, client, test_database):
+        """Multiple source segments aligned to a single target segment."""
+        person_id = await self._create_person(test_database)
+        src_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "རྩ་བ།", "en": "Src"})
+        )
+        src_edition_id = await self._create_edition(client, src_text_id, "0123456789")
+        await self._post_segmentation(client, src_edition_id, [(0, 5), (5, 10)])
+
+        tgt_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "དམིགས།", "en": "Tgt"})
+        )
+        tgt_edition_id = await self._create_edition(client, tgt_text_id, "ABCDE")
+        await self._post_segmentation(client, tgt_edition_id, [(0, 5)])
+
+        await self._post_alignment(
+            client, src_edition_id, tgt_edition_id,
+            source_segments=[(0, 5), (5, 10)],
+            target_segments=[(0, 5)],
+            alignment_map=[(0, [0]), (1, [0])],
+        )
+
+        resp = await client.get(f"/v2/editions/{src_edition_id}/segments/related?span_start=0&span_end=5")
+        assert resp.status_code == 200
+        assert len(resp.json()) >= 1
+
+        resp2 = await client.get(f"/v2/editions/{src_edition_id}/segments/related?span_start=5&span_end=10")
+        assert resp2.status_code == 200
+        assert len(resp2.json()) >= 1
+
+    async def test_one_to_many_alignment(self, client, test_database):
+        """One source segment aligned to multiple target segments."""
+        person_id = await self._create_person(test_database)
+        src_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "རྩ་བ།", "en": "Src"})
+        )
+        src_edition_id = await self._create_edition(client, src_text_id, "0123456789")
+        await self._post_segmentation(client, src_edition_id, [(0, 10)])
+
+        tgt_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "དམིགས།", "en": "Tgt"})
+        )
+        tgt_edition_id = await self._create_edition(client, tgt_text_id, "ABCDEFGHIJ")
+        await self._post_segmentation(client, tgt_edition_id, [(0, 5), (5, 10)])
+
+        await self._post_alignment(
+            client, src_edition_id, tgt_edition_id,
+            source_segments=[(0, 10)],
+            target_segments=[(0, 5), (5, 10)],
+            alignment_map=[(0, [0, 1])],
+        )
+
+        resp = await client.get(f"/v2/editions/{src_edition_id}/segments/related?span_start=0&span_end=10")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) >= 1
+        total_related = sum(len(s) for g in data for sgn in g["segmentations"] for s in [sgn["segments"]])
+        assert total_related >= 2, "Should return both aligned display segments"
+
+    # ---- multiple editions aligned (fan-out) ----
+
+    async def test_multiple_related_editions(self, client, test_database):
+        """Source aligned to both a translation and a commentary -> returns both."""
+        person_id = await self._create_person(test_database)
+
+        root_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "རྩ་བ།", "en": "Root"})
+        )
+        root_edition_id = await self._create_edition(client, root_text_id, "0123456789")
+        await self._post_segmentation(client, root_edition_id, [(0, 10)])
+
+        trans_text_id = await self._create_translation_text(test_database, person_id, root_text_id)
+        trans_edition_id = await self._create_edition(client, trans_text_id, "ABCDEFGHIJ")
+        await self._post_segmentation(client, trans_edition_id, [(0, 10)])
+
+        comm_text_id = await self._create_commentary_text(test_database, person_id, root_text_id)
+        comm_edition_id = await self._create_edition(client, comm_text_id, "KLMNOPQRST")
+        await self._post_segmentation(client, comm_edition_id, [(0, 10)])
+
+        await self._post_alignment(
+            client, root_edition_id, trans_edition_id,
+            source_segments=[(0, 10)],
+            target_segments=[(0, 10)],
+            alignment_map=[(0, [0])],
+        )
+        await self._post_alignment(
+            client, root_edition_id, comm_edition_id,
+            source_segments=[(0, 10)],
+            target_segments=[(0, 10)],
+            alignment_map=[(0, [0])],
+        )
+
+        resp = await client.get(f"/v2/editions/{root_edition_id}/segments/related?span_start=0&span_end=10")
+        assert resp.status_code == 200
+        data = resp.json()
+        edition_ids = self._collect_edition_ids(data)
+        assert trans_edition_id in edition_ids
+        assert comm_edition_id in edition_ids
+
+    # ---- transitive alignment (chain) ----
+
+    async def test_transitive_alignment_chain(self, client, test_database):
+        """A<-B<-C chain: querying from A should return both B and C display segments."""
+        person_id = await self._create_person(test_database)
+
+        text_a_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "ཀ", "en": "Text A"})
+        )
+        edition_a_id = await self._create_edition(client, text_a_id, "0123456789")
+        await self._post_segmentation(client, edition_a_id, [(0, 10)])
+
+        text_b_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "ཁ", "en": "Text B"})
+        )
+        edition_b_id = await self._create_edition(client, text_b_id, "ABCDEFGHIJ")
+        await self._post_segmentation(client, edition_b_id, [(0, 10)])
+
+        text_c_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "ག", "en": "Text C"})
+        )
+        edition_c_id = await self._create_edition(client, text_c_id, "KLMNOPQRST")
+        await self._post_segmentation(client, edition_c_id, [(0, 10)])
+
+        # B -> A (B is translation/commentary of A)
+        await self._post_alignment(
+            client, edition_b_id, edition_a_id,
+            source_segments=[(0, 10)],
+            target_segments=[(0, 10)],
+            alignment_map=[(0, [0])],
+        )
+        # C -> B (C is commentary on B)
+        await self._post_alignment(
+            client, edition_c_id, edition_b_id,
+            source_segments=[(0, 10)],
+            target_segments=[(0, 10)],
+            alignment_map=[(0, [0])],
+        )
+
+        resp = await client.get(f"/v2/editions/{edition_a_id}/segments/related?span_start=0&span_end=10")
+        assert resp.status_code == 200
+        data = resp.json()
+        edition_ids = self._collect_edition_ids(data)
+        assert edition_b_id in edition_ids
+        assert edition_c_id in edition_ids, "Should find C transitively via A->B->C"
+
+    async def test_transitive_chain_from_leaf(self, client, test_database):
+        """A<-B<-C chain: querying from C should return both B and A."""
+        person_id = await self._create_person(test_database)
+
+        text_a_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "ཀ", "en": "Text A"})
+        )
+        edition_a_id = await self._create_edition(client, text_a_id, "0123456789")
+        await self._post_segmentation(client, edition_a_id, [(0, 10)])
+
+        text_b_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "ཁ", "en": "Text B"})
+        )
+        edition_b_id = await self._create_edition(client, text_b_id, "ABCDEFGHIJ")
+        await self._post_segmentation(client, edition_b_id, [(0, 10)])
+
+        text_c_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "ག", "en": "Text C"})
+        )
+        edition_c_id = await self._create_edition(client, text_c_id, "KLMNOPQRST")
+        await self._post_segmentation(client, edition_c_id, [(0, 10)])
+
+        await self._post_alignment(
+            client, edition_b_id, edition_a_id,
+            source_segments=[(0, 10)],
+            target_segments=[(0, 10)],
+            alignment_map=[(0, [0])],
+        )
+        await self._post_alignment(
+            client, edition_c_id, edition_b_id,
+            source_segments=[(0, 10)],
+            target_segments=[(0, 10)],
+            alignment_map=[(0, [0])],
+        )
+
+        resp = await client.get(f"/v2/editions/{edition_c_id}/segments/related?span_start=0&span_end=10")
+        assert resp.status_code == 200
+        data = resp.json()
+        edition_ids = self._collect_edition_ids(data)
+        assert edition_b_id in edition_ids
+        assert edition_a_id in edition_ids
+
+    # ---- tree structure (branching + depth) ----
+
+    async def test_tree_structure(self, client, test_database):
+        """Tree: A has children B, C. B has child E. Querying from A returns B, C, E."""
+        person_id = await self._create_person(test_database)
+
+        text_a_id = await self._create_text(test_database, person_id, title=LocalizedString({"en": "A", "bo": "ཀ"}))
+        ed_a = await self._create_edition(client, text_a_id, "0123456789")
+        await self._post_segmentation(client, ed_a, [(0, 10)])
+
+        text_b_id = await self._create_text(test_database, person_id, title=LocalizedString({"en": "B", "bo": "ཁ"}))
+        ed_b = await self._create_edition(client, text_b_id, "ABCDEFGHIJ")
+        await self._post_segmentation(client, ed_b, [(0, 10)])
+
+        text_c_id = await self._create_text(test_database, person_id, title=LocalizedString({"en": "C", "bo": "ག"}))
+        ed_c = await self._create_edition(client, text_c_id, "KLMNOPQRST")
+        await self._post_segmentation(client, ed_c, [(0, 10)])
+
+        text_e_id = await self._create_text(test_database, person_id, title=LocalizedString({"en": "E", "bo": "ཅ"}))
+        ed_e = await self._create_edition(client, text_e_id, "UVWXYZ0123")
+        await self._post_segmentation(client, ed_e, [(0, 10)])
+
+        # B -> A, C -> A, E -> B
+        await self._post_alignment(client, ed_b, ed_a, [(0, 10)], [(0, 10)], [(0, [0])])
+        await self._post_alignment(client, ed_c, ed_a, [(0, 10)], [(0, 10)], [(0, [0])])
+        await self._post_alignment(client, ed_e, ed_b, [(0, 10)], [(0, 10)], [(0, [0])])
+
+        resp = await client.get(f"/v2/editions/{ed_a}/segments/related?span_start=0&span_end=10")
+        data = resp.json()
+        edition_ids = self._collect_edition_ids(data)
+        assert ed_b in edition_ids
+        assert ed_c in edition_ids
+        assert ed_e in edition_ids, "Should find E transitively via A->B->E"
+
+    # ---- diamond / convergent structure ----
+
+    async def test_diamond_deduplication(self, client, test_database):
+        """A<-B, A<-C, B<-D, C<-D: D should appear only once."""
+        person_id = await self._create_person(test_database)
+
+        text_a_id = await self._create_text(test_database, person_id, title=LocalizedString({"en": "A", "bo": "ཀ"}))
+        ed_a = await self._create_edition(client, text_a_id, "0123456789")
+        await self._post_segmentation(client, ed_a, [(0, 10)])
+
+        text_b_id = await self._create_text(test_database, person_id, title=LocalizedString({"en": "B", "bo": "ཁ"}))
+        ed_b = await self._create_edition(client, text_b_id, "ABCDEFGHIJ")
+        await self._post_segmentation(client, ed_b, [(0, 10)])
+
+        text_c_id = await self._create_text(test_database, person_id, title=LocalizedString({"en": "C", "bo": "ག"}))
+        ed_c = await self._create_edition(client, text_c_id, "KLMNOPQRST")
+        await self._post_segmentation(client, ed_c, [(0, 10)])
+
+        text_d_id = await self._create_text(test_database, person_id, title=LocalizedString({"en": "D", "bo": "ང"}))
+        ed_d = await self._create_edition(client, text_d_id, "UVWXYZ0123")
+        await self._post_segmentation(client, ed_d, [(0, 10)])
+
+        await self._post_alignment(client, ed_b, ed_a, [(0, 10)], [(0, 10)], [(0, [0])])
+        await self._post_alignment(client, ed_c, ed_a, [(0, 10)], [(0, 10)], [(0, [0])])
+        await self._post_alignment(client, ed_d, ed_b, [(0, 10)], [(0, 10)], [(0, [0])])
+        await self._post_alignment(client, ed_d, ed_c, [(0, 10)], [(0, 10)], [(0, [0])])
+
+        resp = await client.get(f"/v2/editions/{ed_a}/segments/related?span_start=0&span_end=10")
+        data = resp.json()
+        d_groups = [g for g in data if g["edition_id"] == ed_d]
+        assert len(d_groups) <= 1, "Edition D should appear at most once (deduplication)"
+        edition_ids = self._collect_edition_ids(data)
+        assert ed_b in edition_ids
+        assert ed_c in edition_ids
+        assert ed_d in edition_ids
+
+    # ---- multiple display segmentations ----
+
+    async def test_multiple_display_segmentations(self, client, test_database):
+        """Edition B has two display segmentations; both should appear grouped."""
+        person_id = await self._create_person(test_database)
+
+        text_a_id = await self._create_text(test_database, person_id, title=LocalizedString({"en": "A", "bo": "ཀ"}))
+        ed_a = await self._create_edition(client, text_a_id, "0123456789")
+        await self._post_segmentation(client, ed_a, [(0, 10)])
+
+        text_b_id = await self._create_text(test_database, person_id, title=LocalizedString({"en": "B", "bo": "ཁ"}))
+        ed_b = await self._create_edition(client, text_b_id, "ABCDEFGHIJ")
+        sgn1_id = await self._post_segmentation(client, ed_b, [(0, 5), (5, 10)])
+        sgn2_id = await self._post_segmentation(client, ed_b, [(0, 3), (3, 7), (7, 10)])
+
+        await self._post_alignment(client, ed_a, ed_b, [(0, 10)], [(0, 10)], [(0, [0])])
+
+        resp = await client.get(f"/v2/editions/{ed_a}/segments/related?span_start=0&span_end=10")
+        data = resp.json()
+        assert len(data) >= 1
+        b_group = [g for g in data if g["edition_id"] == ed_b][0]
+        assert len(b_group["segmentations"]) == 2, "Should have two display segmentation groups"
+        sgn_ids = {s["segmentation_id"] for s in b_group["segmentations"]}
+        assert sgn1_id in sgn_ids
+        assert sgn2_id in sgn_ids
+
+    async def test_multiple_display_segmentations_partial_overlap(self, client, test_database):
+        """Only display segmentations whose segments overlap the resolved spans are returned."""
+        person_id = await self._create_person(test_database)
+
+        text_a_id = await self._create_text(test_database, person_id, title=LocalizedString({"en": "A", "bo": "ཀ"}))
+        ed_a = await self._create_edition(client, text_a_id, "0123456789")
+        await self._post_segmentation(client, ed_a, [(0, 10)])
+
+        text_b_id = await self._create_text(test_database, person_id, title=LocalizedString({"en": "B", "bo": "ཁ"}))
+        ed_b = await self._create_edition(client, text_b_id, "ABCDEFGHIJKLMNOPQRST")  # 20 chars
+        # sgn1 covers only [0,10)
+        sgn1_id = await self._post_segmentation(client, ed_b, [(0, 5), (5, 10)])
+        # sgn2 covers only [10,20)
+        sgn2_id = await self._post_segmentation(client, ed_b, [(10, 15), (15, 20)])
+
+        # Alignment maps A's full text [0,10) to B's [0,10) — only overlaps sgn1
+        await self._post_alignment(client, ed_a, ed_b, [(0, 10)], [(0, 10)], [(0, [0])])
+
+        resp = await client.get(f"/v2/editions/{ed_a}/segments/related?span_start=0&span_end=10")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) == 1
+        b_group = data[0]
+        assert b_group["edition_id"] == ed_b
+        sgn_ids = {s["segmentation_id"] for s in b_group["segmentations"]}
+        assert sgn1_id in sgn_ids, "sgn1 overlaps the alignment spans and should be included"
+        assert sgn2_id not in sgn_ids, "sgn2 does NOT overlap the alignment spans and should be excluded"
+
+    # ---- response structure validation ----
+
+    async def test_response_structure(self, client, test_database):
+        """Validate the shape of the response objects."""
+        person_id = await self._create_person(test_database)
+        src_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "རྩ་བ།", "en": "Src"})
+        )
+        src_edition_id = await self._create_edition(client, src_text_id, "0123456789")
+        await self._post_segmentation(client, src_edition_id, [(0, 10)])
+
+        tgt_text_id = await self._create_translation_text(test_database, person_id, src_text_id)
+        tgt_edition_id = await self._create_edition(client, tgt_text_id, "ABCDEFGHIJ")
+        await self._post_segmentation(client, tgt_edition_id, [(0, 5), (5, 10)])
+
+        await self._post_alignment(
+            client, src_edition_id, tgt_edition_id,
+            source_segments=[(0, 10)],
+            target_segments=[(0, 5), (5, 10)],
+            alignment_map=[(0, [0, 1])],
+        )
+
+        resp = await client.get(f"/v2/editions/{src_edition_id}/segments/related?span_start=0&span_end=10")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) >= 1
+
+        group = data[0]
+        assert "edition_id" in group
+        assert "text_id" in group
+        assert "segmentations" in group
+        assert "relationship" not in group
+        assert isinstance(group["segmentations"], list)
+
+        sgn = group["segmentations"][0]
+        assert "segmentation_id" in sgn
+        assert "segments" in sgn
+        assert isinstance(sgn["segments"], list)
+
+        seg = sgn["segments"][0]
+        assert "id" in seg
+        assert "lines" in seg
+        assert isinstance(seg["lines"], list)
+        line = seg["lines"][0]
+        assert "start" in line
+        assert "end" in line
+        assert isinstance(line["start"], int)
+        assert isinstance(line["end"], int)
+        assert line["start"] < line["end"]
+
+    # ---- edge: single char span overlap ----
+
+    async def test_single_char_span_overlap(self, client, test_database):
+        """A span of length 1 overlapping a segment should still return related."""
+        person_id = await self._create_person(test_database)
+        src_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "རྩ་བ།", "en": "Src"})
+        )
+        src_edition_id = await self._create_edition(client, src_text_id, "0123456789")
+        await self._post_segmentation(client, src_edition_id, [(0, 10)])
+
+        tgt_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "དམིགས།", "en": "Tgt"})
+        )
+        tgt_edition_id = await self._create_edition(client, tgt_text_id, "ABCDEFGHIJ")
+        await self._post_segmentation(client, tgt_edition_id, [(0, 10)])
+
+        await self._post_alignment(
+            client, src_edition_id, tgt_edition_id,
+            source_segments=[(0, 10)],
+            target_segments=[(0, 10)],
+            alignment_map=[(0, [0])],
+        )
+
+        resp = await client.get(f"/v2/editions/{src_edition_id}/segments/related?span_start=5&span_end=6")
+        assert resp.status_code == 200
+        assert len(resp.json()) >= 1
+
+    # ---- edge: boundary-touching span ----
+
+    async def test_span_touching_segment_end_not_overlapping(self, client, test_database):
+        """Span starts exactly at segment end -> no overlap."""
+        person_id = await self._create_person(test_database)
+        src_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "རྩ་བ།", "en": "Src"})
+        )
+        src_edition_id = await self._create_edition(client, src_text_id, "0123456789ABCDEF")
+        await self._post_segmentation(client, src_edition_id, [(0, 16)])
+
+        tgt_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "དམིགས།", "en": "Tgt"})
+        )
+        tgt_edition_id = await self._create_edition(client, tgt_text_id, "GHIJKLMNOP")
+        await self._post_segmentation(client, tgt_edition_id, [(0, 10)])
+
+        await self._post_alignment(
+            client, src_edition_id, tgt_edition_id,
+            source_segments=[(0, 5)],
+            target_segments=[(0, 5)],
+            alignment_map=[(0, [0])],
+        )
+
+        resp = await client.get(f"/v2/editions/{src_edition_id}/segments/related?span_start=5&span_end=10")
+        assert resp.status_code == 200
+        assert resp.json() == [], "Span [5,10) should not overlap alignment segment [0,5)"
+
+    async def test_span_ending_at_segment_start_not_overlapping(self, client, test_database):
+        """Span ends exactly at segment start -> no overlap."""
+        person_id = await self._create_person(test_database)
+        src_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "རྩ་བ།", "en": "Src"})
+        )
+        src_edition_id = await self._create_edition(client, src_text_id, "0123456789ABCDEF")
+        await self._post_segmentation(client, src_edition_id, [(0, 16)])
+
+        tgt_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "དམིགས།", "en": "Tgt"})
+        )
+        tgt_edition_id = await self._create_edition(client, tgt_text_id, "GHIJKLMNOP")
+        await self._post_segmentation(client, tgt_edition_id, [(0, 10)])
+
+        await self._post_alignment(
+            client, src_edition_id, tgt_edition_id,
+            source_segments=[(5, 10)],
+            target_segments=[(0, 5)],
+            alignment_map=[(0, [0])],
+        )
+
+        resp = await client.get(f"/v2/editions/{src_edition_id}/segments/related?span_start=0&span_end=5")
+        assert resp.status_code == 200
+        assert resp.json() == [], "Span [0,5) should not overlap alignment segment [5,10)"
+
+    # ---- edge: very large span covering all segments ----
+
+    async def test_large_span_covering_all_segments(self, client, test_database):
+        """Span much larger than content still works and returns all aligned display segments."""
+        person_id = await self._create_person(test_database)
+        src_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "རྩ་བ།", "en": "Src"})
+        )
+        src_edition_id = await self._create_edition(client, src_text_id, "0123456789")
+        await self._post_segmentation(client, src_edition_id, [(0, 5), (5, 10)])
+
+        tgt_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "དམིགས།", "en": "Tgt"})
+        )
+        tgt_edition_id = await self._create_edition(client, tgt_text_id, "ABCDEFGHIJ")
+        await self._post_segmentation(client, tgt_edition_id, [(0, 5), (5, 10)])
+
+        await self._post_alignment(
+            client, src_edition_id, tgt_edition_id,
+            source_segments=[(0, 5), (5, 10)],
+            target_segments=[(0, 5), (5, 10)],
+            alignment_map=[(0, [0]), (1, [1])],
+        )
+
+        resp = await client.get(f"/v2/editions/{src_edition_id}/segments/related?span_start=0&span_end=99999")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) >= 1
+        total_segs = len(self._collect_all_segments(data))
+        assert total_segs >= 2
+
+    # ---- multiline segments ----
+
+    async def test_multiline_segment_alignment(self, client, test_database):
+        """Segments with multiple lines should be handled; display segments returned with all lines."""
+        person_id = await self._create_person(test_database)
+        src_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "རྩ་བ།", "en": "Src"})
+        )
+        src_edition_id = await self._create_edition(client, src_text_id, "0123456789ABCDEF")
+        await self._post_segmentation(client, src_edition_id, [(0, 16)])
+
+        tgt_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "དམིགས།", "en": "Tgt"})
+        )
+        tgt_edition_id = await self._create_edition(client, tgt_text_id, "GHIJKLMNOP")
+        await self._post_segmentation(client, tgt_edition_id, [(0, 5), (5, 10)])
+
+        await self._post_alignment(
+            client, src_edition_id, tgt_edition_id,
+            source_segments=[(0, 16)],
+            target_segments=[(0, 10)],
+            alignment_map=[(0, [0])],
+        )
+
+        resp = await client.get(f"/v2/editions/{src_edition_id}/segments/related?span_start=0&span_end=5")
+        assert resp.status_code == 200, f"Got {resp.status_code}: {resp.json()}"
+        data = resp.json()
+        assert len(data) >= 1
+        segs = self._collect_all_segments(data)
+        assert len(segs) >= 1
+
+    async def test_multiline_display_segment_no_duplicate_lines(self, client, test_database):
+        """A multi-line display segment overlapped by multiple alignment spans must not produce duplicate lines."""
+        person_id = await self._create_person(test_database)
+
+        src_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "རྩ་བ།", "en": "SrcMulti"})
+        )
+        src_edition_id = await self._create_edition(client, src_text_id, "0123456789ABCDEF")
+        await self._post_segmentation(client, src_edition_id, [(0, 8), (8, 16)])
+
+        tgt_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "དམིགས།", "en": "TgtMulti"})
+        )
+        tgt_edition_id = await self._create_edition(client, tgt_text_id, "abcdefghijklmnop")
+        # Target has a single display segment with two lines
+        await self._post_segmentation(client, tgt_edition_id, [(0, 8), (8, 16)])
+
+        # Two separate alignment pairs, both landing on the same target edition
+        await self._post_alignment(
+            client, src_edition_id, tgt_edition_id,
+            source_segments=[(0, 8), (8, 16)],
+            target_segments=[(0, 8), (8, 16)],
+            alignment_map=[(0, [0]), (1, [1])],
+        )
+
+        # Query with a span that overlaps both source segments
+        resp = await client.get(
+            f"/v2/editions/{src_edition_id}/segments/related?span_start=0&span_end=16"
+        )
+        assert resp.status_code == 200, f"Got {resp.status_code}: {resp.json()}"
+        data = resp.json()
+        assert len(data) >= 1
+
+        for group in data:
+            for sgn in group["segmentations"]:
+                for seg in sgn["segments"]:
+                    lines = seg["lines"]
+                    # Each line must appear exactly once (no duplicates)
+                    line_tuples = [(l["start"], l["end"]) for l in lines]
+                    assert len(line_tuples) == len(set(line_tuples)), (
+                        f"Duplicate lines in segment {seg['id']}: {lines}"
+                    )
+                    # Lines must be continuous and sorted
+                    for i in range(1, len(lines)):
+                        assert lines[i]["start"] == lines[i - 1]["end"], (
+                            f"Non-continuous lines in segment {seg['id']}: {lines}"
+                        )
+
+    # ---- unrelated texts with alignment ----
+
+    async def test_unrelated_texts_with_alignment(self, client, test_database):
+        """Two texts with no TRANSLATION_OF or COMMENTARY_OF but with alignment still works."""
+        person_id = await self._create_person(test_database)
+        text_a_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "ཀ", "en": "Text A"})
+        )
+        edition_a_id = await self._create_edition(client, text_a_id, "0123456789")
+        await self._post_segmentation(client, edition_a_id, [(0, 10)])
+
+        text_b_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "ཁ", "en": "Text B"})
+        )
+        edition_b_id = await self._create_edition(client, text_b_id, "ABCDEFGHIJ")
+        await self._post_segmentation(client, edition_b_id, [(0, 10)])
+
+        await self._post_alignment(
+            client, edition_a_id, edition_b_id,
+            source_segments=[(0, 10)],
+            target_segments=[(0, 10)],
+            alignment_map=[(0, [0])],
+        )
+
+        resp = await client.get(f"/v2/editions/{edition_a_id}/segments/related?span_start=0&span_end=10")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) == 1
+        assert data[0]["edition_id"] == edition_b_id
+
+    # ---- same edition excluded ----
+
+    async def test_same_edition_excluded(self, client, test_database):
+        """Related segments should not include segments from the same edition."""
+        person_id = await self._create_person(test_database)
+        text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "རྩ་བ།", "en": "Text"})
+        )
+        edition_id = await self._create_edition(client, text_id, "0123456789")
+        await self._post_segmentation(client, edition_id, [(0, 10)])
+
+        other_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "གཞན།", "en": "Other"})
+        )
+        other_edition_id = await self._create_edition(client, other_text_id, "ABCDEFGHIJ")
+        await self._post_segmentation(client, other_edition_id, [(0, 10)])
+
+        await self._post_alignment(
+            client, edition_id, other_edition_id,
+            source_segments=[(0, 10)],
+            target_segments=[(0, 10)],
+            alignment_map=[(0, [0])],
+        )
+
+        resp = await client.get(f"/v2/editions/{edition_id}/segments/related?span_start=0&span_end=10")
+        assert resp.status_code == 200
+        data = resp.json()
+        for group in data:
+            assert group["edition_id"] != edition_id
+
+    # ---- multiple independent trees ----
+
+    async def test_independent_trees_isolated(self, client, test_database):
+        """Two separate trees (A<-B) and (X<-Y) with no connection."""
+        person_id = await self._create_person(test_database)
+
+        text_a_id = await self._create_text(test_database, person_id, title=LocalizedString({"en": "A", "bo": "ཀ"}))
+        ed_a = await self._create_edition(client, text_a_id, "0123456789")
+        await self._post_segmentation(client, ed_a, [(0, 10)])
+
+        text_b_id = await self._create_text(test_database, person_id, title=LocalizedString({"en": "B", "bo": "ཁ"}))
+        ed_b = await self._create_edition(client, text_b_id, "ABCDEFGHIJ")
+        await self._post_segmentation(client, ed_b, [(0, 10)])
+
+        text_x_id = await self._create_text(test_database, person_id, title=LocalizedString({"en": "X", "bo": "ཆ"}))
+        ed_x = await self._create_edition(client, text_x_id, "KLMNOPQRST")
+        await self._post_segmentation(client, ed_x, [(0, 10)])
+
+        text_y_id = await self._create_text(test_database, person_id, title=LocalizedString({"en": "Y", "bo": "ཇ"}))
+        ed_y = await self._create_edition(client, text_y_id, "UVWXYZ0123")
+        await self._post_segmentation(client, ed_y, [(0, 10)])
+
+        await self._post_alignment(client, ed_b, ed_a, [(0, 10)], [(0, 10)], [(0, [0])])
+        await self._post_alignment(client, ed_y, ed_x, [(0, 10)], [(0, 10)], [(0, [0])])
+
+        resp_a = await client.get(f"/v2/editions/{ed_a}/segments/related?span_start=0&span_end=10")
+        ids_a = self._collect_edition_ids(resp_a.json())
+        assert ed_b in ids_a
+        assert ed_x not in ids_a
+        assert ed_y not in ids_a
+
+        resp_x = await client.get(f"/v2/editions/{ed_x}/segments/related?span_start=0&span_end=10")
+        ids_x = self._collect_edition_ids(resp_x.json())
+        assert ed_y in ids_x
+        assert ed_a not in ids_x
+        assert ed_b not in ids_x
+
+    # ---- edition with no display segmentation (passthrough) ----
+
+    async def test_passthrough_edition_no_display(self, client, test_database):
+        """Edition B has alignment segmentations but no display segmentation.
+        It should be traversed (so C is found) but produce no segments itself."""
+        person_id = await self._create_person(test_database)
+
+        text_a_id = await self._create_text(test_database, person_id, title=LocalizedString({"en": "A", "bo": "ཀ"}))
+        ed_a = await self._create_edition(client, text_a_id, "0123456789")
+        await self._post_segmentation(client, ed_a, [(0, 10)])
+
+        text_b_id = await self._create_text(test_database, person_id, title=LocalizedString({"en": "B", "bo": "ཁ"}))
+        ed_b = await self._create_edition(client, text_b_id, "ABCDEFGHIJ")
+        # NOTE: no display segmentation created for B
+
+        text_c_id = await self._create_text(test_database, person_id, title=LocalizedString({"en": "C", "bo": "ག"}))
+        ed_c = await self._create_edition(client, text_c_id, "KLMNOPQRST")
+        await self._post_segmentation(client, ed_c, [(0, 10)])
+
+        # B -> A
+        await self._post_alignment(client, ed_b, ed_a, [(0, 10)], [(0, 10)], [(0, [0])])
+        # C -> B
+        await self._post_alignment(client, ed_c, ed_b, [(0, 10)], [(0, 10)], [(0, [0])])
+
+        resp = await client.get(f"/v2/editions/{ed_a}/segments/related?span_start=0&span_end=10")
+        data = resp.json()
+        edition_ids = self._collect_edition_ids(data)
+        assert ed_c in edition_ids, "C should be found transitively via B even though B has no display segmentation"
+        assert ed_b not in edition_ids, "B should not appear since it has no display segmentation"
+
+    # ---- segmentation label correctness ----
+
+    async def test_display_segmentation_has_correct_label(self, client, test_database):
+        """Display segmentation created via POST should have :Segmentation:Display labels."""
+        person_id = await self._create_person(test_database)
+        text_id = await self._create_text(test_database, person_id)
+        edition_id = await self._create_edition(client, text_id, "0123456789")
+        sgn_id = await self._post_segmentation(client, edition_id, [(0, 5), (5, 10)])
+
+        async with test_database.get_session() as session:
+            result = await session.run("""
+                MATCH (sgn:Segmentation:Display {id: $sgn_id})
+                RETURN sgn.id AS id
+            """, sgn_id=sgn_id)
+            record = await result.single()
+            assert record is not None, "Display segmentation should have :Display label"
+
+    async def test_alignment_segmentations_have_correct_labels(self, client, test_database):
+        """Alignment segmentations should have :Aligned and :Target labels."""
+        person_id = await self._create_person(test_database)
+        src_text_id = await self._create_text(test_database, person_id, title=LocalizedString({"en": "Src", "bo": "འབྱུང།"}))
+        src_edition_id = await self._create_edition(client, src_text_id, "0123456789")
+
+        tgt_text_id = await self._create_text(test_database, person_id, title=LocalizedString({"en": "Tgt", "bo": "དམིགས།"}))
+        tgt_edition_id = await self._create_edition(client, tgt_text_id, "ABCDEFGHIJ")
+
+        alignment_id = await self._post_alignment(
+            client, src_edition_id, tgt_edition_id,
+            source_segments=[(0, 10)],
+            target_segments=[(0, 10)],
+            alignment_map=[(0, [0])],
+        )
+
+        async with test_database.get_session() as session:
+            # Aligned segmentation (source side)
+            result = await session.run("""
+                MATCH (sgn:Segmentation:Aligned {id: $sgn_id})
+                RETURN sgn.id AS id
+            """, sgn_id=alignment_id)
+            record = await result.single()
+            assert record is not None, "Aligned segmentation should have :Aligned label"
+
+            # Target segmentation (via aligned segments)
+            result = await session.run("""
+                MATCH (sgn:Segmentation:Aligned {id: $sgn_id})<-[:SEGMENT_OF]-(:Segment)-[:ALIGNED_TO]->(:Segment)
+                      -[:SEGMENT_OF]->(target_sgn:Segmentation:Target)
+                RETURN target_sgn.id AS id
+            """, sgn_id=alignment_id)
+            record = await result.single()
+            assert record is not None, "Target segmentation should have :Target label"
+
+    async def test_get_segmentations_only_returns_display(self, client, test_database):
+        """GET /editions/{id}/segmentations should only return display segmentations."""
+        person_id = await self._create_person(test_database)
+        src_text_id = await self._create_text(test_database, person_id, title=LocalizedString({"en": "Src", "bo": "འབྱུང།"}))
+        src_edition_id = await self._create_edition(client, src_text_id, "0123456789")
+        sgn_id = await self._post_segmentation(client, src_edition_id, [(0, 5), (5, 10)])
+
+        tgt_text_id = await self._create_text(test_database, person_id, title=LocalizedString({"en": "Tgt", "bo": "དམིགས།"}))
+        tgt_edition_id = await self._create_edition(client, tgt_text_id, "ABCDEFGHIJ")
+
+        await self._post_alignment(
+            client, src_edition_id, tgt_edition_id,
+            source_segments=[(0, 10)],
+            target_segments=[(0, 10)],
+            alignment_map=[(0, [0])],
+        )
+
+        resp = await client.get(f"/v2/editions/{src_edition_id}/segmentations")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) == 1, "Should only return the display segmentation, not the alignment ones"
+        assert data[0]["id"] == sgn_id
+
+
+# ---------------------------------------------------------------------------
+# GET /v2/segments/{segment_id}/related
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio(loop_scope="session")
+class TestDirectSegmentRelated(SegmentTestBase):
+    """Tests for GET /v2/segments/{segment_id}/related."""
+
+    async def test_nonexistent_segment_returns_empty(self, client, test_database):
+        """Non-existent segment_id -> empty list."""
+        resp = await client.get("/v2/segments/nonexistent_id/related")
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+    async def test_segment_with_no_alignment(self, client, test_database):
+        """Segment exists but has no ALIGNED_TO relationship -> empty list."""
+        person_id = await self._create_person(test_database)
+        text_id = await self._create_text(test_database, person_id)
+        edition_id = await self._create_edition(client, text_id, "0123456789")
+        await self._post_segmentation(client, edition_id, [(0, 5), (5, 10)])
+
+        seg_ids = await self._get_segment_ids_from_segmentation(client, edition_id)
+        assert len(seg_ids) >= 1
+
+        resp = await client.get(f"/v2/segments/{seg_ids[0]}/related")
+        assert resp.status_code == 200
+        assert resp.json() == []
+
+    async def test_segment_with_alignment_returns_related(self, client, test_database):
+        """Segment has alignment -> returns related display segments from target edition."""
+        person_id = await self._create_person(test_database)
+        src_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "རྩ་བ།", "en": "Src"})
+        )
+        src_edition_id = await self._create_edition(client, src_text_id, "0123456789")
+        await self._post_segmentation(client, src_edition_id, [(0, 5), (5, 10)])
+
+        tgt_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "དམིགས།", "en": "Tgt"})
+        )
+        tgt_edition_id = await self._create_edition(client, tgt_text_id, "ABCDEFGHIJ")
+        await self._post_segmentation(client, tgt_edition_id, [(0, 5), (5, 10)])
+
+        await self._post_alignment(
+            client, src_edition_id, tgt_edition_id,
+            source_segments=[(0, 5), (5, 10)],
+            target_segments=[(0, 5), (5, 10)],
+            alignment_map=[(0, [0]), (1, [1])],
+        )
+
+        seg_ids = await self._get_segment_ids_from_segmentation(client, src_edition_id)
+        assert len(seg_ids) >= 1
+
+        resp = await client.get(f"/v2/segments/{seg_ids[0]}/related")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data) >= 1
+        assert data[0]["edition_id"] == tgt_edition_id
+
+    async def test_segment_related_with_application_header(self, client, test_database):
+        """X-Application header should filter tags on returned segments."""
+        person_id = await self._create_person(test_database)
+        src_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "རྩ་བ།", "en": "Src"})
+        )
+        src_edition_id = await self._create_edition(client, src_text_id, "0123456789")
+        await self._post_segmentation(client, src_edition_id, [(0, 10)])
+
+        tgt_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "དམིགས།", "en": "Tgt"})
+        )
+        tgt_edition_id = await self._create_edition(client, tgt_text_id, "ABCDEFGHIJ")
+        await self._post_segmentation(client, tgt_edition_id, [(0, 10)])
+
+        await self._post_alignment(
+            client, src_edition_id, tgt_edition_id,
+            source_segments=[(0, 10)],
+            target_segments=[(0, 10)],
+            alignment_map=[(0, [0])],
+        )
+
+        seg_ids = await self._get_segment_ids_from_segmentation(client, src_edition_id)
+        assert len(seg_ids) >= 1
+
+        resp = await client.get(
+            f"/v2/segments/{seg_ids[0]}/related",
+            headers=APPLICATION_HEADER,
+        )
+        assert resp.status_code == 200
+
+    async def test_segment_related_excludes_same_edition(self, client, test_database):
+        """Related segments should not include segments from the same edition."""
+        person_id = await self._create_person(test_database)
+        src_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "རྩ་བ།", "en": "Src"})
+        )
+        src_edition_id = await self._create_edition(client, src_text_id, "0123456789")
+        await self._post_segmentation(client, src_edition_id, [(0, 10)])
+
+        tgt_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "དམིགས།", "en": "Tgt"})
+        )
+        tgt_edition_id = await self._create_edition(client, tgt_text_id, "ABCDEFGHIJ")
+        await self._post_segmentation(client, tgt_edition_id, [(0, 10)])
+
+        await self._post_alignment(
+            client, src_edition_id, tgt_edition_id,
+            source_segments=[(0, 10)],
+            target_segments=[(0, 10)],
+            alignment_map=[(0, [0])],
+        )
+
+        seg_ids = await self._get_segment_ids_from_segmentation(client, src_edition_id)
+        assert len(seg_ids) >= 1
+
+        resp = await client.get(f"/v2/segments/{seg_ids[0]}/related")
+        assert resp.status_code == 200
+        data = resp.json()
+        for group in data:
+            assert group["edition_id"] != src_edition_id, \
+                "Related segments should exclude the queried segment's own edition"
+
+
+# ---------------------------------------------------------------------------
+# GET /v2/segments/{segment_id}/content
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio(loop_scope="session")
+class TestSegmentContent(SegmentTestBase):
+    """Tests for GET /v2/segments/{segment_id}/content."""
+
+    async def test_nonexistent_segment_returns_404(self, client, test_database):
+        """Non-existent segment_id -> 404."""
+        resp = await client.get("/v2/segments/nonexistent_id/content")
+        assert resp.status_code == 404
+
+    async def test_get_content_basic(self, client, test_database):
+        """Get content of a segment from a diplomatic edition."""
+        person_id = await self._create_person(test_database)
+        text_id = await self._create_text(test_database, person_id)
+        edition_id = await self._create_edition(client, text_id, "Hello World!", EditionType.DIPLOMATIC)
+        await self._post_segmentation(client, edition_id, [(0, 5), (5, 12)])
+
+        seg_ids = await self._get_segment_ids_from_segmentation(client, edition_id)
+        assert len(seg_ids) == 2
+
+        resp = await client.get(f"/v2/segments/{seg_ids[0]}/content")
+        assert resp.status_code == 200
+        assert resp.json() == "Hello"
+
+        resp2 = await client.get(f"/v2/segments/{seg_ids[1]}/content")
+        assert resp2.status_code == 200
+        assert resp2.json() == " World!"
+
+    async def test_get_content_tibetan(self, client, test_database):
+        """Segment content with Tibetan text."""
+        tibetan = "བོད་སྐད་ཀྱི་ཡིག་ཆ།"
+        person_id = await self._create_person(test_database)
+        text_id = await self._create_text(test_database, person_id)
+        edition_id = await self._create_edition(client, text_id, tibetan)
+        mid = len(tibetan) // 2
+        await self._post_segmentation(client, edition_id, [(0, mid), (mid, len(tibetan))])
+
+        seg_ids = await self._get_segment_ids_from_segmentation(client, edition_id)
+
+        resp = await client.get(f"/v2/segments/{seg_ids[0]}/content")
+        assert resp.status_code == 200
+        assert resp.json() == tibetan[:mid]
+
+        resp2 = await client.get(f"/v2/segments/{seg_ids[1]}/content")
+        assert resp2.status_code == 200
+        assert resp2.json() == tibetan[mid:]
+
+    async def test_get_content_full_span(self, client, test_database):
+        """Single segment covering the entire text."""
+        content = "Full content here"
+        person_id = await self._create_person(test_database)
+        text_id = await self._create_text(test_database, person_id)
+        edition_id = await self._create_edition(client, text_id, content)
+        await self._post_segmentation(client, edition_id, [(0, len(content))])
+
+        seg_ids = await self._get_segment_ids_from_segmentation(client, edition_id)
+        resp = await client.get(f"/v2/segments/{seg_ids[0]}/content")
+        assert resp.status_code == 200
+        assert resp.json() == content
+
+    async def test_get_content_single_char_segment(self, client, test_database):
+        """Segment spanning a single character."""
+        person_id = await self._create_person(test_database)
+        text_id = await self._create_text(test_database, person_id)
+        edition_id = await self._create_edition(client, text_id, "ABCDE")
+        await self._post_segmentation(client, edition_id, [(0, 1), (1, 5)])
+
+        seg_ids = await self._get_segment_ids_from_segmentation(client, edition_id)
+
+        resp = await client.get(f"/v2/segments/{seg_ids[0]}/content")
+        assert resp.status_code == 200
+        assert resp.json() == "A"
+
+    async def test_content_after_edition_update(self, client, test_database):
+        """Content should reflect the latest edition text after an insert."""
+        person_id = await self._create_person(test_database)
+        text_id = await self._create_text(test_database, person_id)
+        edition_id = await self._create_edition(client, text_id, "Hello World")
+        await self._post_segmentation(client, edition_id, [(0, 5), (5, 11)])
+
+        seg_ids = await self._get_segment_ids_from_segmentation(client, edition_id)
+
+        patch_resp = await client.patch(
+            f"/v2/editions/{edition_id}/content",
+            json={"type": "insert", "position": 5, "text": " Beautiful"},
+        )
+        assert patch_resp.status_code == 204
+
+        resp = await client.get(f"/v2/segments/{seg_ids[0]}/content")
+        assert resp.status_code == 200
+        assert resp.json() == "Hello Beautiful"
+
+    async def test_content_from_aligned_target_segment(self, client, test_database):
+        """Get content of a segment that belongs to the target side of an alignment."""
+        person_id = await self._create_person(test_database)
+        src_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "རྩ་བ།", "en": "Src"})
+        )
+        src_edition_id = await self._create_edition(client, src_text_id, "0123456789")
+
+        tgt_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "དམིགས།", "en": "Tgt"})
+        )
+        tgt_edition_id = await self._create_edition(client, tgt_text_id, "ABCDEFGHIJ")
+
+        await self._post_alignment(
+            client, src_edition_id, tgt_edition_id,
+            source_segments=[(0, 10)],
+            target_segments=[(0, 5), (5, 10)],
+            alignment_map=[(0, [0, 1])],
+        )
+
+        alignments_resp = await client.get(f"/v2/editions/{src_edition_id}/alignments")
+        alignment_data = alignments_resp.json()
+        assert len(alignment_data) >= 1
+        target_seg_ids = [s["id"] for s in alignment_data[0]["target_segments"]]
+
+        resp = await client.get(f"/v2/segments/{target_seg_ids[0]}/content")
+        assert resp.status_code == 200
+        assert resp.json() == "ABCDE"
+
+        resp2 = await client.get(f"/v2/segments/{target_seg_ids[1]}/content")
+        assert resp2.status_code == 200
+        assert resp2.json() == "FGHIJ"
+
+
+# ---------------------------------------------------------------------------
+# Tags on related segments
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio(loop_scope="session")
+class TestSegmentsRelatedWithTags(SegmentTestBase):
+    """Tests that tags on related display segments are properly returned/filtered."""
+
+    async def test_related_segments_include_tag_ids(self, client, test_database):
+        """Tags on display segments should appear in the response."""
+        person_id = await self._create_person(test_database)
+        src_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "རྩ་བ།", "en": "Src"})
+        )
+        src_edition_id = await self._create_edition(client, src_text_id, "0123456789")
+        await self._post_segmentation(client, src_edition_id, [(0, 10)])
+
+        tgt_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "དམིགས།", "en": "Tgt"})
+        )
+        tgt_edition_id = await self._create_edition(client, tgt_text_id, "ABCDEFGHIJ")
+        await self._post_segmentation(client, tgt_edition_id, [(0, 10)])
+
+        await self._post_alignment(
+            client, src_edition_id, tgt_edition_id,
+            source_segments=[(0, 10)],
+            target_segments=[(0, 10)],
+            alignment_map=[(0, [0])],
+        )
+
+        tag_resp = await client.post("/v2/tags/", json={"title": {"en": "Test Seg Tag"}}, headers=APPLICATION_HEADER)
+        assert tag_resp.status_code == 201
+        tag_id = tag_resp.json()["id"]
+
+        # Tag the display segment on the target edition
+        tgt_seg_ids = await self._get_segment_ids_from_segmentation(client, tgt_edition_id)
+        assert len(tgt_seg_ids) >= 1
+        tag_seg_resp = await client.post(f"/v2/segments/{tgt_seg_ids[0]}/tags/{tag_id}")
+        assert tag_seg_resp.status_code == 204
+
+        # Query from source
+        resp = await client.get(
+            f"/v2/editions/{src_edition_id}/segments/related?span_start=0&span_end=10",
+            headers=APPLICATION_HEADER,
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        all_segs = self._collect_all_segments(data)
+
+        found_tag = False
+        for seg in all_segs:
+            if seg["id"] == tgt_seg_ids[0] and seg.get("tag_ids") and tag_id in seg["tag_ids"]:
+                found_tag = True
+        assert found_tag, "Tag should appear on the related display segment"
+
+    async def test_related_segments_tag_filtering_by_application(self, client, test_database):
+        """Tags from a different application should not appear on related segments."""
+        person_id = await self._create_person(test_database)
+        src_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "རྩ་བ།", "en": "Src"})
+        )
+        src_edition_id = await self._create_edition(client, src_text_id, "0123456789")
+        await self._post_segmentation(client, src_edition_id, [(0, 10)])
+
+        tgt_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "དམིགས།", "en": "Tgt"})
+        )
+        tgt_edition_id = await self._create_edition(client, tgt_text_id, "ABCDEFGHIJ")
+        await self._post_segmentation(client, tgt_edition_id, [(0, 10)])
+
+        await self._post_alignment(
+            client, src_edition_id, tgt_edition_id,
+            source_segments=[(0, 10)],
+            target_segments=[(0, 10)],
+            alignment_map=[(0, [0])],
+        )
+
+        tag_resp = await client.post("/v2/tags/", json={"title": {"en": "App A Tag"}}, headers=APPLICATION_HEADER)
+        tag_id = tag_resp.json()["id"]
+
+        tgt_seg_ids = await self._get_segment_ids_from_segmentation(client, tgt_edition_id)
+        await client.post(f"/v2/segments/{tgt_seg_ids[0]}/tags/{tag_id}")
+
+        async with test_database.get_session() as session:
+            await session.run("MERGE (app:Application {id: 'other_app', name: 'Other App'})")
+
+        # Query with a different application header
+        src_seg_ids = await self._get_segment_ids_from_segmentation(client, src_edition_id)
+        resp = await client.get(
+            f"/v2/segments/{src_seg_ids[0]}/related",
+            headers={"X-Application": "other_app"},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        all_segs = self._collect_all_segments(data)
+        for seg in all_segs:
+            if seg["id"] == tgt_seg_ids[0]:
+                assert seg.get("tag_ids") is None or tag_id not in seg.get("tag_ids", []), \
+                    "Tag from test_application should not appear when querying with other_app"
+
+
+# ---------------------------------------------------------------------------
+# Edge cases
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio(loop_scope="session")
+class TestSegmentsRelatedEdgeCases(SegmentTestBase):
+    """Edge cases for segment related queries."""
+
+    async def test_find_by_span_returns_correct_segment_ids(self, client, test_database):
+        """Directly test find_by_span to ensure correct overlap logic."""
+        person_id = await self._create_person(test_database)
+        text_id = await self._create_text(test_database, person_id)
+        edition_id = await self._create_edition(client, text_id, "0123456789ABCDEF")
+        await self._post_segmentation(client, edition_id, [(0, 4), (4, 8), (8, 12), (12, 16)])
+
+        seg_ids = await self._get_segment_ids_from_segmentation(client, edition_id)
+        assert len(seg_ids) == 4
+
+        found = await test_database.segment.find_by_span(edition_id, start=2, end=6)
+        assert len(found) == 2, "Span [2,6) should overlap segments [0,4) and [4,8)"
+        assert seg_ids[0] in found
+        assert seg_ids[1] in found
+
+        found2 = await test_database.segment.find_by_span(edition_id, start=4, end=8)
+        assert len(found2) == 1, "Span [4,8) should only overlap segment [4,8)"
+        assert seg_ids[1] in found2
+
+        found3 = await test_database.segment.find_by_span(edition_id, start=0, end=16)
+        assert len(found3) == 4, "Span [0,16) should overlap all segments"
+
+        found4 = await test_database.segment.find_by_span(edition_id, start=16, end=20)
+        assert len(found4) == 0, "Span [16,20) should overlap no segments"
+
+    async def test_segment_get_with_broken_graph(self, client, test_database):
+        """Segment node exists but missing path to Edition/Text -> DataNotFoundError."""
+        from exceptions import DataNotFoundError
+
+        async with test_database.get_session() as session:
+            await session.run("""
+                CREATE (seg:Segment {id: 'orphan_segment'})
+                CREATE (span:Span {start: 0, end: 10})-[:SPAN_OF]->(seg)
+            """)
+
+        with pytest.raises(DataNotFoundError):
+            await test_database.segment.get("orphan_segment")
+
+    async def test_segment_get_with_zero_length_spans_excluded(self, client, test_database):
+        """Spans where start == end should be excluded by the WHERE clause."""
+        from exceptions import DataNotFoundError
+
+        seg_id = f"seg_zero_span_{generate_id()[:6]}"
+        async with test_database.get_session() as session:
+            await session.run("""
+                CREATE (text:Text {id: $text_id})
+                CREATE (ed:Edition {id: $ed_id})-[:EDITION_OF]->(text)
+                CREATE (sgn:Segmentation {id: $sgn_id})-[:SEGMENTATION_OF]->(ed)
+                CREATE (seg:Segment {id: $seg_id})-[:SEGMENT_OF]->(sgn)
+                CREATE (span:Span {start: 5, end: 5})-[:SPAN_OF]->(seg)
+            """, text_id=f"t_{seg_id}", ed_id=f"e_{seg_id}", sgn_id=f"sgn_{seg_id}", seg_id=seg_id)
+
+        with pytest.raises(DataNotFoundError):
+            await test_database.segment.get(seg_id)
+
+
+# ---------------------------------------------------------------------------
+# find_by_span boundary tests (directly testing the database layer)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio(loop_scope="session")
+class TestFindBySpanBoundaries(SegmentTestBase):
+    """Detailed boundary tests for SegmentDatabase.find_by_span."""
+
+    async def _setup_edition_with_segments(self, client, test_database, segments):
+        """Helper: create edition + segmentation, return (edition_id, seg_ids)."""
+        person_id = await self._create_person(test_database)
+        text_id = await self._create_text(test_database, person_id)
+        total_len = max(s[1] for s in segments)
+        content = "X" * total_len
+        edition_id = await self._create_edition(client, text_id, content)
+        await self._post_segmentation(client, edition_id, segments)
+        seg_ids = await self._get_segment_ids_from_segmentation(client, edition_id)
+        return edition_id, seg_ids
+
+    async def test_exact_segment_match(self, client, test_database):
+        """Span exactly matches one segment."""
+        edition_id, seg_ids = await self._setup_edition_with_segments(
+            client, test_database, [(0, 10), (10, 20)]
+        )
+        found = await test_database.segment.find_by_span(edition_id, 0, 10)
+        assert found == [seg_ids[0]]
+
+    async def test_span_inside_segment(self, client, test_database):
+        """Span is strictly inside a segment."""
+        edition_id, seg_ids = await self._setup_edition_with_segments(
+            client, test_database, [(0, 20)]
+        )
+        found = await test_database.segment.find_by_span(edition_id, 5, 15)
+        assert found == [seg_ids[0]]
+
+    async def test_span_covers_multiple_segments(self, client, test_database):
+        """Span covers 3 segments completely."""
+        edition_id, seg_ids = await self._setup_edition_with_segments(
+            client, test_database, [(0, 5), (5, 10), (10, 15)]
+        )
+        found = await test_database.segment.find_by_span(edition_id, 0, 15)
+        assert set(found) == set(seg_ids)
+
+    async def test_span_overlaps_only_by_one_char(self, client, test_database):
+        """Span overlaps a segment by exactly 1 character."""
+        edition_id, seg_ids = await self._setup_edition_with_segments(
+            client, test_database, [(0, 10), (10, 20)]
+        )
+        found = await test_database.segment.find_by_span(edition_id, 9, 11)
+        assert set(found) == {seg_ids[0], seg_ids[1]}
+
+    async def test_span_before_all_segments(self, client, test_database):
+        """Span is completely before all segments."""
+        edition_id, seg_ids = await self._setup_edition_with_segments(
+            client, test_database, [(5, 10), (10, 15)]
+        )
+        found = await test_database.segment.find_by_span(edition_id, 0, 5)
+        assert found == []
+
+    async def test_span_after_all_segments(self, client, test_database):
+        """Span is completely after all segments."""
+        edition_id, seg_ids = await self._setup_edition_with_segments(
+            client, test_database, [(0, 5), (5, 10)]
+        )
+        found = await test_database.segment.find_by_span(edition_id, 10, 20)
+        assert found == []
+
+    async def test_gap_between_segments(self, client, test_database):
+        """Segments have a gap; span falls entirely in the gap."""
+        edition_id, seg_ids = await self._setup_edition_with_segments(
+            client, test_database, [(0, 5), (10, 15)]
+        )
+        found = await test_database.segment.find_by_span(edition_id, 5, 10)
+        assert found == []
+
+    async def test_wrong_edition_returns_empty(self, client, test_database):
+        """find_by_span with an edition_id that has no segmentations -> empty."""
+        person_id = await self._create_person(test_database)
+        text_id = await self._create_text(test_database, person_id)
+        edition_id = await self._create_edition(client, text_id, "Hello")
+        found = await test_database.segment.find_by_span(edition_id, 0, 5)
+        assert found == []

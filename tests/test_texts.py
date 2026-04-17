@@ -971,6 +971,25 @@ class TestPostTextV2:
         assert "error" in response_2.json()
         assert "already exists" in response_2.json()["error"].lower()
 
+    async def test_create_text_with_nonexistent_category_id(self, client, test_database, test_person_data):
+        """Test creating a text with a non-existent category_id returns an error"""
+        person = PersonInput.model_validate(test_person_data)
+        person_id = await test_database.person.create(person)
+
+        text_data = {
+            "title": {"en": "Orphan Text"},
+            "language": "en",
+            "contributions": [{"person_id": person_id, "role": "author"}],
+            "category_id": "nonexistent_category_id",
+        }
+
+        response = await client.post("/v2/texts", json=text_data)
+
+        assert response.status_code in (404, 422)
+        data = response.json()
+        assert "error" in data
+
+
 @pytest.mark.asyncio(loop_scope="session")
 class TestPatchTextV2:
     """Tests for PATCH /v2/texts/{text_id} endpoint (update text)"""
@@ -1762,6 +1781,42 @@ class TestPatchTextV2:
         assert response.status_code == 422
         data = response.json()
         assert "detail" in data
+
+    async def test_patch_text_duplicate_bdrc_rejected(self, client, test_database, test_person_data):
+        """Test that patching a text with a BDRC ID already used by another text is rejected"""
+        person = PersonInput.model_validate(test_person_data)
+        person_id = await test_database.person.create(person)
+
+        category_id = "category"
+        text1_data = {
+            "title": {"en": "First BDRC Text"},
+            "language": "en",
+            "category_id": category_id,
+            "contributions": [{"person_id": person_id, "role": "author"}],
+            "bdrc": "W_DUP_PATCH_1",
+        }
+        text1 = TextInput.model_validate(text1_data)
+        await test_database.text.create(text1)
+
+        text2_data = {
+            "title": {"en": "Second BDRC Text"},
+            "language": "en",
+            "category_id": category_id,
+            "contributions": [{"person_id": person_id, "role": "author"}],
+            "bdrc": "W_DUP_PATCH_2",
+        }
+        text2 = TextInput.model_validate(text2_data)
+        text2_id = await test_database.text.create(text2)
+
+        response = await client.patch(
+            f"/v2/texts/{text2_id}",
+            json={"bdrc": "W_DUP_PATCH_1"},
+        )
+
+        assert response.status_code == 409
+        data = response.json()
+        assert "error" in data
+        assert "already exists" in data["error"].lower()
 
 
 @pytest.mark.asyncio(loop_scope="session")

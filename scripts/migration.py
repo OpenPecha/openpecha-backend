@@ -509,6 +509,58 @@ def migrate_delete_obsolete_nodes(session: Session) -> dict[str, int]:
     return counts
 
 
+def migrate_segmentation_labels(session: Session) -> dict[str, int]:
+    """Add dual labels to Segmentation nodes and remove SegmentationType enum nodes.
+
+    Segmentation nodes use dual labels instead of HAS_TYPE relationships:
+      :Segmentation:Aligned  — segments have outgoing ALIGNED_TO
+      :Segmentation:Target   — segments have incoming ALIGNED_TO
+      :Segmentation:Display  — all others (user-facing display segmentations)
+    """
+    # 1. Aligned: segmentations whose segments have outgoing ALIGNED_TO
+    result = session.run("""
+        MATCH (sgn:Segmentation)
+        WHERE EXISTS { (sgn)<-[:SEGMENT_OF]-(:Segment)-[:ALIGNED_TO]->(:Segment) }
+          AND NOT sgn:Aligned
+        SET sgn:Aligned
+        RETURN count(sgn) AS count
+    """).single()
+    aligned_count = result["count"] if result else 0
+    logger.info("Labeled %d segmentations as :Aligned", aligned_count)
+
+    # 2. Target: segmentations whose segments have incoming ALIGNED_TO
+    result = session.run("""
+        MATCH (sgn:Segmentation)
+        WHERE EXISTS { (sgn)<-[:SEGMENT_OF]-(:Segment)<-[:ALIGNED_TO]-(:Segment) }
+          AND NOT sgn:Target
+        SET sgn:Target
+        RETURN count(sgn) AS count
+    """).single()
+    target_count = result["count"] if result else 0
+    logger.info("Labeled %d segmentations as :Target", target_count)
+
+    # 3. Display: everything that isn't Aligned or Target
+    result = session.run("""
+        MATCH (sgn:Segmentation)
+        WHERE NOT sgn:Aligned AND NOT sgn:Target AND NOT sgn:Display
+        SET sgn:Display
+        RETURN count(sgn) AS count
+    """).single()
+    display_count = result["count"] if result else 0
+    logger.info("Labeled %d segmentations as :Display", display_count)
+
+    # 4. Clean up old SegmentationType nodes and HAS_TYPE relationships
+    result = session.run("""
+        MATCH (st:SegmentationType)
+        DETACH DELETE st
+        RETURN count(st) AS count
+    """).single()
+    deleted_count = result["count"] if result else 0
+    logger.info("Deleted %d SegmentationType nodes", deleted_count)
+
+    return {"aligned": aligned_count, "target": target_count, "display": display_count}
+
+
 def run_all_migrations(session: Session) -> dict[str, int | dict[str, int]]:
     """Run all migrations in order."""
     logger.info("Starting migrations...")
@@ -529,6 +581,7 @@ def run_all_migrations(session: Session) -> dict[str, int | dict[str, int]]:
         "manifestation_relabeled": migrate_relabel_manifestation_to_edition(session),
         "expression_relabeled": migrate_relabel_expression_to_text(session),
         "obsolete_nodes_deleted": migrate_delete_obsolete_nodes(session),
+        "segmentation_labels": migrate_segmentation_labels(session),
     }
     logger.info("All migrations complete.")
     return results

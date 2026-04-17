@@ -13,9 +13,9 @@ from models.annotation import (
     NoteOutput,
     PaginationInput,
     PaginationOutput,
+    RelatedSegmentsOutput,
     SegmentationInput,
     SegmentationOutput,
-    SegmentOutput,
 )
 from models.content_operation import ContentOperation, DeleteOperation, InsertOperation, ReplaceOperation
 from models.edition import EditionOutput
@@ -73,6 +73,7 @@ async def get_content(
     "/{edition_id}/segmentations",
     summary="Get segmentation annotations",
     description="Retrieve all segmentation annotations for an edition.",
+    response_model_exclude_none=True,
 )
 async def get_segmentation_annotations(
     edition_id: Annotated[str, Path(description="The ID of the edition")],
@@ -227,13 +228,11 @@ async def get_segment_related(
     span: Annotated[SpanQueryParams, Query()],
     _api_key: Annotated[str, Depends(get_api_key)],
     db: Annotated[Database, Depends(get_db)],
-) -> list[SegmentOutput]:
-    segment_ids = await db.segment.find_by_span(edition_id, span.span_start, span.span_end)
-
-    if not segment_ids:
-        return []
-
-    return await db.segment.get_related_batch(segment_ids)
+) -> list[RelatedSegmentsOutput]:
+    return await db.segment.get_related(
+        edition_id=edition_id,
+        spans=[(span.span_start, span.span_end)],
+    )
 
 
 @router.get(

@@ -53,7 +53,7 @@ class SpanQueryParams(OpenPechaModel):
 
     @model_validator(mode="after")
     def validate_span_range(self) -> Self:
-        if self.span_start > self.span_end:
+        if self.span_start >= self.span_end:
             raise ValueError("'span_start' must be less than 'span_end'")
         return self
 
@@ -65,7 +65,7 @@ class OptionalSpanQueryParams(OpenPechaModel):
     @model_validator(mode="after")
     def validate_span_range(self) -> Self:
         if self.span_start is not None and self.span_end is not None:
-            if self.span_start > self.span_end:
+            if self.span_start >= self.span_end:
                 raise ValueError("'span_start' must be less than 'span_end'")
         elif self.span_start is not None or self.span_end is not None:
             raise ValueError("Both 'span_start' and 'span_end' must be provided together")

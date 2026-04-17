@@ -92,13 +92,12 @@ class TagDatabase:
         return self._db.get_session()
 
     async def get_all(self, application: str) -> list[TagOutput]:
+        async def read(tx: AsyncManagedTransaction) -> list[TagOutput]:
+            result = await tx.run(TagDatabase.GET_ALL_QUERY, application=application)
+            return [DataAdapter.tag(record["tag"]) for record in await result.data()]
+
         async with self.session as session:
-            result = await session.run(
-                TagDatabase.GET_ALL_QUERY,
-                application=application,
-            )
-            records = await result.data()
-            return [DataAdapter.tag(record["tag"]) for record in records]
+            return await session.execute_read(read)
 
     async def create(self, tag: TagInput, application: str) -> str:
         async def create_transaction(tx: AsyncManagedTransaction) -> str:
@@ -124,59 +123,50 @@ class TagDatabase:
             return str(await session.execute_write(create_transaction))
 
     async def delete(self, tag_id: str, application: str) -> None:
-        async with self.session as session:
-            result = await session.run(
-                TagDatabase.DELETE_QUERY,
-                tag_id=tag_id,
-                application=application,
-            )
+        async def write(tx: AsyncManagedTransaction) -> None:
+            result = await tx.run(TagDatabase.DELETE_QUERY, tag_id=tag_id, application=application)
             record = await result.single()
             if not record or record["deleted"] == 0:
                 raise DataNotFoundError(f"Tag with ID '{tag_id}' not found in application '{application}'")
 
-    async def tag_work(self, work_id: str, tag_id: str) -> None:
         async with self.session as session:
-            result = await session.run(
-                TagDatabase.TAG_WORK_QUERY,
-                work_id=work_id,
-                tag_id=tag_id,
-            )
-            record = await result.single()
-            if not record:
+            await session.execute_write(write)
+
+    async def tag_work(self, work_id: str, tag_id: str) -> None:
+        async def write(tx: AsyncManagedTransaction) -> None:
+            result = await tx.run(TagDatabase.TAG_WORK_QUERY, work_id=work_id, tag_id=tag_id)
+            if not await result.single():
                 raise DataNotFoundError(f"Work '{work_id}' or Tag '{tag_id}' not found")
 
-    async def untag_work(self, work_id: str, tag_id: str) -> None:
         async with self.session as session:
-            result = await session.run(
-                TagDatabase.UNTAG_WORK_QUERY,
-                work_id=work_id,
-                tag_id=tag_id,
-            )
-            record = await result.single()
-            if not record:
+            await session.execute_write(write)
+
+    async def untag_work(self, work_id: str, tag_id: str) -> None:
+        async def write(tx: AsyncManagedTransaction) -> None:
+            result = await tx.run(TagDatabase.UNTAG_WORK_QUERY, work_id=work_id, tag_id=tag_id)
+            if not await result.single():
                 raise DataNotFoundError(f"Tag '{tag_id}' is not attached to Work '{work_id}'")
 
-    async def tag_segment(self, segment_id: str, tag_id: str) -> None:
         async with self.session as session:
-            result = await session.run(
-                TagDatabase.TAG_SEGMENT_QUERY,
-                segment_id=segment_id,
-                tag_id=tag_id,
-            )
-            record = await result.single()
-            if not record:
+            await session.execute_write(write)
+
+    async def tag_segment(self, segment_id: str, tag_id: str) -> None:
+        async def write(tx: AsyncManagedTransaction) -> None:
+            result = await tx.run(TagDatabase.TAG_SEGMENT_QUERY, segment_id=segment_id, tag_id=tag_id)
+            if not await result.single():
                 raise DataNotFoundError(f"Segment '{segment_id}' or Tag '{tag_id}' not found")
 
-    async def untag_segment(self, segment_id: str, tag_id: str) -> None:
         async with self.session as session:
-            result = await session.run(
-                TagDatabase.UNTAG_SEGMENT_QUERY,
-                segment_id=segment_id,
-                tag_id=tag_id,
-            )
-            record = await result.single()
-            if not record:
+            await session.execute_write(write)
+
+    async def untag_segment(self, segment_id: str, tag_id: str) -> None:
+        async def write(tx: AsyncManagedTransaction) -> None:
+            result = await tx.run(TagDatabase.UNTAG_SEGMENT_QUERY, segment_id=segment_id, tag_id=tag_id)
+            if not await result.single():
                 raise DataNotFoundError(f"Tag '{tag_id}' is not attached to Segment '{segment_id}'")
+
+        async with self.session as session:
+            await session.execute_write(write)
 
     @staticmethod
     async def tag_work_with_transaction(tx: AsyncManagedTransaction, work_id: str, tag_id: str) -> None:

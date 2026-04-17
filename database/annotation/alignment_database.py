@@ -14,13 +14,9 @@ from .segmentation_database import SegmentationDatabase
 
 
 class AlignmentDatabase:
-    GET_QUERY = """
-    MATCH (source_segmentation:Segmentation)
-    WHERE ($segmentation_id IS NOT NULL AND source_segmentation.id = $segmentation_id)
-       OR ($edition_id IS NOT NULL
-           AND EXISTS { (source_segmentation)-[:SEGMENTATION_OF]->(:Edition {id: $edition_id}) })
+    _GET_QUERY_BODY = """
     MATCH (source_segmentation)<-[:SEGMENT_OF]-(source_segment:Segment)-[:ALIGNED_TO]->(target_segment:Segment)
-          -[:SEGMENT_OF]->(:Segmentation)-[:SEGMENTATION_OF]->(target_edition:Edition)
+          -[:SEGMENT_OF]->(:Segmentation:Target)-[:SEGMENTATION_OF]->(target_edition:Edition)
     MATCH (target_edition)-[:EDITION_OF]->(target_text:Text)
     MATCH (source_span:Span)-[:SPAN_OF]->(source_segment)
     WHERE source_span.start < source_span.end
@@ -45,11 +41,23 @@ class AlignmentDatabase:
            segments
     """
 
+    GET_BY_SEGMENTATION_ID_QUERY = f"""
+    MATCH (source_segmentation:Segmentation:Aligned {{id: $segmentation_id}})
+    {_GET_QUERY_BODY}
+    """
+
+    GET_BY_EDITION_ID_QUERY = f"""
+    MATCH (:Edition {{id: $edition_id}})<-[:SEGMENTATION_OF]-(source_segmentation:Segmentation:Aligned)
+    {_GET_QUERY_BODY}
+    """
+
     CREATE_QUERY = """
     MATCH (source_edition:Edition {id: $edition_id}),
           (target_edition:Edition {id: $target_edition_id})
-    CREATE (source_segmentation:Segmentation {id: $source_segmentation_id})-[:SEGMENTATION_OF]->(source_edition),
-           (target_segmentation:Segmentation {id: $target_segmentation_id})-[:SEGMENTATION_OF]->(target_edition)
+    CREATE (source_segmentation:Segmentation:Aligned {id: $source_segmentation_id})
+              -[:SEGMENTATION_OF]->(source_edition),
+           (target_segmentation:Segmentation:Target {id: $target_segmentation_id})
+              -[:SEGMENTATION_OF]->(target_edition)
     WITH source_segmentation, target_segmentation
     UNWIND $target_segments AS target_segment_data
     CREATE (segment:Segment {id: target_segment_data.id})-[:SEGMENT_OF]->(target_segmentation)
@@ -62,7 +70,8 @@ class AlignmentDatabase:
     WITH segment, source_segment_data
     UNWIND source_segment_data.lines AS line
     CREATE (:Span {start: line.start, end: line.end})-[:SPAN_OF]->(segment)
-    WITH count(*) AS _
+    RETURN count(*) AS _
+    NEXT
     UNWIND $alignments AS alignment_data
     MATCH (source_segment:Segment {id: alignment_data.source_id}),
           (target_segment:Segment {id: alignment_data.target_id})
@@ -72,8 +81,10 @@ class AlignmentDatabase:
 
     VALIDATE_ALIGNMENT_QUERY = """
     OPTIONAL MATCH (seg:Segmentation {id: $segmentation_id})
-    OPTIONAL MATCH (seg)<-[:SEGMENT_OF]-(:Segment)-[:ALIGNED_TO]-(:Segment)-[:SEGMENT_OF]->(other_seg:Segmentation)
-    RETURN seg IS NOT NULL AS exists, other_seg.id AS aligned_segmentation_id
+    OPTIONAL MATCH (target:Segmentation:Target)<-[:SEGMENT_OF]-(:Segment)
+          <-[:ALIGNED_TO]-(:Segment)-[:SEGMENT_OF]->(seg)
+    WHERE seg:Aligned
+    RETURN seg IS NOT NULL AS exists, seg:Aligned AS is_aligned, target.id AS aligned_segmentation_id
     """
 
     def __init__(self, db: Database) -> None:
@@ -83,7 +94,6 @@ class AlignmentDatabase:
     def _parse_record(record: dict | Record) -> AlignmentOutput:
         segmentation_id = record["segmentation_id"]
         target_edition_id = record["target_edition_id"]
-        target_text_id = record["target_text_id"]
 
         target_min_start_to_segment: dict[int, SegmentOutput] = {}
         target_min_starts_ordered: list[int] = []
@@ -98,8 +108,6 @@ class AlignmentDatabase:
                     target_lines = [Span(start=line["start"], end=line["end"]) for line in target_data["lines"]]
                     target_min_start_to_segment[target_min_start] = SegmentOutput(
                         id=target_data["id"],
-                        edition_id=target_edition_id,
-                        text_id=target_text_id,
                         lines=target_lines,
                     )
                     target_min_starts_ordered.append(target_min_start)
@@ -118,12 +126,15 @@ class AlignmentDatabase:
         )
 
     async def get(self, segmentation_id: str) -> AlignmentOutput:
-        async with self._db.get_session() as session:
-            result = await session.run(AlignmentDatabase.GET_QUERY, segmentation_id=segmentation_id, edition_id=None)
+        async def read(tx: AsyncManagedTransaction) -> AlignmentOutput:
+            result = await tx.run(AlignmentDatabase.GET_BY_SEGMENTATION_ID_QUERY, segmentation_id=segmentation_id)
             record = await result.single()
             if record is None:
                 raise DataNotFoundError(f"Alignment with ID '{segmentation_id}' not found")
             return self._parse_record(record)
+
+        async with self._db.get_session() as session:
+            return await session.execute_read(read)
 
     async def get_all(self, edition_id: str) -> list[AlignmentOutput]:
         async with self._db.get_session() as session:
@@ -143,8 +154,7 @@ class AlignmentDatabase:
     async def get_all_with_transaction(tx: AsyncManagedTransaction, edition_id: str) -> list[AlignmentOutput]:
         await DatabaseValidator.validate_edition_exists(tx, edition_id)
         result = await tx.run(
-            AlignmentDatabase.GET_QUERY,
-            segmentation_id=None,
+            AlignmentDatabase.GET_BY_EDITION_ID_QUERY,
             edition_id=edition_id,
         )
         records = await result.data()
@@ -158,7 +168,7 @@ class AlignmentDatabase:
 
     @staticmethod
     async def delete_all_with_transaction(tx: AsyncManagedTransaction, edition_id: str) -> None:
-        result = await tx.run(AlignmentDatabase.GET_QUERY, segmentation_id=None, edition_id=edition_id)
+        result = await tx.run(AlignmentDatabase.GET_BY_EDITION_ID_QUERY, edition_id=edition_id)
         records = await result.data()
 
         for record in records:
@@ -225,6 +235,9 @@ class AlignmentDatabase:
 
         if not record or not record["exists"]:
             raise DataNotFoundError(f"Segmentation with ID '{segmentation_id}' not found")
+
+        if not record["is_aligned"]:
+            raise InvalidRequestError(f"Segmentation '{segmentation_id}' is not an alignment annotation")
 
         aligned_segmentation_id = record["aligned_segmentation_id"]
         if not aligned_segmentation_id:

@@ -11,17 +11,30 @@ from models.annotation import Page, PaginationInput, PaginationOutput, Span, Vol
 
 
 class PaginationDatabase:
-    GET_QUERY = """
-    MATCH (span:Span)-[:SPAN_OF]->(page:Page)-[:PAGE_OF]->(volume:Volume)-[:VOLUME_OF]->(pagination:Pagination)
-    WHERE ($pagination_id IS NOT NULL AND pagination.id = $pagination_id)
-       OR ($edition_id IS NOT NULL
-           AND EXISTS { (pagination)-[:PAGINATION_OF]->(:Edition {id: $edition_id}) })
+    _GET_QUERY_BODY = """
     WITH pagination, volume, page, span
     ORDER BY volume.index, span.start
     WITH pagination, volume, page, collect({start: span.start, end: span.end}) AS lines
     WITH pagination, volume, collect({reference: page.reference, lines: lines}) AS pages
     WITH pagination, collect({index: volume.index, pages: pages}) AS volumes
     RETURN pagination.id AS pagination_id, volumes
+    """
+
+    GET_BY_ID_QUERY = f"""
+    MATCH (pagination:Pagination {{id: $pagination_id}})
+        <-[:VOLUME_OF]-(volume:Volume)
+        <-[:PAGE_OF]-(page:Page)
+        <-[:SPAN_OF]-(span:Span)
+    {_GET_QUERY_BODY}
+    """
+
+    GET_BY_EDITION_ID_QUERY = f"""
+    MATCH (:Edition {{id: $edition_id}})
+        <-[:PAGINATION_OF]-(pagination:Pagination)
+        <-[:VOLUME_OF]-(volume:Volume)
+        <-[:PAGE_OF]-(page:Page)
+        <-[:SPAN_OF]-(span:Span)
+    {_GET_QUERY_BODY}
     """
 
     CREATE_QUERY = """
@@ -43,6 +56,14 @@ class PaginationDatabase:
     MATCH (pagination:Pagination {id: $pagination_id})
     OPTIONAL MATCH (span:Span)-[:SPAN_OF]->(page:Page)-[:PAGE_OF]->(volume:Volume)-[:VOLUME_OF]->(pagination)
     DETACH DELETE span, page, volume, pagination
+    FINISH
+    """
+
+    DELETE_ALL_QUERY = """
+    MATCH (pagination:Pagination)-[:PAGINATION_OF]->(:Edition {id: $edition_id})
+    OPTIONAL MATCH (span:Span)-[:SPAN_OF]->(page:Page)-[:PAGE_OF]->(volume:Volume)-[:VOLUME_OF]->(pagination)
+    DETACH DELETE span, page, volume, pagination
+    FINISH
     """
 
     def __init__(self, db: Database) -> None:
@@ -66,18 +87,24 @@ class PaginationDatabase:
         )
 
     async def get(self, pagination_id: str) -> PaginationOutput:
-        async with self._db.get_session() as session:
-            result = await session.run(PaginationDatabase.GET_QUERY, pagination_id=pagination_id, edition_id=None)
+        async def read(tx: AsyncManagedTransaction) -> PaginationOutput:
+            result = await tx.run(PaginationDatabase.GET_BY_ID_QUERY, pagination_id=pagination_id)
             record = await result.single()
             if record is None:
                 raise DataNotFoundError(f"Pagination with ID '{pagination_id}' not found")
             return self._parse_record(record)
 
-    async def get_all(self, edition_id: str) -> PaginationOutput | None:
         async with self._db.get_session() as session:
-            result = await session.run(PaginationDatabase.GET_QUERY, pagination_id=None, edition_id=edition_id)
+            return await session.execute_read(read)
+
+    async def get_all(self, edition_id: str) -> PaginationOutput | None:
+        async def read(tx: AsyncManagedTransaction) -> PaginationOutput | None:
+            result = await tx.run(PaginationDatabase.GET_BY_EDITION_ID_QUERY, edition_id=edition_id)
             record = await result.single()
             return self._parse_record(record) if record else None
+
+        async with self._db.get_session() as session:
+            return await session.execute_read(read)
 
     async def add(self, edition_id: str, pagination: PaginationInput) -> str:
         async with self._db.get_session() as session:
@@ -92,11 +119,11 @@ class PaginationDatabase:
         pagination: PaginationInput,
     ) -> str:
         existing = await tx.run(
-            "MATCH (:Pagination)-[:PAGINATION_OF]->(m:Edition {id: $edition_id}) RETURN count(*) AS count",
+            "RETURN EXISTS { (:Pagination)-[:PAGINATION_OF]->(:Edition {id: $edition_id}) } AS exists",
             edition_id=edition_id,
         )
         record = await existing.single()
-        if record and record["count"] > 0:
+        if record and record["exists"]:
             raise DataConflictError(f"Edition '{edition_id}' already has a pagination")
 
         pagination_id = generate_id()
@@ -135,8 +162,4 @@ class PaginationDatabase:
 
     @staticmethod
     async def delete_all_with_transaction(tx: AsyncManagedTransaction, edition_id: str) -> None:
-        result = await tx.run(PaginationDatabase.GET_QUERY, pagination_id=None, edition_id=edition_id)
-        records = await result.data()
-
-        for record in records:
-            await PaginationDatabase.delete_with_transaction(tx, record["pagination_id"])
+        await tx.run(PaginationDatabase.DELETE_ALL_QUERY, edition_id=edition_id)

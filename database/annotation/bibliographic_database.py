@@ -13,12 +13,18 @@ from models.enums import BibliographyType
 
 
 class BibliographicDatabase:
-    GET_QUERY = """
-    MATCH (span:Span)-[:SPAN_OF]->(b:BibliographicMetadata)
+    GET_BY_ID_QUERY = """
+    MATCH (span:Span)-[:SPAN_OF]->(b:BibliographicMetadata {id: $bibliographic_id})
     WHERE span.start < span.end
-      AND (($bibliographic_id IS NOT NULL AND b.id = $bibliographic_id)
-        OR ($edition_id IS NOT NULL
-            AND EXISTS { (b)-[:BIBLIOGRAPHY_OF]->(:Edition {id: $edition_id}) }))
+    MATCH (b)-[:HAS_TYPE]->(bt:BibliographyType)
+    RETURN b.id AS id, bt.name AS type, span.start AS span_start, span.end AS span_end
+    ORDER BY span.start
+    """
+
+    GET_BY_EDITION_ID_QUERY = """
+    MATCH (:Edition {id: $edition_id})<-[:BIBLIOGRAPHY_OF]-(b:BibliographicMetadata)
+    MATCH (span:Span)-[:SPAN_OF]->(b)
+    WHERE span.start < span.end
     MATCH (b)-[:HAS_TYPE]->(bt:BibliographyType)
     RETURN b.id AS id, bt.name AS type, span.start AS span_start, span.end AS span_end
     ORDER BY span.start
@@ -36,6 +42,14 @@ class BibliographicDatabase:
     MATCH (b:BibliographicMetadata {id: $bibliographic_id})
     OPTIONAL MATCH (span:Span)-[:SPAN_OF]->(b)
     DETACH DELETE span, b
+    FINISH
+    """
+
+    DELETE_ALL_QUERY = """
+    MATCH (b:BibliographicMetadata)-[:BIBLIOGRAPHY_OF]->(:Edition {id: $edition_id})
+    OPTIONAL MATCH (span:Span)-[:SPAN_OF]->(b)
+    DETACH DELETE span, b
+    FINISH
     """
 
     def __init__(self, db: Database) -> None:
@@ -50,20 +64,26 @@ class BibliographicDatabase:
         )
 
     async def get(self, bibliographic_id: str) -> BibliographicMetadataOutput:
-        async with self._db.get_session() as session:
-            result = await session.run(
-                BibliographicDatabase.GET_QUERY, bibliographic_id=bibliographic_id, edition_id=None
+        async def read(tx: AsyncManagedTransaction) -> BibliographicMetadataOutput:
+            result = await tx.run(
+                BibliographicDatabase.GET_BY_ID_QUERY,
+                bibliographic_id=bibliographic_id,
             )
             record = await result.single()
             if record is None:
                 raise DataNotFoundError(f"Bibliographic metadata with ID '{bibliographic_id}' not found")
             return self._parse_record(record)
 
-    async def get_all(self, edition_id: str) -> list[BibliographicMetadataOutput]:
         async with self._db.get_session() as session:
-            result = await session.run(BibliographicDatabase.GET_QUERY, bibliographic_id=None, edition_id=edition_id)
-            records = await result.data()
-            return [self._parse_record(record) for record in records]
+            return await session.execute_read(read)
+
+    async def get_all(self, edition_id: str) -> list[BibliographicMetadataOutput]:
+        async def read(tx: AsyncManagedTransaction) -> list[BibliographicMetadataOutput]:
+            result = await tx.run(BibliographicDatabase.GET_BY_EDITION_ID_QUERY, edition_id=edition_id)
+            return [self._parse_record(record) for record in await result.data()]
+
+        async with self._db.get_session() as session:
+            return await session.execute_read(read)
 
     async def add(
         self,
@@ -106,8 +126,4 @@ class BibliographicDatabase:
 
     @staticmethod
     async def delete_all_with_transaction(tx: AsyncManagedTransaction, edition_id: str) -> None:
-        result = await tx.run(BibliographicDatabase.GET_QUERY, bibliographic_id=None, edition_id=edition_id)
-        records = await result.data()
-
-        for record in records:
-            await BibliographicDatabase.delete_with_transaction(tx, record["id"])
+        await tx.run(BibliographicDatabase.DELETE_ALL_QUERY, edition_id=edition_id)

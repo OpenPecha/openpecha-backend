@@ -17,10 +17,10 @@ class TestApplications:
         assert await test_database.application.exists("myapp")
 
     async def test_create_application_rejects_duplicate(self, client, test_database):
-        """Test POST same name returns 422."""
+        """Test POST same name returns 409."""
         payload = {"name": "test_application"}
         response = await client.post("/v2/applications", json=payload)
-        assert response.status_code == 422
+        assert response.status_code == 409
         data = response.json()
         assert "error" in data
         assert "already exists" in data["error"].lower()
@@ -33,3 +33,27 @@ class TestApplications:
         data = response.json()
         assert data["id"] == "webuddhist"
         assert data["name"] == "webuddhist"
+
+    async def test_create_application_empty_name_rejected(self, client, test_database):
+        """Test POST with empty name string returns 422."""
+        response = await client.post("/v2/applications", json={"name": ""})
+        assert response.status_code == 422
+
+    async def test_create_application_missing_name_rejected(self, client, test_database):
+        """Test POST with missing name field returns 422."""
+        response = await client.post("/v2/applications", json={})
+        assert response.status_code == 422
+
+    async def test_create_application_whitespace_only_rejected(self, client, test_database):
+        """Test POST with whitespace-only name returns 422."""
+        response = await client.post("/v2/applications", json={"name": "   "})
+        assert response.status_code == 422
+
+    async def test_create_application_malformed_json(self, client, test_database):
+        """Test POST with malformed JSON returns 422."""
+        response = await client.post(
+            "/v2/applications",
+            content="{bad json",
+            headers={"Content-Type": "application/json"},
+        )
+        assert response.status_code == 422

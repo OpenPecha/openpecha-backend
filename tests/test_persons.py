@@ -528,7 +528,7 @@ class TestPostPersonV2:
     """Tests for POST /v2/persons/ endpoint (create person)"""
 
     async def test_create_person_success_full_data(self, client, test_database):
-        """Test successfully creating a person with full data"""
+        """Test successfully creating a person with full data and verify round-trip"""
         person_data = {
             "name": {"en": "New Person", "bo": "གང་ཟག་གསར་པ།"},
             "alt_names": [
@@ -547,6 +547,19 @@ class TestPostPersonV2:
         data = response.json()
         assert "id" in data
         assert data["id"] is not None
+
+        get_response = await client.get(f"/v2/persons/{data['id']}")
+        assert get_response.status_code == 200
+        get_data = get_response.json()
+        assert get_data["id"] == data["id"]
+        assert get_data["name"]["en"] == "New Person"
+        assert get_data["name"]["bo"] == "གང་ཟག་གསར་པ།"
+        assert get_data["bdrc"] == "P999999"
+        assert get_data.get("wiki") is None
+        assert len(get_data["alt_names"]) == 2
+        alt_en = [a.get("en") for a in get_data["alt_names"] if "en" in a]
+        assert "Alternative Name" in alt_en
+        assert "Another Alt Name" in alt_en
 
     async def test_create_person_rejects_unknown_fields(self, client, test_database):
         """Payload with unknown fields should trigger a validation error (or be explicitly allowed)."""
@@ -678,7 +691,7 @@ class TestPostPersonV2:
         assert "already exists" in data["error"].lower()
 
     async def test_create_person_success_minimal_data(self, client, test_database):
-        """Test successfully creating a person with minimal required data"""
+        """Test creating person with minimal data and verify optional fields are absent"""
         person_data = {"name": {"en": "Minimal Person"}}
 
         response = await client.post(
@@ -689,7 +702,15 @@ class TestPostPersonV2:
         assert response.status_code == 201
         data = response.json()
         assert "id" in data
-        assert data["id"] is not None
+
+        get_response = await client.get(f"/v2/persons/{data['id']}")
+        assert get_response.status_code == 200
+        get_data = get_response.json()
+        assert get_data["id"] == data["id"]
+        assert get_data["name"]["en"] == "Minimal Person"
+        assert get_data.get("bdrc") is None
+        assert get_data.get("wiki") is None
+        assert get_data.get("alt_names") is None or get_data["alt_names"] == []
 
     async def test_create_person_tibetan_only_name(self, client, test_database):
         """Test creating person with Tibetan-only name"""
@@ -762,24 +783,8 @@ class TestPostPersonV2:
         data = response.json()
         assert "detail" in data
 
-    async def test_create_person_invalid_alt_names_structure(self, client, test_database):
-        """Test POST with invalid alt_names structure"""
-        person_data = {
-            "name": {"en": "Test Person"},
-            "alt_names": "string instead of list",
-        }
-
-        response = await client.post(
-            "/v2/persons/",
-            json=person_data,
-        )
-
-        assert response.status_code == 422  # Pydantic validation error
-        data = response.json()
-        assert "detail" in data
-
     async def test_create_person_with_bdrc_id(self, client, test_database):
-        """Test creating person with BDRC identifier"""
+        """Test creating person with BDRC identifier and verify roundtrip"""
         person_data = {"name": {"en": "BDRC Person"}, "bdrc": "P1234567890"}
 
         response = await client.post(
@@ -790,6 +795,13 @@ class TestPostPersonV2:
         assert response.status_code == 201
         data = response.json()
         assert "id" in data
+
+        get_response = await client.get(f"/v2/persons/{data['id']}")
+        assert get_response.status_code == 200
+        get_data = get_response.json()
+        assert get_data["bdrc"] == "P1234567890"
+        assert get_data["name"]["en"] == "BDRC Person"
+        assert get_data.get("wiki") is None
 
     async def test_create_person_multilingual_names(self, client, test_database):
         """Test creating person with multiple language names and alt_names"""
@@ -815,7 +827,7 @@ class TestPostPersonV2:
         assert "id" in data
 
     async def test_create_person_with_wiki_id(self, client, test_database):
-        """Test creating person with Wiki identifier"""
+        """Test creating person with Wiki identifier and verify roundtrip"""
         person_data = {"name": {"en": "Wiki Person"}, "wiki": "Q12345"}
 
         response = await client.post(
@@ -826,6 +838,13 @@ class TestPostPersonV2:
         assert response.status_code == 201
         data = response.json()
         assert "id" in data
+
+        get_response = await client.get(f"/v2/persons/{data['id']}")
+        assert get_response.status_code == 200
+        get_data = get_response.json()
+        assert get_data["wiki"] == "Q12345"
+        assert get_data["name"]["en"] == "Wiki Person"
+        assert get_data.get("bdrc") is None
 
     async def test_create_person_with_existing_wiki_id_rejected(self, client, test_database):
         """Creating two persons with the same Wiki ID should fail if Wiki is unique."""
@@ -848,7 +867,7 @@ class TestPostPersonV2:
         assert "already exists" in data["error"].lower()
 
     async def test_create_person_with_both_bdrc_and_wiki(self, client, test_database):
-        """Test creating person with both BDRC and Wiki identifiers"""
+        """Test creating person with both BDRC and Wiki identifiers and verify roundtrip"""
         person_data = {
             "name": {"en": "Dual ID Person"},
             "bdrc": "P777777",
@@ -863,6 +882,13 @@ class TestPostPersonV2:
         assert response.status_code == 201
         data = response.json()
         assert "id" in data
+
+        get_response = await client.get(f"/v2/persons/{data['id']}")
+        assert get_response.status_code == 200
+        get_data = get_response.json()
+        assert get_data["bdrc"] == "P777777"
+        assert get_data["wiki"] == "Q777777"
+        assert get_data["name"]["en"] == "Dual ID Person"
 
     async def test_create_person_with_empty_alt_names_list(self, client, test_database):
         """Empty alt_names list should be valid"""

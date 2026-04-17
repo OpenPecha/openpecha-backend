@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Path, Query, status
 from config import settings
 from dependencies import OptionalAppHeader, get_api_key, get_db, get_storage
 from exceptions import DataNotFoundError, InvalidRequestError
-from models.annotation import SegmentOutput
+from models.annotation import RelatedSegmentsOutput
 from models.requests import SegmentsQueryParams
 from models.search import SearchFilter, SearchResponse, SearchResult
 
@@ -30,9 +30,17 @@ async def get_related(
     _api_key: Annotated[str, Depends(get_api_key)],
     db: Annotated[Database, Depends(get_db)],
     x_application: OptionalAppHeader = None,
-) -> list[SegmentOutput]:
+) -> list[RelatedSegmentsOutput]:
     """Get related segments."""
-    return await db.segment.get_related(segment_id, application=x_application)
+    try:
+        segment = await db.segment.get(segment_id)
+    except DataNotFoundError:
+        return []
+    return await db.segment.get_related(
+        edition_id=segment.edition_id,
+        spans=[(segment.span.start, segment.span.end)],
+        application=x_application,
+    )
 
 
 @router.get(

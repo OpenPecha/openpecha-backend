@@ -1,9 +1,11 @@
 from typing import TYPE_CHECKING
 
-from exceptions import DataValidationError
+from neo4j.exceptions import ConstraintError
+
+from exceptions import DataConflictError
 
 if TYPE_CHECKING:
-    from neo4j import AsyncSession
+    from neo4j import AsyncManagedTransaction, AsyncSession
 
     from .database import Database
 
@@ -20,14 +22,20 @@ class ApplicationDatabase:
         return self._db.get_session()
 
     async def exists(self, application_id: str) -> bool:
+        async def read(tx: AsyncManagedTransaction) -> bool:
+            result = await tx.run(self.EXISTS_QUERY, application_id=application_id)
+            return await result.single() is not None
+
         async with self.session as session:
-            result = await session.run(self.EXISTS_QUERY, application_id=application_id)
-            record = await result.single()
-            return record is not None
+            return await session.execute_read(read)
 
     async def create(self, application_id: str, name: str) -> str:
-        if await self.exists(application_id):
-            raise DataValidationError(f"Application with id '{application_id}' already exists")
-        async with self.session as session:
-            await session.run(self.CREATE_QUERY, application_id=application_id, name=name)
+        async def write(tx: AsyncManagedTransaction) -> str:
+            await tx.run(self.CREATE_QUERY, application_id=application_id, name=name)
             return application_id
+
+        try:
+            async with self.session as session:
+                return await session.execute_write(write)
+        except ConstraintError as e:
+            raise DataConflictError(str(e)) from e

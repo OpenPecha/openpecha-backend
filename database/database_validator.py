@@ -19,14 +19,14 @@ class DatabaseValidator:
             return
 
         query = """
-        UNWIND $person_ids as person_id
-        OPTIONAL MATCH (p:Person {id: person_id})
-        RETURN person_id, p IS NOT NULL as exists
+        MATCH (p:Person)
+        WHERE p.id IN $person_ids
+        RETURN apoc.coll.subtract($person_ids, collect(DISTINCT p.id)) AS missing_persons
         """
 
         result = await tx.run(query, person_ids=person_ids)
-        records = await result.data()
-        missing_persons = [record["person_id"] for record in records if not record["exists"]]
+        record = await result.single()
+        missing_persons = record["missing_persons"] if record else []
 
         if missing_persons:
             raise DataValidationError(f"Referenced persons do not exist: {', '.join(missing_persons)}")
@@ -37,14 +37,14 @@ class DatabaseValidator:
             return
 
         query = """
-        UNWIND $person_bdrc_ids as bdrc_id
-        OPTIONAL MATCH (p:Person {bdrc: bdrc_id})
-        RETURN bdrc_id, p IS NOT NULL as exists
+        MATCH (p:Person)
+        WHERE p.bdrc IN $person_bdrc_ids
+        RETURN apoc.coll.subtract($person_bdrc_ids, collect(DISTINCT p.bdrc)) AS missing_persons
         """
 
         result = await tx.run(query, person_bdrc_ids=person_bdrc_ids)
-        records = await result.data()
-        missing_persons = [record["bdrc_id"] for record in records if not record["exists"]]
+        record = await result.single()
+        missing_persons = record["missing_persons"] if record else []
 
         if missing_persons:
             raise DataValidationError(f"Referenced person BDRC IDs do not exist: {', '.join(missing_persons)}")
@@ -117,9 +117,11 @@ class DatabaseValidator:
         """
         query = """
         OPTIONAL MATCH (l:Language {code: $code})
-        CALL () { MATCH (lang:Language) RETURN collect(lang.code) AS all_codes }
         RETURN l IS NOT NULL AS exists,
-               CASE WHEN l IS NULL THEN all_codes ELSE null END AS codes
+               CASE WHEN l IS NULL
+                 THEN COLLECT { MATCH (lang:Language) RETURN lang.code }
+                 ELSE null
+               END AS codes
         """
 
         result = await tx.run(query, code=language_code)
@@ -141,8 +143,8 @@ class DatabaseValidator:
         OPTIONAL MATCH (l:Language {code: code})
         WITH code, l IS NOT NULL AS exists
         WITH collect(CASE WHEN NOT exists THEN code END) AS missing
-        CALL () { MATCH (lang:Language) RETURN collect(lang.code) AS codes }
-        RETURN missing, codes
+        RETURN missing,
+               COLLECT { MATCH (lang:Language) RETURN lang.code } AS codes
         """
         result = await tx.run(query, codes_to_check=[c.lower() for c in language_codes])
         record = await result.single()
@@ -174,20 +176,33 @@ class DatabaseValidator:
             )
 
     @staticmethod
+    async def validate_parent_category_exists(tx: AsyncManagedTransaction, parent_id: str) -> None:
+        """Validate that a parent category exists. Raises DataNotFoundError if not."""
+        query = """
+        RETURN EXISTS { (c:Category {id: $parent_id}) } AS exists
+        """
+
+        result = await tx.run(query, parent_id=parent_id)
+        record = await result.single()
+
+        if not record or not record["exists"]:
+            raise DataNotFoundError(f"Parent category '{parent_id}' not found")
+
+    @staticmethod
     async def validate_tags_exist(tx: AsyncManagedTransaction, tag_ids: list[str]) -> None:
         """Validate that all given tag IDs exist. Raises DataValidationError listing missing IDs."""
         if not tag_ids:
             return
 
         query = """
-        UNWIND $tag_ids AS tag_id
-        OPTIONAL MATCH (t:Tag {id: tag_id})
-        RETURN tag_id, t IS NOT NULL AS exists
+        MATCH (t:Tag)
+        WHERE t.id IN $tag_ids
+        RETURN apoc.coll.subtract($tag_ids, collect(DISTINCT t.id)) AS missing_tags
         """
 
         result = await tx.run(query, tag_ids=tag_ids)
-        records = await result.data()
-        missing_tags = [record["tag_id"] for record in records if not record["exists"]]
+        record = await result.single()
+        missing_tags = record["missing_tags"] if record else []
 
         if missing_tags:
             raise DataValidationError(f"Referenced tags do not exist: {', '.join(missing_tags)}")
@@ -201,7 +216,7 @@ class DatabaseValidator:
         query = """
         UNWIND $titles AS item
         RETURN EXISTS {
-            MATCH (e:Text)-[:HAS_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText {text: item.text})
+            (e:Text)-[:HAS_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText {text: item.text})
                   -[:HAS_LANGUAGE]->(lang:Language {code: item.lang})
         } AS exists
         """

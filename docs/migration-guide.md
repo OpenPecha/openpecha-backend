@@ -1256,7 +1256,7 @@ GET /v2/segments/search?query=your+search+text
 
 | Action            | Old                                | New                       |
 | ----------------- | ---------------------------------- | ------------------------- |
-| Get related       | `{targets: [], sources: []}`       | `[SegmentOutput, ...]`    |
+| Get related       | `{targets: [], sources: []}`       | `[RelatedSegmentsOutput, ...]` (see below) |
 | Get content       | `{content: "..."}`                 | `"..."` (string directly) |
 | Batch overlapping | `POST /segments/batch-overlapping` | **REMOVED**               |
 | Add tag to segment  | N/A                                | `POST /v2/segments/{id}/tags/{tag_id}`   |
@@ -1264,5 +1264,181 @@ GET /v2/segments/search?query=your+search+text
 | Add tag to text     | N/A                                | `POST /v2/texts/{id}/tags/{tag_id}`      |
 | Remove tag from text | N/A                               | `DELETE /v2/texts/{id}/tags/{tag_id}`    |
 | Search segments     | N/A                                | `GET /v2/segments/search?query=...`      |
+
+---
+
+## Related Segments API Redesign
+
+### Summary of Changes
+
+The related segments endpoints have been redesigned to support **transitive
+traversal** across the full alignment tree. Previously, these endpoints only
+returned directly aligned segments (one hop). Now they traverse multiple hops
+in both directions (up toward root texts, down toward translations/commentaries),
+bridging between alignment and display segmentations via character span overlap.
+
+**Affected endpoints:**
+
+- `GET /v2/segments/{segment_id}/related`
+- `GET /v2/editions/{edition_id}/segments/related`
+
+---
+
+### Breaking Changes
+
+#### 1. Response Structure Changed
+
+Both endpoints now return `list[RelatedSegmentsOutput]` instead of
+`list[SegmentOutput]`.
+
+Results are grouped by edition, and within each edition by segmentation
+(since an edition can have multiple display segmentations).
+
+**Old Response:**
+
+```json
+[
+    {
+        "id": "SEG001",
+        "edition_id": "M12345678",
+        "text_id": "E12345678",
+        "lines": [{ "start": 0, "end": 100 }],
+        "tag_ids": []
+    },
+    {
+        "id": "SEG002",
+        "edition_id": "M12345678",
+        "text_id": "E12345678",
+        "lines": [{ "start": 100, "end": 200 }],
+        "tag_ids": ["TAG123"]
+    }
+]
+```
+
+**New Response:**
+
+```json
+[
+    {
+        "edition_id": "M12345678",
+        "text_id": "E12345678",
+        "segmentations": [
+            {
+                "segmentation_id": "SGN_ABC",
+                "segments": [
+                    {
+                        "id": "SEG001",
+                        "lines": [{ "start": 0, "end": 100 }],
+                        "tag_ids": null
+                    },
+                    {
+                        "id": "SEG002",
+                        "lines": [{ "start": 100, "end": 200 }],
+                        "tag_ids": ["TAG123"]
+                    }
+                ]
+            }
+        ]
+    },
+    {
+        "edition_id": "M87654321",
+        "text_id": "E87654321",
+        "segmentations": [
+            {
+                "segmentation_id": "SGN_DEF",
+                "segments": [
+                    {
+                        "id": "SEG003",
+                        "lines": [{ "start": 0, "end": 50 }]
+                    }
+                ]
+            }
+        ]
+    }
+]
+```
+
+**Key structural changes:**
+
+- `edition_id` and `text_id` moved from individual segments to the top-level
+  group (no longer repeated per segment)
+- New `segmentations` array groups segments by their display segmentation
+- Each segmentation group includes a `segmentation_id`
+- `tag_ids` is `null` (omitted) when there are no tags, instead of `[]`
+
+---
+
+#### 2. Transitive Traversal (New Behavior)
+
+The endpoints now follow alignment chains transitively. For example, given
+texts A ← B ← C (B is a translation of A, C is a commentary on B):
+
+- Querying related segments from **A** now returns display segments from
+  both **B** and **C** (C is found transitively via B)
+- Previously, only B would have been returned
+
+This works for arbitrary tree structures, diamond/convergent structures, and
+chains of any depth (default max depth: 5).
+
+---
+
+#### 3. `SegmentOutput` No Longer Contains `edition_id` / `text_id`
+
+The `SegmentOutput` model used in responses (segmentation listings, related
+segments, etc.) no longer includes `edition_id` or `text_id` fields. These
+fields are now provided at the grouping level in `RelatedSegmentsOutput`.
+
+**Old `SegmentOutput`:**
+
+```json
+{
+    "id": "SEG001",
+    "edition_id": "M123",
+    "text_id": "E123",
+    "lines": [{ "start": 0, "end": 100 }],
+    "tag_ids": []
+}
+```
+
+**New `SegmentOutput`:**
+
+```json
+{
+    "id": "SEG001",
+    "lines": [{ "start": 0, "end": 100 }],
+    "tag_ids": null
+}
+```
+
+---
+
+#### 4. `GET /editions/{id}/segmentations` Filters by Display Segmentations
+
+This endpoint now only returns **display segmentations** (the ones created
+via `POST /editions/{id}/segmentations`). Internal alignment segmentations
+(created as part of `POST /editions/{id}/alignments`) are no longer included
+in the response.
+
+---
+
+### Migration Steps
+
+1. **Update response parsing** — the response is now grouped by edition and
+   segmentation. To get a flat list of all related segment IDs:
+
+   ```python
+   segment_ids = [
+       seg["id"]
+       for group in response
+       for sgn in group["segmentations"]
+       for seg in sgn["segments"]
+   ]
+   ```
+
+2. **Use `edition_id` from the group level** — instead of reading
+   `segment.edition_id`, read `group["edition_id"]`
+
+3. **Handle `tag_ids: null`** — the field may be `null` instead of `[]` when
+   no tags are present
 
 ---

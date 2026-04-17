@@ -74,12 +74,14 @@ class PersonDatabase:
     OPTIONAL MATCH (n)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
     OPTIONAL MATCH (n)<-[:ALTERNATIVE_OF]-(alt:Nomen)-[:HAS_LOCALIZATION]->(alt_lt:LocalizedText)
     DETACH DELETE n, lt, alt, alt_lt
+    FINISH
     """
 
     LINK_NAME_QUERY = """
     MATCH (p:Person {id: $person_id})
     MATCH (n:Nomen {id: $nomen_id})
     CREATE (p)-[:HAS_NAME]->(n)
+    FINISH
     """
 
     def __init__(self, db: Database) -> None:
@@ -90,14 +92,15 @@ class PersonDatabase:
         return self._db.get_session()
 
     async def get(self, person_id: str) -> PersonOutput:
-        async with self.session as session:
-            result = await session.run(PersonDatabase.GET_QUERY, id=person_id)
+        async def read(tx: AsyncManagedTransaction) -> PersonOutput:
+            result = await tx.run(PersonDatabase.GET_QUERY, id=person_id)
             record = await result.single()
             if not record:
                 raise DataNotFoundError(f"Person with ID '{person_id}' not found")
+            return DataAdapter.person(record.data()["person"])
 
-            person_data = record.data()["person"]
-            return DataAdapter.person(person_data)
+        async with self.session as session:
+            return await session.execute_read(read)
 
     async def get_all(
         self,
@@ -105,8 +108,8 @@ class PersonDatabase:
         limit: int = 20,
         filters: PersonFilter | None = None,
     ) -> list[PersonOutput]:
-        async with self.session as session:
-            result = await session.run(
+        async def read(tx: AsyncManagedTransaction) -> list[PersonOutput]:
+            result = await tx.run(
                 PersonDatabase.GET_ALL_QUERY,
                 offset=offset,
                 limit=limit,
@@ -118,6 +121,9 @@ class PersonDatabase:
             return [
                 person_model for record in records if (person_model := DataAdapter.person(record["person"])) is not None
             ]
+
+        async with self.session as session:
+            return await session.execute_read(read)
 
     async def create(self, person: PersonInput) -> str:
         async def create_transaction(tx: AsyncManagedTransaction) -> str:
@@ -139,12 +145,7 @@ class PersonDatabase:
             try:
                 return str(await session.execute_write(create_transaction))
             except ConstraintError as e:
-                error_msg = str(e).lower()
-                if "bdrc" in error_msg:
-                    raise DataConflictError(f"Person with BDRC ID '{person.bdrc}' already exists") from e
-                if "wiki" in error_msg:
-                    raise DataConflictError(f"Person with Wiki ID '{person.wiki}' already exists") from e
-                raise
+                raise DataConflictError(str(e)) from e
 
     async def update(self, person_id: str, patch: PersonPatch) -> PersonOutput:
         existing = await self.get(person_id)
@@ -178,9 +179,4 @@ class PersonDatabase:
                 await session.execute_write(update_transaction)
                 return await self.get(person_id)
             except ConstraintError as e:
-                error_msg = str(e).lower()
-                if "bdrc" in error_msg:
-                    raise DataConflictError(f"Person with BDRC ID '{patch.bdrc}' already exists") from e
-                if "wiki" in error_msg:
-                    raise DataConflictError(f"Person with Wiki ID '{patch.wiki}' already exists") from e
-                raise
+                raise DataConflictError(str(e)) from e

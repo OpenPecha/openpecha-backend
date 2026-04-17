@@ -29,7 +29,11 @@ def create_api_key(name: str, email: str, application_id: str | None = None) -> 
     key_id = generate_id()
 
     async def _run() -> tuple[str, str]:
-        db = Database(neo4j_uri=settings.neo4j_uri, neo4j_auth=(settings.neo4j_username, settings.neo4j_password))
+        db = Database(
+            neo4j_uri=settings.neo4j_uri,
+            neo4j_auth=(settings.neo4j_username, settings.neo4j_password),
+            neo4j_database=settings.neo4j_database,
+        )
         try:
             return await db.api_key.create(key_id, name, email, application_id)
         finally:
@@ -57,7 +61,11 @@ def list_api_keys() -> None:
     """List all API keys."""
 
     async def _run() -> list[dict]:
-        db = Database(neo4j_uri=settings.neo4j_uri, neo4j_auth=(settings.neo4j_username, settings.neo4j_password))
+        db = Database(
+            neo4j_uri=settings.neo4j_uri,
+            neo4j_auth=(settings.neo4j_username, settings.neo4j_password),
+            neo4j_database=settings.neo4j_database,
+        )
         try:
             return await db.api_key.list_all()
         finally:
@@ -87,7 +95,11 @@ def revoke_api_key(key_id: str) -> None:
     """Revoke an API key."""
 
     async def _run() -> bool:
-        db = Database(neo4j_uri=settings.neo4j_uri, neo4j_auth=(settings.neo4j_username, settings.neo4j_password))
+        db = Database(
+            neo4j_uri=settings.neo4j_uri,
+            neo4j_auth=(settings.neo4j_username, settings.neo4j_password),
+            neo4j_database=settings.neo4j_database,
+        )
         try:
             return await db.api_key.revoke(key_id)
         finally:
@@ -106,7 +118,11 @@ def rotate_api_key(key_id: str) -> None:
     """Generate a new value for an API key."""
 
     async def _run() -> str | None:
-        db = Database(neo4j_uri=settings.neo4j_uri, neo4j_auth=(settings.neo4j_username, settings.neo4j_password))
+        db = Database(
+            neo4j_uri=settings.neo4j_uri,
+            neo4j_auth=(settings.neo4j_username, settings.neo4j_password),
+            neo4j_database=settings.neo4j_database,
+        )
         try:
             return await db.api_key.rotate_key(key_id)
         finally:

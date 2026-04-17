@@ -4,6 +4,7 @@ from exceptions import DataValidationError
 from identifier import generate_id
 
 from .data_adapter import DataAdapter
+from .database_validator import DatabaseValidator
 from .nomen_database import NomenDatabase
 
 if TYPE_CHECKING:
@@ -41,7 +42,6 @@ class CategoryDatabase:
         OPTIONAL MATCH (desc_nomen:Nomen {id: $description_nomen_id})
         WITH c, parent, desc_nomen
         CALL (*) { WHEN parent IS NOT NULL THEN { CREATE (c)-[:HAS_PARENT]->(parent) } }
-        WITH c, desc_nomen
         CALL (*) { WHEN desc_nomen IS NOT NULL THEN { CREATE (c)-[:HAS_DESCRIPTION]->(desc_nomen) } }
         RETURN c.id AS category_id
     """
@@ -65,17 +65,17 @@ class CategoryDatabase:
         return self._db.get_session()
 
     async def get_all(self, application: str, parent_id: str | None = None) -> list[CategoryOutput]:
+        async def read(tx: AsyncManagedTransaction) -> list[CategoryOutput]:
+            result = await tx.run(CategoryDatabase.GET_ALL_QUERY, application=application, parent_id=parent_id)
+            return [DataAdapter.category(record["category"]) for record in await result.data()]
+
         async with self.session as session:
-            result = await session.run(
-                CategoryDatabase.GET_ALL_QUERY,
-                application=application,
-                parent_id=parent_id,
-            )
-            records = await result.data()
-            return [DataAdapter.category(record["category"]) for record in records]
+            return await session.execute_read(read)
 
     async def create(self, category: CategoryInput, application: str) -> str:
         async def create_transaction(tx: AsyncManagedTransaction) -> str:
+            if category.parent_id is not None:
+                await DatabaseValidator.validate_parent_category_exists(tx, category.parent_id)
             await self._validate_not_exists_tx(tx, application, category.title.root, category.parent_id)
 
             category_id = generate_id()

@@ -18,6 +18,7 @@ router = APIRouter(prefix="/v2/segmentations", tags=["Annotations"])
     "/{segmentation_id}",
     summary="Get segmentation",
     description="Retrieve a segmentation annotation by ID.",
+    response_model_exclude_none=True,
 )
 async def get_segmentation(
     segmentation_id: Annotated[str, Path(description="The ID of the segmentation")],

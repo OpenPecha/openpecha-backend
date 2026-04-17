@@ -30,7 +30,7 @@ class EditionDatabase:
     DELETE_QUERY = """
     MATCH (m:Edition {id: $edition_id})
     OPTIONAL MATCH (m)-[:HAS_SOURCE]->(s:Source)
-    WITH m, s, size([(s)<-[:HAS_SOURCE]-(:Edition) | 1]) AS source_refs
+    WITH m, s, count { (s)<-[:HAS_SOURCE]-(:Edition) } AS source_refs
     OPTIONAL MATCH (m)-[:HAS_INCIPIT_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
     OPTIONAL MATCH (n)<-[:ALTERNATIVE_OF]-(alt:Nomen)-[:HAS_LOCALIZATION]->(alt_lt:LocalizedText)
     DETACH DELETE m, n, lt, alt, alt_lt
@@ -53,20 +53,31 @@ class EditionDatabase:
     } as edition
     """
 
-    GET_QUERY = f"""
-    MATCH (m:Edition)-[:EDITION_OF]->(e:Text)
-    WHERE ($edition_id IS NOT NULL AND m.id = $edition_id)
-       OR ($text_id IS NOT NULL AND e.id = $text_id)
+    _GET_QUERY_BODY = f"""
     WITH m, e
     WHERE $edition_type IS NULL
        OR EXISTS {{ (m)-[:HAS_TYPE]->(:EditionType {{name: $edition_type}}) }}
     {_EDITION_RETURN}
     """
 
+    GET_BY_ID_QUERY = f"""
+    MATCH (m:Edition {{id: $edition_id}})-[:EDITION_OF]->(e:Text)
+    {_GET_QUERY_BODY}
+    """
+
+    GET_BY_TEXT_ID_QUERY = f"""
+    MATCH (m:Edition)-[:EDITION_OF]->(e:Text {{id: $text_id}})
+    {_GET_QUERY_BODY}
+    """
+
     GET_RELATED_QUERY = f"""
     // Related via segment alignment (bidirectional)
-    MATCH (source:Edition {{id: $edition_id}})<-[:SEGMENTATION_OF]-(:Segmentation)<-[:SEGMENT_OF]-(:Segment)
-          -[:ALIGNED_TO]-(:Segment)-[:SEGMENT_OF]->(:Segmentation)-[:SEGMENTATION_OF]->(m:Edition)
+    MATCH (source:Edition {{id: $edition_id}})
+          <-[:SEGMENTATION_OF]-(s1 WHERE s1:Aligned OR s1:Target)
+          <-[:SEGMENT_OF]-(:Segment)
+          -[:ALIGNED_TO]-(:Segment)
+          -[:SEGMENT_OF]->(s2 WHERE s2:Aligned OR s2:Target)
+          -[:SEGMENTATION_OF]->(m:Edition)
           -[:EDITION_OF]->(e:Text)
     WHERE m.id <> $edition_id
     WITH DISTINCT m, e
@@ -102,17 +113,19 @@ class EditionDatabase:
         return self._db.get_session()
 
     async def get(self, edition_id: str) -> EditionOutput:
-        async with self.session as session:
-            result = await session.run(
-                EditionDatabase.GET_QUERY,
+        async def read(tx: AsyncManagedTransaction) -> EditionOutput:
+            result = await tx.run(
+                EditionDatabase.GET_BY_ID_QUERY,
                 edition_id=edition_id,
-                text_id=None,
                 edition_type=None,
             )
             record = await result.single()
             if record is None:
                 raise DataNotFoundError(f"Edition '{edition_id}' not found")
             return self._parse_record(record.data())
+
+        async with self.session as session:
+            return await session.execute_read(read)
 
     async def get_all(self, text_id: str, edition_type: EditionType | None = None) -> list[EditionOutput]:
         async with self.session as session:
@@ -125,8 +138,7 @@ class EditionDatabase:
         tx: AsyncManagedTransaction, text_id: str, edition_type: EditionType | None = None
     ) -> list[EditionOutput]:
         result = await tx.run(
-            EditionDatabase.GET_QUERY,
-            edition_id=None,
+            EditionDatabase.GET_BY_TEXT_ID_QUERY,
             text_id=text_id,
             edition_type=edition_type.value if edition_type else None,
         )
@@ -135,10 +147,13 @@ class EditionDatabase:
 
     async def get_related(self, edition_id: str) -> list[EditionOutput]:
         """Find all editions related through alignment or text relationships."""
+
+        async def read(tx: AsyncManagedTransaction) -> list[EditionOutput]:
+            result = await tx.run(EditionDatabase.GET_RELATED_QUERY, edition_id=edition_id)
+            return [self._parse_record(r) for r in await result.data()]
+
         async with self.session as session:
-            result = await session.run(EditionDatabase.GET_RELATED_QUERY, edition_id=edition_id)
-            records = await result.data()
-            return [self._parse_record(r) for r in records]
+            return await session.execute_read(read)
 
     async def create(
         self,
