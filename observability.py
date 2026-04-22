@@ -77,7 +77,7 @@ async def _traced_tx_run(
 
 async def _traced_run(
     source: str,
-    original: Callable[..., Any],
+    _original_fn: Callable[..., Any],
     self_arg: AsyncSession | AsyncManagedTransaction,
     query: LiteralString | Query,
     parameters: dict[str, Any] | None = None,
@@ -100,7 +100,7 @@ async def _traced_run(
         },
     ) as span:
         try:
-            return await original(self_arg, query, parameters, **kwargs)
+            return await _original_fn(self_arg, query, parameters, **kwargs)
         except Exception as exc:
             span.set_status(StatusCode.ERROR, str(exc))
             span.record_exception(exc)
