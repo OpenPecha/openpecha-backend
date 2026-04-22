@@ -63,7 +63,8 @@ async def _traced_session_run(
     parameters: dict[str, Any] | None = None,
     **kwargs: Any,  # noqa: ANN401
 ) -> AsyncResult:
-    return await _traced_run("session", _original_session_run, self, query, parameters, **kwargs)
+    merged = {**parameters, **kwargs} if parameters else (kwargs or None)
+    return await _traced_run("session", _original_session_run, self, query, merged)
 
 
 async def _traced_tx_run(
@@ -72,16 +73,16 @@ async def _traced_tx_run(
     parameters: dict[str, Any] | None = None,
     **kwparameters: Any,  # noqa: ANN401
 ) -> AsyncResult:
-    return await _traced_run("transaction", _original_tx_run, self, query, parameters, **kwparameters)
+    merged = {**parameters, **kwparameters} if parameters else (kwparameters or None)
+    return await _traced_run("transaction", _original_tx_run, self, query, merged)
 
 
 async def _traced_run(
     source: str,
-    _original_fn: Callable[..., Any],
+    original_fn: Callable[..., Any],
     self_arg: AsyncSession | AsyncManagedTransaction,
     query: LiteralString | Query,
     parameters: dict[str, Any] | None = None,
-    **kwargs: Any,  # noqa: ANN401
 ) -> AsyncResult:
     tracer = trace.get_tracer("openpecha-api")
     query_str = str(query)
@@ -100,7 +101,7 @@ async def _traced_run(
         },
     ) as span:
         try:
-            return await _original_fn(self_arg, query, parameters, **kwargs)
+            return await original_fn(self_arg, query, parameters)
         except Exception as exc:
             span.set_status(StatusCode.ERROR, str(exc))
             span.record_exception(exc)
