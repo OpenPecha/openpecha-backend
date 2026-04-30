@@ -12,25 +12,28 @@ from models.annotation import Page, PaginationInput, PaginationOutput, Span, Vol
 
 class PaginationDatabase:
     _GET_QUERY_BODY = """
-    WITH pagination, volume, page, span
+    WITH pagination, edition, text, volume, page, span
     ORDER BY volume.index, span.start
-    WITH pagination, volume, page, collect({start: span.start, end: span.end}) AS lines
-    WITH pagination, volume, collect({reference: page.reference, lines: lines}) AS pages
-    WITH pagination, collect({index: volume.index, pages: pages}) AS volumes
-    RETURN pagination.id AS pagination_id, volumes
+    WITH pagination, edition, text, volume, page, collect({start: span.start, end: span.end}) AS lines
+    WITH pagination, edition, text, volume, collect({reference: page.reference, lines: lines}) AS pages
+    WITH pagination, edition, text, collect({index: volume.index, pages: pages}) AS volumes
+    RETURN pagination.id AS pagination_id, edition.id AS edition_id, text.id AS text_id, volumes
     """
 
     GET_BY_ID_QUERY = f"""
     MATCH (pagination:Pagination {{id: $pagination_id}})
-        <-[:VOLUME_OF]-(volume:Volume)
+        -[:PAGINATION_OF]->(edition:Edition)
+        -[:EDITION_OF]->(text:Text),
+        (pagination)<-[:VOLUME_OF]-(volume:Volume)
         <-[:PAGE_OF]-(page:Page)
         <-[:SPAN_OF]-(span:Span)
     {_GET_QUERY_BODY}
     """
 
     GET_BY_EDITION_ID_QUERY = f"""
-    MATCH (:Edition {{id: $edition_id}})
-        <-[:PAGINATION_OF]-(pagination:Pagination)
+    MATCH (edition:Edition {{id: $edition_id}})
+        -[:EDITION_OF]->(text:Text),
+        (edition)<-[:PAGINATION_OF]-(pagination:Pagination)
         <-[:VOLUME_OF]-(volume:Volume)
         <-[:PAGE_OF]-(page:Page)
         <-[:SPAN_OF]-(span:Span)
@@ -83,6 +86,8 @@ class PaginationDatabase:
             volumes.append(Volume(index=volume_data["index"], pages=pages))
         return PaginationOutput(
             id=record["pagination_id"],
+            edition_id=record["edition_id"],
+            text_id=record["text_id"],
             volumes=volumes,
         )
 

@@ -104,6 +104,8 @@ models:
 ```json
 {
     "id": "seg_abc123",
+    "edition_id": "M12345678",
+    "text_id": "E12345678",
     "segments": [
         {
             "id": "segment_001",
@@ -124,10 +126,12 @@ models:
 ```json
 {
     "id": "align_abc123",
-    "target_id": "M87654321",
+    "aligned_edition_id": "M12345678",
+    "target_edition_id": "M87654321",
     "target_segments": [
         {
             "id": "target_seg_001",
+            "segmentation_id": "target_sgn_abc123",
             "edition_id": "M87654321",
             "text_id": "E87654321",
             "lines": [{ "start": 0, "end": 30 }],
@@ -136,8 +140,12 @@ models:
     ],
     "aligned_segments": [
         {
+            "id": "aligned_seg_001",
+            "segmentation_id": "align_abc123",
+            "edition_id": "M12345678",
+            "text_id": "E12345678",
             "lines": [{ "start": 0, "end": 25 }],
-            "alignment_indices": [0]
+            "target_indices": [0]
         }
     ],
     "metadata": null
@@ -149,6 +157,8 @@ models:
 ```json
 {
     "id": "pag_abc123",
+    "edition_id": "M12345678",
+    "text_id": "E12345678",
     "volumes": [{
         "pages": [
             {
@@ -167,6 +177,8 @@ models:
 ```json
 {
     "id": "note_abc123",
+    "edition_id": "M12345678",
+    "text_id": "E12345678",
     "span": { "start": 100, "end": 150 },
     "text": "Variant reading found in manuscript B",
     "metadata": null
@@ -178,6 +190,8 @@ models:
 ```json
 {
     "id": "bib_abc123",
+    "edition_id": "M12345678",
+    "text_id": "E12345678",
     "span": { "start": 5000, "end": 5500 },
     "type": "colophon",
     "metadata": null
@@ -245,12 +259,12 @@ _Alignment:_
 ```json
 POST /v2/editions/{edition_id}/alignments
 {
-    "target_id": "M87654321",
+    "target_edition_id": "M87654321",
     "target_segments": [
         { "lines": [{ "start": 0, "end": 30 }] }
     ],
     "aligned_segments": [
-        { "lines": [{ "start": 0, "end": 25 }], "alignment_indices": [0] }
+        { "lines": [{ "start": 0, "end": 25 }], "target_indices": [0] }
     ]
 }
 ```
@@ -320,6 +334,8 @@ POST /v2/editions/{edition_id}/durchens
 [
     {
         "id": "seg_abc123",
+        "edition_id": "M12345678",
+        "text_id": "E12345678",
         "segments": [...],
         "metadata": null
     }
@@ -328,6 +344,8 @@ POST /v2/editions/{edition_id}/durchens
 // GET /v2/editions/{edition_id}/pagination
 {
     "id": "pag_abc123",
+    "edition_id": "M12345678",
+    "text_id": "E12345678",
     "volumes": [{
         "pages": [...]
     }],
@@ -338,6 +356,8 @@ POST /v2/editions/{edition_id}/durchens
 [
     {
         "id": "bib_abc123",
+        "edition_id": "M12345678",
+        "text_id": "E12345678",
         "span": { "start": 5000, "end": 5500 },
         "type": "colophon",
         "metadata": null
@@ -348,6 +368,8 @@ POST /v2/editions/{edition_id}/durchens
 [
     {
         "id": "note_abc123",
+        "edition_id": "M12345678",
+        "text_id": "E12345678",
         "span": { "start": 100, "end": 150 },
         "text": "Variant reading",
         "metadata": null

@@ -8,7 +8,7 @@ from dependencies import OptionalAppHeader, get_api_key, get_db, get_storage
 from identifier import generate_id
 from models.edition import EditionOutput
 from models.requests import EditionRequestModel, EditionsQueryParams, TextsQueryParams
-from models.responses import IdResponse
+from models.responses import IdResponse, PaginatedResponse
 from models.text import TextInput, TextOutput, TextPatch
 
 if TYPE_CHECKING:
@@ -30,14 +30,15 @@ async def get_all_texts(
     _api_key: Annotated[str, Depends(get_api_key)],
     db: Annotated[Database, Depends(get_db)],
     x_application: OptionalAppHeader = None,
-) -> list[TextOutput]:
+) -> PaginatedResponse[TextOutput]:
     """List all texts with optional filtering."""
-    return await db.text.get_all(
+    texts = await db.text.get_all(
         offset=params.offset,
-        limit=params.limit,
+        limit=params.limit + 1,
         filters=params,  # TextsQueryParams inherits from TextFilter, so this works
         application=x_application,
     )
+    return PaginatedResponse.from_items(texts, offset=params.offset, limit=params.limit)
 
 
 @router.get(

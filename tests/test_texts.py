@@ -19,6 +19,10 @@ from models.text import TextInput
 from models.person import PersonInput
 
 
+def _items(data):
+    return data["items"] if isinstance(data, dict) and "items" in data else data
+
+
 @pytest.fixture
 async def test_person_data():
     """Sample person data for testing"""
@@ -52,7 +56,11 @@ class TestGetAllTextsV2:
         response = await client.get("/v2/texts/")
 
         assert response.status_code == 200
-        data = response.json()
+        body = response.json()
+        data = _items(body)
+        assert body["offset"] == 0
+        assert body["limit"] == 20
+        assert body["has_more"] is False
         assert isinstance(data, list)
         assert len(data) == 0
 
@@ -84,7 +92,11 @@ class TestGetAllTextsV2:
         response = await client.get("/v2/texts/")
 
         assert response.status_code == 200
-        data = response.json()
+        body = response.json()
+        data = _items(body)
+        assert body["offset"] == 0
+        assert body["limit"] == 20
+        assert body["has_more"] is True
         assert isinstance(data, list)
         assert len(data) == 20
         # Verify all returned IDs are from our created texts
@@ -116,7 +128,11 @@ class TestGetAllTextsV2:
         response = await client.get("/v2/texts?limit=2&offset=1")
 
         assert response.status_code == 200
-        data = response.json()
+        body = response.json()
+        data = _items(body)
+        assert body["offset"] == 1
+        assert body["limit"] == 2
+        assert body["has_more"] is True
         assert len(data) == 2
         # Verify returned IDs are from our created texts (order is by id, not creation)
         returned_ids = {item["id"] for item in data}
@@ -159,7 +175,7 @@ class TestGetAllTextsV2:
         response = await client.get(f"/v2/texts?category_id={category_id_1}")
 
         assert response.status_code == 200
-        data = response.json()
+        data = _items(response.json())
         assert len(data) == 1
         assert data[0]["id"] == expr_id_1
         assert data[0]["category_id"] == category_id_1
@@ -167,7 +183,7 @@ class TestGetAllTextsV2:
         # Filter by category_id_2
         response = await client.get(f"/v2/texts?category_id={category_id_2}")
         assert response.status_code == 200
-        data = response.json()
+        data = _items(response.json())
         assert len(data) == 1
         assert data[0]["id"] == expr_id_2
         assert data[0]["category_id"] == category_id_2
@@ -205,7 +221,7 @@ class TestGetAllTextsV2:
         response = await client.get("/v2/texts?language=en")
 
         assert response.status_code == 200
-        data = response.json()
+        data = _items(response.json())
         assert len(data) == 1
         assert data[0]["id"] == en_id
         assert data[0]["language"] == "en"
@@ -214,7 +230,7 @@ class TestGetAllTextsV2:
         response = await client.get("/v2/texts?language=bo")
 
         assert response.status_code == 200
-        data = response.json()
+        data = _items(response.json())
         assert len(data) == 1
         assert data[0]["id"] == bo_id
         assert data[0]["language"] == "bo"
@@ -255,7 +271,7 @@ class TestGetAllTextsV2:
 
         en_title_search_response = await client.get("/v2/texts?title=Buddha")
         assert en_title_search_response.status_code == 200
-        data = en_title_search_response.json()
+        data = _items(en_title_search_response.json())
         assert len(data) == 2
         # Verify results contain Buddha in title (order not guaranteed)
         returned_ids = {item["id"] for item in data}
@@ -265,7 +281,7 @@ class TestGetAllTextsV2:
 
         bo_title_search_response = await client.get("/v2/texts?title=དཔེ་གཞི།")
         assert bo_title_search_response.status_code == 200
-        data = bo_title_search_response.json()
+        data = _items(bo_title_search_response.json())
         assert len(data) == 2
         returned_ids = {item["id"] for item in data}
         assert returned_ids.issubset({text_ids[0], text_ids[2]})
@@ -274,7 +290,7 @@ class TestGetAllTextsV2:
 
         bo_title_search_response = await client.get("/v2/texts?title=བོད")
         assert bo_title_search_response.status_code == 200
-        data = bo_title_search_response.json()
+        data = _items(bo_title_search_response.json())
         assert len(data) == 2
         returned_ids = {item["id"] for item in data}
         assert returned_ids.issubset({text_ids[1], text_ids[2]})
@@ -315,7 +331,7 @@ class TestGetAllTextsV2:
 
         response = await client.get("/v2/texts?title=invalid_title")
         assert response.status_code == 200
-        data = response.json()
+        data = _items(response.json())
         assert len(data) == 0
 
     async def test_get_all_metadata_filter_by_author(self, client, test_database, test_person_data):
@@ -370,7 +386,7 @@ class TestGetAllTextsV2:
         # Filter by person1_id
         response = await client.get(f"/v2/texts?author_id={person1_id}")
         assert response.status_code == 200
-        data = response.json()
+        data = _items(response.json())
         assert len(data) == 2
         returned_ids = {item["id"] for item in data}
         assert returned_ids == {expr1_id, expr3_id}
@@ -378,7 +394,7 @@ class TestGetAllTextsV2:
         # Filter by person2_id
         response = await client.get(f"/v2/texts?author_id={person2_id}")
         assert response.status_code == 200
-        data = response.json()
+        data = _items(response.json())
         assert len(data) == 2
         returned_ids = {item["id"] for item in data}
         assert returned_ids == {expr2_id, expr3_id}
@@ -386,7 +402,7 @@ class TestGetAllTextsV2:
         # Filter by non-existent author
         response = await client.get("/v2/texts?author_id=nonexistent_author_id")
         assert response.status_code == 200
-        data = response.json()
+        data = _items(response.json())
         assert len(data) == 0
 
 
@@ -432,7 +448,7 @@ class TestGetAllTextsV2:
         response = await client.get("/v2/texts?language=en&title=Root")
 
         assert response.status_code == 200
-        data = response.json()
+        data = _items(response.json())
         assert len(data) == 1
         assert data[0]["id"] == en_id
         assert data[0]["language"] == "en"
@@ -486,7 +502,7 @@ class TestGetAllTextsV2:
         # Filter by author_id=person1_id AND language=en
         response = await client.get(f"/v2/texts?author_id={person1_id}&language=en")
         assert response.status_code == 200
-        data = response.json()
+        data = _items(response.json())
         assert len(data) == 1
         assert data[0]["id"] == expr1_id
         assert data[0]["language"] == "en"
@@ -494,7 +510,7 @@ class TestGetAllTextsV2:
         # Filter by author_id=person1_id AND language=bo
         response = await client.get(f"/v2/texts?author_id={person1_id}&language=bo")
         assert response.status_code == 200
-        data = response.json()
+        data = _items(response.json())
         assert len(data) == 1
         assert data[0]["id"] == expr2_id
         assert data[0]["language"] == "bo"
@@ -502,7 +518,7 @@ class TestGetAllTextsV2:
         # Filter by author_id=person2_id AND language=bo (should return nothing)
         response = await client.get(f"/v2/texts?author_id={person2_id}&language=bo")
         assert response.status_code == 200
-        data = response.json()
+        data = _items(response.json())
         assert len(data) == 0
 
     async def test_get_all_metadata_invalid_limit(self, client, test_database):
@@ -553,19 +569,19 @@ class TestGetAllTextsV2:
         # Test limit=1 (minimum)
         response = await client.get("/v2/texts?limit=1")
         assert response.status_code == 200
-        data = response.json()
+        data = _items(response.json())
         assert len(data) == 1
 
         # Test limit=100 (maximum)
         response = await client.get("/v2/texts?limit=100")
         assert response.status_code == 200
-        data = response.json()
+        data = _items(response.json())
         assert len(data) == 1
 
         # Test large offset (beyond available data)
         response = await client.get("/v2/texts?offset=1000")
         assert response.status_code == 200
-        data = response.json()
+        data = _items(response.json())
         assert len(data) == 0
 
 
@@ -619,7 +635,7 @@ class TestGetSingleTextV2:
         response = await client.get(f"/v2/texts?bdrc={test_text_data['bdrc']}")
 
         assert response.status_code == 200
-        data = response.json()
+        data = _items(response.json())
         assert len(data) == 1
         assert data[0]["bdrc"] == test_text_data['bdrc']
         assert data[0]["title"]["en"] == "Test text"
@@ -644,7 +660,7 @@ class TestGetSingleTextV2:
         response = await client.get("/v2/texts?title=Unique Alternative")
 
         assert response.status_code == 200
-        data = response.json()
+        data = _items(response.json())
         assert len(data) == 1
         assert data[0]["id"] == text_id
         assert data[0]["title"]["en"] == "Primary Title"
@@ -652,7 +668,7 @@ class TestGetSingleTextV2:
         response_bo = await client.get("/v2/texts?title=གཞན་མིང")
 
         assert response_bo.status_code == 200
-        data_bo = response_bo.json()
+        data_bo = _items(response_bo.json())
         assert len(data_bo) == 1
         assert data_bo[0]["id"] == text_id
 

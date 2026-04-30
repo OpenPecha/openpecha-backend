@@ -468,6 +468,8 @@ class TestEditionAnnotations(TestEditionsEndpoints):
         assert get_response.status_code == 200
         data = get_response.json()
         assert len(data) == 1
+        assert data[0]["edition_id"] == edition_id
+        assert data[0]["text_id"] == text_id
         assert len(data[0]["segments"]) == 2
 
     async def test_post_pagination_annotation(self, client, test_database, test_person_data):
@@ -497,6 +499,8 @@ class TestEditionAnnotations(TestEditionsEndpoints):
         get_response = await client.get(f"/v2/editions/{edition_id}/pagination")
         assert get_response.status_code == 200
         data = get_response.json()
+        assert data["edition_id"] == edition_id
+        assert data["text_id"] == text_id
         assert "volumes" in data
 
     async def test_post_duplicate_pagination_rejected(self, client, test_database, test_person_data):
@@ -545,12 +549,12 @@ class TestEditionAnnotations(TestEditionsEndpoints):
         )
 
         annotation_data = {
-            "target_id": target_edition_id,
+            "target_edition_id": target_edition_id,
             "target_segments": [
                 {"lines": [{"start": 0, "end": 10}]},
             ],
             "aligned_segments": [
-                {"lines": [{"start": 0, "end": 10}], "alignment_indices": [0]},
+                {"lines": [{"start": 0, "end": 10}], "target_indices": [0]},
             ],
         }
 
@@ -561,7 +565,61 @@ class TestEditionAnnotations(TestEditionsEndpoints):
         assert get_response.status_code == 200
         data = get_response.json()
         assert len(data) == 1
-        assert data[0]["target_id"] == target_edition_id
+        assert data[0]["aligned_edition_id"] == source_edition_id
+        assert data[0]["target_edition_id"] == target_edition_id
+
+    async def test_get_alignment_annotations_returns_both_directions(self, client, test_database, test_person_data):
+        """Test that edition alignments are returned when the edition is on either side."""
+        person_id = await self._create_test_person(test_database, test_person_data)
+
+        edition_a_text_id = await self._create_test_text(
+            test_database, person_id, title=LocalizedString({"bo": "ཀ", "en": "Edition A"})
+        )
+        edition_a_id = await self._create_test_edition(client, edition_a_text_id, "ABCDEFGHIJ")
+
+        edition_b_text_id = await self._create_test_text(
+            test_database, person_id, title=LocalizedString({"bo": "ཁ", "en": "Edition B"})
+        )
+        edition_b_id = await self._create_test_edition(client, edition_b_text_id, "0123456789")
+
+        edition_c_text_id = await self._create_test_text(
+            test_database, person_id, title=LocalizedString({"bo": "ག", "en": "Edition C"})
+        )
+        edition_c_id = await self._create_test_edition(client, edition_c_text_id, "abcdefghij")
+
+        alignment_data = {
+            "target_edition_id": edition_b_id,
+            "target_segments": [{"lines": [{"start": 0, "end": 10}]}],
+            "aligned_segments": [{"lines": [{"start": 0, "end": 10}], "target_indices": [0]}],
+        }
+        post_response = await client.post(f"/v2/editions/{edition_a_id}/alignments", json=alignment_data)
+        assert post_response.status_code == 201
+
+        reverse_alignment_data = {
+            "target_edition_id": edition_a_id,
+            "target_segments": [{"lines": [{"start": 0, "end": 10}]}],
+            "aligned_segments": [{"lines": [{"start": 0, "end": 10}], "target_indices": [0]}],
+        }
+        reverse_post_response = await client.post(f"/v2/editions/{edition_c_id}/alignments", json=reverse_alignment_data)
+        assert reverse_post_response.status_code == 201
+
+        edition_a_response = await client.get(f"/v2/editions/{edition_a_id}/alignments")
+        assert edition_a_response.status_code == 200
+        edition_a_alignments = edition_a_response.json()
+        assert {
+            (alignment["aligned_edition_id"], alignment["target_edition_id"])
+            for alignment in edition_a_alignments
+        } == {
+            (edition_a_id, edition_b_id),
+            (edition_c_id, edition_a_id),
+        }
+
+        edition_b_response = await client.get(f"/v2/editions/{edition_b_id}/alignments")
+        assert edition_b_response.status_code == 200
+        assert [
+            (alignment["aligned_edition_id"], alignment["target_edition_id"])
+            for alignment in edition_b_response.json()
+        ] == [(edition_a_id, edition_b_id)]
 
     async def test_post_bibliographic_metadata_annotation(self, client, test_database, test_person_data):
         """Test adding bibliographic metadata annotation and retrieving it"""
@@ -580,6 +638,8 @@ class TestEditionAnnotations(TestEditionsEndpoints):
         assert get_response.status_code == 200
         data = get_response.json()
         assert len(data) == 1
+        assert data[0]["edition_id"] == edition_id
+        assert data[0]["text_id"] == text_id
         assert data[0]["type"] == "colophon"
         assert data[0]["span"]["start"] == 0
         assert data[0]["span"]["end"] == 8
@@ -601,6 +661,8 @@ class TestEditionAnnotations(TestEditionsEndpoints):
         assert get_response.status_code == 200
         data = get_response.json()
         assert len(data) == 1
+        assert data[0]["edition_id"] == edition_id
+        assert data[0]["text_id"] == text_id
         assert data[0]["text"] == "Test note content"
         assert data[0]["span"]["start"] == 0
         assert data[0]["span"]["end"] == 5
@@ -829,7 +891,7 @@ class TestSegmentsRelated(TestEditionsEndpoints):
         response = await client.get(f"/v2/editions/{edition_id}/segments/related?span_start=0&span_end=5")
 
         assert response.status_code == 200
-        assert response.json() == []
+        assert response.json()["items"] == []
 
     async def test_get_segments_related_missing_params(self, client, test_database, test_person_data):
         """Test getting related segments without required query params"""
@@ -871,14 +933,14 @@ class TestSegmentsRelated(TestEditionsEndpoints):
         await client.post(f"/v2/editions/{target_edition_id}/segmentations", json=segmentation_data)
 
         alignment_data = {
-            "target_id": target_edition_id,
+            "target_edition_id": target_edition_id,
             "target_segments": [
                 {"lines": [{"start": 0, "end": 5}]},
                 {"lines": [{"start": 5, "end": 10}]},
             ],
             "aligned_segments": [
-                {"lines": [{"start": 0, "end": 5}], "alignment_indices": [0]},
-                {"lines": [{"start": 5, "end": 10}], "alignment_indices": [1]},
+                {"lines": [{"start": 0, "end": 5}], "target_indices": [0]},
+                {"lines": [{"start": 5, "end": 10}], "target_indices": [1]},
             ],
         }
 
@@ -889,15 +951,12 @@ class TestSegmentsRelated(TestEditionsEndpoints):
 
         assert response.status_code == 200
         data = response.json()
-        assert isinstance(data, list)
-        if len(data) > 0:
-            assert "edition_id" in data[0]
-            assert "text_id" in data[0]
-            assert "segmentations" in data[0]
-            assert len(data[0]["segmentations"]) > 0
-            assert "segments" in data[0]["segmentations"][0]
-            assert len(data[0]["segmentations"][0]["segments"]) > 0
-            assert "lines" in data[0]["segmentations"][0]["segments"][0]
+        assert isinstance(data["items"], list)
+        if len(data["items"]) > 0:
+            assert "edition_id" in data["items"][0]
+            assert "text_id" in data["items"][0]
+            assert "segmentation_id" in data["items"][0]
+            assert "lines" in data["items"][0]
 
     async def test_get_segments_related_span_outside_segments(self, client, test_database, test_person_data):
         """Test getting related segments when span doesn't overlap any segments"""
@@ -914,12 +973,12 @@ class TestSegmentsRelated(TestEditionsEndpoints):
         target_edition_id = await self._create_test_edition(client, target_text_id, "GHIJKLMNOP")
 
         alignment_data = {
-            "target_id": target_edition_id,
+            "target_edition_id": target_edition_id,
             "target_segments": [
                 {"lines": [{"start": 0, "end": 5}]},
             ],
             "aligned_segments": [
-                {"lines": [{"start": 0, "end": 5}], "alignment_indices": [0]},
+                {"lines": [{"start": 0, "end": 5}], "target_indices": [0]},
             ],
         }
 
@@ -929,7 +988,7 @@ class TestSegmentsRelated(TestEditionsEndpoints):
         response = await client.get(f"/v2/editions/{source_edition_id}/segments/related?span_start=10&span_end=15")
 
         assert response.status_code == 200
-        assert response.json() == []
+        assert response.json()["items"] == []
 
     async def test_get_segments_related_partial_overlap(self, client, test_database, test_person_data):
         """Test getting related segments when span partially overlaps segments"""
@@ -951,14 +1010,14 @@ class TestSegmentsRelated(TestEditionsEndpoints):
         await client.post(f"/v2/editions/{target_edition_id}/segmentations", json=segmentation_data)
 
         alignment_data = {
-            "target_id": target_edition_id,
+            "target_edition_id": target_edition_id,
             "target_segments": [
                 {"lines": [{"start": 0, "end": 5}]},
                 {"lines": [{"start": 5, "end": 10}]},
             ],
             "aligned_segments": [
-                {"lines": [{"start": 0, "end": 5}], "alignment_indices": [0]},
-                {"lines": [{"start": 5, "end": 10}], "alignment_indices": [1]},
+                {"lines": [{"start": 0, "end": 5}], "target_indices": [0]},
+                {"lines": [{"start": 5, "end": 10}], "target_indices": [1]},
             ],
         }
 
@@ -969,7 +1028,7 @@ class TestSegmentsRelated(TestEditionsEndpoints):
 
         assert response.status_code == 200
         data = response.json()
-        assert isinstance(data, list)
+        assert isinstance(data["items"], list)
 
 
 @pytest.mark.asyncio(loop_scope="session")

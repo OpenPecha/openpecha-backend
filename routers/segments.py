@@ -7,8 +7,9 @@ from fastapi import APIRouter, Depends, Path, Query, status
 from config import settings
 from dependencies import OptionalAppHeader, get_api_key, get_db, get_storage
 from exceptions import DataNotFoundError, InvalidRequestError
-from models.annotation import RelatedSegmentsOutput
-from models.requests import SegmentsQueryParams
+from models.annotation import SegmentOutput
+from models.requests import PaginationParams, SegmentsQueryParams
+from models.responses import PaginatedResponse
 from models.search import SearchFilter, SearchResponse, SearchResult
 
 if TYPE_CHECKING:
@@ -27,20 +28,24 @@ router = APIRouter(prefix="/v2/segments", tags=["Segments"])
 )
 async def get_related(
     segment_id: Annotated[str, Path(description="The ID of the segment")],
+    params: Annotated[PaginationParams, Query()],
     _api_key: Annotated[str, Depends(get_api_key)],
     db: Annotated[Database, Depends(get_db)],
     x_application: OptionalAppHeader = None,
-) -> list[RelatedSegmentsOutput]:
+) -> PaginatedResponse[SegmentOutput]:
     """Get related segments."""
     try:
         segment = await db.segment.get(segment_id)
     except DataNotFoundError:
-        return []
-    return await db.segment.get_related(
+        return PaginatedResponse.from_items([], offset=params.offset, limit=params.limit)
+    segments = await db.segment.get_related(
         edition_id=segment.edition_id,
         spans=[(segment.span.start, segment.span.end)],
         application=x_application,
+        offset=params.offset,
+        limit=params.limit + 1,
     )
+    return PaginatedResponse.from_items(segments, offset=params.offset, limit=params.limit)
 
 
 @router.get(

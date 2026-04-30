@@ -24,8 +24,14 @@ class SegmentationDatabase:
     }
     WITH segmentation, edition, text, segment, lines, min_start
     WHERE size(lines) > 0
-    ORDER BY min_start
-    WITH segmentation, edition, text, collect({id: segment.id, lines: lines}) AS segments
+    ORDER BY min_start, segment.id
+    WITH segmentation, edition, text, collect({
+        id: segment.id,
+        segmentation_id: segmentation.id,
+        edition_id: edition.id,
+        text_id: text.id,
+        lines: lines
+    }) AS segments
     RETURN segmentation.id AS id, edition.id AS edition_id, text.id AS text_id, segments
     """
 
@@ -72,12 +78,20 @@ class SegmentationDatabase:
         segments = [
             SegmentOutput(
                 id=seg["id"],
+                segmentation_id=seg["segmentation_id"],
+                edition_id=seg["edition_id"],
+                text_id=seg["text_id"],
                 lines=[Span(start=line["start"], end=line["end"]) for line in seg["lines"]],
             )
             for seg in record["segments"]
             if seg["lines"]
         ]
-        return SegmentationOutput(id=record["id"], segments=segments)
+        return SegmentationOutput(
+            id=record["id"],
+            edition_id=record["edition_id"],
+            text_id=record["text_id"],
+            segments=segments,
+        )
 
     async def get(self, segmentation_id: str) -> SegmentationOutput:
         async def read(tx: AsyncManagedTransaction) -> SegmentationOutput:

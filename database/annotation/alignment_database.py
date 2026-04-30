@@ -8,7 +8,7 @@ if TYPE_CHECKING:
     from database.database import Database
 from database.database_validator import DatabaseValidator
 from identifier import generate_id
-from models.annotation import AlignedSegment, AlignmentInput, AlignmentOutput, SegmentOutput, Span
+from models.annotation import AlignedSegmentOutput, AlignmentInput, AlignmentOutput, SegmentOutput, Span
 
 from .segmentation_database import SegmentationDatabase
 
@@ -16,26 +16,37 @@ from .segmentation_database import SegmentationDatabase
 class AlignmentDatabase:
     _GET_QUERY_BODY = """
     MATCH (source_segmentation)<-[:SEGMENT_OF]-(source_segment:Segment)-[:ALIGNED_TO]->(target_segment:Segment)
-          -[:SEGMENT_OF]->(:Segmentation:Target)-[:SEGMENTATION_OF]->(target_edition:Edition)
+          -[:SEGMENT_OF]->(target_segmentation:Segmentation:Target)-[:SEGMENTATION_OF]->(target_edition:Edition)
     MATCH (target_edition)-[:EDITION_OF]->(target_text:Text)
+    MATCH (source_segmentation)-[:SEGMENTATION_OF]->(source_edition:Edition)-[:EDITION_OF]->(source_text:Text)
     MATCH (source_span:Span)-[:SPAN_OF]->(source_segment)
     WHERE source_span.start < source_span.end
-    WITH source_segmentation, source_segment, target_segment, target_edition, target_text,
+    WITH source_segmentation, source_edition, source_text, source_segment, target_segmentation,
+         target_segment, target_edition, target_text,
          min(source_span.start) AS source_min_start,
          collect({start: source_span.start, end: source_span.end}) AS source_lines
     MATCH (target_span:Span)-[:SPAN_OF]->(target_segment)
     WHERE target_span.start < target_span.end
-    WITH source_segmentation, source_segment, source_min_start, source_lines,
-         target_edition, target_text, target_segment,
+    WITH source_segmentation, source_edition, source_text, source_segment, source_min_start, source_lines,
+         target_segmentation, target_edition, target_text, target_segment,
          min(target_span.start) AS target_min_start,
          collect({start: target_span.start, end: target_span.end}) AS target_lines
-    ORDER BY target_min_start
-    WITH source_segmentation, source_min_start, source_lines, target_edition, target_text,
+    ORDER BY target_min_start, target_segment.id
+    WITH source_segmentation, source_edition, source_text, source_segment, source_min_start, source_lines,
+         target_segmentation, target_edition, target_text,
          collect({id: target_segment.id, min_start: target_min_start, lines: target_lines}) AS aligned_targets
     ORDER BY source_min_start
-    WITH source_segmentation, target_edition, target_text,
-         collect({min_start: source_min_start, lines: source_lines, aligned_targets: aligned_targets}) AS segments
+    WITH source_segmentation, source_edition, source_text, target_segmentation, target_edition, target_text,
+         collect({
+            id: source_segment.id,
+            min_start: source_min_start,
+            lines: source_lines,
+            aligned_targets: aligned_targets
+        }) AS segments
     RETURN source_segmentation.id AS segmentation_id,
+           source_edition.id AS source_edition_id,
+           source_text.id AS source_text_id,
+           target_segmentation.id AS target_segmentation_id,
            target_edition.id AS target_edition_id,
            target_text.id AS target_text_id,
            segments
@@ -47,7 +58,18 @@ class AlignmentDatabase:
     """
 
     GET_BY_EDITION_ID_QUERY = f"""
-    MATCH (:Edition {{id: $edition_id}})<-[:SEGMENTATION_OF]-(source_segmentation:Segmentation:Aligned)
+    MATCH (edition:Edition {{id: $edition_id}})
+    CALL {{
+        WITH edition
+        MATCH (edition)<-[:SEGMENTATION_OF]-(source_segmentation:Segmentation:Aligned)
+        RETURN source_segmentation
+        UNION
+        WITH edition
+        MATCH (edition)<-[:SEGMENTATION_OF]-(:Segmentation:Target)<-[:SEGMENT_OF]-(:Segment)
+              <-[:ALIGNED_TO]-(:Segment)-[:SEGMENT_OF]->(source_segmentation:Segmentation:Aligned)
+        RETURN DISTINCT source_segmentation
+    }}
+    WITH DISTINCT source_segmentation
     {_GET_QUERY_BODY}
     """
 
@@ -97,7 +119,7 @@ class AlignmentDatabase:
 
         target_min_start_to_segment: dict[int, SegmentOutput] = {}
         target_min_starts_ordered: list[int] = []
-        aligned_segments: list[AlignedSegment] = []
+        aligned_segments: list[AlignedSegmentOutput] = []
 
         for source_seg in record["segments"]:
             source_lines = [Span(start=line["start"], end=line["end"]) for line in source_seg["lines"]]
@@ -108,19 +130,32 @@ class AlignmentDatabase:
                     target_lines = [Span(start=line["start"], end=line["end"]) for line in target_data["lines"]]
                     target_min_start_to_segment[target_min_start] = SegmentOutput(
                         id=target_data["id"],
+                        segmentation_id=record["target_segmentation_id"],
+                        edition_id=target_edition_id,
+                        text_id=record["target_text_id"],
                         lines=target_lines,
                     )
                     target_min_starts_ordered.append(target_min_start)
 
             aligned_to_min_starts = [t["min_start"] for t in source_seg["aligned_targets"]]
             indices = [target_min_starts_ordered.index(ms) for ms in aligned_to_min_starts]
-            aligned_segments.append(AlignedSegment(lines=source_lines, alignment_indices=indices))
+            aligned_segments.append(
+                AlignedSegmentOutput(
+                    id=source_seg["id"],
+                    segmentation_id=segmentation_id,
+                    edition_id=record["source_edition_id"],
+                    text_id=record["source_text_id"],
+                    lines=source_lines,
+                    target_indices=indices,
+                )
+            )
 
         target_segments = [target_min_start_to_segment[ms] for ms in target_min_starts_ordered]
 
         return AlignmentOutput(
             id=segmentation_id,
-            target_id=target_edition_id,
+            aligned_edition_id=record["source_edition_id"],
+            target_edition_id=target_edition_id,
             target_segments=target_segments,
             aligned_segments=aligned_segments,
         )
@@ -207,16 +242,16 @@ class AlignmentDatabase:
                 "target_id": target_segment_ids[target_idx],
             }
             for i, seg in enumerate(alignment.aligned_segments)
-            for target_idx in seg.alignment_indices
+            for target_idx in seg.target_indices
         ]
 
         await DatabaseValidator.validate_edition_exists(tx, source_edition_id)
-        await DatabaseValidator.validate_edition_exists(tx, alignment.target_id)
+        await DatabaseValidator.validate_edition_exists(tx, alignment.target_edition_id)
 
         await tx.run(
             AlignmentDatabase.CREATE_QUERY,
             edition_id=source_edition_id,
-            target_edition_id=alignment.target_id,
+            target_edition_id=alignment.target_edition_id,
             source_segmentation_id=source_segmentation_id,
             target_segmentation_id=target_segmentation_id,
             target_segments=target_segments_data,

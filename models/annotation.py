@@ -48,14 +48,10 @@ class SegmentInput(SegmentBase):
 
 class SegmentOutput(SegmentBase):
     id: NonEmptyStr
-    tag_ids: list[str] | None = Field(default=None)
-
-
-class SegmentDetail(SegmentOutput):
-    """Internal model — not exposed in API responses."""
-
+    segmentation_id: NonEmptyStr
     edition_id: NonEmptyStr
     text_id: NonEmptyStr
+    tag_ids: list[str] | None = Field(default=None)
 
 
 class RelatedSegmentationOutput(OpenPechaModel):
@@ -71,12 +67,19 @@ class RelatedSegmentsOutput(OpenPechaModel):
 
 class AlignedSegment(OpenPechaModel):
     lines: list[Span] = Field(min_length=1)
-    alignment_indices: list[int] = Field(min_length=1)
+    target_indices: list[int] = Field(min_length=1)
 
     @model_validator(mode="after")
     def validate_lines(self) -> Self:
         _validate_lines(self.lines)
         return self
+
+
+class AlignedSegmentOutput(AlignedSegment):
+    id: NonEmptyStr
+    segmentation_id: NonEmptyStr
+    edition_id: NonEmptyStr
+    text_id: NonEmptyStr
 
 
 def _is_sorted_by_span_start(segments: Sequence[SegmentBase] | Sequence[AlignedSegment]) -> bool:
@@ -105,10 +108,12 @@ class SegmentationInput(SegmentationBase[SegmentInput]):
 
 class SegmentationOutput(SegmentationBase[SegmentOutput]):
     id: NonEmptyStr
+    edition_id: NonEmptyStr
+    text_id: NonEmptyStr
 
 
 class AlignmentBase[SegmentType: SegmentBase, AlignedSegmentType: AlignedSegment](OpenPechaModel):
-    target_id: NonEmptyStr
+    target_edition_id: NonEmptyStr
     target_segments: list[SegmentType]
     aligned_segments: list[AlignedSegmentType]
     metadata: AnnotationMetadata | None = None
@@ -126,8 +131,9 @@ class AlignmentInput(AlignmentBase[SegmentInput, AlignedSegment]):
     pass
 
 
-class AlignmentOutput(AlignmentBase[SegmentOutput, AlignedSegment]):
+class AlignmentOutput(AlignmentBase[SegmentOutput, AlignedSegmentOutput]):
     id: NonEmptyStr
+    aligned_edition_id: NonEmptyStr
 
 
 class Page(OpenPechaModel):
@@ -184,6 +190,8 @@ class PaginationInput(PaginationBase):
 
 class PaginationOutput(PaginationBase):
     id: NonEmptyStr
+    edition_id: NonEmptyStr
+    text_id: NonEmptyStr
 
 
 class BibliographicMetadataBase(OpenPechaModel):
@@ -198,6 +206,8 @@ class BibliographicMetadataInput(BibliographicMetadataBase):
 
 class BibliographicMetadataOutput(BibliographicMetadataBase):
     id: NonEmptyStr
+    edition_id: NonEmptyStr
+    text_id: NonEmptyStr
 
 
 class NoteBase(OpenPechaModel):
@@ -212,6 +222,8 @@ class NoteInput(NoteBase):
 
 class NoteOutput(NoteBase):
     id: NonEmptyStr
+    edition_id: NonEmptyStr
+    text_id: NonEmptyStr
 
 
 class AttributeBase(OpenPechaModel):

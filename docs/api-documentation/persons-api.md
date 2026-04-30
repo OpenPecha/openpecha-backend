@@ -72,39 +72,23 @@ GET /v2/persons
 **Response: 200 OK**
 
 ```json
-[
-  {
-    "id": "P12345678",
-    "name": {
-      "en": "John Doe",
-      "bo": "ཇོན་དོ།"
-    },
-    "alt_names": [
-      {
-        "en": "J. Doe",
-        "bo": "ཇོན།"
-      }
-    ],
-    "bdrc": "P123456",
-    "wiki": "Q123456"
-  },
-  {
-    "id": "P87654321",
-    "name": {
-      "bo": "ཀླུ་སྒྲུབ།",
-      "en": "Nagarjuna",
-      "sa": "नागार्जुन"
-    },
-    "alt_names": [
-      {
-        "bo": "སློབ་དཔོན་ཀླུ་སྒྲུབ།",
-        "en": "Acharya Nagarjuna"
-      }
-    ],
-    "bdrc": "P2816",
-    "wiki": "Q182485"
-  }
-]
+{
+  "items": [
+    {
+      "id": "P12345678",
+      "name": {
+        "en": "John Doe",
+        "bo": "ཇོན་དོ།"
+      },
+      "alt_names": [{"en": "J. Doe", "bo": "ཇོན།"}],
+      "bdrc": "P123456",
+      "wiki": "Q123456"
+    }
+  ],
+  "has_more": true,
+  "offset": 0,
+  "limit": 20
+}
 ```
 
 **Error Responses:**

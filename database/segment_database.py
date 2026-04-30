@@ -2,9 +2,6 @@ from typing import TYPE_CHECKING
 
 from exceptions import DataNotFoundError
 from models.annotation import (
-    RelatedSegmentationOutput,
-    RelatedSegmentsOutput,
-    SegmentDetail,
     SegmentOutput,
     Span,
 )
@@ -17,12 +14,13 @@ if TYPE_CHECKING:
 
 class SegmentDatabase:
     GET_QUERY = """
-    MATCH (seg:Segment {id: $segment_id})-[:SEGMENT_OF]->(:Segmentation)
+    MATCH (seg:Segment {id: $segment_id})-[:SEGMENT_OF]->(segmentation:Segmentation)
         -[:SEGMENTATION_OF]->(edition:Edition)-[:EDITION_OF]->(text:Text)
     MATCH (span:Span)-[:SPAN_OF]->(seg)
     WHERE span.start < span.end
-    WITH seg, edition, text, span ORDER BY span.start
-    RETURN seg.id AS segment_id, edition.id AS edition_id, text.id AS text_id,
+    WITH seg, segmentation, edition, text, span ORDER BY span.start
+    RETURN seg.id AS segment_id, segmentation.id AS segmentation_id,
+        edition.id AS edition_id, text.id AS text_id,
         collect({start: span.start, end: span.end}) AS lines,
         [(seg)-[:HAS_TAG]->(t:Tag)
             WHERE ($application IS NULL
@@ -53,28 +51,36 @@ class SegmentDatabase:
           (remote_span:Span)-[:SPAN_OF]->(remote_seg)
     RETURN remote_ed.id AS edition_id, remote_text.id AS text_id,
            collect([remote_span.start, remote_span.end]) AS remote_spans
+    ORDER BY text_id, edition_id
     """
 
-    RESOLVE_DISPLAY_QUERY = """
-    MATCH (:Edition {id: $edition_id})<-[:SEGMENTATION_OF]-(sgn:Segmentation:Display)
-        <-[:SEGMENT_OF]-(seg:Segment)<-[:SPAN_OF]-(span:Span)
-    WITH sgn, seg, collect(span) AS all_spans
-    WHERE ANY(s IN all_spans WHERE
-        ANY(sp IN $spans WHERE s.start < sp[1] AND s.end > sp[0]))
-    UNWIND all_spans AS span
-    WITH sgn, seg, span ORDER BY span.start
-    WITH sgn, seg,
-         collect({start: span.start, end: span.end}) AS lines,
-         min(span.start) AS min_start
-    ORDER BY min_start
-    WITH sgn, collect({
-        id: seg.id, lines: lines,
-        tag_ids: [(seg)-[:HAS_TAG]->(t:Tag)
+    RESOLVE_DISPLAY_PAGE_QUERY = """
+    UNWIND $contexts AS context
+    MATCH (edition:Edition {id: context.edition_id})-[:EDITION_OF]->(text:Text)
+    MATCH (edition)<-[:SEGMENTATION_OF]-(sgn:Segmentation:Display)
+        <-[:SEGMENT_OF]-(seg:Segment)
+    CALL (seg) {
+        MATCH (span:Span)-[:SPAN_OF]->(seg)
+        WHERE span.start < span.end
+        WITH span ORDER BY span.start
+        RETURN collect({start: span.start, end: span.end}) AS lines,
+               min(span.start) AS min_start
+    }
+    WITH context, text, edition, sgn, seg, lines, min_start
+    WHERE size(lines) > 0
+      AND ANY(line IN lines WHERE
+          ANY(sp IN context.spans WHERE line.start < sp[1] AND line.end > sp[0]))
+    WITH text, edition, sgn, seg, lines, min_start,
+        [(seg)-[:HAS_TAG]->(t:Tag)
             WHERE ($application IS NULL
                 OR (t)-[:BELONGS_TO]->(:Application {id: $application}))
-            | t.id]
-    }) AS segments
-    RETURN sgn.id AS segmentation_id, segments
+            | t.id] AS tag_ids
+    RETURN seg.id AS segment_id, sgn.id AS segmentation_id,
+           edition.id AS edition_id, text.id AS text_id,
+           lines, tag_ids, min_start
+    ORDER BY text_id, edition_id, segmentation_id, min_start, segment_id
+    SKIP $offset
+    LIMIT $limit
     """
 
     FIND_BY_SPAN_QUERY = """
@@ -84,6 +90,7 @@ class SegmentDatabase:
         <-[:SPAN_OF]-(span:Span)
     WHERE span.start < $span_end AND span.end > $span_start
     RETURN DISTINCT seg.id as segment_id
+    ORDER BY segment_id
     """
 
     def __init__(self, db: Database) -> None:
@@ -93,15 +100,16 @@ class SegmentDatabase:
     def _session(self) -> AsyncSession:
         return self._db.get_session()
 
-    async def get(self, segment_id: str, application: str | None = None) -> SegmentDetail:
-        async def _read(tx: AsyncManagedTransaction) -> SegmentDetail:
+    async def get(self, segment_id: str, application: str | None = None) -> SegmentOutput:
+        async def _read(tx: AsyncManagedTransaction) -> SegmentOutput:
             result = await tx.run(self.GET_QUERY, segment_id=segment_id, application=application)
             records = await result.data()
             if not records:
                 raise DataNotFoundError(f"Segment '{segment_id}' not found")
             r = records[0]
-            return SegmentDetail(
+            return SegmentOutput(
                 id=r["segment_id"],
+                segmentation_id=r["segmentation_id"],
                 edition_id=r["edition_id"],
                 text_id=r["text_id"],
                 lines=[Span(start=ln["start"], end=ln["end"]) for ln in r["lines"]],
@@ -117,11 +125,13 @@ class SegmentDatabase:
         spans: list[tuple[int, int]],
         application: str | None = None,
         max_depth: int = 5,
-    ) -> list[RelatedSegmentsOutput]:
-        """Traverse the alignment tree from an edition+spans and return display segments on related editions."""
+        offset: int = 0,
+        limit: int = 20,
+    ) -> list[SegmentOutput]:
+        """Traverse the alignment tree from an edition+spans and return paged display segments."""
 
-        async def _read(tx: AsyncManagedTransaction) -> list[RelatedSegmentsOutput]:
-            results: dict[str, RelatedSegmentsOutput] = {}
+        async def _read(tx: AsyncManagedTransaction) -> list[SegmentOutput]:
+            contexts: dict[str, dict] = {}
             visited: set[str] = {edition_id}
             frontier = [(edition_id, _merge_spans([list(s) for s in spans]))]
 
@@ -138,50 +148,55 @@ class SegmentDatabase:
                         visited.add(remote_ed)
 
                         remote_spans = _merge_spans(rec["remote_spans"])
-                        segmentations = await self._resolve_display(tx, remote_ed, remote_spans, application)
-
-                        if segmentations:
-                            results[remote_ed] = RelatedSegmentsOutput(
-                                edition_id=remote_ed,
-                                text_id=rec["text_id"],
-                                segmentations=segmentations,
-                            )
-
+                        contexts[remote_ed] = {"edition_id": remote_ed, "spans": remote_spans}
                         next_frontier.append((remote_ed, remote_spans))
 
                 frontier = next_frontier
                 if not frontier:
                     break
 
-            return list(results.values())
+            if not contexts:
+                return []
+
+            return await self._resolve_display_page(
+                tx,
+                contexts=list(contexts.values()),
+                application=application,
+                offset=offset,
+                limit=limit,
+            )
 
         async with self._session as session:
             return await session.execute_read(_read)
 
-    async def _resolve_display(
+    async def _resolve_display_page(
         self,
         tx: AsyncManagedTransaction,
-        edition_id: str,
-        spans: list[list[int]],
+        contexts: list[dict],
         application: str | None,
-    ) -> list[RelatedSegmentationOutput]:
+        offset: int,
+        limit: int,
+    ) -> list[SegmentOutput]:
         records = await (
-            await tx.run(self.RESOLVE_DISPLAY_QUERY, edition_id=edition_id, spans=spans, application=application)
+            await tx.run(
+                self.RESOLVE_DISPLAY_PAGE_QUERY,
+                contexts=contexts,
+                application=application,
+                offset=offset,
+                limit=limit,
+            )
         ).data()
         return [
-            RelatedSegmentationOutput(segmentation_id=rec["segmentation_id"], segments=segments)
-            for rec in records
-            if (
-                segments := [
-                    SegmentOutput(
-                        id=seg["id"],
-                        lines=[Span(start=ln["start"], end=ln["end"]) for ln in seg["lines"]],
-                        tag_ids=seg.get("tag_ids") or None,
-                    )
-                    for seg in rec["segments"]
-                    if seg["lines"]
-                ]
+            SegmentOutput(
+                id=rec["segment_id"],
+                segmentation_id=rec["segmentation_id"],
+                edition_id=rec["edition_id"],
+                text_id=rec["text_id"],
+                lines=[Span(start=ln["start"], end=ln["end"]) for ln in rec["lines"]],
+                tag_ids=rec.get("tag_ids") or None,
             )
+            for rec in records
+            if rec["lines"]
         ]
 
     async def find_by_span(self, edition_id: str, start: int, end: int) -> list[str]:
@@ -194,14 +209,16 @@ class SegmentDatabase:
 
 
 def _merge_spans(spans: list[list[int]]) -> list[list[int]]:
-    """Merge overlapping/adjacent spans into a minimal set of non-overlapping intervals."""
-    if len(spans) <= 1:
-        return spans
-    spans.sort(key=lambda s: s[0])
-    merged = [spans[0]]
-    for s, e in spans[1:]:
-        if s <= merged[-1][1]:
-            merged[-1][1] = max(merged[-1][1], e)
+    if not spans:
+        return []
+
+    spans.sort()
+
+    merged = spans[:1]
+    for curr in spans[1:]:
+        prev = merged[-1]
+        if curr[0] <= prev[1]:
+            prev[1] = max(prev[1], curr[1])
         else:
-            merged.append([s, e])
+            merged.append(curr)
     return merged

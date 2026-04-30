@@ -6,7 +6,7 @@ from fastapi import APIRouter, Depends, Path, Query
 from dependencies import get_api_key, get_db
 from models.person import PersonInput, PersonOutput, PersonPatch
 from models.requests import PersonsQueryParams
-from models.responses import IdResponse
+from models.responses import IdResponse, PaginatedResponse
 
 if TYPE_CHECKING:
     from database import Database
@@ -39,9 +39,10 @@ async def get_all_persons(
     params: Annotated[PersonsQueryParams, Query()],
     _api_key: Annotated[str, Depends(get_api_key)],
     db: Annotated[Database, Depends(get_db)],
-) -> list[PersonOutput]:
+) -> PaginatedResponse[PersonOutput]:
     """List all persons with optional filtering."""
-    return await db.person.get_all(offset=params.offset, limit=params.limit, filters=params)
+    persons = await db.person.get_all(offset=params.offset, limit=params.limit + 1, filters=params)
+    return PaginatedResponse.from_items(persons, offset=params.offset, limit=params.limit)
 
 
 @router.post(

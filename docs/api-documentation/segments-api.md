@@ -112,44 +112,35 @@ GET /v2/segments/{segment_id}/related
 
 **Parameters:**
 
-| Name | Type | Location | Required | Description |
-|------|------|----------|----------|-------------|
-| `segment_id` | string | path | Yes | The ID of the segment to find related segments for |
+| Name | Type | Location | Required | Default | Description |
+|------|------|----------|----------|---------|-------------|
+| `segment_id` | string | path | Yes | - | The ID of the segment to find related segments for |
+| `limit` | integer | query | No | 20 | Number of related segments to return (1-100) |
+| `offset` | integer | query | No | 0 | Number of related segments to skip |
 
 **Response: 200 OK**
 
 ```json
-[
-  {
-    "id": "SEG001",
-    "edition_id": "M12345678",
-    "text_id": "E12345678",
-    "lines": [
-      {
-        "start": 0,
-        "end": 100
-      }
-    ]
-  },
-  {
-    "id": "SEG002",
-    "edition_id": "M87654321",
-    "text_id": "E87654321",
-    "lines": [
-      {
-        "start": 100,
-        "end": 200
-      }
-    ]
-  }
-]
+{
+  "items": [
+    {
+      "id": "SEG001",
+      "segmentation_id": "SGN12345678",
+      "edition_id": "M12345678",
+      "text_id": "E12345678",
+      "lines": [{"start": 0, "end": 100}]
+    }
+  ],
+  "has_more": false,
+  "offset": 0,
+  "limit": 20
+}
 ```
 
 **Response Structure:**
-- Returns array of segment objects
-- Each segment includes its edition_id and text_id
-- Segments from different editions/editions
-- Empty array `[]` if no related segments
+- Returns a paginated object with flat segment objects in `items`
+- Each segment includes `segmentation_id`, `edition_id`, and `text_id`
+- Empty result uses `"items": []`
 
 **Error Responses:**
 - `404 Not Found`: Segment does not exist

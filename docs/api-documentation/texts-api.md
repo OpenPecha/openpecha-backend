@@ -78,46 +78,27 @@ GET /v2/texts
 **Response: 200 OK**
 
 ```json
-[
-  {
-    "id": "ABC12345678",
-    "title": {
-      "en": "Sample Expression",
-      "bo": "དཔེ་མཚོན་ཚིག་སྒྲུབ།"
-    },
-    "language": "bo",
-    "category_id": "CAT12345678",
-    "contributions": [
-      {
-        "person_id": "P12345678",
-        "role": "author"
-      }
-    ],
-    "license": "public",
-    "commentaries": [],
-    "translations": ["DEF87654321"],
-    "editions": ["M12345678"]
-  },
-  {
-    "id": "DEF87654321",
-    "title": {
-      "en": "AI Generated Translation"
-    },
-    "language": "en",
-    "category_id": "CAT12345678",
-    "translation_of": "ABC12345678",
-    "contributions": [
-      {
-        "ai_id": "gpt-4",
-        "role": "translator"
-      }
-    ],
-    "license": "cc0",
-    "commentaries": [],
-    "translations": [],
-    "editions": []
-  }
-]
+{
+  "items": [
+    {
+      "id": "ABC12345678",
+      "title": {
+        "en": "Sample Expression",
+        "bo": "དཔེ་མཚོན་ཚིག་སྒྲུབ།"
+      },
+      "language": "bo",
+      "category_id": "CAT12345678",
+      "contributions": [{"person_id": "P12345678", "role": "author"}],
+      "license": "public",
+      "commentaries": [],
+      "translations": ["DEF87654321"],
+      "editions": ["M12345678"]
+    }
+  ],
+  "has_more": true,
+  "offset": 0,
+  "limit": 20
+}
 ```
 
 **Error Responses:**

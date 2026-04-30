@@ -139,6 +139,8 @@ GET /v2/annotations/segmentation/{segmentation_id}
 ```json
 {
   "id": "seg_abc123",
+  "edition_id": "M12345678",
+  "text_id": "E12345678",
   "segments": [
     {
       "id": "segment_001",
@@ -237,10 +239,12 @@ GET /v2/annotations/alignment/{alignment_id}
 ```json
 {
   "id": "align_abc123",
-  "target_id": "M87654321",
+  "aligned_edition_id": "M12345678",
+  "target_edition_id": "M87654321",
   "target_segments": [
     {
       "id": "target_seg_001",
+      "segmentation_id": "target_sgn_abc123",
       "edition_id": "M87654321",
       "text_id": "E87654321",
       "lines": [
@@ -252,6 +256,7 @@ GET /v2/annotations/alignment/{alignment_id}
     },
     {
       "id": "target_seg_002",
+      "segmentation_id": "target_sgn_abc123",
       "edition_id": "M87654321",
       "text_id": "E87654321",
       "lines": [
@@ -264,31 +269,41 @@ GET /v2/annotations/alignment/{alignment_id}
   ],
   "aligned_segments": [
     {
+      "id": "aligned_seg_001",
+      "segmentation_id": "align_abc123",
+      "edition_id": "M12345678",
+      "text_id": "E12345678",
       "lines": [
         {
           "start": 0,
           "end": 25
         }
       ],
-      "alignment_indices": [0]
+      "target_indices": [0]
     },
     {
+      "id": "aligned_seg_002",
+      "segmentation_id": "align_abc123",
+      "edition_id": "M12345678",
+      "text_id": "E12345678",
       "lines": [
         {
           "start": 25,
           "end": 50
         }
       ],
-      "alignment_indices": [0, 1]
+      "target_indices": [0, 1]
     }
   ]
 }
 ```
 
 **Alignment Structure:**
-- `target_id`: The edition being aligned to
+- `aligned_edition_id`: The edition containing `aligned_segments`
+- `target_edition_id`: The edition containing `target_segments`
 - `target_segments`: Segments in the target edition
-- `aligned_segments`: Segments in the source edition with indices indicating which target segments they align to
+- `aligned_segments`: Segments in the aligned edition
+- `target_indices`: Zero-based indices into `target_segments`
 
 **Error Responses:**
 - `404 Not Found`: Alignment does not exist
@@ -363,28 +378,32 @@ GET /v2/annotations/pagination/{pagination_id}
 ```json
 {
   "id": "pag_abc123",
-  "volume": {
-    "pages": [
-      {
-        "reference": "folio_1a",
-        "lines": [
-          {
-            "start": 0,
-            "end": 500
-          }
-        ]
-      },
-      {
-        "reference": "folio_1b",
-        "lines": [
-          {
-            "start": 500,
-            "end": 1000
-          }
-        ]
-      }
-    ]
-  }
+  "edition_id": "M12345678",
+  "text_id": "E12345678",
+  "volumes": [
+    {
+      "pages": [
+        {
+          "reference": "folio_1a",
+          "lines": [
+            {
+              "start": 0,
+              "end": 500
+            }
+          ]
+        },
+        {
+          "reference": "folio_1b",
+          "lines": [
+            {
+              "start": 500,
+              "end": 1000
+            }
+          ]
+        }
+      ]
+    }
+  ]
 }
 ```
 
@@ -461,6 +480,8 @@ GET /v2/annotations/durchen/{note_id}
 ```json
 {
   "id": "note_abc123",
+  "edition_id": "M12345678",
+  "text_id": "E12345678",
   "span": {
     "start": 100,
     "end": 150
@@ -540,6 +561,8 @@ GET /v2/annotations/bibliographic/{bibliographic_id}
 ```json
 {
   "id": "bib_abc123",
+  "edition_id": "M12345678",
+  "text_id": "E12345678",
   "span": {
     "start": 5000,
     "end": 5500

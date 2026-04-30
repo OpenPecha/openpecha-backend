@@ -372,41 +372,40 @@ GET /v2/editions/{edition_id}/segments/related
 | `edition_id` | string | path | Yes | The ID of the edition |
 | `span_start` | integer | query | Yes | Start character position (inclusive) |
 | `span_end` | integer | query | Yes | End character position (exclusive) |
+| `limit` | integer | query | No | Number of related segments to return (default 20, max 100) |
+| `offset` | integer | query | No | Number of related segments to skip (default 0) |
 
 **Response: 200 OK**
 
 ```json
-[
-  {
-    "id": "SEG001",
-    "edition_id": "M12345678",
-    "text_id": "E12345678",
-    "lines": [
-      {
-        "start": 0,
-        "end": 100
-      }
-    ]
-  },
-  {
-    "id": "SEG002",
-    "edition_id": "M87654321",
-    "text_id": "E87654321",
-    "lines": [
-      {
-        "start": 50,
-        "end": 150
-      }
-    ]
-  }
-]
+{
+  "items": [
+    {
+      "id": "SEG001",
+      "segmentation_id": "SGN12345678",
+      "edition_id": "M12345678",
+      "text_id": "E12345678",
+      "lines": [{"start": 0, "end": 100}]
+    }
+  ],
+  "has_more": false,
+  "offset": 0,
+  "limit": 20
+}
 ```
 
 **Empty Result:**
 
 ```json
-[]
+{
+  "items": [],
+  "has_more": false,
+  "offset": 0,
+  "limit": 20
+}
 ```
+
+**Future pagination review:** Other list-shaped or nested responses, such as annotation detail payloads with large segment arrays, should be reviewed separately because paginating them may require API-specific restructuring.
 
 **Error Responses:**
 - `400 Bad Request`: Invalid span parameters
@@ -803,6 +802,8 @@ GET /v2/editions/{edition_id}/annotations
   "segmentations": [
     {
       "id": "seg_abc123",
+      "edition_id": "M12345678",
+      "text_id": "E12345678",
       "segments": [
         {
           "id": "segment_001",
@@ -820,23 +821,29 @@ GET /v2/editions/{edition_id}/annotations
   ],
   "pagination": {
     "id": "pag_abc123",
-    "volume": {
-      "pages": [
-        {
-          "reference": "folio_1a",
-          "lines": [
-            {
-              "start": 0,
-              "end": 500
-            }
-          ]
-        }
-      ]
-    }
+    "edition_id": "M12345678",
+    "text_id": "E12345678",
+    "volumes": [
+      {
+        "pages": [
+          {
+            "reference": "folio_1a",
+            "lines": [
+              {
+                "start": 0,
+                "end": 500
+              }
+            ]
+          }
+        ]
+      }
+    ]
   },
   "bibliographic_metadata": [
     {
       "id": "bib_abc123",
+      "edition_id": "M12345678",
+      "text_id": "E12345678",
       "span": {
         "start": 5000,
         "end": 5500
@@ -847,6 +854,8 @@ GET /v2/editions/{edition_id}/annotations
   "durchen_notes": [
     {
       "id": "note_abc123",
+      "edition_id": "M12345678",
+      "text_id": "E12345678",
       "span": {
         "start": 100,
         "end": 150
@@ -930,7 +939,7 @@ Exactly one of the following annotation types must be provided:
 ```json
 {
   "alignment": {
-    "target_id": "M87654321",
+    "target_edition_id": "M87654321",
     "target_segments": [
       {
         "lines": [
@@ -957,7 +966,7 @@ Exactly one of the following annotation types must be provided:
             "end": 25
           }
         ],
-        "alignment_indices": [0]
+        "target_indices": [0]
       },
       {
         "lines": [
@@ -966,7 +975,7 @@ Exactly one of the following annotation types must be provided:
             "end": 50
           }
         ],
-        "alignment_indices": [0, 1]
+        "target_indices": [0, 1]
       }
     ]
   }
@@ -974,9 +983,10 @@ Exactly one of the following annotation types must be provided:
 ```
 
 **Alignment Explanation:**
-- `target_id`: The edition being aligned to
+- `target_edition_id`: The edition being aligned to
 - `target_segments`: Segments in the target edition
-- `aligned_segments`: Segments in the current edition (edition_id) with indices indicating which target segments they align to
+- `aligned_segments`: Segments in the current edition (`edition_id`)
+- `target_indices`: Zero-based indices into `target_segments`
 
 #### 3. Pagination Annotation
 

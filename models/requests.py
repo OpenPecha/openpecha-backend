@@ -58,6 +58,10 @@ class SpanQueryParams(OpenPechaModel):
         return self
 
 
+class RelatedSegmentsQueryParams(PaginationParams, SpanQueryParams):
+    pass
+
+
 class OptionalSpanQueryParams(OpenPechaModel):
     span_start: int | None = Field(default=None, ge=0)
     span_end: int | None = Field(default=None, ge=1)

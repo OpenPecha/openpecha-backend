@@ -14,16 +14,29 @@ from models.annotation import NoteInput, NoteOutput, Span
 class NoteDatabase:
     GET_BY_ID_QUERY = """
     MATCH (span:Span)-[:SPAN_OF]->(n:Note {id: $note_id})
+        -[:NOTE_OF]->(edition:Edition)-[:EDITION_OF]->(text:Text)
     WHERE span.start < span.end
-    RETURN n.id AS note_id, n.text AS text, span.start AS span_start, span.end AS span_end
+    RETURN n.id AS note_id,
+           edition.id AS edition_id,
+           text.id AS text_id,
+           n.text AS text,
+           span.start AS span_start,
+           span.end AS span_end
     ORDER BY span.start
     """
 
     GET_BY_EDITION_ID_QUERY = """
-    MATCH (:Edition {id: $edition_id})<-[:NOTE_OF]-(n:Note)-[:HAS_TYPE]->(:NoteType {name: $note_type})
+    MATCH (edition:Edition {id: $edition_id})<-[:NOTE_OF]-(n:Note)
+        -[:HAS_TYPE]->(:NoteType {name: $note_type}),
+        (edition)-[:EDITION_OF]->(text:Text)
     MATCH (span:Span)-[:SPAN_OF]->(n)
     WHERE span.start < span.end
-    RETURN n.id AS note_id, n.text AS text, span.start AS span_start, span.end AS span_end
+    RETURN n.id AS note_id,
+           edition.id AS edition_id,
+           text.id AS text_id,
+           n.text AS text,
+           span.start AS span_start,
+           span.end AS span_end
     ORDER BY span.start
     """
 
@@ -57,6 +70,8 @@ class NoteDatabase:
     def _parse_record(record: dict | Record) -> NoteOutput:
         return NoteOutput(
             id=record["note_id"],
+            edition_id=record["edition_id"],
+            text_id=record["text_id"],
             span=Span(start=record["span_start"], end=record["span_end"]),
             text=record["text"],
         )

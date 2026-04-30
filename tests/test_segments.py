@@ -90,11 +90,11 @@ class SegmentTestBase:
         for src_idx, target_indices in alignment_map:
             aligned_segments.append({
                 "lines": [{"start": source_segments[src_idx][0], "end": source_segments[src_idx][1]}],
-                "alignment_indices": target_indices,
+                "target_indices": target_indices,
             })
 
         data = {
-            "target_id": target_edition_id,
+            "target_edition_id": target_edition_id,
             "target_segments": [{"lines": [{"start": t[0], "end": t[1]}]} for t in target_segments],
             "aligned_segments": aligned_segments,
         }
@@ -127,6 +127,9 @@ class SegmentTestBase:
 
     def _collect_all_segments(self, data):
         """Flatten all segments from the response data."""
+        data = self._related_items(data)
+        if not data or "segmentations" not in data[0]:
+            return data
         segments = []
         for group in data:
             for sgn in group["segmentations"]:
@@ -135,7 +138,13 @@ class SegmentTestBase:
 
     def _collect_edition_ids(self, data):
         """Collect all edition IDs from the response data."""
-        return {g["edition_id"] for g in data}
+        return {g["edition_id"] for g in self._related_items(data)}
+
+    def _related_items(self, data):
+        """Return flat related-segment items from either old or paginated payloads."""
+        if isinstance(data, dict):
+            return data["items"]
+        return data
 
 
 # ---------------------------------------------------------------------------
@@ -153,7 +162,7 @@ class TestEditionSegmentsRelated(SegmentTestBase):
         """Querying segments/related on an edition that doesn't exist returns []."""
         resp = await client.get("/v2/editions/nonexistent/segments/related?span_start=0&span_end=5")
         assert resp.status_code == 200
-        assert resp.json() == []
+        assert self._related_items(resp.json()) == []
 
     async def test_edition_with_no_segmentation(self, client, test_database):
         """Edition exists but has no segmentation — should return []."""
@@ -162,7 +171,7 @@ class TestEditionSegmentsRelated(SegmentTestBase):
         edition_id = await self._create_edition(client, text_id, "Hello world!")
         resp = await client.get(f"/v2/editions/{edition_id}/segments/related?span_start=0&span_end=5")
         assert resp.status_code == 200
-        assert resp.json() == []
+        assert self._related_items(resp.json()) == []
 
     async def test_missing_span_start(self, client, test_database):
         """Missing span_start query param -> 422."""
@@ -223,7 +232,7 @@ class TestEditionSegmentsRelated(SegmentTestBase):
 
         resp = await client.get(f"/v2/editions/{edition_id}/segments/related?span_start=0&span_end=5")
         assert resp.status_code == 200
-        assert resp.json() == []
+        assert self._related_items(resp.json()) == []
 
     # ---- alignment exists: basic cases ----
 
@@ -251,13 +260,12 @@ class TestEditionSegmentsRelated(SegmentTestBase):
 
         resp = await client.get(f"/v2/editions/{src_edition_id}/segments/related?span_start=0&span_end=5")
         assert resp.status_code == 200
-        data = resp.json()
+        data = self._related_items(resp.json())
         assert len(data) >= 1
         assert data[0]["edition_id"] == tgt_edition_id
         assert data[0]["text_id"] == tgt_text_id
-        assert "segmentations" in data[0]
-        assert len(data[0]["segmentations"]) >= 1
-        assert len(data[0]["segmentations"][0]["segments"]) >= 1
+        assert "segmentation_id" in data[0]
+        assert "lines" in data[0]
 
     async def test_span_overlapping_multiple_segments(self, client, test_database):
         """Span overlaps two alignment segments; both should yield related display segments."""
@@ -283,7 +291,7 @@ class TestEditionSegmentsRelated(SegmentTestBase):
 
         resp = await client.get(f"/v2/editions/{src_edition_id}/segments/related?span_start=3&span_end=7")
         assert resp.status_code == 200
-        data = resp.json()
+        data = self._related_items(resp.json())
         assert len(data) >= 1
         all_segs = self._collect_all_segments(data)
         assert len(all_segs) >= 2, "Should find display segments for both overlapping alignment segments"
@@ -312,7 +320,7 @@ class TestEditionSegmentsRelated(SegmentTestBase):
 
         resp = await client.get(f"/v2/editions/{src_edition_id}/segments/related?span_start=10&span_end=15")
         assert resp.status_code == 200
-        assert resp.json() == []
+        assert self._related_items(resp.json()) == []
 
     # ---- many-to-one / one-to-many alignment ----
 
@@ -340,11 +348,11 @@ class TestEditionSegmentsRelated(SegmentTestBase):
 
         resp = await client.get(f"/v2/editions/{src_edition_id}/segments/related?span_start=0&span_end=5")
         assert resp.status_code == 200
-        assert len(resp.json()) >= 1
+        assert len(self._related_items(resp.json())) >= 1
 
         resp2 = await client.get(f"/v2/editions/{src_edition_id}/segments/related?span_start=5&span_end=10")
         assert resp2.status_code == 200
-        assert len(resp2.json()) >= 1
+        assert len(self._related_items(resp2.json())) >= 1
 
     async def test_one_to_many_alignment(self, client, test_database):
         """One source segment aligned to multiple target segments."""
@@ -370,9 +378,9 @@ class TestEditionSegmentsRelated(SegmentTestBase):
 
         resp = await client.get(f"/v2/editions/{src_edition_id}/segments/related?span_start=0&span_end=10")
         assert resp.status_code == 200
-        data = resp.json()
+        data = self._related_items(resp.json())
         assert len(data) >= 1
-        total_related = sum(len(s) for g in data for sgn in g["segmentations"] for s in [sgn["segments"]])
+        total_related = len(data)
         assert total_related >= 2, "Should return both aligned display segments"
 
     # ---- multiple editions aligned (fan-out) ----
@@ -410,7 +418,7 @@ class TestEditionSegmentsRelated(SegmentTestBase):
 
         resp = await client.get(f"/v2/editions/{root_edition_id}/segments/related?span_start=0&span_end=10")
         assert resp.status_code == 200
-        data = resp.json()
+        data = self._related_items(resp.json())
         edition_ids = self._collect_edition_ids(data)
         assert trans_edition_id in edition_ids
         assert comm_edition_id in edition_ids
@@ -456,7 +464,7 @@ class TestEditionSegmentsRelated(SegmentTestBase):
 
         resp = await client.get(f"/v2/editions/{edition_a_id}/segments/related?span_start=0&span_end=10")
         assert resp.status_code == 200
-        data = resp.json()
+        data = self._related_items(resp.json())
         edition_ids = self._collect_edition_ids(data)
         assert edition_b_id in edition_ids
         assert edition_c_id in edition_ids, "Should find C transitively via A->B->C"
@@ -498,7 +506,7 @@ class TestEditionSegmentsRelated(SegmentTestBase):
 
         resp = await client.get(f"/v2/editions/{edition_c_id}/segments/related?span_start=0&span_end=10")
         assert resp.status_code == 200
-        data = resp.json()
+        data = self._related_items(resp.json())
         edition_ids = self._collect_edition_ids(data)
         assert edition_b_id in edition_ids
         assert edition_a_id in edition_ids
@@ -531,7 +539,7 @@ class TestEditionSegmentsRelated(SegmentTestBase):
         await self._post_alignment(client, ed_e, ed_b, [(0, 10)], [(0, 10)], [(0, [0])])
 
         resp = await client.get(f"/v2/editions/{ed_a}/segments/related?span_start=0&span_end=10")
-        data = resp.json()
+        data = self._related_items(resp.json())
         edition_ids = self._collect_edition_ids(data)
         assert ed_b in edition_ids
         assert ed_c in edition_ids
@@ -565,9 +573,9 @@ class TestEditionSegmentsRelated(SegmentTestBase):
         await self._post_alignment(client, ed_d, ed_c, [(0, 10)], [(0, 10)], [(0, [0])])
 
         resp = await client.get(f"/v2/editions/{ed_a}/segments/related?span_start=0&span_end=10")
-        data = resp.json()
+        data = self._related_items(resp.json())
         d_groups = [g for g in data if g["edition_id"] == ed_d]
-        assert len(d_groups) <= 1, "Edition D should appear at most once (deduplication)"
+        assert len({g["id"] for g in d_groups}) == len(d_groups)
         edition_ids = self._collect_edition_ids(data)
         assert ed_b in edition_ids
         assert ed_c in edition_ids
@@ -591,11 +599,10 @@ class TestEditionSegmentsRelated(SegmentTestBase):
         await self._post_alignment(client, ed_a, ed_b, [(0, 10)], [(0, 10)], [(0, [0])])
 
         resp = await client.get(f"/v2/editions/{ed_a}/segments/related?span_start=0&span_end=10")
-        data = resp.json()
+        data = self._related_items(resp.json())
         assert len(data) >= 1
-        b_group = [g for g in data if g["edition_id"] == ed_b][0]
-        assert len(b_group["segmentations"]) == 2, "Should have two display segmentation groups"
-        sgn_ids = {s["segmentation_id"] for s in b_group["segmentations"]}
+        b_segments = [g for g in data if g["edition_id"] == ed_b]
+        sgn_ids = {s["segmentation_id"] for s in b_segments}
         assert sgn1_id in sgn_ids
         assert sgn2_id in sgn_ids
 
@@ -619,11 +626,9 @@ class TestEditionSegmentsRelated(SegmentTestBase):
 
         resp = await client.get(f"/v2/editions/{ed_a}/segments/related?span_start=0&span_end=10")
         assert resp.status_code == 200
-        data = resp.json()
-        assert len(data) == 1
-        b_group = data[0]
-        assert b_group["edition_id"] == ed_b
-        sgn_ids = {s["segmentation_id"] for s in b_group["segmentations"]}
+        data = self._related_items(resp.json())
+        assert {item["edition_id"] for item in data} == {ed_b}
+        sgn_ids = {s["segmentation_id"] for s in data}
         assert sgn1_id in sgn_ids, "sgn1 overlaps the alignment spans and should be included"
         assert sgn2_id not in sgn_ids, "sgn2 does NOT overlap the alignment spans and should be excluded"
 
@@ -651,25 +656,17 @@ class TestEditionSegmentsRelated(SegmentTestBase):
 
         resp = await client.get(f"/v2/editions/{src_edition_id}/segments/related?span_start=0&span_end=10")
         assert resp.status_code == 200
-        data = resp.json()
+        data = self._related_items(resp.json())
         assert len(data) >= 1
 
-        group = data[0]
-        assert "edition_id" in group
-        assert "text_id" in group
-        assert "segmentations" in group
-        assert "relationship" not in group
-        assert isinstance(group["segmentations"], list)
-
-        sgn = group["segmentations"][0]
-        assert "segmentation_id" in sgn
-        assert "segments" in sgn
-        assert isinstance(sgn["segments"], list)
-
-        seg = sgn["segments"][0]
+        seg = data[0]
         assert "id" in seg
+        assert "edition_id" in seg
+        assert "text_id" in seg
+        assert "segmentation_id" in seg
         assert "lines" in seg
         assert isinstance(seg["lines"], list)
+        assert "relationship" not in seg
         line = seg["lines"][0]
         assert "start" in line
         assert "end" in line
@@ -703,7 +700,7 @@ class TestEditionSegmentsRelated(SegmentTestBase):
 
         resp = await client.get(f"/v2/editions/{src_edition_id}/segments/related?span_start=5&span_end=6")
         assert resp.status_code == 200
-        assert len(resp.json()) >= 1
+        assert len(self._related_items(resp.json())) >= 1
 
     # ---- edge: boundary-touching span ----
 
@@ -731,7 +728,7 @@ class TestEditionSegmentsRelated(SegmentTestBase):
 
         resp = await client.get(f"/v2/editions/{src_edition_id}/segments/related?span_start=5&span_end=10")
         assert resp.status_code == 200
-        assert resp.json() == [], "Span [5,10) should not overlap alignment segment [0,5)"
+        assert self._related_items(resp.json()) == [], "Span [5,10) should not overlap alignment segment [0,5)"
 
     async def test_span_ending_at_segment_start_not_overlapping(self, client, test_database):
         """Span ends exactly at segment start -> no overlap."""
@@ -757,7 +754,7 @@ class TestEditionSegmentsRelated(SegmentTestBase):
 
         resp = await client.get(f"/v2/editions/{src_edition_id}/segments/related?span_start=0&span_end=5")
         assert resp.status_code == 200
-        assert resp.json() == [], "Span [0,5) should not overlap alignment segment [5,10)"
+        assert self._related_items(resp.json()) == [], "Span [0,5) should not overlap alignment segment [5,10)"
 
     # ---- edge: very large span covering all segments ----
 
@@ -785,7 +782,7 @@ class TestEditionSegmentsRelated(SegmentTestBase):
 
         resp = await client.get(f"/v2/editions/{src_edition_id}/segments/related?span_start=0&span_end=99999")
         assert resp.status_code == 200
-        data = resp.json()
+        data = self._related_items(resp.json())
         assert len(data) >= 1
         total_segs = len(self._collect_all_segments(data))
         assert total_segs >= 2
@@ -816,7 +813,7 @@ class TestEditionSegmentsRelated(SegmentTestBase):
 
         resp = await client.get(f"/v2/editions/{src_edition_id}/segments/related?span_start=0&span_end=5")
         assert resp.status_code == 200, f"Got {resp.status_code}: {resp.json()}"
-        data = resp.json()
+        data = self._related_items(resp.json())
         assert len(data) >= 1
         segs = self._collect_all_segments(data)
         assert len(segs) >= 1
@@ -851,23 +848,21 @@ class TestEditionSegmentsRelated(SegmentTestBase):
             f"/v2/editions/{src_edition_id}/segments/related?span_start=0&span_end=16"
         )
         assert resp.status_code == 200, f"Got {resp.status_code}: {resp.json()}"
-        data = resp.json()
+        data = self._related_items(resp.json())
         assert len(data) >= 1
 
-        for group in data:
-            for sgn in group["segmentations"]:
-                for seg in sgn["segments"]:
-                    lines = seg["lines"]
-                    # Each line must appear exactly once (no duplicates)
-                    line_tuples = [(l["start"], l["end"]) for l in lines]
-                    assert len(line_tuples) == len(set(line_tuples)), (
-                        f"Duplicate lines in segment {seg['id']}: {lines}"
-                    )
-                    # Lines must be continuous and sorted
-                    for i in range(1, len(lines)):
-                        assert lines[i]["start"] == lines[i - 1]["end"], (
-                            f"Non-continuous lines in segment {seg['id']}: {lines}"
-                        )
+        for seg in data:
+            lines = seg["lines"]
+            # Each line must appear exactly once (no duplicates)
+            line_tuples = [(l["start"], l["end"]) for l in lines]
+            assert len(line_tuples) == len(set(line_tuples)), (
+                f"Duplicate lines in segment {seg['id']}: {lines}"
+            )
+            # Lines must be continuous and sorted
+            for i in range(1, len(lines)):
+                assert lines[i]["start"] == lines[i - 1]["end"], (
+                    f"Non-continuous lines in segment {seg['id']}: {lines}"
+                )
 
     # ---- unrelated texts with alignment ----
 
@@ -895,7 +890,7 @@ class TestEditionSegmentsRelated(SegmentTestBase):
 
         resp = await client.get(f"/v2/editions/{edition_a_id}/segments/related?span_start=0&span_end=10")
         assert resp.status_code == 200
-        data = resp.json()
+        data = self._related_items(resp.json())
         assert len(data) == 1
         assert data[0]["edition_id"] == edition_b_id
 
@@ -925,9 +920,9 @@ class TestEditionSegmentsRelated(SegmentTestBase):
 
         resp = await client.get(f"/v2/editions/{edition_id}/segments/related?span_start=0&span_end=10")
         assert resp.status_code == 200
-        data = resp.json()
-        for group in data:
-            assert group["edition_id"] != edition_id
+        data = self._related_items(resp.json())
+        for segment in data:
+            assert segment["edition_id"] != edition_id
 
     # ---- multiple independent trees ----
 
@@ -991,7 +986,7 @@ class TestEditionSegmentsRelated(SegmentTestBase):
         await self._post_alignment(client, ed_c, ed_b, [(0, 10)], [(0, 10)], [(0, [0])])
 
         resp = await client.get(f"/v2/editions/{ed_a}/segments/related?span_start=0&span_end=10")
-        data = resp.json()
+        data = self._related_items(resp.json())
         edition_ids = self._collect_edition_ids(data)
         assert ed_c in edition_ids, "C should be found transitively via B even though B has no display segmentation"
         assert ed_b not in edition_ids, "B should not appear since it has no display segmentation"
@@ -1084,7 +1079,7 @@ class TestDirectSegmentRelated(SegmentTestBase):
         """Non-existent segment_id -> empty list."""
         resp = await client.get("/v2/segments/nonexistent_id/related")
         assert resp.status_code == 200
-        assert resp.json() == []
+        assert self._related_items(resp.json()) == []
 
     async def test_segment_with_no_alignment(self, client, test_database):
         """Segment exists but has no ALIGNED_TO relationship -> empty list."""
@@ -1098,7 +1093,7 @@ class TestDirectSegmentRelated(SegmentTestBase):
 
         resp = await client.get(f"/v2/segments/{seg_ids[0]}/related")
         assert resp.status_code == 200
-        assert resp.json() == []
+        assert self._related_items(resp.json()) == []
 
     async def test_segment_with_alignment_returns_related(self, client, test_database):
         """Segment has alignment -> returns related display segments from target edition."""
@@ -1127,7 +1122,7 @@ class TestDirectSegmentRelated(SegmentTestBase):
 
         resp = await client.get(f"/v2/segments/{seg_ids[0]}/related")
         assert resp.status_code == 200
-        data = resp.json()
+        data = self._related_items(resp.json())
         assert len(data) >= 1
         assert data[0]["edition_id"] == tgt_edition_id
 
@@ -1189,9 +1184,9 @@ class TestDirectSegmentRelated(SegmentTestBase):
 
         resp = await client.get(f"/v2/segments/{seg_ids[0]}/related")
         assert resp.status_code == 200
-        data = resp.json()
-        for group in data:
-            assert group["edition_id"] != src_edition_id, \
+        data = self._related_items(resp.json())
+        for segment in data:
+            assert segment["edition_id"] != src_edition_id, \
                 "Related segments should exclude the queried segment's own edition"
 
 

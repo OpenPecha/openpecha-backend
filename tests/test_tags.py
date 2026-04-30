@@ -70,6 +70,10 @@ async def _create_text(client, tag_ids=None):
     return response.json()["id"]
 
 
+def _items(data):
+    return data["items"] if isinstance(data, dict) and "items" in data else data
+
+
 async def _seed_person(test_database):
     """Seed a test person for text creation."""
     async with test_database.get_session() as session:
@@ -462,7 +466,7 @@ class TestTagFiltering:
 
         assert response.status_code == 200
         data = response.json()
-        result_ids = [expr["id"] for expr in data]
+        result_ids = [expr["id"] for expr in _items(data)]
         assert text_id_tagged in result_ids
         assert text_id_untagged not in result_ids
 
@@ -472,7 +476,10 @@ class TestTagFiltering:
 
         assert response.status_code == 200
         data = response.json()
-        assert data == []
+        assert data["has_more"] is False
+        assert data["offset"] == 0
+        assert data["limit"] == 20
+        assert data["items"] == []
 
 
 @pytest.mark.asyncio(loop_scope="session")

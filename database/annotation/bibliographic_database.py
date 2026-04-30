@@ -15,18 +15,30 @@ from models.enums import BibliographyType
 class BibliographicDatabase:
     GET_BY_ID_QUERY = """
     MATCH (span:Span)-[:SPAN_OF]->(b:BibliographicMetadata {id: $bibliographic_id})
+        -[:BIBLIOGRAPHY_OF]->(edition:Edition)-[:EDITION_OF]->(text:Text)
     WHERE span.start < span.end
     MATCH (b)-[:HAS_TYPE]->(bt:BibliographyType)
-    RETURN b.id AS id, bt.name AS type, span.start AS span_start, span.end AS span_end
+    RETURN b.id AS id,
+           edition.id AS edition_id,
+           text.id AS text_id,
+           bt.name AS type,
+           span.start AS span_start,
+           span.end AS span_end
     ORDER BY span.start
     """
 
     GET_BY_EDITION_ID_QUERY = """
-    MATCH (:Edition {id: $edition_id})<-[:BIBLIOGRAPHY_OF]-(b:BibliographicMetadata)
+    MATCH (edition:Edition {id: $edition_id})<-[:BIBLIOGRAPHY_OF]-(b:BibliographicMetadata)
+        -[:HAS_TYPE]->(bt:BibliographyType),
+        (edition)-[:EDITION_OF]->(text:Text)
     MATCH (span:Span)-[:SPAN_OF]->(b)
     WHERE span.start < span.end
-    MATCH (b)-[:HAS_TYPE]->(bt:BibliographyType)
-    RETURN b.id AS id, bt.name AS type, span.start AS span_start, span.end AS span_end
+    RETURN b.id AS id,
+           edition.id AS edition_id,
+           text.id AS text_id,
+           bt.name AS type,
+           span.start AS span_start,
+           span.end AS span_end
     ORDER BY span.start
     """
 
@@ -59,6 +71,8 @@ class BibliographicDatabase:
     def _parse_record(record: dict | Record) -> BibliographicMetadataOutput:
         return BibliographicMetadataOutput(
             id=record["id"],
+            edition_id=record["edition_id"],
+            text_id=record["text_id"],
             span=Span(start=record["span_start"], end=record["span_end"]),
             type=BibliographyType(record["type"]),
         )

@@ -20,6 +20,10 @@ from models.person import PersonInput
 logger = logging.getLogger(__name__)
 
 
+def _items(data):
+    return data["items"] if isinstance(data, dict) and "items" in data else data
+
+
 @pytest.fixture
 async def test_person_data():
     """Sample person data for testing"""
@@ -44,7 +48,11 @@ class TestGetAllPersonsV2:
         """Test getting all persons from empty database"""
         response = await client.get("/v2/persons/")
         assert response.status_code == 200
-        data = response.json()
+        body = response.json()
+        data = _items(body)
+        assert body["offset"] == 0
+        assert body["limit"] == 20
+        assert body["has_more"] is False
         assert isinstance(data, list)
         assert len(data) == 0
 
@@ -57,7 +65,7 @@ class TestGetAllPersonsV2:
         response = await client.get("/v2/persons/")
 
         assert response.status_code == 200
-        data = response.json()
+        data = _items(response.json())
         assert isinstance(data, list)
         assert len(data) == 1
         assert data[0]["id"] == person_id
@@ -80,7 +88,7 @@ class TestGetAllPersonsV2:
         response = await client.get("/v2/persons/")
 
         assert response.status_code == 200
-        data = response.json()
+        data = _items(response.json())
         assert isinstance(data, list)
         assert len(data) == 3
 
@@ -105,7 +113,7 @@ class TestGetAllPersonsV2:
         response = await client.get("/v2/persons/")
 
         assert response.status_code == 200
-        data = response.json()
+        data = _items(response.json())
         assert len(data) == 1
         assert data[0]["id"] == person_id
         assert data[0]["name"]["en"] == "Primary Name"
@@ -127,7 +135,11 @@ class TestGetAllPersonsV2:
         response = await client.get("/v2/persons/")
 
         assert response.status_code == 200
-        data = response.json()
+        body = response.json()
+        data = _items(body)
+        assert body["offset"] == 0
+        assert body["limit"] == 20
+        assert body["has_more"] is True
         # Default limit is 20, so should get 20 persons
         assert len(data) == 20
 
@@ -143,7 +155,10 @@ class TestGetAllPersonsV2:
         response = await client.get("/v2/persons/?limit=5")
 
         assert response.status_code == 200
-        data = response.json()
+        body = response.json()
+        data = _items(body)
+        assert body["limit"] == 5
+        assert body["has_more"] is True
         assert len(data) == 5
 
     async def test_get_all_persons_with_custom_offset(self, client, test_database):
@@ -159,13 +174,13 @@ class TestGetAllPersonsV2:
         # Request first page (offset=0, limit=5)
         response1 = await client.get("/v2/persons/?limit=5&offset=0")
         assert response1.status_code == 200
-        data1 = response1.json()
+        data1 = _items(response1.json())
         assert len(data1) == 5
 
         # Request second page (offset=5, limit=5)
         response2 = await client.get("/v2/persons/?limit=5&offset=5")
         assert response2.status_code == 200
-        data2 = response2.json()
+        data2 = _items(response2.json())
         assert len(data2) == 5
 
         # Verify no overlap between pages
@@ -184,13 +199,13 @@ class TestGetAllPersonsV2:
         # Test limit=1
         response = await client.get("/v2/persons/?limit=1")
         assert response.status_code == 200
-        data = response.json()
+        data = _items(response.json())
         assert len(data) == 1
 
         # Test limit=100 (max allowed)
         response = await client.get("/v2/persons/?limit=100")
         assert response.status_code == 200
-        data = response.json()
+        data = _items(response.json())
         assert len(data) == 5  # Only 5 persons exist
 
     async def test_get_all_persons_invalid_limit_too_low(self, client, test_database):
@@ -234,7 +249,7 @@ class TestGetAllPersonsV2:
         # Request with offset=100 (beyond all results)
         response = await client.get("/v2/persons/?offset=100")
         assert response.status_code == 200
-        data = response.json()
+        data = _items(response.json())
         assert len(data) == 0  # Should return empty list
 
     async def test_get_all_persons_pagination_consistency(self, client, test_database):
@@ -252,7 +267,7 @@ class TestGetAllPersonsV2:
         for page in range(3):
             response = await client.get(f"/v2/persons/?limit=10&offset={page*10}")
             assert response.status_code == 200
-            data = response.json()
+            data = _items(response.json())
             fetched_ids = [p["id"] for p in data]
             all_fetched_ids.extend(fetched_ids)
 
@@ -284,7 +299,7 @@ class TestGetAllPersonsV2:
         response = await client.get("/v2/persons/?limit=10&offset=5")
 
         assert response.status_code == 200
-        data = response.json()
+        data = _items(response.json())
         assert isinstance(data, list)
         assert len(data) == 0
 
@@ -298,7 +313,7 @@ class TestGetAllPersonsV2:
         response = await client.get("/v2/persons/?name=John")
 
         assert response.status_code == 200
-        data = response.json()
+        data = _items(response.json())
         assert len(data) == 1
         assert data[0]["id"] == person1_id
         assert data[0]["name"]["en"] == "John Smith"
@@ -314,7 +329,7 @@ class TestGetAllPersonsV2:
         response = await client.get("/v2/persons/?name=Unique Alternative")
 
         assert response.status_code == 200
-        data = response.json()
+        data = _items(response.json())
         assert len(data) == 1
         assert data[0]["id"] == person_id
         assert data[0]["name"]["en"] == "Primary Name"
@@ -322,7 +337,7 @@ class TestGetAllPersonsV2:
         response_bo = await client.get("/v2/persons/?name=གཞན་མིང")
 
         assert response_bo.status_code == 200
-        data_bo = response_bo.json()
+        data_bo = _items(response_bo.json())
         assert len(data_bo) == 1
         assert data_bo[0]["id"] == person_id
 
@@ -336,7 +351,7 @@ class TestGetAllPersonsV2:
         response = await client.get("/v2/persons/?bdrc=P111111")
 
         assert response.status_code == 200
-        data = response.json()
+        data = _items(response.json())
         assert len(data) == 1
         assert data[0]["id"] == person1_id
         assert data[0]["bdrc"] == "P111111"
@@ -351,7 +366,7 @@ class TestGetAllPersonsV2:
         response = await client.get("/v2/persons/?wiki=Q111111")
 
         assert response.status_code == 200
-        data = response.json()
+        data = _items(response.json())
         assert len(data) == 1
         assert data[0]["id"] == person1_id
         assert data[0]["wiki"] == "Q111111"
@@ -374,7 +389,7 @@ class TestGetAllPersonsV2:
         response = await client.get("/v2/persons/?bdrc=P333333&wiki=Q333333")
 
         assert response.status_code == 200
-        data = response.json()
+        data = _items(response.json())
         assert len(data) == 1
         assert data[0]["id"] == person1_id
 
@@ -399,7 +414,7 @@ class TestGetAllPersonsV2:
         response = await client.get("/v2/persons/?name=Smith")
 
         assert response.status_code == 200
-        data = response.json()
+        data = _items(response.json())
         assert len(data) == 2
         returned_ids = [p["id"] for p in data]
         assert person1_id in returned_ids
@@ -413,7 +428,7 @@ class TestGetAllPersonsV2:
         response = await client.get("/v2/persons/?name=NonExistent")
 
         assert response.status_code == 200
-        data = response.json()
+        data = _items(response.json())
         assert len(data) == 0
 
     async def test_get_all_persons_filter_case_insensitive(self, client, test_database):
@@ -424,7 +439,7 @@ class TestGetAllPersonsV2:
         response = await client.get("/v2/persons/?name=john smith")
 
         assert response.status_code == 200
-        data = response.json()
+        data = _items(response.json())
         assert len(data) == 1
         assert data[0]["id"] == person_id
 
@@ -519,7 +534,7 @@ class TestGetSinglePersonV2:
 
         # This should hit the GET all persons endpoint, not single person
         assert response.status_code == 200
-        data = response.json()
+        data = _items(response.json())
         assert isinstance(data, list)
 
 
@@ -1054,7 +1069,7 @@ class TestPersonsIntegration:
         get_all_response = await client.get("/v2/persons/")
 
         assert get_all_response.status_code == 200
-        all_data = get_all_response.json()
+        all_data = _items(get_all_response.json())
         assert len(all_data) == 3
 
         # Verify all created persons are returned
