@@ -1,9 +1,10 @@
 from collections.abc import Sequence
+from itertools import pairwise
 from typing import Any, Self, TypeVar
 
 from pydantic import ConfigDict, Field, model_validator
 
-from .base import NonEmptyStr, OpenPechaModel
+from .base import NonEmptyStr, OpenPechaModel, _validate_range
 from .enums import AttributeType, BibliographyType
 
 
@@ -13,8 +14,7 @@ class Span(OpenPechaModel):
 
     @model_validator(mode="after")
     def validate_span_range(self) -> Self:
-        if self.start >= self.end:
-            raise ValueError("'start' must be less than 'end'")
+        _validate_range(self.start, self.end)
         return self
 
 
@@ -23,20 +23,21 @@ class AnnotationMetadata(OpenPechaModel):
 
 
 def _validate_lines(lines: list[Span]) -> None:
-    for i in range(1, len(lines)):
-        prev, curr = lines[i - 1], lines[i]
+    for prev, curr in pairwise(lines):
         if curr.start != prev.end:
             raise ValueError("lines must be continuous and sorted")
 
 
-class SegmentBase(OpenPechaModel):
+class LinesModel(OpenPechaModel):
     lines: list[Span] = Field(min_length=1)
 
     @model_validator(mode="after")
-    def validate_lines_sorted(self) -> Self:
+    def validate_lines(self) -> Self:
         _validate_lines(self.lines)
         return self
 
+
+class SegmentBase(LinesModel):
     @property
     def span(self) -> Span:
         return Span(start=self.lines[0].start, end=self.lines[-1].end)
@@ -65,14 +66,8 @@ class RelatedSegmentsOutput(OpenPechaModel):
     segmentations: list[RelatedSegmentationOutput]
 
 
-class AlignedSegment(OpenPechaModel):
-    lines: list[Span] = Field(min_length=1)
+class AlignedSegment(LinesModel):
     target_indices: list[int] = Field(min_length=1)
-
-    @model_validator(mode="after")
-    def validate_lines(self) -> Self:
-        _validate_lines(self.lines)
-        return self
 
 
 class AlignedSegmentOutput(AlignedSegment):
@@ -82,9 +77,14 @@ class AlignedSegmentOutput(AlignedSegment):
     text_id: NonEmptyStr
 
 
-def _is_sorted_by_span_start(segments: Sequence[SegmentBase] | Sequence[AlignedSegment]) -> bool:
-    starts = [min(s.lines, key=lambda line: line.start).start for s in segments]
-    return starts == sorted(starts)
+def _is_sorted_by_span_start(segments: Sequence[LinesModel]) -> bool:
+    previous_start: int | None = None
+    for segment in segments:
+        start = segment.lines[0].start
+        if previous_start is not None and start < previous_start:
+            return False
+        previous_start = start
+    return True
 
 
 SegmentType = TypeVar("SegmentType", bound=SegmentBase)
@@ -136,14 +136,8 @@ class AlignmentOutput(AlignmentBase[SegmentOutput, AlignedSegmentOutput]):
     aligned_edition_id: NonEmptyStr
 
 
-class Page(OpenPechaModel):
-    lines: list[Span] = Field(min_length=1)
+class Page(LinesModel):
     reference: NonEmptyStr
-
-    @model_validator(mode="after")
-    def validate_lines(self) -> Self:
-        _validate_lines(self.lines)
-        return self
 
 
 class Volume(OpenPechaModel):
@@ -155,9 +149,9 @@ class Volume(OpenPechaModel):
 
     @model_validator(mode="after")
     def validate_pages_continuous(self) -> Self:
-        for i in range(1, len(self.pages)):
-            prev_end = self.pages[i - 1].lines[-1].end
-            curr_start = self.pages[i].lines[0].start
+        for prev, curr in pairwise(self.pages):
+            prev_end = prev.lines[-1].end
+            curr_start = curr.lines[0].start
             if curr_start != prev_end:
                 raise ValueError("pages must be continuous and sorted")
         return self

@@ -1,629 +1,307 @@
 # Annotations API Documentation
 
-This document provides comprehensive documentation for all Annotations-related endpoints in the OpenPecha API v2.
+Annotations attach structured information to edition content using character spans. They are created under editions and can also be fetched or deleted directly by annotation ID.
 
----
+## Concepts
 
-## Table of Contents
-
-1. [Overview](#overview)
-2. [Authentication](#authentication)
-3. [Annotation Types](#annotation-types)
-4. [Annotation Endpoints](#annotation-endpoints)
-   - [Segmentation Annotations](#segmentation-annotations)
-   - [Alignment Annotations](#alignment-annotations)
-   - [Pagination Annotations](#pagination-annotations)
-   - [Durchen Notes](#durchen-notes)
-   - [Bibliographic Metadata](#bibliographic-metadata)
----
-
-## Annotation Design
-
-[Design Link](https://excalidraw.com/#json=FOKFHw3wBx0Yf5fm-6vrU,M_x0GiMa5bYEjeiwnLhQMQ)
-
-## Overview
-
-Annotations in the OpenPecha API provide a way to add structured metadata and relationships to edition content. Annotations use character span references to mark specific portions of text with semantic information.
-
-### Key Concepts
-
-- **Annotation**: Structured metadata attached to an edition
-- **Span**: Character range `[start, end)` where start is inclusive and end is exclusive
-- **Segment**: A portion of text defined by one or more spans
-- **Alignment**: Mapping between segments in different editions
-
-### Annotation Categories
-
-| Category | Types | Purpose |
-|----------|-------|---------|
-| **Structural** | Segmentation, Pagination | Divide content into logical units |
-| **Relational** | Alignment | Link content across editions |
-| **Descriptive** | Bibliography, Durchen | Add metadata and scholarly notes |
-
-### Base URL
-
-```
-Development: https://api-l25bgmwqoa-uc.a.run.app
-Production: https://api-aq25662yyq-uc.a.run.app
-Test: https://api-kwgjscy6gq-uc.a.run.app
-Local: http://127.0.0.1:5001/pecha-backend-test-3a4d0/us-central1/api
-```
-
----
+- **Span**: A half-open character range where `start` is inclusive and `end` is exclusive.
+- **Lines**: Continuous spans inside a segment or page. Adjacent lines must be sorted and touch each other.
+- **Segmentation**: A set of logical content segments for an edition.
+- **Alignment**: A mapping between segments in an aligned/source edition and target segments in another edition.
+- **Pagination**: A mapping from character spans to page or folio references.
+- **Bibliographic metadata**: Span-level metadata such as colophon, title, incipit, or author.
+- **Durchen note**: A span-level critical apparatus note.
 
 ## Authentication
 
-All API requests require authentication using an API key.
+Use `X-API-Key` in deployed environments.
 
-**Header:**
-```
-X-API-Key: your_api_key_here
-```
-
----
-
-## Annotation Types
-
-### 1. Segmentation
-
-Divides text into logical segments (e.g., sentences, paragraphs, verses). Used primarily with critical editions.
-
-**Use Cases:**
-- Sentence segmentation for translation alignment
-- Verse boundaries in poetry
-- Paragraph divisions
-- Semantic text units
-
-### 2. Alignment
-
-Creates mappings between segments in different editions, enabling cross-edition navigation and parallel viewing.
-
-**Use Cases:**
-- Translation alignment (source to target language)
-- Edition comparison (diplomatic to critical)
-- Multi-version text alignment
-
-### 3. Pagination
-
-Maps character spans to page/folio references in physical manuscripts or printed editions. Used primarily with diplomatic editions.
-
-**Use Cases:**
-- Folio references (1a, 1b, 2a, 2b)
-- Page numbers
-- Image references for digital facsimiles
-- Volume and page organization
-
-### 4. Durchen Notes
-
-Critical apparatus notes that document variant readings, textual issues, or scholarly commentary.
-
-**Use Cases:**
-- Variant readings from different manuscripts
-- Textual corrections
-- Editorial notes
-- Scholarly observations
-
-### 5. Bibliographic Metadata
-
-Marks spans with bibliographic significance (colophon, title, author attribution, etc.).
-
-**Use Cases:**
-- Identifying colophon sections
-- Marking title occurrences
-- Author attributions
-- Incipit markers
-
----
-
-## Annotation Endpoints
-
-### Segmentation Annotations
-
-#### Get Segmentation by ID
-
-Retrieve a specific segmentation annotation with all its segments.
-
-**Endpoint:**
-```
-GET /v2/annotations/segmentation/{segmentation_id}
+```text
+X-API-Key: your_api_key
 ```
 
-**Parameters:**
+## Create and List Annotations on an Edition
 
-| Name | Type | Location | Required | Description |
-|------|------|----------|----------|-------------|
-| `segmentation_id` | string | path | Yes | The ID of the segmentation annotation |
+Annotations are created and listed by type under an edition. Each `POST` returns `{ "id": "..." }`.
 
-**Response: 200 OK**
+| Type | List | Create |
+|------|------|--------|
+| Segmentation | `GET /v2/editions/{edition_id}/segmentations` | `POST /v2/editions/{edition_id}/segmentations` |
+| Alignment | `GET /v2/editions/{edition_id}/alignments` | `POST /v2/editions/{edition_id}/alignments` |
+| Pagination | `GET /v2/editions/{edition_id}/pagination` | `POST /v2/editions/{edition_id}/pagination` |
+| Bibliographic metadata | `GET /v2/editions/{edition_id}/bibliographic` | `POST /v2/editions/{edition_id}/bibliographic` |
+| Durchen notes | `GET /v2/editions/{edition_id}/durchens` | `POST /v2/editions/{edition_id}/durchens` |
+
+
+### Create Segmentation
 
 ```json
 {
-  "id": "seg_abc123",
-  "edition_id": "M12345678",
-  "text_id": "E12345678",
   "segments": [
     {
-      "id": "segment_001",
-      "edition_id": "M12345678",
-      "text_id": "E12345678",
       "lines": [
-        {
-          "start": 0,
-          "end": 50
-        }
+        {"start": 0, "end": 50}
       ]
     },
     {
-      "id": "segment_002",
-      "edition_id": "M12345678",
-      "text_id": "E12345678",
       "lines": [
-        {
-          "start": 50,
-          "end": 100
-        }
+        {"start": 50, "end": 100}
       ]
     }
-  ]
+  ],
+  "metadata": {}
 }
 ```
 
-**Error Responses:**
-- `404 Not Found`: Segmentation does not exist
-- `500 Server Error`: Internal server error
+Segments must be sorted by their first line's start offset. Lines inside each segment must be continuous.
 
-**Example Usage:**
-
-```bash
-curl -X GET "https://api-l25bgmwqoa-uc.a.run.app/v2/annotations/segmentation/seg_abc123" \
-  -H "X-API-Key: your_api_key"
-```
-
----
-
-#### Delete Segmentation
-
-Permanently delete a standalone segmentation annotation and all its segments.
-
-**Endpoint:**
-```
-DELETE /v2/annotations/segmentation/{segmentation_id}
-```
-
-**Parameters:**
-
-| Name | Type | Location | Required | Description |
-|------|------|----------|----------|-------------|
-| `segmentation_id` | string | path | Yes | The ID of the segmentation annotation to delete |
-
-**Response: 204 No Content**
-
-Successful deletion returns no content.
-
-**Error Responses:**
-- `400 Bad Request`: Segmentation is part of an alignment (use DELETE alignment endpoint instead)
-- `404 Not Found`: Segmentation does not exist
-- `500 Server Error`: Internal server error
-
-**Important:**
-If the segmentation is part of an alignment, this endpoint will return `400 Bad Request`. You must delete the alignment using `DELETE /v2/annotations/alignment/{alignment_id}` instead, which will delete both the alignment and its associated segmentations.
-
-**Example Usage:**
-
-```bash
-curl -X DELETE "https://api-l25bgmwqoa-uc.a.run.app/v2/annotations/segmentation/seg_abc123" \
-  -H "X-API-Key: your_api_key"
-```
-
----
-
-### Alignment Annotations
-
-#### Get Alignment by ID
-
-Retrieve a specific alignment annotation with source and target segments.
-
-**Endpoint:**
-```
-GET /v2/annotations/alignment/{alignment_id}
-```
-
-**Parameters:**
-
-| Name | Type | Location | Required | Description |
-|------|------|----------|----------|-------------|
-| `alignment_id` | string | path | Yes | The ID of the alignment annotation |
-
-**Response: 200 OK**
+### Create Alignment
 
 ```json
 {
-  "id": "align_abc123",
-  "aligned_edition_id": "M12345678",
-  "target_edition_id": "M87654321",
+  "target_edition_id": "ED_TARGET",
   "target_segments": [
     {
-      "id": "target_seg_001",
-      "segmentation_id": "target_sgn_abc123",
-      "edition_id": "M87654321",
-      "text_id": "E87654321",
       "lines": [
-        {
-          "start": 0,
-          "end": 30
-        }
-      ]
-    },
-    {
-      "id": "target_seg_002",
-      "segmentation_id": "target_sgn_abc123",
-      "edition_id": "M87654321",
-      "text_id": "E87654321",
-      "lines": [
-        {
-          "start": 30,
-          "end": 60
-        }
+        {"start": 0, "end": 60}
       ]
     }
   ],
   "aligned_segments": [
     {
-      "id": "aligned_seg_001",
-      "segmentation_id": "align_abc123",
-      "edition_id": "M12345678",
-      "text_id": "E12345678",
       "lines": [
-        {
-          "start": 0,
-          "end": 25
-        }
+        {"start": 0, "end": 55}
       ],
       "target_indices": [0]
-    },
-    {
-      "id": "aligned_seg_002",
-      "segmentation_id": "align_abc123",
-      "edition_id": "M12345678",
-      "text_id": "E12345678",
-      "lines": [
-        {
-          "start": 25,
-          "end": 50
-        }
-      ],
-      "target_indices": [0, 1]
     }
-  ]
+  ],
+  "metadata": {}
 }
 ```
 
-**Alignment Structure:**
-- `aligned_edition_id`: The edition containing `aligned_segments`
-- `target_edition_id`: The edition containing `target_segments`
-- `target_segments`: Segments in the target edition
-- `aligned_segments`: Segments in the aligned edition
-- `target_indices`: Zero-based indices into `target_segments`
+The path `edition_id` is the aligned/source edition. `target_indices` are zero-based indexes into the submitted `target_segments` array.
 
-**Error Responses:**
-- `404 Not Found`: Alignment does not exist
-- `500 Server Error`: Internal server error
-
-**Example Usage:**
-
-```bash
-curl -X GET "https://api-l25bgmwqoa-uc.a.run.app/v2/annotations/alignment/align_abc123" \
-  -H "X-API-Key: your_api_key"
-```
-
----
-
-#### Delete Alignment
-
-Permanently delete an alignment annotation and both its source and target segmentations, including all their segments.
-
-**Endpoint:**
-```
-DELETE /v2/annotations/alignment/{alignment_id}
-```
-
-**Parameters:**
-
-| Name | Type | Location | Required | Description |
-|------|------|----------|----------|-------------|
-| `alignment_id` | string | path | Yes | The ID of the alignment annotation to delete |
-
-**Response: 204 No Content**
-
-Successful deletion returns no content.
-
-**Error Responses:**
-- `404 Not Found`: Alignment does not exist
-- `500 Server Error`: Internal server error
-
-**Important:**
-Deleting an alignment removes:
-1. The alignment annotation itself
-2. The source segmentation and all its segments
-3. The target segmentation and all its segments
-
-**Example Usage:**
-
-```bash
-curl -X DELETE "https://api-l25bgmwqoa-uc.a.run.app/v2/annotations/alignment/align_abc123" \
-  -H "X-API-Key: your_api_key"
-```
-
----
-
-### Pagination Annotations
-
-#### Get Pagination by ID
-
-Retrieve a specific pagination annotation with volume and page information.
-
-**Endpoint:**
-```
-GET /v2/annotations/pagination/{pagination_id}
-```
-
-**Parameters:**
-
-| Name | Type | Location | Required | Description |
-|------|------|----------|----------|-------------|
-| `pagination_id` | string | path | Yes | The ID of the pagination annotation |
-
-**Response: 200 OK**
+### Create Pagination
 
 ```json
 {
-  "id": "pag_abc123",
-  "edition_id": "M12345678",
-  "text_id": "E12345678",
   "volumes": [
     {
       "pages": [
         {
-          "reference": "folio_1a",
+          "reference": "1a",
           "lines": [
-            {
-              "start": 0,
-              "end": 500
-            }
-          ]
-        },
-        {
-          "reference": "folio_1b",
-          "lines": [
-            {
-              "start": 500,
-              "end": 1000
-            }
+            {"start": 0, "end": 500}
           ]
         }
       ]
     }
-  ]
+  ],
+  "metadata": {}
 }
 ```
 
-**Pagination Structure:**
-- `volume.index`: Optional volume number
-- `volume.pages`: Array of pages with references and spans
-- `pages[].reference`: Page/folio identifier (e.g., "folio_1a", "page_5")
-- `pages[].lines`: Character spans for the page
+Single-volume pagination omits `index`. Multi-volume pagination requires unique continuous indexes starting at `1`.
 
-**Error Responses:**
-- `404 Not Found`: Pagination does not exist
-- `500 Server Error`: Internal server error
-
-**Example Usage:**
-
-```bash
-curl -X GET "https://api-l25bgmwqoa-uc.a.run.app/v2/annotations/pagination/pag_abc123" \
-  -H "X-API-Key: your_api_key"
-```
-
----
-
-#### Delete Pagination
-
-Permanently delete a pagination annotation and all its pages.
-
-**Endpoint:**
-```
-DELETE /v2/annotations/pagination/{pagination_id}
-```
-
-**Parameters:**
-
-| Name | Type | Location | Required | Description |
-|------|------|----------|----------|-------------|
-| `pagination_id` | string | path | Yes | The ID of the pagination annotation to delete |
-
-**Response: 204 No Content**
-
-Successful deletion returns no content.
-
-**Error Responses:**
-- `404 Not Found`: Pagination does not exist
-- `500 Server Error`: Internal server error
-
-**Example Usage:**
-
-```bash
-curl -X DELETE "https://api-l25bgmwqoa-uc.a.run.app/v2/annotations/pagination/pag_abc123" \
-  -H "X-API-Key: your_api_key"
-```
-
----
-
-### Durchen Notes
-
-#### Get Durchen Note by ID
-
-Retrieve a specific durchen (critical apparatus) note.
-
-**Endpoint:**
-```
-GET /v2/annotations/durchen/{note_id}
-```
-
-**Parameters:**
-
-| Name | Type | Location | Required | Description |
-|------|------|----------|----------|-------------|
-| `note_id` | string | path | Yes | The ID of the durchen note |
-
-**Response: 200 OK**
+### Create Bibliographic Metadata
 
 ```json
 {
-  "id": "note_abc123",
-  "edition_id": "M12345678",
-  "text_id": "E12345678",
-  "span": {
-    "start": 100,
-    "end": 150
-  },
-  "text": "Variant reading found in manuscript B: འདི་ནི།"
+  "span": {"start": 5000, "end": 5500},
+  "type": "colophon",
+  "metadata": {}
 }
 ```
 
-**Durchen Note Structure:**
-- `span`: Character range the note refers to
-- `text`: The note content (variant reading, editorial comment, etc.)
+Supported types:
 
-**Error Responses:**
-- `404 Not Found`: Durchen note does not exist
-- `500 Server Error`: Internal server error
+- `colophon`
+- `incipit`
+- `alt_incipit`
+- `alt_title`
+- `person`
+- `title`
+- `author`
 
-**Example Usage:**
+### Create Durchen Note
 
-```bash
-curl -X GET "https://api-l25bgmwqoa-uc.a.run.app/v2/annotations/durchen/note_abc123" \
-  -H "X-API-Key: your_api_key"
+```json
+{
+  "span": {"start": 100, "end": 150},
+  "text": "Variant reading found in manuscript B",
+  "metadata": {}
+}
 ```
 
----
+## Fetch and Delete by ID
 
-#### Delete Durchen Note
+### Segmentation
 
-Permanently delete a durchen (critical apparatus) note.
-
-**Endpoint:**
-```
-DELETE /v2/annotations/durchen/{note_id}
+```http
+GET /v2/segmentations/{segmentation_id}
+DELETE /v2/segmentations/{segmentation_id}
 ```
 
-**Parameters:**
+Response:
 
-| Name | Type | Location | Required | Description |
-|------|------|----------|----------|-------------|
-| `note_id` | string | path | Yes | The ID of the durchen note to delete |
-
-**Response: 204 No Content**
-
-Successful deletion returns no content.
-
-**Error Responses:**
-- `404 Not Found`: Durchen note does not exist
-- `500 Server Error`: Internal server error
-
-**Example Usage:**
-
-```bash
-curl -X DELETE "https://api-l25bgmwqoa-uc.a.run.app/v2/annotations/durchen/note_abc123" \
-  -H "X-API-Key: your_api_key"
+```json
+{
+  "id": "SGN123",
+  "edition_id": "ED123",
+  "text_id": "TXT123",
+  "segments": [
+    {
+      "id": "SEG123",
+      "segmentation_id": "SGN123",
+      "edition_id": "ED123",
+      "text_id": "TXT123",
+      "lines": [
+        {"start": 0, "end": 50}
+      ],
+      "tag_ids": []
+    }
+  ],
+  "metadata": {}
+}
 ```
 
----
+Deleting a standalone segmentation returns `204 No Content`. If the segmentation belongs to an alignment, deletion is rejected for both aligned/source and target segmentations; delete the alignment instead using the aligned/source segmentation ID, which is the alignment `id` returned by the API.
+
+### Alignment
+
+```http
+GET /v2/alignments/{alignment_id}
+DELETE /v2/alignments/{alignment_id}
+```
+
+Response:
+
+```json
+{
+  "id": "ALN123",
+  "aligned_edition_id": "ED_SOURCE",
+  "target_edition_id": "ED_TARGET",
+  "target_segments": [
+    {
+      "id": "SEG_TARGET",
+      "segmentation_id": "SGN_TARGET",
+      "edition_id": "ED_TARGET",
+      "text_id": "TXT_TARGET",
+      "lines": [
+        {"start": 0, "end": 60}
+      ],
+      "tag_ids": []
+    }
+  ],
+  "aligned_segments": [
+    {
+      "id": "SEG_SOURCE",
+      "segmentation_id": "ALN123",
+      "edition_id": "ED_SOURCE",
+      "text_id": "TXT_SOURCE",
+      "lines": [
+        {"start": 0, "end": 55}
+      ],
+      "target_indices": [0]
+    }
+  ],
+  "metadata": {}
+}
+```
+
+Deleting an alignment deletes the alignment and its associated source/target segmentations.
+
+### Pagination
+
+```http
+GET /v2/paginations/{pagination_id}
+DELETE /v2/paginations/{pagination_id}
+```
+
+Response:
+
+```json
+{
+  "id": "PAG123",
+  "edition_id": "ED123",
+  "text_id": "TXT123",
+  "volumes": [
+    {
+      "pages": [
+        {
+          "reference": "1a",
+          "lines": [
+            {"start": 0, "end": 500}
+          ]
+        }
+      ]
+    }
+  ],
+  "metadata": {}
+}
+```
 
 ### Bibliographic Metadata
 
-#### Get Bibliographic Metadata by ID
-
-Retrieve a specific bibliographic metadata annotation (colophon, title, author, etc.).
-
-**Endpoint:**
-```
-GET /v2/annotations/bibliographic/{bibliographic_id}
+```http
+GET /v2/bibliographic/{bibliographic_id}
+DELETE /v2/bibliographic/{bibliographic_id}
 ```
 
-**Parameters:**
-
-| Name | Type | Location | Required | Description |
-|------|------|----------|----------|-------------|
-| `bibliographic_id` | string | path | Yes | The ID of the bibliographic metadata |
-
-**Response: 200 OK**
+Response:
 
 ```json
 {
-  "id": "bib_abc123",
-  "edition_id": "M12345678",
-  "text_id": "E12345678",
-  "span": {
-    "start": 5000,
-    "end": 5500
-  },
-  "type": "colophon"
+  "id": "BIB123",
+  "edition_id": "ED123",
+  "text_id": "TXT123",
+  "span": {"start": 5000, "end": 5500},
+  "type": "colophon",
+  "metadata": {}
 }
 ```
 
-**Bibliographic Types:**
+### Durchen Note
 
-| Type | Description |
-|------|-------------|
-| `colophon` | Colophon text section |
-| `title` | Title occurrence |
-| `incipit` | Opening words/incipit |
-| `alt_incipit` | Alternative incipit |
-| `alt_title` | Alternative title |
-| `person` | Person name mention |
-| `author` | Author attribution |
+```http
+GET /v2/durchens/{durchen_id}
+DELETE /v2/durchens/{durchen_id}
+```
 
-**Error Responses:**
-- `404 Not Found`: Bibliographic metadata does not exist
-- `500 Server Error`: Internal server error
+Response:
 
-**Example Usage:**
+```json
+{
+  "id": "DUR123",
+  "edition_id": "ED123",
+  "text_id": "TXT123",
+  "span": {"start": 100, "end": 150},
+  "text": "Variant reading found in manuscript B",
+  "metadata": {}
+}
+```
+
+## Example Calls
 
 ```bash
-curl -X GET "https://api-l25bgmwqoa-uc.a.run.app/v2/annotations/bibliographic/bib_abc123" \
+curl "https://api-l25bgmwqoa-uc.a.run.app/v2/editions/ED123/segmentations" \
+  -H "X-API-Key: your_api_key"
+
+curl -X POST "https://api-l25bgmwqoa-uc.a.run.app/v2/editions/ED123/durchens" \
+  -H "X-API-Key: your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "span": {"start": 100, "end": 150},
+    "text": "Variant reading found in manuscript B"
+  }'
+
+curl -X DELETE "https://api-l25bgmwqoa-uc.a.run.app/v2/durchens/DUR123" \
   -H "X-API-Key: your_api_key"
 ```
 
----
+## Developer Notes
 
-#### Delete Bibliographic Metadata
-
-Permanently delete a bibliographic metadata annotation.
-
-**Endpoint:**
-```
-DELETE /v2/annotations/bibliographic/{bibliographic_id}
-```
-
-**Parameters:**
-
-| Name | Type | Location | Required | Description |
-|------|------|----------|----------|-------------|
-| `bibliographic_id` | string | path | Yes | The ID of the bibliographic metadata to delete |
-
-**Response: 204 No Content**
-
-Successful deletion returns no content.
-
-**Error Responses:**
-- `404 Not Found`: Bibliographic metadata does not exist
-- `500 Server Error`: Internal server error
-
-**Example Usage:**
-
-```bash
-curl -X DELETE "https://api-l25bgmwqoa-uc.a.run.app/v2/annotations/bibliographic/bib_abc123" \
-  -H "X-API-Key: your_api_key"
-```
-
----
+- Collection routes live in `routers/editions.py`.
+- Direct-by-ID routes live in `routers/annotation/`.
+- Models live in `models/annotation.py`.
+- Content changes through `PATCH /v2/editions/{edition_id}/content` adjust affected spans automatically.

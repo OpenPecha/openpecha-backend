@@ -1,6 +1,14 @@
-from typing import Annotated
+from typing import Annotated, Self
 
-from pydantic import BaseModel, ConfigDict, Field, RootModel, StrictStr, StringConstraints
+from pydantic import (
+    BaseModel,
+    ConfigDict,
+    Field,
+    RootModel,
+    StrictStr,
+    StringConstraints,
+    model_validator,
+)
 
 type NonEmptyStr = Annotated[StrictStr, StringConstraints(min_length=1, strip_whitespace=True)]
 
@@ -14,11 +22,33 @@ def _dedupe[T](items: list[T], exclude: T) -> list[T]:
     return seen
 
 
+def _validate_range(start: int, end: int, *, start_name: str = "start", end_name: str = "end") -> None:
+    if start >= end:
+        raise ValueError(f"'{start_name}' must be less than '{end_name}'")
+
+
 class OpenPechaModel(BaseModel):
     model_config = ConfigDict(
         extra="forbid",
         str_strip_whitespace=True,
     )
+
+
+class PatchModel(OpenPechaModel):
+    @model_validator(mode="before")
+    @classmethod
+    def reject_null_fields(cls, data: object) -> object:
+        if isinstance(data, dict):
+            null_fields = [str(field) for field, value in data.items() if value is None]
+            if null_fields:
+                raise ValueError(f"Null values are not supported in PATCH: {', '.join(null_fields)}")
+        return data
+
+    @model_validator(mode="after")
+    def validate_at_least_one_field(self) -> Self:
+        if not self.model_fields_set:
+            raise ValueError("At least one field must be provided for update")
+        return self
 
 
 class LocalizedString(RootModel[dict[str, NonEmptyStr]]):

@@ -13,6 +13,8 @@ This document provides comprehensive documentation for all Applications-related 
 
 ---
 
+## Overview
+
 ### Why Applications?
 
 Applications provide:
@@ -47,7 +49,7 @@ X-API-Key: your_api_key_here
 
 ### Create New Application
 
-Create a new application entry in the database. Input is normalized to lowercase for both id and name.
+Create a new application entry in the database. Input is trimmed and normalized to lowercase; the normalized value is used as both the application `id` and `name`.
 
 **Endpoint:**
 ```
@@ -90,8 +92,8 @@ POST /v2/applications
 - Application IDs must be unique
 
 **Error Responses:**
-- `400 Bad Request`: Invalid request (e.g., missing name, invalid JSON)
-- `422 Validation Error`: Application already exists or validation failed
+- `401 Unauthorized`: Missing or invalid API key in deployed environments
+- `422 Validation Error`: Missing `name`, empty `name`, duplicate application, extra fields, or validation failure
 - `500 Server Error`: Internal server error
 
 **Example Usage:**
@@ -105,7 +107,7 @@ curl -X POST "https://api-l25bgmwqoa-uc.a.run.app/v2/applications" \
     "name": "MyApp"
   }'
 
-# Response: {"id": "342424sdr", "name": "webuddhist"}
+# Response: {"id": "myapp", "name": "myapp"}
 ```
 
 **Use Cases:**
@@ -113,5 +115,11 @@ curl -X POST "https://api-l25bgmwqoa-uc.a.run.app/v2/applications" \
 - Set up content namespace
 - Create isolated category taxonomy
 - Enable multi-tenant architecture
+
+**Developer Notes:**
+- Implemented in `routers/applications.py`.
+- Request model: `ApplicationCreateRequest`.
+- Response model: `ApplicationResponse`.
+- Application-scoped category and tag endpoints validate that the requested application exists.
 
 ---

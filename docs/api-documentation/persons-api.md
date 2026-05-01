@@ -92,6 +92,8 @@ GET /v2/persons
 ```
 
 **Error Responses:**
+- `401 Unauthorized`: Missing or invalid API key in deployed environments
+- `422 Validation Error`: Invalid `limit` or `offset`
 - `500 Server Error`: Internal server error
 
 **Example Usage:**
@@ -164,6 +166,7 @@ GET /v2/persons/{person_id}
 
 **Error Responses:**
 - `404 Not Found`: Person does not exist
+- `401 Unauthorized`: Missing or invalid API key in deployed environments
 - `500 Server Error`: Internal server error
 
 **Example Usage:**
@@ -217,6 +220,11 @@ POST /v2/persons
 | `bdrc` | string | BDRC person identifier (must be unique) |
 | `wiki` | string | Wikidata identifier (must be unique) |
 
+**Validation Rules:**
+- Localized strings must contain at least one language entry and non-empty values.
+- Extra fields are rejected.
+- Alternative names matching the primary name are removed; duplicate alternative names are de-duplicated.
+
 **Response: 201 Created**
 
 ```json
@@ -226,9 +234,9 @@ POST /v2/persons
 ```
 
 **Error Responses:**
-- `400 Bad Request`: Invalid request parameters
+- `401 Unauthorized`: Missing or invalid API key in deployed environments
 - `409 Conflict`: Person with BDRC ID already exists
-- `422 Validation Error`: Validation failed
+- `422 Validation Error`: Validation failed, missing required fields, empty localized strings, or extra fields
 - `500 Server Error`: Internal server error
 
 **Example Usage:**
@@ -329,6 +337,11 @@ All fields are optional. Only include fields you want to update.
 | `bdrc` | string | BDRC identifier (must be unique) |
 | `wiki` | string | Wikidata identifier (must be unique) |
 
+**PATCH Rules:**
+- At least one field must be provided.
+- `null` values are rejected; omit fields you do not want to change.
+- Extra fields are rejected.
+
 **Response: 200 OK**
 
 ```json
@@ -350,10 +363,10 @@ All fields are optional. Only include fields you want to update.
 ```
 
 **Error Responses:**
-- `400 Bad Request`: Invalid request parameters
 - `404 Not Found`: Person does not exist
+- `401 Unauthorized`: Missing or invalid API key in deployed environments
 - `409 Conflict`: BDRC ID or Wiki ID already exists for another person
-- `422 Validation Error`: Validation failed
+- `422 Validation Error`: Validation failed, empty patch body, null fields, empty localized strings, or extra fields
 - `500 Server Error`: Internal server error
 
 **Example Usage:**
@@ -404,4 +417,10 @@ curl -X PATCH "https://api-l25bgmwqoa-uc.a.run.app/v2/persons/P12345678" \
     "wiki": "Q182485"
   }'
 ```
+
+**Developer Notes:**
+- Implemented in `routers/persons.py`.
+- Models live in `models/person.py`.
+- List filters are grouped in `PersonsQueryParams`.
+- Persistence and uniqueness checks live behind `db.person`.
 ---

@@ -16,15 +16,11 @@ class EditionBase(OpenPechaModel):
     alt_incipit_titles: list[LocalizedString] | None = None
 
     @model_validator(mode="after")
-    def validate_bdrc_for_diplomatic_and_critical(self) -> Self:
+    def validate_edition(self) -> Self:
         if self.type == EditionType.DIPLOMATIC and not self.bdrc:
             raise ValueError("When type is 'diplomatic', bdrc must be provided")
         if self.type is EditionType.CRITICAL and self.bdrc:
             raise ValueError("When type is 'critical', bdrc should not be provided")
-        return self
-
-    @model_validator(mode="after")
-    def validate_alt_incipit_titles(self) -> Self:
         if self.alt_incipit_titles and self.incipit_title is None:
             raise ValueError("alt_incipit_titles can only be set when incipit_title is also provided")
         return self

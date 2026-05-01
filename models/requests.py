@@ -9,7 +9,7 @@ from .annotation import (
     PaginationInput,
     SegmentationInput,
 )
-from .base import LocalizedString, NonEmptyStr, OpenPechaModel
+from .base import LocalizedString, NonEmptyStr, OpenPechaModel, _validate_range
 from .edition import EditionInput
 from .enums import AnnotationType, EditionType, LicenseType
 
@@ -53,27 +53,12 @@ class SpanQueryParams(OpenPechaModel):
 
     @model_validator(mode="after")
     def validate_span_range(self) -> Self:
-        if self.span_start >= self.span_end:
-            raise ValueError("'span_start' must be less than 'span_end'")
+        _validate_range(self.span_start, self.span_end, start_name="span_start", end_name="span_end")
         return self
 
 
 class RelatedSegmentsQueryParams(PaginationParams, SpanQueryParams):
     pass
-
-
-class OptionalSpanQueryParams(OpenPechaModel):
-    span_start: int | None = Field(default=None, ge=0)
-    span_end: int | None = Field(default=None, ge=1)
-
-    @model_validator(mode="after")
-    def validate_span_range(self) -> Self:
-        if self.span_start is not None and self.span_end is not None:
-            if self.span_start >= self.span_end:
-                raise ValueError("'span_start' must be less than 'span_end'")
-        elif self.span_start is not None or self.span_end is not None:
-            raise ValueError("Both 'span_start' and 'span_end' must be provided together")
-        return self
 
 
 class AnnotationTypeFilter(OpenPechaModel):

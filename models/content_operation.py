@@ -2,7 +2,7 @@ from typing import Annotated, Literal, Self
 
 from pydantic import ConfigDict, Field, RootModel, model_validator
 
-from .base import OpenPechaModel
+from .base import OpenPechaModel, _validate_range
 
 
 class SegmentContentInput(OpenPechaModel):
@@ -19,29 +19,23 @@ class InsertOperation(ContentOperationBase):
     text: str = Field(..., min_length=1, description="Text to insert")
 
 
-class DeleteOperation(ContentOperationBase):
+class RangedOperation(ContentOperationBase):
+    start: int = Field(..., ge=0)
+    end: int = Field(..., ge=1)
+
+    @model_validator(mode="after")
+    def validate_range(self) -> Self:
+        _validate_range(self.start, self.end)
+        return self
+
+
+class DeleteOperation(RangedOperation):
     type: Literal["delete"]
-    start: int = Field(..., ge=0, description="Start position for DELETE operation")
-    end: int = Field(..., ge=1, description="End position for DELETE operation")
-
-    @model_validator(mode="after")
-    def validate_range(self) -> Self:
-        if self.start >= self.end:
-            raise ValueError("'start' must be less than 'end'")
-        return self
 
 
-class ReplaceOperation(ContentOperationBase):
+class ReplaceOperation(RangedOperation):
     type: Literal["replace"]
-    start: int = Field(..., ge=0, description="Start position for REPLACE operation")
-    end: int = Field(..., ge=1, description="End position for REPLACE operation")
     text: str = Field(..., min_length=1, description="Replacement text")
-
-    @model_validator(mode="after")
-    def validate_range(self) -> Self:
-        if self.start >= self.end:
-            raise ValueError("'start' must be less than 'end'")
-        return self
 
 
 class ContentOperation(

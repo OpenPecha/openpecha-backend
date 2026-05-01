@@ -25,6 +25,7 @@ Texts (also known as Expressions in FRBR terminology) represent the intellectual
 - **Translation**: A text translated into another language
 - **Commentary**: A text that comments on or explains another text
 - **Contribution**: Attribution of a person or AI to a text (author, translator, reviser, scholar)
+- **Tags**: Application-scoped labels attached to the work behind a text
 
 ### Base URL
 
@@ -46,6 +47,8 @@ All API requests require authentication using an API key.
 ```
 X-API-Key: your_api_key_here
 ```
+
+`X-Application` is optional on text reads and updates. When supplied, application-scoped tag IDs in responses are filtered to that application, and app-bound API keys must match the supplied application.
 
 ---
 
@@ -71,6 +74,8 @@ GET /v2/texts
 | `language`    | string  | query    | No       | -       | Filter by language code                                                                                |
 | `title`       | string  | query    | No       | -       | Filter by title (case-insensitive substring match, searches both primary title and alternative titles) |
 | `category_id` | string  | query    | No       | -       | Filter by category ID                                                                                  |
+| `tag_id`      | string  | query    | No       | -       | Filter by application tag ID                                                                           |
+| `author_id`   | string  | query    | No       | -       | Filter by contributing author person ID                                                                |
 | `bdrc`        | string  | query    | No       | -       | Filter by BDRC identifier                                                                              |
 | `wiki`        | string  | query    | No       | -       | Filter by Wikidata identifier                                                                          |
 
@@ -92,7 +97,8 @@ GET /v2/texts
       "license": "public",
       "commentaries": [],
       "translations": ["DEF87654321"],
-      "editions": ["M12345678"]
+      "editions": ["M12345678"],
+      "tag_ids": ["TAG123"]
     }
   ],
   "has_more": true,
@@ -103,7 +109,8 @@ GET /v2/texts
 
 **Error Responses:**
 
-- `400 Bad Request`: Invalid query parameters
+- `401 Unauthorized`: Missing or invalid API key in deployed environments
+- `422 Validation Error`: Invalid `limit` or `offset`
 - `500 Server Error`: Internal server error
 
 **Example Usage:**
@@ -136,6 +143,11 @@ curl -X GET "https://api-l25bgmwqoa-uc.a.run.app/v2/texts?bdrc=W123456" \
 # Combine multiple filters
 curl -X GET "https://api-l25bgmwqoa-uc.a.run.app/v2/texts?language=bo&category_id=CAT12345678&limit=10" \
   -H "X-API-Key: your_api_key"
+
+# Filter by tag
+curl -X GET "https://api-l25bgmwqoa-uc.a.run.app/v2/texts?tag_id=TAG123" \
+  -H "X-API-Key: your_api_key" \
+  -H "X-Application: webuddhist"
 ```
 
 ---
@@ -210,6 +222,7 @@ GET /v2/texts/{text_id}
 **Error Responses:**
 
 - `404 Not Found`: Text does not exist
+- `401 Unauthorized`: Missing or invalid API key in deployed environments
 - `500 Server Error`: Internal server error
 
 **Example Usage:**
@@ -256,7 +269,8 @@ POST /v2/texts
       "bo": "གཞན་མིང་།"
     }
   ],
-  "license": "public"
+  "license": "public",
+  "tag_ids": ["TAG123"]
 }
 ```
 
@@ -283,6 +297,14 @@ POST /v2/texts
 | `translation_of` | string | Text ID this is a translation of                   |
 | `commentary_of`  | string | Text ID this is a commentary of                    |
 | `license`        | string | License type (see [License Types](#license-types)) |
+| `tag_ids`        | array  | Tag IDs to attach to the work behind this text |
+
+**Validation Rules:**
+
+- `title` must contain a localized title for the text language or its base language. For example, language `bo-x-ewts` can use a `bo` title.
+- A text cannot set both `translation_of` and `commentary_of`.
+- `contributions` must include either `person_id`, `person_bdrc_id`, or `ai_id` depending on contribution type.
+- Extra fields are rejected.
 
 
 #### Contributions
@@ -400,8 +422,8 @@ For AI-generated translations:
 
 **Error Responses:**
 
-- `400 Bad Request`: Invalid request parameters
-- `422 Validation Error`: Validation failed
+- `401 Unauthorized`: Missing or invalid API key in deployed environments
+- `422 Validation Error`: Validation failed, missing required fields, invalid relation combination, invalid title language, invalid contributions, or extra fields
 - `500 Server Error`: Internal server error
 
 **Example Usage:**
@@ -490,7 +512,8 @@ All fields are optional. Only include fields you want to update.
       "bo": "མཚན་བྱང་གཞན།"
     }
   ],
-  "license": "cc0"
+  "license": "cc0",
+  "tag_ids": ["TAG123"]
 }
 ```
 
@@ -507,9 +530,10 @@ All fields are optional. Only include fields you want to update.
 | `wiki`        | string | Wikidata identifier                    |
 | `date`        | string | Date of composition                    |
 | `license`     | string | License type                           |
+| `tag_ids`     | array  | Replaces the text's current tag IDs    |
 
 
-**Note:** You cannot update `translation_of`, `commentary_of`, or `contributions` via PATCH. These are set during creation.
+**Note:** You cannot update `translation_of`, `commentary_of`, or `contributions` via PATCH. These are set during creation. PATCH requires at least one field, rejects `null`, and rejects extra fields.
 
 **Response: 200 OK**
 
@@ -533,15 +557,16 @@ All fields are optional. Only include fields you want to update.
   "license": "cc0",
   "commentaries": [],
   "translations": [],
-  "editions": []
+  "editions": [],
+  "tag_ids": ["TAG123"]
 }
 ```
 
 **Error Responses:**
 
-- `400 Bad Request`: Invalid request parameters
 - `404 Not Found`: Text does not exist
-- `422 Validation Error`: Validation failed
+- `401 Unauthorized`: Missing or invalid API key in deployed environments
+- `422 Validation Error`: Validation failed, empty patch body, null fields, or extra fields
 - `500 Server Error`: Internal server error
 
 **Example Usage:**
@@ -578,8 +603,58 @@ curl -X PATCH "https://api-l25bgmwqoa-uc.a.run.app/v2/texts/T12345678" \
     "wiki": "Q999999",
     "license": "cc-by-sa"
   }'
+
+# Replace tag IDs
+curl -X PATCH "https://api-l25bgmwqoa-uc.a.run.app/v2/texts/T12345678" \
+  -H "X-API-Key: your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "tag_ids": ["TAG123", "TAG456"]
+  }'
 ```
 
 ---
+
+### Tag and Untag Text
+
+Attach or remove a tag from the work behind a text.
+
+**Endpoints:**
+
+```
+POST /v2/texts/{text_id}/tags/{tag_id}
+DELETE /v2/texts/{text_id}/tags/{tag_id}
+```
+
+**Response: 204 No Content**
+
+```bash
+curl -X POST "https://api-l25bgmwqoa-uc.a.run.app/v2/texts/T12345678/tags/TAG123" \
+  -H "X-API-Key: your_api_key"
+
+curl -X DELETE "https://api-l25bgmwqoa-uc.a.run.app/v2/texts/T12345678/tags/TAG123" \
+  -H "X-API-Key: your_api_key"
+```
+
+**Developer Notes:**
+- Implemented in `routers/texts.py`.
+- Models live in `models/text.py` and `models/contribution.py`.
+- List filters are defined in `TextsQueryParams`.
+- Edition creation is mounted under the texts router because an edition always belongs to one text.
+
+### License Types
+
+Accepted license values are:
+
+- `cc0`
+- `public`
+- `cc-by`
+- `cc-by-sa`
+- `cc-by-nd`
+- `cc-by-nc`
+- `cc-by-nc-sa`
+- `cc-by-nc-nd`
+- `copyrighted`
+- `unknown`
 
 

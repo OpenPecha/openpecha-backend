@@ -12,6 +12,7 @@ This document provides comprehensive documentation for all Segments-related endp
    - [Get Segment Content](#get-segment-content)
    - [Find Related Segments](#find-related-segments)
    - [Search Segments](#search-segments)
+   - [Tag and Untag Segment](#tag-and-untag-segment)
 ---
 
 ## Overview
@@ -29,8 +30,8 @@ Segments are portions of edition content defined by character spans (one or more
 ### Segment Creation
 
 Segments are not created directly. They are created as part of:
-1. **Segmentation annotations** via `POST /v2/editions/{edition_id}/annotations`
-2. **Alignment annotations** via `POST /v2/editions/{edition_id}/annotations`
+1. **Segmentation annotations** via `POST /v2/editions/{edition_id}/segmentations`
+2. **Alignment annotations** via `POST /v2/editions/{edition_id}/alignments`
 3. **Edition creation** with inline annotations via `POST /v2/texts/{text_id}/editions`
 
 ### Base URL
@@ -52,6 +53,8 @@ All API requests require authentication using an API key.
 ```
 X-API-Key: your_api_key_here
 ```
+
+`X-Application` is optional on segment content and related-segment reads. When supplied, tag IDs are filtered to the requested application.
 
 ---
 
@@ -83,6 +86,7 @@ GET /v2/segments/{segment_id}/content
 The response contains the actual text content extracted from the edition based on the segment's span(s).
 
 **Error Responses:**
+- `401 Unauthorized`: Missing or invalid API key in deployed environments
 - `404 Not Found`: Segment does not exist
 - `500 Server Error`: Internal server error
 
@@ -128,7 +132,8 @@ GET /v2/segments/{segment_id}/related
       "segmentation_id": "SGN12345678",
       "edition_id": "M12345678",
       "text_id": "E12345678",
-      "lines": [{"start": 0, "end": 100}]
+      "lines": [{"start": 0, "end": 100}],
+      "tag_ids": ["TAG123"]
     }
   ],
   "has_more": false,
@@ -143,8 +148,11 @@ GET /v2/segments/{segment_id}/related
 - Empty result uses `"items": []`
 
 **Error Responses:**
-- `404 Not Found`: Segment does not exist
+- `401 Unauthorized`: Missing or invalid API key in deployed environments
+- `422 Validation Error`: Invalid `limit` or `offset`
 - `500 Server Error`: Internal server error
+
+If the segment ID does not exist, this endpoint returns an empty paginated response instead of `404`.
 
 **Example Usage:**
 
@@ -175,7 +183,7 @@ GET /v2/segments/search
 | Name | Type | Location | Required | Default | Description |
 |------|------|----------|----------|---------|-------------|
 | `query` | string | query | Yes | - | The search query text |
-| `search_type` | string | query | No | "hybrid" | Type of search: `hybrid`, `bm25`, `semantic`, or `exact` |
+| `search_type` | string | query | No | "semantic" | Type of search forwarded to the search service. Common values are `hybrid`, `bm25`, `semantic`, or `exact`. |
 | `limit` | integer | query | No | 10 | Maximum number of results (1-100) |
 | `title` | string | query | No | - | Filter results by title |
 | `return_text` | boolean | query | No | true | Whether to include text content in results |
@@ -194,7 +202,6 @@ GET /v2/segments/search
 ```json
 {
   "query": "བོད་ཀྱི་རིག་གནས།",
-  "search_type": "hybrid",
   "results": [
     {
       "id": "SEG_SEARCH_001",
@@ -229,7 +236,6 @@ GET /v2/segments/search
 | Field | Type | Description |
 |-------|------|-------------|
 | `query` | string | The search query that was used |
-| `search_type` | string | The search type that was used |
 | `results` | array | List of search results with enriched data |
 | `results[].id` | string | Search segmentation segment ID |
 | `results[].distance` | number | Search relevance score/distance |
@@ -287,3 +293,30 @@ curl -X GET "https://api-l25bgmwqoa-uc.a.run.app/v2/segments/search?query=medita
 ```
 
 ---
+
+### Tag and Untag Segment
+
+Attach or remove an application tag from a segment.
+
+**Endpoints:**
+
+```
+POST /v2/segments/{segment_id}/tags/{tag_id}
+DELETE /v2/segments/{segment_id}/tags/{tag_id}
+```
+
+**Response: 204 No Content**
+
+```bash
+curl -X POST "https://api-l25bgmwqoa-uc.a.run.app/v2/segments/SEG001/tags/TAG123" \
+  -H "X-API-Key: your_api_key"
+
+curl -X DELETE "https://api-l25bgmwqoa-uc.a.run.app/v2/segments/SEG001/tags/TAG123" \
+  -H "X-API-Key: your_api_key"
+```
+
+**Developer Notes:**
+- Implemented in `routers/segments.py`.
+- Segment response models live in `models/annotation.py`.
+- Search response models live in `models/search.py`.
+- The search endpoint forwards to `settings.search_api_url` and enriches results by looking up local overlapping segmentation IDs.

@@ -98,6 +98,7 @@ GET /v2/languages
 - Empty array `[]` if no languages exist
 
 **Error Responses:**
+- `401 Unauthorized`: Missing or invalid API key in deployed environments
 - `500 Server Error`: Internal server error
 
 **Example Usage:**
@@ -158,8 +159,8 @@ POST /v2/languages
 | `name` | string | Language name |
 
 **Error Responses:**
-- `400 Bad Request`: Invalid request (e.g., missing fields, invalid JSON)
-- `422 Validation Error`: Validation failed (e.g., duplicate code, empty fields)
+- `401 Unauthorized`: Missing or invalid API key in deployed environments
+- `422 Validation Error`: Missing fields, empty fields, duplicate code, extra fields, or invalid JSON/body
 - `500 Server Error`: Internal server error
 
 **Example Usage:**
@@ -197,5 +198,11 @@ curl -X POST "https://api-l25bgmwqoa-uc.a.run.app/v2/languages" \
 - Initialize language list
 - Add support for new languages
 - Set up system languages
+
+**Developer Notes:**
+- Implemented in `routers/languages.py`.
+- Request model: `LanguageCreateRequest`.
+- Response model: `LanguageResponse`.
+- Language codes are free-form non-empty strings; the API does not enforce ISO code membership.
 
 ---

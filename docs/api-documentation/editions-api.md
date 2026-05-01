@@ -1,192 +1,86 @@
 # Editions API Documentation
 
-This document provides comprehensive documentation for all Editions-related endpoints in the OpenPecha API v2.
+Editions are concrete versions of a text. The metadata lives in Neo4j and the base text content is stored separately through the storage layer. An edition is always created under a text.
 
----
+## Concepts
 
-## Table of Contents
-
-1. [Overview](#overview)
-2. [Authentication](#authentication)
-3. [Edition Endpoints](#edition-endpoints)
-   - [Get Edition Metadata](#get-edition-metadata)
-   - [Get Edition Content](#get-edition-content)
-   - [Modify Edition Content](#modify-edition-content)
-   - [Delete Edition](#delete-edition)
-4. [Edition Relationships](#edition-relationships)
-   - [Get Related Editions](#get-related-editions)
-   - [Get Related Segments by Span](#get-related-segments-by-span)
-5. [Edition Management](#edition-management)
-   - [List Editions for Text](#list-editions-for-text)
-   - [Create New Edition](#create-new-edition)
-6. [Annotations](#annotations)
-   - [Get All Annotations](#get-all-annotations)
-   - [Add Annotation](#add-annotation)
-
----
-
-## Overview
-
-Editions (also known as Manifestations) represent specific physical or digital instantiations of a text. The Editions API provides endpoints for managing edition metadata, content, annotations, and relationships between editions.
-
-### Edition Types
-
-- **Diplomatic**: Represents a faithful transcription of a specific manuscript or print. Requires BDRC identifier.
-- **Critical**: Represents a scholarly edition that may incorporate multiple sources. BDRC identifier is forbidden.
-- **Collated**: Represents a collation of multiple sources.
-
-### Base URL
-
-```
-Development: https://api-l25bgmwqoa-uc.a.run.app
-Production: https://api-aq25662yyq-uc.a.run.app
-Test: https://api-kwgjscy6gq-uc.a.run.app
-Local: http://127.0.0.1:5001/pecha-backend-test-3a4d0/us-central1/api
-```
-
----
+- **Diplomatic edition**: A transcription of a source. Requires `metadata.type = "diplomatic"`, a `bdrc` value, and a `pagination` annotation at creation.
+- **Critical edition**: A scholarly edition. Must not include `bdrc`, and requires a `segmentation` annotation at creation.
+- **Collated edition**: Accepted by the metadata enum, but the create request does not enforce initial pagination or segmentation for this type.
+- **Content operations**: Insert, delete, and replace operations update stored base text and adjust stored spans for annotations on the edition.
+- **Related editions**: Discovered from alignment and text relationship data.
 
 ## Authentication
 
-All API requests require authentication using an API key.
+Use `X-API-Key` in deployed environments.
 
-**Header:**
+```text
+X-API-Key: your_api_key
 ```
-X-API-Key: your_api_key_here
-```
 
----
+## Get Edition Metadata
 
-## Edition Endpoints
-
-### Get Edition Metadata
-
-Retrieve metadata for a specific edition.
-
-**Endpoint:**
-```
+```http
 GET /v2/editions/{edition_id}
 ```
 
-**Parameters:**
-
-| Name | Type | Location | Required | Description |
-|------|------|----------|----------|-------------|
-| `edition_id` | string | path | Yes | The ID of the edition |
-
-**Response: 200 OK**
+Returns metadata for one edition.
 
 ```json
 {
-  "id": "I12345678",
-  "text_id": "E12345678",
-  "type": "critical",
-  "source": "source-name",
-  "bdrc": null,
-  "wiki": "Q123456",
-  "colophon": "colophon text",
+  "id": "ED123",
+  "text_id": "TXT123",
+  "type": "diplomatic",
+  "source": "Derge Kangyur",
+  "bdrc": "W22084",
+  "wiki": null,
+  "colophon": "Colophon text",
   "incipit_title": {
-    "en": "English incipit title",
-    "bo": "Tibetan incipit title"
+    "bo": "འདི་སྐད་བདག་གིས།"
   },
-  "alt_incipit_titles": [
-    {
-      "en": "Alt title 1"
-    }
-  ]
+  "alt_incipit_titles": null
 }
 ```
 
-**Error Responses:**
-- `404 Not Found`: Edition does not exist
-- `500 Server Error`: Internal server error
+`404` means the edition does not exist.
 
----
+## Get Edition Content
 
-### Get Edition Content
-
-Retrieve the base text content for an edition. Optionally specify a character span to retrieve a portion of the content.
-
-**Endpoint:**
-```
+```http
 GET /v2/editions/{edition_id}/content
 ```
 
-**Parameters:**
+Returns the stored base text as a JSON string. If both `span_start` and `span_end` are supplied, the returned string is sliced with Python-style half-open indexing.
 
-| Name | Type | Location | Required | Description |
-|------|------|----------|----------|-------------|
-| `edition_id` | string | path | Yes | The ID of the edition |
-| `span_start` | integer | query | No | Start character position (inclusive) |
-| `span_end` | integer | query | No | End character position (exclusive) |
-
-**Notes:**
-- Both `span_start` and `span_end` must be provided together if retrieving a portion
-- If span parameters are omitted, returns the full content
-
-**Response: 200 OK (Full Content)**
-
-```json
-"This is the complete base text content of the edition."
-```
-
-**Response: 200 OK (Span Content)**
-
-```json
-"portion of the text"
-```
-
-**Error Responses:**
-- `400 Bad Request`: Invalid span parameters
-- `404 Not Found`: Edition does not exist
-- `500 Server Error`: Internal server error
-
-**Example Usage:**
+| Query | Type | Required | Description |
+|-------|------|----------|-------------|
+| `span_start` | integer | No | Start character offset, inclusive |
+| `span_end` | integer | No | End character offset, exclusive |
 
 ```bash
-# Get full content
-curl -X GET "https://api-l25bgmwqoa-uc.a.run.app/v2/editions/I12345678/content" \
-  -H "X-API-Key: your_api_key"
-
-# Get content for specific span
-curl -X GET "https://api-l25bgmwqoa-uc.a.run.app/v2/editions/I12345678/content?span_start=0&span_end=100" \
+curl "https://api-l25bgmwqoa-uc.a.run.app/v2/editions/ED123/content?span_start=0&span_end=100" \
   -H "X-API-Key: your_api_key"
 ```
 
----
+## Patch Edition Content
 
-### Modify Edition Content
-
-Apply a text operation (INSERT, DELETE, or REPLACE) to the edition's content. This operation updates the base text in storage and automatically adjusts all affected spans on the same edition.
-
-**Endpoint:**
-```
+```http
 PATCH /v2/editions/{edition_id}/content
 ```
 
-**Parameters:**
+Applies one text operation and returns `204 No Content`. The request body is the operation object itself.
 
-| Name | Type | Location | Required | Description |
-|------|------|----------|----------|-------------|
-| `edition_id` | string | path | Yes | The ID of the edition |
-
-**Request Body:**
-
-The request body must contain a text operation object. See [Text Operations Specification](./text-operations-spec.md) for detailed information on span adjustment behavior.
-
-#### Operation Types
-
-**INSERT Operation**
+Insert:
 
 ```json
 {
   "type": "insert",
-  "position": 15,
-  "text": "new text"
+  "position": 10,
+  "text": "inserted text"
 }
 ```
 
-**DELETE Operation**
+Delete:
 
 ```json
 {
@@ -196,7 +90,7 @@ The request body must contain a text operation object. See [Text Operations Spec
 }
 ```
 
-**REPLACE Operation**
+Replace:
 
 ```json
 {
@@ -207,185 +101,271 @@ The request body must contain a text operation object. See [Text Operations Spec
 }
 ```
 
-**Response: 200 OK**
+Validation rules:
 
-```json
-{
-  "message": "Operation applied successfully"
-}
-```
+- `start`, `end`, and `position` are character offsets.
+- `start` must be less than `end`.
+- Insert and replace text must be non-empty.
+- Extra fields are rejected.
 
-**Error Responses:**
-- `400 Bad Request`: Invalid operation parameters
-- `404 Not Found`: Edition does not exist
-- `422 Validation Error`: Operation validation failed
-- `500 Server Error`: Internal server error
+The database span adjustment is performed before the storage write. If the storage write fails, the code compensates the span adjustment before re-raising.
 
-**Span Adjustment:**
+## Delete Edition
 
-When content is modified, all annotations with spans on the same edition are automatically adjusted:
-
-- **Segmentation segments**: Adjusted based on continuous span rules
-- **Pagination pages**: Adjusted based on continuous span rules
-- **Bibliography metadata**: Adjusted based on annotation span rules
-- **Durchen notes**: Adjusted based on annotation span rules
-- **Alignments**: Source segments are adjusted if they belong to the modified edition
-
-See [Text Operations Specification](./text-operations-spec.md) for detailed span adjustment algorithms.
-
-**Example Usage:**
-
-```bash
-# Insert text
-curl -X PATCH "https://api-l25bgmwqoa-uc.a.run.app/v2/editions/I12345678/content" \
-  -H "X-API-Key: your_api_key" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "type": "insert",
-    "position": 15,
-    "text": "new text"
-  }'
-
-# Delete text
-curl -X PATCH "https://api-l25bgmwqoa-uc.a.run.app/v2/editions/I12345678/content" \
-  -H "X-API-Key: your_api_key" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "type": "delete",
-    "start": 10,
-    "end": 20
-  }'
-
-# Replace text
-curl -X PATCH "https://api-l25bgmwqoa-uc.a.run.app/v2/editions/I12345678/content" \
-  -H "X-API-Key: your_api_key" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "type": "replace",
-    "start": 10,
-    "end": 20,
-    "text": "replacement text"
-  }'
-```
-
----
-
-### Delete Edition
-
-Delete an edition (edition) and all its associated data including annotations (segmentation, pagination, bibliography, durchen notes, alignments) and stored content.
-
-**Endpoint:**
-```
+```http
 DELETE /v2/editions/{edition_id}
 ```
 
-**Parameters:**
+Deletes the edition metadata, associated annotation data handled by the database layer, and stored base text. Successful deletion returns `204 No Content`.
 
-| Name | Type | Location | Required | Description |
-|------|------|----------|----------|-------------|
-| `edition_id` | string | path | Yes | The ID of the edition to delete |
+## List Editions for a Text
 
-**Response: 204 No Content**
+```http
+GET /v2/texts/{text_id}/editions
+```
 
-Successful deletion returns no content.
+Optional query:
 
-**Error Responses:**
-- `404 Not Found`: Edition does not exist
-- `500 Server Error`: Internal server error
-
-**Example Usage:**
+| Query | Type | Description |
+|-------|------|-------------|
+| `edition_type` | `diplomatic`, `critical`, or `collated` | Filters returned editions by type |
 
 ```bash
-curl -X DELETE "https://api-l25bgmwqoa-uc.a.run.app/v2/editions/I12345678" \
+curl "https://api-l25bgmwqoa-uc.a.run.app/v2/texts/TXT123/editions?edition_type=diplomatic" \
   -H "X-API-Key: your_api_key"
 ```
 
----
+## Create Edition
 
-## Edition Relationships
-
-### Get Related Editions
-
-Find all editions that are related to the given edition through alignment relationships.
-
-**Endpoint:**
+```http
+POST /v2/texts/{text_id}/editions
 ```
+
+Creates an edition, stores its content, creates the required initial annotation, and schedules search segmentation in the background.
+
+Diplomatic request:
+
+```json
+{
+  "content": "Full diplomatic text content",
+  "metadata": {
+    "type": "diplomatic",
+    "bdrc": "W22084",
+    "source": "Derge Kangyur"
+  },
+  "pagination": {
+    "volumes": [
+      {
+        "pages": [
+          {
+            "reference": "1a",
+            "lines": [
+              {"start": 0, "end": 100}
+            ]
+          }
+        ]
+      }
+    ]
+  }
+}
+```
+
+Critical request:
+
+```json
+{
+  "content": "Full critical text content",
+  "metadata": {
+    "type": "critical",
+    "source": "OpenPecha critical edition",
+    "incipit_title": {
+      "bo": "འདི་སྐད་བདག་གིས།"
+    }
+  },
+  "segmentation": {
+    "segments": [
+      {
+        "lines": [
+          {"start": 0, "end": 50}
+        ]
+      },
+      {
+        "lines": [
+          {"start": 50, "end": 100}
+        ]
+      }
+    ]
+  }
+}
+```
+
+Response:
+
+```json
+{
+  "id": "ED123"
+}
+```
+
+Important validation rules:
+
+- `content` is required and must be non-empty.
+- Diplomatic editions require `metadata.bdrc` and `pagination`; they must not include `segmentation`.
+- Critical editions must not include `metadata.bdrc`; they require `segmentation` and must not include `pagination`.
+- `alt_incipit_titles` can only be set when `incipit_title` is set.
+- Pagination pages and segment lines must be sorted and continuous.
+
+## Edition Annotation Collections
+
+Annotations can be listed and created by type under an edition. Creation returns `{ "id": "..." }`.
+
+### Segmentations
+
+```http
+GET /v2/editions/{edition_id}/segmentations
+POST /v2/editions/{edition_id}/segmentations
+```
+
+Request:
+
+```json
+{
+  "segments": [
+    {
+      "lines": [
+        {"start": 0, "end": 50}
+      ]
+    }
+  ],
+  "metadata": {}
+}
+```
+
+### Alignments
+
+```http
+GET /v2/editions/{edition_id}/alignments
+POST /v2/editions/{edition_id}/alignments
+```
+
+The path `edition_id` is the aligned/source edition. `target_edition_id` is the edition being aligned to.
+
+```json
+{
+  "target_edition_id": "ED_TARGET",
+  "target_segments": [
+    {
+      "lines": [
+        {"start": 0, "end": 40}
+      ]
+    }
+  ],
+  "aligned_segments": [
+    {
+      "lines": [
+        {"start": 0, "end": 35}
+      ],
+      "target_indices": [0]
+    }
+  ]
+}
+```
+
+`target_indices` are zero-based indexes into `target_segments`.
+
+### Pagination
+
+```http
+GET /v2/editions/{edition_id}/pagination
+POST /v2/editions/{edition_id}/pagination
+```
+
+```json
+{
+  "volumes": [
+    {
+      "pages": [
+        {
+          "reference": "1a",
+          "lines": [
+            {"start": 0, "end": 500}
+          ]
+        }
+      ]
+    }
+  ]
+}
+```
+
+A single-volume pagination must omit `index`. Multi-volume pagination must use unique continuous indexes starting at `1`.
+
+### Bibliographic Metadata
+
+```http
+GET /v2/editions/{edition_id}/bibliographic
+POST /v2/editions/{edition_id}/bibliographic
+```
+
+```json
+{
+  "span": {"start": 5000, "end": 5500},
+  "type": "colophon",
+  "metadata": {}
+}
+```
+
+Supported types: `colophon`, `incipit`, `alt_incipit`, `alt_title`, `person`, `title`, and `author`.
+
+### Durchen Notes
+
+```http
+GET /v2/editions/{edition_id}/durchens
+POST /v2/editions/{edition_id}/durchens
+```
+
+```json
+{
+  "span": {"start": 100, "end": 150},
+  "text": "Variant reading from witness B",
+  "metadata": {}
+}
+```
+
+## Related Editions
+
+```http
 GET /v2/editions/{edition_id}/related
 ```
 
-**Parameters:**
+Returns editions related through alignment or text relationships.
 
-| Name | Type | Location | Required | Description |
-|------|------|----------|----------|-------------|
-| `edition_id` | string | path | Yes | The ID of the edition |
+## Related Segments by Span
 
-**Response: 200 OK**
-
-```json
-[
-  {
-    "id": "I87654321",
-    "text_id": "E12345678",
-    "type": "critical",
-    "source": "source-name",
-    "bdrc": null,
-    "wiki": null,
-    "colophon": "colophon text",
-    "incipit_title": {
-      "en": "English incipit"
-    },
-    "alt_incipit_titles": null
-  },
-  {
-    "id": "I87654322",
-    "text_id": "E12345679",
-    "type": "diplomatic",
-    "source": "another-source",
-    "bdrc": "W123456",
-    "wiki": null,
-    "colophon": null,
-    "incipit_title": null,
-    "alt_incipit_titles": null
-  }
-]
-```
-
-**Error Responses:**
-- `404 Not Found`: Edition does not exist
-- `500 Server Error`: Internal server error
-
----
-
-### Get Related Segments by Span
-
-Find segments that overlap with a given character span in the edition, then return all related (aligned) segments from other editions.
-
-**Endpoint:**
-```
+```http
 GET /v2/editions/{edition_id}/segments/related
 ```
 
-**Parameters:**
+Finds segments overlapping a span in the edition, then returns aligned segments from related editions.
 
-| Name | Type | Location | Required | Description |
-|------|------|----------|----------|-------------|
-| `edition_id` | string | path | Yes | The ID of the edition |
-| `span_start` | integer | query | Yes | Start character position (inclusive) |
-| `span_end` | integer | query | Yes | End character position (exclusive) |
-| `limit` | integer | query | No | Number of related segments to return (default 20, max 100) |
-| `offset` | integer | query | No | Number of related segments to skip (default 0) |
-
-**Response: 200 OK**
+| Query | Type | Required | Default |
+|-------|------|----------|---------|
+| `span_start` | integer | Yes | - |
+| `span_end` | integer | Yes | - |
+| `limit` | integer | No | 20 |
+| `offset` | integer | No | 0 |
 
 ```json
 {
   "items": [
     {
-      "id": "SEG001",
-      "segmentation_id": "SGN12345678",
-      "edition_id": "M12345678",
-      "text_id": "E12345678",
-      "lines": [{"start": 0, "end": 100}]
+      "id": "SEG123",
+      "segmentation_id": "SGN123",
+      "edition_id": "ED456",
+      "text_id": "TXT456",
+      "lines": [
+        {"start": 0, "end": 50}
+      ],
+      "tag_ids": []
     }
   ],
   "has_more": false,
@@ -394,736 +374,9 @@ GET /v2/editions/{edition_id}/segments/related
 }
 ```
 
-**Empty Result:**
-
-```json
-{
-  "items": [],
-  "has_more": false,
-  "offset": 0,
-  "limit": 20
-}
-```
-
-**Future pagination review:** Other list-shaped or nested responses, such as annotation detail payloads with large segment arrays, should be reviewed separately because paginating them may require API-specific restructuring.
-
-**Error Responses:**
-- `400 Bad Request`: Invalid span parameters
-- `404 Not Found`: Edition does not exist
-- `422 Validation Error`: Validation failed
-- `500 Server Error`: Internal server error
-
-**Example Usage:**
-
-```bash
-curl -X GET "https://api-l25bgmwqoa-uc.a.run.app/v2/editions/I12345678/segments/related?span_start=0&span_end=100" \
-  -H "X-API-Key: your_api_key"
-```
-
----
-
-## Edition Management
-
-### List Editions for Text
-
-Retrieve all editions associated with a text. Optionally filter by edition type (edition type).
-
-**Endpoint:**
-```
-GET /v2/texts/{text_id}/editions
-```
-
-**Parameters:**
-
-| Name | Type | Location | Required | Description |
-|------|------|----------|----------|-------------|
-| `text_id` | string | path | Yes | The ID of the text |
-| `edition_type` | string | query | No | Filter by type: `diplomatic`, `critical`, or `all` (default) |
-
-**Response: 200 OK**
-
-```json
-[
-  {
-    "id": "I12345678",
-    "text_id": "E12345678",
-    "type": "critical",
-    "source": "source-name",
-    "bdrc": null,
-    "wiki": "Q123456",
-    "colophon": "colophon text",
-    "incipit_title": {
-      "en": "English incipit title",
-      "bo": "Tibetan incipit title"
-    },
-    "alt_incipit_titles": [
-      {
-        "en": "Alt title 1"
-      }
-    ]
-  }
-]
-```
-
-**Error Responses:**
-- `400 Bad Request`: Invalid parameters
-- `404 Not Found`: Text does not exist
-- `500 Server Error`: Internal server error
-
-**Example Usage:**
-
-```bash
-# Get all editions
-curl -X GET "https://api-l25bgmwqoa-uc.a.run.app/v2/texts/E12345678/editions" \
-  -H "X-API-Key: your_api_key"
-
-# Get only diplomatic editions
-curl -X GET "https://api-l25bgmwqoa-uc.a.run.app/v2/texts/E12345678/editions?edition_type=diplomatic" \
-  -H "X-API-Key: your_api_key"
-
-# Get only critical editions
-curl -X GET "https://api-l25bgmwqoa-uc.a.run.app/v2/texts/E12345678/editions?edition_type=critical" \
-  -H "X-API-Key: your_api_key"
-```
-
----
-
-### Create New Edition
-
-Create a new edition with metadata and content for a specific text.
-
-**Endpoint:**
-```
-POST /v2/texts/{text_id}/editions
-```
-
-**Parameters:**
-
-| Name | Type | Location | Required | Description |
-|------|------|----------|----------|-------------|
-| `text_id` | string | path | Yes | The ID of the text |
-
-**Request Body:**
-
-```json
-{
-  "metadata": {
-    "type": "diplomatic | critical",
-    "source": "string (optional)",
-    "bdrc": "string (required for diplomatic)",
-    "wiki": "string (optional)",
-    "colophon": "string (optional)",
-    "incipit_title": {
-      "en": "Opening words",
-      "bo": "དབུ་ཚིག"
-    },
-    "alt_incipit_titles": [
-      {
-        "en": "Alternative title"
-      }
-    ]
-  },
-  "annotation": [...],
-  "bibliography_annotation": [...],
-  "content": "string (required)"
-}
-```
-
-#### Metadata Requirements
-
-**For Diplomatic Editions:**
-- `type`: Must be `"diplomatic"`
-- `bdrc`: **Required** - BDRC identifier for the source
-- `source`: Optional source identifier
-
-**For Critical Editions:**
-- `type`: Must be `"critical"`
-- `bdrc`: Should be `null` or omitted
-- `source`: Optional source identifier
-
-#### Annotation Types
-
-**1. Segmentation Annotation (for Critical Editions)**
-
-Array of segment objects with character spans:
-
-```json
-"annotation": [
-  {
-    "span": {
-      "start": 0,
-      "end": 10
-    }
-  },
-  {
-    "span": {
-      "start": 10,
-      "end": 20
-    }
-  }
-]
-```
-
-**2. Pagination Annotation (for Diplomatic Editions)**
-
-Array of page objects with spans and references:
-
-```json
-"annotation": [
-  {
-    "span": {
-      "start": 0,
-      "end": 10
-    },
-    "reference": "https://example.com/image1.png"
-  },
-  {
-    "span": {
-      "start": 11,
-      "end": 20
-    },
-    "reference": "https://example.com/image2.png"
-  }
-]
-```
-
-**3. Bibliography Annotation**
-
-Can be combined with either segmentation or pagination:
-
-```json
-"bibliography_annotation": [
-  {
-    "span": {
-      "start": 5,
-      "end": 15
-    },
-    "type": "colophon"
-  },
-  {
-    "span": {
-      "start": 20,
-      "end": 30
-    },
-    "type": "title"
-  }
-]
-```
-
-**Bibliography Types:**
-- `colophon`: Colophon text
-- `title`: Title text
-- `incipit_title`: Opening words/incipit
-- `author`: Author attribution
-
-#### Example Requests
-
-**Critical Edition with Segmentation:**
-
-```json
-{
-  "metadata": {
-    "type": "critical",
-    "source": "source-name",
-    "colophon": "Sample colophon text",
-    "incipit_title": {
-      "en": "Opening words",
-      "bo": "དབུ་ཚིག"
-    }
-  },
-  "annotation": [
-    {
-      "span": {
-        "start": 0,
-        "end": 10
-      }
-    },
-    {
-      "span": {
-        "start": 10,
-        "end": 20
-      }
-    }
-  ],
-  "content": "This is the text content to be stored"
-}
-```
-
-**Diplomatic Edition with Pagination:**
-
-```json
-{
-  "metadata": {
-    "type": "diplomatic",
-    "source": "source-name",
-    "bdrc": "W123456",
-    "colophon": "Sample colophon text",
-    "incipit_title": {
-      "en": "Opening words",
-      "bo": "དབུ་ཚིག"
-    }
-  },
-  "annotation": [
-    {
-      "span": {
-        "start": 0,
-        "end": 10
-      },
-      "reference": "ref-001"
-    },
-    {
-      "span": {
-        "start": 10,
-        "end": 20
-      },
-      "reference": "ref-002"
-    }
-  ],
-  "content": "This is the text content to be stored"
-}
-```
-
-**Edition with Bibliography Annotation:**
-
-```json
-{
-  "metadata": {
-    "type": "critical",
-    "source": "source-name",
-    "colophon": "Sample colophon text",
-    "incipit_title": {
-      "en": "Opening words",
-      "bo": "དབུ་ཚིག"
-    }
-  },
-  "annotation": [
-    {
-      "span": {
-        "start": 0,
-        "end": 10
-      }
-    },
-    {
-      "span": {
-        "start": 10,
-        "end": 20
-      }
-    }
-  ],
-  "bibliography_annotation": [
-    {
-      "span": {
-        "start": 5,
-        "end": 15
-      },
-      "type": "colophon"
-    },
-    {
-      "span": {
-        "start": 20,
-        "end": 30
-      },
-      "type": "title"
-    }
-  ],
-  "content": "This is the text content to be stored"
-}
-```
-
-**Response: 201 Created**
-
-```json
-{
-  "message": "Instance created successfully",
-  "id": "ABC12345678"
-}
-```
-
-**Error Responses:**
-- `400 Bad Request`: Invalid request parameters
-- `422 Validation Error`: Validation failed
-- `500 Server Error`: Internal server error
-
-**Example Usage:**
-
-```bash
-curl -X POST "https://api-l25bgmwqoa-uc.a.run.app/v2/texts/E12345678/editions" \
-  -H "X-API-Key: your_api_key" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "metadata": {
-      "type": "critical",
-      "source": "My Edition",
-      "colophon": "Completed by...",
-      "incipit_title": {
-        "en": "Beginning of the text"
-      }
-    },
-    "content": "Full text content here..."
-  }'
-```
-
----
-
-## Annotations
-
-### Get All Annotations
-
-Retrieve all annotations for a specific edition. Filter by annotation type(s) using the `type` query parameter.
-
-**Endpoint:**
-```
-GET /v2/editions/{edition_id}/annotations
-```
-
-**Parameters:**
-
-| Name | Type | Location | Required | Description |
-|------|------|----------|----------|-------------|
-| `edition_id` | string | path | Yes | The ID of the edition |
-| `type` | array[string] | query | No | Filter by annotation type(s) |
-
-**Annotation Types:**
-- `segmentation`: Text segmentation
-- `alignment`: Cross-edition alignments
-- `pagination`: Page/folio references
-- `bibliography`: Bibliographic metadata (colophon, title, author)
-- `durchen`: Critical apparatus notes
-
-**Note:** The `type` parameter can be repeated to filter multiple types:
-```
-?type=segmentation&type=pagination
-```
-
-**Response: 200 OK (All Annotations)**
-
-```json
-{
-  "segmentations": [
-    {
-      "id": "seg_abc123",
-      "edition_id": "M12345678",
-      "text_id": "E12345678",
-      "segments": [
-        {
-          "id": "segment_001",
-          "edition_id": "M12345678",
-          "text_id": "E12345678",
-          "lines": [
-            {
-              "start": 0,
-              "end": 50
-            }
-          ]
-        }
-      ]
-    }
-  ],
-  "pagination": {
-    "id": "pag_abc123",
-    "edition_id": "M12345678",
-    "text_id": "E12345678",
-    "volumes": [
-      {
-        "pages": [
-          {
-            "reference": "folio_1a",
-            "lines": [
-              {
-                "start": 0,
-                "end": 500
-              }
-            ]
-          }
-        ]
-      }
-    ]
-  },
-  "bibliographic_metadata": [
-    {
-      "id": "bib_abc123",
-      "edition_id": "M12345678",
-      "text_id": "E12345678",
-      "span": {
-        "start": 5000,
-        "end": 5500
-      },
-      "type": "colophon"
-    }
-  ],
-  "durchen_notes": [
-    {
-      "id": "note_abc123",
-      "edition_id": "M12345678",
-      "text_id": "E12345678",
-      "span": {
-        "start": 100,
-        "end": 150
-      },
-      "text": "Variant reading in manuscript B"
-    }
-  ]
-}
-```
-
-**Error Responses:**
-- `404 Not Found`: Edition does not exist
-- `500 Server Error`: Internal server error
-
-**Example Usage:**
-
-```bash
-# Get all annotations
-curl -X GET "https://api-l25bgmwqoa-uc.a.run.app/v2/editions/I12345678/annotations" \
-  -H "X-API-Key: your_api_key"
-
-# Get only segmentation annotations
-curl -X GET "https://api-l25bgmwqoa-uc.a.run.app/v2/editions/I12345678/annotations?type=segmentation" \
-  -H "X-API-Key: your_api_key"
-
-# Get segmentation and pagination annotations
-curl -X GET "https://api-l25bgmwqoa-uc.a.run.app/v2/editions/I12345678/annotations?type=segmentation&type=pagination" \
-  -H "X-API-Key: your_api_key"
-```
-
----
-
-### Add Annotation
-
-Add an annotation to the specified edition. Exactly one annotation type must be provided per request.
-
-**Endpoint:**
-```
-POST /v2/editions/{edition_id}/annotations
-```
-
-**Parameters:**
-
-| Name | Type | Location | Required | Description |
-|------|------|----------|----------|-------------|
-| `edition_id` | string | path | Yes | The ID of the edition |
-
-**Request Body:**
-
-Exactly one of the following annotation types must be provided:
-
-#### 1. Segmentation Annotation
-
-```json
-{
-  "segmentation": {
-    "segments": [
-      {
-        "lines": [
-          {
-            "start": 0,
-            "end": 50
-          }
-        ]
-      },
-      {
-        "lines": [
-          {
-            "start": 50,
-            "end": 100
-          }
-        ]
-      }
-    ]
-  }
-}
-```
-
-#### 2. Alignment Annotation
-
-```json
-{
-  "alignment": {
-    "target_edition_id": "M87654321",
-    "target_segments": [
-      {
-        "lines": [
-          {
-            "start": 0,
-            "end": 30
-          }
-        ]
-      },
-      {
-        "lines": [
-          {
-            "start": 30,
-            "end": 60
-          }
-        ]
-      }
-    ],
-    "aligned_segments": [
-      {
-        "lines": [
-          {
-            "start": 0,
-            "end": 25
-          }
-        ],
-        "target_indices": [0]
-      },
-      {
-        "lines": [
-          {
-            "start": 25,
-            "end": 50
-          }
-        ],
-        "target_indices": [0, 1]
-      }
-    ]
-  }
-}
-```
-
-**Alignment Explanation:**
-- `target_edition_id`: The edition being aligned to
-- `target_segments`: Segments in the target edition
-- `aligned_segments`: Segments in the current edition (`edition_id`)
-- `target_indices`: Zero-based indices into `target_segments`
-
-#### 3. Pagination Annotation
-
-```json
-{
-  "pagination": {
-    "volume": {
-      "pages": [
-        {
-          "reference": "folio_1a",
-          "lines": [
-            {
-              "start": 0,
-              "end": 500
-            }
-          ]
-        },
-        {
-          "reference": "folio_1b",
-          "lines": [
-            {
-              "start": 500,
-              "end": 1000
-            }
-          ]
-        }
-      ]
-    }
-  }
-}
-```
-
-#### 4. Bibliographic Metadata
-
-```json
-{
-  "bibliographic_metadata": [
-    {
-      "span": {
-        "start": 5000,
-        "end": 5500
-      },
-      "type": "colophon"
-    },
-    {
-      "span": {
-        "start": 0,
-        "end": 100
-      },
-      "type": "title"
-    }
-  ]
-}
-```
-
-**Bibliographic Types:**
-- `colophon`: Colophon text
-- `title`: Title text
-- `incipit`: Incipit/opening words
-- `alt_incipit`: Alternative incipit
-- `alt_title`: Alternative title
-- `person`: Person name mention
-- `author`: Author attribution
-
-#### 5. Durchen Notes
-
-```json
-{
-  "durchen_notes": [
-    {
-      "span": {
-        "start": 100,
-        "end": 150
-      },
-      "text": "Variant reading found in manuscript B: འདི་ནི།"
-    }
-  ]
-}
-```
-
-**Response: 201 Created**
-
-```json
-{
-  "message": "Annotation added successfully"
-}
-```
-
-**Error Responses:**
-- `400 Bad Request`: Invalid request (e.g., multiple annotation types provided)
-- `404 Not Found`: Edition does not exist
-- `422 Validation Error`: Validation failed
-- `500 Server Error`: Internal server error
-
-**Example Usage:**
-
-```bash
-# Add segmentation
-curl -X POST "https://api-l25bgmwqoa-uc.a.run.app/v2/editions/I12345678/annotations" \
-  -H "X-API-Key: your_api_key" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "segmentation": {
-      "segments": [
-        {
-          "lines": [
-            {
-              "start": 0,
-              "end": 50
-            }
-          ]
-        }
-      ]
-    }
-  }'
-
-# Add pagination
-curl -X POST "https://api-l25bgmwqoa-uc.a.run.app/v2/editions/I12345678/annotations" \
-  -H "X-API-Key: your_api_key" \
-  -H "Content-Type: application/json" \
-  -d '{
-    "pagination": {
-      "volume": {
-        "pages": [
-          {
-            "reference": "folio_1a",
-            "lines": [
-              {
-                "start": 0,
-                "end": 500
-              }
-            ]
-          }
-        ]
-      }
-    }
-  }'
-```
-
----
+## Developer Notes
+
+- Router: `routers/editions.py`.
+- Edition creation route: `routers/texts.py`.
+- Models: `models/edition.py`, `models/annotation.py`, `models/content_operation.py`, and `models/requests.py`.
+- Storage dependency handles base text reads/writes; database dependencies handle metadata, annotations, span adjustment, and related lookups.

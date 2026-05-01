@@ -10,6 +10,7 @@ This document provides comprehensive documentation for all Categories-related en
 2. [Authentication](#authentication)
 3. [Category Endpoints](#category-endpoints)
    - [List Categories](#list-categories)
+   - [Get Category by ID](#get-category-by-id)
    - [Create New Category](#create-new-category)
 ---
 
@@ -50,7 +51,7 @@ X-API-Key: your_api_key_here
 
 ### List Categories
 
-Get categories filtered by application (via `X-Application` header) and optional parent.
+Get categories filtered by application (via `X-Application` header) and optional parent. If `parent_id` is omitted, the endpoint returns root categories for the application.
 
 **Endpoint:**
 ```
@@ -68,8 +69,7 @@ GET /v2/categories
 
 | Name | Type | Location | Required | Default | Description |
 |------|------|----------|----------|---------|-------------|
-| `parent_id` | string | query | No | null | Parent category ID (null or omitted returns root categories) |
-| `language` | string | query | No | "bo" | Language code for filtering |
+| `parent_id` | string | query | No | null | Parent category ID. Omit it to return root categories. |
 
 **Response: 200 OK (Root Categories)**
 
@@ -113,7 +113,8 @@ GET /v2/categories
 ```
 
 **Error Responses:**
-- `400 Bad Request`: Invalid parameters or missing X-Application header
+- `404 Not Found`: Application does not exist
+- `422 Validation Error`: Missing `X-Application` header or invalid query parameter
 - `500 Server Error`: Internal server error
 
 **Example Usage:**
@@ -129,13 +130,58 @@ curl -X GET "https://api-l25bgmwqoa-uc.a.run.app/v2/categories?parent_id=CAT1234
   -H "X-API-Key: your_api_key" \
   -H "X-Application: webuddhist"
 
-# Get categories with specific language filter
-curl -X GET "https://api-l25bgmwqoa-uc.a.run.app/v2/categories?language=en" \
-  -H "X-API-Key: your_api_key" \
-  -H "X-Application: webuddhist"
+```
 
-# Get child categories with language filter
-curl -X GET "https://api-l25bgmwqoa-uc.a.run.app/v2/categories?parent_id=CAT12345678&language=bo" \
+---
+
+### Get Category by ID
+
+Fetch one category by ID within the application selected by `X-Application`. A category that exists in a different application is treated as not found.
+
+**Endpoint:**
+```
+GET /v2/categories/{category_id}
+```
+
+**Headers:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `X-API-Key` | string | Yes | API authentication key |
+| `X-Application` | string | Yes | Application context for categories |
+
+**Parameters:**
+
+| Name | Type | Location | Required | Description |
+|------|------|----------|----------|-------------|
+| `category_id` | string | path | Yes | Category ID to retrieve |
+
+**Response: 200 OK**
+
+```json
+{
+  "id": "CAT12345678",
+  "parent_id": null,
+  "title": {
+    "en": "Literature",
+    "bo": "རྩོམ་རིག"
+  },
+  "description": {
+    "en": "Literary works and compositions"
+  },
+  "children": ["CAT87654321"]
+}
+```
+
+**Error Responses:**
+- `404 Not Found`: Application or category does not exist
+- `422 Validation Error`: Missing `X-Application` header
+- `500 Server Error`: Internal server error
+
+**Example Usage:**
+
+```bash
+curl -X GET "https://api-l25bgmwqoa-uc.a.run.app/v2/categories/CAT12345678" \
   -H "X-API-Key: your_api_key" \
   -H "X-Application: webuddhist"
 ```
@@ -196,8 +242,8 @@ POST /v2/categories
 ```
 
 **Error Responses:**
-- `400 Bad Request`: Invalid request parameters or missing X-Application header
-- `422 Validation Error`: Validation failed
+- `404 Not Found`: Application or parent category does not exist
+- `422 Validation Error`: Missing `X-Application` header, duplicate title in the same parent/application, or invalid body
 - `500 Server Error`: Internal server error
 
 **Example Usage:**
@@ -246,3 +292,11 @@ curl -X POST "https://api-l25bgmwqoa-uc.a.run.app/v2/categories" \
 ```
 
 ---
+
+## Developer Notes
+
+- Implemented in `routers/categories.py`.
+- Models live in `models/category.py`.
+- Category CRUD uses `X-Application` to enforce application isolation.
+- `GET /v2/categories` returns only root categories when `parent_id` is omitted.
+- `children` is a list of child category IDs, not embedded category objects.

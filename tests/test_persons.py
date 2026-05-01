@@ -1247,6 +1247,22 @@ class TestPatchPersonV2:
         data = response.json()
         assert "detail" in data
 
+    async def test_patch_person_null_field_rejected(self, client, test_database):
+        """Test that explicit null fields are rejected"""
+        person_data = {"name": {"en": "Test Person"}, "bdrc": "P123456"}
+        person = PersonInput.model_validate(person_data)
+        person_id = await test_database.person.create(person)
+
+        response = await client.patch(
+            f"/v2/persons/{person_id}",
+            json={"bdrc": None},
+        )
+
+        assert response.status_code == 422
+        data = response.json()
+        assert "detail" in data
+        assert "Null values are not supported in PATCH" in str(data["detail"])
+
     async def test_patch_person_unknown_field_rejected(self, client, test_database):
         """Test that unknown fields are rejected"""
         person_data = {"name": {"en": "Test Person"}}

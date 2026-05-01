@@ -1286,6 +1286,32 @@ class TestPatchTextV2:
         data = response.json()
         assert "detail" in data
 
+    async def test_patch_text_null_field_rejected(self, client, test_database, test_person_data):
+        """Test that explicit null fields are rejected"""
+        person = PersonInput.model_validate(test_person_data)
+        person_id = await test_database.person.create(person)
+
+        category_id = 'category'
+        expr_data = {
+            "title": {"en": "Test Text"},
+            "language": "en",
+            "category_id": category_id,
+            "contributions": [{"person_id": person_id, "role": "author"}],
+            "bdrc": "W_NULL_PATCH",
+        }
+        text = TextInput.model_validate(expr_data)
+        text_id = await test_database.text.create(text)
+
+        response = await client.patch(
+            f"/v2/texts/{text_id}",
+            json={"bdrc": None},
+        )
+
+        assert response.status_code == 422
+        data = response.json()
+        assert "detail" in data
+        assert "Null values are not supported in PATCH" in str(data["detail"])
+
     async def test_patch_text_unknown_field_rejected(self, client, test_database, test_person_data):
         """Test that unknown fields are rejected"""
         person = PersonInput.model_validate(test_person_data)
