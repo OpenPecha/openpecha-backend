@@ -92,9 +92,9 @@ CREATE CONSTRAINT category_id_unique IF NOT EXISTS FOR (c:Category) REQUIRE c.id
 // INDEXING
 // =============================================================================
 
-// Fulltext search on LocalizedText nodes (for title/name searches)
-CREATE FULLTEXT INDEX localized_text_fulltext IF NOT EXISTS
-FOR (lt:LocalizedText) ON EACH [lt.text];
+// Text index for arbitrary substring searches over normalized LocalizedText
+CREATE TEXT INDEX localized_text_search_text_index IF NOT EXISTS
+FOR (lt:LocalizedText) ON (lt.search_text);
 
 // Index on Volume index for ordering queries
 CREATE INDEX volume_index_index IF NOT EXISTS FOR (v:Volume) ON (v.index);

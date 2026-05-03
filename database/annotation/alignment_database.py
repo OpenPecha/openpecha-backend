@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, LiteralString
 
 from exceptions import DataNotFoundError, InvalidRequestError
 
@@ -14,7 +14,7 @@ from .segmentation_database import SegmentationDatabase
 
 
 class AlignmentDatabase:
-    _GET_QUERY_BODY = """
+    _GET_QUERY_BODY: LiteralString = """
     MATCH (source_segmentation)<-[:SEGMENT_OF]-(source_segment:Segment)-[:ALIGNED_TO]->(target_segment:Segment)
           -[:SEGMENT_OF]->(target_segmentation:Segmentation:Target)-[:SEGMENTATION_OF]->(target_edition:Edition)
     MATCH (target_edition)-[:EDITION_OF]->(target_text:Text)
@@ -52,12 +52,12 @@ class AlignmentDatabase:
            segments
     """
 
-    GET_BY_SEGMENTATION_ID_QUERY = f"""
+    GET_BY_SEGMENTATION_ID_QUERY: LiteralString = f"""
     MATCH (source_segmentation:Segmentation:Aligned {{id: $segmentation_id}})
     {_GET_QUERY_BODY}
     """
 
-    GET_BY_EDITION_ID_QUERY = f"""
+    GET_BY_EDITION_ID_QUERY: LiteralString = f"""
     MATCH (edition:Edition {{id: $edition_id}})
     CALL {{
         WITH edition
@@ -73,7 +73,7 @@ class AlignmentDatabase:
     {_GET_QUERY_BODY}
     """
 
-    CREATE_QUERY = """
+    CREATE_QUERY: LiteralString = """
     MATCH (source_edition:Edition {id: $edition_id}),
           (target_edition:Edition {id: $target_edition_id})
     CREATE (source_segmentation:Segmentation:Aligned {id: $source_segmentation_id})
@@ -101,7 +101,7 @@ class AlignmentDatabase:
     RETURN count(*) AS count
     """
 
-    VALIDATE_ALIGNMENT_QUERY = """
+    VALIDATE_ALIGNMENT_QUERY: LiteralString = """
     OPTIONAL MATCH (seg:Segmentation {id: $segmentation_id})
     OPTIONAL MATCH (target:Segmentation:Target)<-[:SEGMENT_OF]-(:Segment)
           <-[:ALIGNED_TO]-(:Segment)-[:SEGMENT_OF]->(seg)

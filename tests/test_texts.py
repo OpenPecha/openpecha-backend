@@ -297,6 +297,113 @@ class TestGetAllTextsV2:
         for item in data:
             assert "བོད" in item["title"]["bo"]
 
+    async def test_get_all_metadata_filter_by_tibetan_and_sanskrit_titles(
+        self, client, test_database, test_person_data
+    ):
+        """Title search covers Tibetan and Sanskrit primary and alternative titles."""
+        person = PersonInput.model_validate(test_person_data)
+        person_id = await test_database.person.create(person)
+        category_id = "category"
+
+        tibetan_primary_id = await test_database.text.create(
+            TextInput.model_validate(
+                {
+                    "title": {"bo": "བོད་ཀྱི་ཆོས་དཔེ།", "en": "Tibetan Dharma Text"},
+                    "language": "bo",
+                    "category_id": category_id,
+                    "contributions": [{"person_id": person_id, "role": "author"}],
+                }
+            )
+        )
+        tibetan_alt_id = await test_database.text.create(
+            TextInput.model_validate(
+                {
+                    "title": {"bo": "གཙོ་མཚན་བྱང་།", "en": "Primary Tibetan Alternate Text"},
+                    "alt_titles": [{"bo": "གསང་སྔགས་ཆོས་དཔེ།"}],
+                    "language": "bo",
+                    "category_id": category_id,
+                    "contributions": [{"person_id": person_id, "role": "author"}],
+                }
+            )
+        )
+        sanskrit_primary_id = await test_database.text.create(
+            TextInput.model_validate(
+                {
+                    "title": {"sa": "प्रज्ञापारमिता सूत्र", "en": "Prajnaparamita Sutra"},
+                    "language": "sa",
+                    "category_id": category_id,
+                    "contributions": [{"person_id": person_id, "role": "author"}],
+                }
+            )
+        )
+        sanskrit_alt_id = await test_database.text.create(
+            TextInput.model_validate(
+                {
+                    "title": {"sa": "मुख्य संस्कृत शीर्षक", "en": "Primary Sanskrit Alternate Text"},
+                    "alt_titles": [{"sa": "बोधिसत्त्वचर्या"}],
+                    "language": "sa",
+                    "category_id": category_id,
+                    "contributions": [{"person_id": person_id, "role": "author"}],
+                }
+            )
+        )
+
+        response = await client.get("/v2/texts?title=ཀྱི")
+        assert response.status_code == 200
+        assert {item["id"] for item in _items(response.json())} == {tibetan_primary_id}
+
+        response = await client.get("/v2/texts?title=སྔགས")
+        assert response.status_code == 200
+        assert {item["id"] for item in _items(response.json())} == {tibetan_alt_id}
+
+        response = await client.get("/v2/texts?title=पारमि")
+        assert response.status_code == 200
+        assert {item["id"] for item in _items(response.json())} == {sanskrit_primary_id}
+
+        response = await client.get("/v2/texts?title=सत्त्व")
+        assert response.status_code == 200
+        assert {item["id"] for item in _items(response.json())} == {sanskrit_alt_id}
+
+    async def test_get_all_metadata_filter_by_title_is_case_insensitive(
+        self, client, test_database, test_person_data
+    ):
+        """Title search uses normalized search_text for case-insensitive matching."""
+        person = PersonInput.model_validate(test_person_data)
+        person_id = await test_database.person.create(person)
+        text_id = await test_database.text.create(
+            TextInput.model_validate(
+                {
+                    "title": {"en": "Straße DHARMA Manual"},
+                    "alt_titles": [{"en": "Hidden PRAJNA Guide"}],
+                    "language": "en",
+                    "category_id": "category",
+                    "contributions": [{"person_id": person_id, "role": "author"}],
+                }
+            )
+        )
+
+        response = await client.get("/v2/texts?title=strasse")
+        assert response.status_code == 200
+        assert {item["id"] for item in _items(response.json())} == {text_id}
+
+        response = await client.get("/v2/texts?title=STRASSE")
+        assert response.status_code == 200
+        assert {item["id"] for item in _items(response.json())} == {text_id}
+
+        response = await client.get("/v2/texts?title=dharma")
+        assert response.status_code == 200
+        assert {item["id"] for item in _items(response.json())} == {text_id}
+
+        response = await client.get("/v2/texts?title=prajna")
+        assert response.status_code == 200
+        assert {item["id"] for item in _items(response.json())} == {text_id}
+
+    async def test_get_all_metadata_filter_by_title_rejects_short_search(self, client):
+        """Title search requires at least 2 characters to avoid broad substring scans."""
+        response = await client.get("/v2/texts?title=a")
+
+        assert response.status_code == 422
+
     async def test_get_all_metadata_filter_by_title_with_no_title_present_in_db(self, client, test_database, test_person_data):
         """Test filtering by title with empty title"""
         person = PersonInput.model_validate(test_person_data)

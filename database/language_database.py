@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, LiteralString
 
 from neo4j.exceptions import ConstraintError
 
@@ -12,18 +12,18 @@ if TYPE_CHECKING:
 
 
 class LanguageDatabase:
-    GET_ALL_QUERY = """
+    GET_ALL_QUERY: LiteralString = """
     MATCH (l:Language)
     RETURN l.code AS code, l.name AS name
     ORDER BY l.code
     """
 
-    GET_QUERY = """
+    GET_QUERY: LiteralString = """
     MATCH (l:Language {code: $code})
     RETURN l.code AS code, l.name AS name
     """
 
-    CREATE_QUERY = """
+    CREATE_QUERY: LiteralString = """
     CREATE (l:Language {code: $code, name: $name})
     RETURN l.code AS code
     """

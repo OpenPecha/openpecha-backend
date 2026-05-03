@@ -1,5 +1,5 @@
 import logging
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, LiteralString
 
 from exceptions import DataNotFoundError
 from models.enums import EditionType
@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 class EditionDatabase:
-    DELETE_QUERY = """
+    DELETE_QUERY: LiteralString = """
     MATCH (m:Edition {id: $edition_id})
     OPTIONAL MATCH (m)-[:HAS_SOURCE]->(s:Source)
     WITH m, s, count { (s)<-[:HAS_SOURCE]-(:Edition) } AS source_refs
@@ -38,7 +38,7 @@ class EditionDatabase:
     DELETE s
     """
 
-    _EDITION_RETURN = """
+    _EDITION_RETURN: LiteralString = """
     RETURN {
         id: m.id, bdrc: m.bdrc, wiki: m.wiki, colophon: m.colophon,
         source: [(m)-[:HAS_SOURCE]->(s:Source) | s.name][0],
@@ -53,24 +53,24 @@ class EditionDatabase:
     } as edition
     """
 
-    _GET_QUERY_BODY = f"""
+    _GET_QUERY_BODY: LiteralString = f"""
     WITH m, e
     WHERE $edition_type IS NULL
        OR EXISTS {{ (m)-[:HAS_TYPE]->(:EditionType {{name: $edition_type}}) }}
     {_EDITION_RETURN}
     """
 
-    GET_BY_ID_QUERY = f"""
+    GET_BY_ID_QUERY: LiteralString = f"""
     MATCH (m:Edition {{id: $edition_id}})-[:EDITION_OF]->(e:Text)
     {_GET_QUERY_BODY}
     """
 
-    GET_BY_TEXT_ID_QUERY = f"""
+    GET_BY_TEXT_ID_QUERY: LiteralString = f"""
     MATCH (m:Edition)-[:EDITION_OF]->(e:Text {{id: $text_id}})
     {_GET_QUERY_BODY}
     """
 
-    GET_RELATED_QUERY = f"""
+    GET_RELATED_QUERY: LiteralString = f"""
     // Related via segment alignment (bidirectional)
     MATCH (source:Edition {{id: $edition_id}})
           <-[:SEGMENTATION_OF]-(s1 WHERE s1:Aligned OR s1:Target)
@@ -93,7 +93,7 @@ class EditionDatabase:
     {_EDITION_RETURN}
     """
 
-    CREATE_QUERY = """
+    CREATE_QUERY: LiteralString = """
     MATCH (e:Text {id: $text_id})
     OPTIONAL MATCH (it:Nomen {id: $incipit_nomen_id})
     MERGE (mt:EditionType {name: $type})

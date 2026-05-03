@@ -341,6 +341,80 @@ class TestGetAllPersonsV2:
         assert len(data_bo) == 1
         assert data_bo[0]["id"] == person_id
 
+    async def test_get_all_persons_filter_by_tibetan_and_sanskrit_names(self, client, test_database):
+        """Name search covers Tibetan and Sanskrit primary and alternative names."""
+        tibetan_primary_id = await test_database.person.create(
+            PersonInput.model_validate({"name": {"bo": "བོད་ཀྱི་མཁས་པ།", "en": "Tibetan Scholar"}})
+        )
+        tibetan_alt_id = await test_database.person.create(
+            PersonInput.model_validate(
+                {
+                    "name": {"en": "Primary Tibetan Alias Person"},
+                    "alt_names": [{"bo": "གསང་སྔགས་མཁས་པ།"}],
+                }
+            )
+        )
+        sanskrit_primary_id = await test_database.person.create(
+            PersonInput.model_validate({"name": {"sa": "नागार्जुन आचार्य", "en": "Nagarjuna Acharya"}})
+        )
+        sanskrit_alt_id = await test_database.person.create(
+            PersonInput.model_validate(
+                {
+                    "name": {"en": "Primary Sanskrit Alias Person"},
+                    "alt_names": [{"sa": "आर्यदेव"}],
+                }
+            )
+        )
+
+        response = await client.get("/v2/persons/?name=ཀྱི")
+        assert response.status_code == 200
+        assert {item["id"] for item in _items(response.json())} == {tibetan_primary_id}
+
+        response = await client.get("/v2/persons/?name=སྔགས")
+        assert response.status_code == 200
+        assert {item["id"] for item in _items(response.json())} == {tibetan_alt_id}
+
+        response = await client.get("/v2/persons/?name=र्जुन")
+        assert response.status_code == 200
+        assert {item["id"] for item in _items(response.json())} == {sanskrit_primary_id}
+
+        response = await client.get("/v2/persons/?name=र्यदे")
+        assert response.status_code == 200
+        assert {item["id"] for item in _items(response.json())} == {sanskrit_alt_id}
+
+    async def test_get_all_persons_filter_by_name_is_case_insensitive(self, client, test_database):
+        """Name search uses normalized search_text for case-insensitive matching."""
+        person_id = await test_database.person.create(
+            PersonInput.model_validate(
+                {
+                    "name": {"en": "Straße DHARMA Master"},
+                    "alt_names": [{"en": "Hidden PRAJNA Alias"}],
+                }
+            )
+        )
+
+        response = await client.get("/v2/persons/?name=strasse")
+        assert response.status_code == 200
+        assert {item["id"] for item in _items(response.json())} == {person_id}
+
+        response = await client.get("/v2/persons/?name=STRASSE")
+        assert response.status_code == 200
+        assert {item["id"] for item in _items(response.json())} == {person_id}
+
+        response = await client.get("/v2/persons/?name=dharma")
+        assert response.status_code == 200
+        assert {item["id"] for item in _items(response.json())} == {person_id}
+
+        response = await client.get("/v2/persons/?name=prajna")
+        assert response.status_code == 200
+        assert {item["id"] for item in _items(response.json())} == {person_id}
+
+    async def test_get_all_persons_filter_by_name_rejects_short_search(self, client):
+        """Name search requires at least 2 characters to avoid broad substring scans."""
+        response = await client.get("/v2/persons/?name=a")
+
+        assert response.status_code == 422
+
     async def test_get_all_persons_filter_by_bdrc(self, client, test_database):
         """Test filtering persons by BDRC ID"""
         person1 = PersonInput.model_validate({"name": {"en": "Person 1"}, "bdrc": "P111111"})

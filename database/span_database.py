@@ -101,7 +101,7 @@ def _adjust_annotation_for_replace(
 
 
 class SpanDatabase:
-    FIND_CONTINUOUS_SPANS_QUERY = """
+    FIND_CONTINUOUS_SPANS_QUERY: LiteralString = """
     CALL {
         MATCH (m:Edition {id: $edition_id})
             <-[:SEGMENTATION_OF]-()
@@ -120,7 +120,7 @@ class SpanDatabase:
     ORDER BY span_start, entity_id, span_end
     """
 
-    FIND_ANNOTATION_SPANS_QUERY = """
+    FIND_ANNOTATION_SPANS_QUERY: LiteralString = """
     MATCH (m:Edition {id: $edition_id})
         <-[:NOTE_OF|BIBLIOGRAPHY_OF|ATTRIBUTE_OF]-(entity)
         <-[:SPAN_OF]-(span:Span)
@@ -128,14 +128,14 @@ class SpanDatabase:
     ORDER BY span.start
     """
 
-    BATCH_UPDATE_SPANS_QUERY = """
+    BATCH_UPDATE_SPANS_QUERY: LiteralString = """
     UNWIND $updates AS u
     MATCH (span:Span)-[:SPAN_OF]->(entity:Segment|Page|BibliographicMetadata|Note|Attribute {id: u.entity_id})
     SET span.start = u.new_start, span.end = u.new_end
     FINISH
     """
 
-    BATCH_DELETE_ENTITIES_QUERY = """
+    BATCH_DELETE_ENTITIES_QUERY: LiteralString = """
     UNWIND $entity_ids AS eid
     MATCH (entity:Segment|Page|BibliographicMetadata|Note|Attribute {id: eid})
     OPTIONAL MATCH (span:Span)-[:SPAN_OF]->(entity)

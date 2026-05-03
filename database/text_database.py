@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Any, LiteralString
 
 from neo4j.exceptions import ConstraintError
 
@@ -11,6 +11,7 @@ from models.text import TextInput, TextOutput, TextPatch
 from .data_adapter import DataAdapter
 from .database_validator import DatabaseValidator
 from .nomen_database import NomenDatabase
+from .search_text import build_substring_search_value
 from .tag_database import TagDatabase
 
 if TYPE_CHECKING:
@@ -27,7 +28,7 @@ class TextDatabase:
     def session(self) -> AsyncSession:
         return self._db.get_session()
 
-    _TEXT_RETURN = """
+    _TEXT_RETURN: LiteralString = """
     {
         id: e.id,
         bdrc: e.bdrc,
@@ -69,24 +70,34 @@ class TextDatabase:
     } AS text
     """
 
-    GET_QUERY = f"""
+    GET_QUERY: LiteralString = f"""
     MATCH (e:Text {{id: $id}})
     RETURN {_TEXT_RETURN}
     """
 
-    GET_ALL_QUERY = f"""
-    MATCH (e:Text)
-    WHERE ($language IS NULL OR (e)-[:HAS_LANGUAGE]->(:Language {{code: $language}}))
-    AND ($title IS NULL OR EXISTS {{
-        (e)-[:HAS_TITLE]->(n:Nomen)
-        WHERE EXISTS {{
-            (n)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
-            WHERE toLower(lt.text) CONTAINS toLower($title)
-        }} OR EXISTS {{
-            (n)<-[:ALTERNATIVE_OF]-(alt:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
-            WHERE toLower(lt.text) CONTAINS toLower($title)
+    GET_ALL_QUERY: LiteralString = f"""
+    CALL {{
+        WITH $title_search AS title_search
+        WITH title_search WHERE title_search IS NULL
+        MATCH (e:Text)
+        RETURN e
+        UNION
+        WITH $title_search AS title_search
+        WITH title_search WHERE title_search IS NOT NULL
+        MATCH (lt:LocalizedText)
+        WHERE lt.search_text CONTAINS title_search
+        MATCH (lt)<-[:HAS_LOCALIZATION]-(n:Nomen)
+        CALL (n) {{
+            MATCH (n)<-[:HAS_TITLE]-(e:Text)
+            RETURN e
+          UNION
+            MATCH (n)-[:ALTERNATIVE_OF]->(:Nomen)<-[:HAS_TITLE]-(e:Text)
+            RETURN e
         }}
-    }})
+        RETURN DISTINCT e
+    }}
+    WITH e
+    WHERE ($language IS NULL OR (e)-[:HAS_LANGUAGE]->(:Language {{code: $language}}))
     AND ($category_id IS NULL OR (e)-[:TEXT_OF]->(:Work)-[:HAS_CATEGORY]->(:Category {{id: $category_id}}))
     AND ($author_id IS NULL OR EXISTS {{
         (e)-[:HAS_CONTRIBUTION]->(:Contribution)-[:BY]->(p:Person {{id: $author_id}})
@@ -101,7 +112,7 @@ class TextDatabase:
     RETURN {_TEXT_RETURN}
     """
 
-    UPDATE_LICENSE_QUERY = """
+    UPDATE_LICENSE_QUERY: LiteralString = """
     MATCH (e:Text {id: $text_id})
     OPTIONAL MATCH (e)-[r:HAS_LICENSE]->()
     DELETE r
@@ -111,7 +122,7 @@ class TextDatabase:
     RETURN e.id as text_id
     """
 
-    UPDATE_LANGUAGE_QUERY = """
+    UPDATE_LANGUAGE_QUERY: LiteralString = """
     MATCH (e:Text {id: $text_id})
     OPTIONAL MATCH (e)-[r:HAS_LANGUAGE]->()
     DELETE r
@@ -121,7 +132,7 @@ class TextDatabase:
     RETURN e.id as text_id
     """
 
-    UPDATE_CATEGORY_QUERY = """
+    UPDATE_CATEGORY_QUERY: LiteralString = """
     MATCH (e:Text {id: $text_id})-[:TEXT_OF]->(w:Work)
     OPTIONAL MATCH (w)-[r:HAS_CATEGORY]->()
     DELETE r
@@ -131,13 +142,13 @@ class TextDatabase:
     RETURN w.id as work_id
     """
 
-    UPDATE_PROPERTIES_QUERY = """
+    UPDATE_PROPERTIES_QUERY: LiteralString = """
     MATCH (e:Text {id: $text_id})
     SET e.bdrc = $bdrc, e.wiki = $wiki, e.date = $date
     RETURN e.id as text_id
     """
 
-    DELETE_TITLE_QUERY = """
+    DELETE_TITLE_QUERY: LiteralString = """
     MATCH (e:Text {id: $text_id})-[:HAS_TITLE]->(n:Nomen)
     OPTIONAL MATCH (n)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
     OPTIONAL MATCH (n)<-[:ALTERNATIVE_OF]-(alt:Nomen)-[:HAS_LOCALIZATION]->(alt_lt:LocalizedText)
@@ -145,14 +156,14 @@ class TextDatabase:
     FINISH
     """
 
-    LINK_TITLE_QUERY = """
+    LINK_TITLE_QUERY: LiteralString = """
     MATCH (e:Text {id: $text_id})
     MATCH (n:Nomen {id: $nomen_id})
     CREATE (e)-[:HAS_TITLE]->(n)
     FINISH
     """
 
-    _CREATE_TEXT_LINKS = """
+    _CREATE_TEXT_LINKS: LiteralString = """
     MATCH (n:Nomen {id: $title_nomen_id}), (l:Language {code: $language_code})
     MATCH (license:LicenseType {name: $license})
     MERGE (e)-[:HAS_LANGUAGE {bcp47: $bcp47_tag}]->(l)
@@ -161,14 +172,14 @@ class TextDatabase:
     RETURN e.id as text_id
     """
 
-    CREATE_STANDALONE_QUERY = f"""
+    CREATE_STANDALONE_QUERY: LiteralString = f"""
     CREATE (w:Work {{id: $work_id}})
     CREATE (e:Text {{id: $text_id, bdrc: $bdrc, wiki: $wiki, date: $date}})
     MERGE (e)-[:TEXT_OF {{original: $original}}]->(w)
     {_CREATE_TEXT_LINKS}
     """
 
-    CREATE_TRANSLATION_QUERY = f"""
+    CREATE_TRANSLATION_QUERY: LiteralString = f"""
     MATCH (target:Text {{id: $target_id}})-[:TEXT_OF]->(w:Work)
     CREATE (e:Text {{id: $text_id, bdrc: $bdrc, wiki: $wiki, date: $date}})
     MERGE (e)-[:TEXT_OF {{original: false}}]->(w)
@@ -176,7 +187,7 @@ class TextDatabase:
     {_CREATE_TEXT_LINKS}
     """
 
-    CREATE_COMMENTARY_QUERY = f"""
+    CREATE_COMMENTARY_QUERY: LiteralString = f"""
     MATCH (target:Text {{id: $target_id}})
     CREATE (w:Work {{id: $work_id}})
     CREATE (e:Text {{id: $text_id, bdrc: $bdrc, wiki: $wiki, date: $date}})
@@ -185,7 +196,7 @@ class TextDatabase:
     {_CREATE_TEXT_LINKS}
     """
 
-    UPDATE_TAGS_QUERY = """
+    UPDATE_TAGS_QUERY: LiteralString = """
     MATCH (e:Text {id: $text_id})-[:TEXT_OF]->(w:Work)
     OPTIONAL MATCH (w)-[r:HAS_TAG]->(:Tag)
     DELETE r
@@ -196,19 +207,19 @@ class TextDatabase:
     RETURN w.id AS work_id
     """
 
-    GET_WORK_ID_QUERY = """
+    GET_WORK_ID_QUERY: LiteralString = """
     MATCH (e:Text {id: $text_id})-[:TEXT_OF]->(w:Work)
     RETURN w.id AS work_id
     """
 
-    LINK_WORK_TO_CATEGORY_QUERY = """
+    LINK_WORK_TO_CATEGORY_QUERY: LiteralString = """
     MATCH (w:Work {id: $work_id})
     MATCH (c:Category {id: $category_id})
     CREATE (w)-[:HAS_CATEGORY]->(c)
     FINISH
     """
 
-    CREATE_CONTRIBUTION_QUERY = """
+    CREATE_CONTRIBUTION_QUERY: LiteralString = """
     MATCH (e:Text {id: $text_id})
     MATCH (p:Person) WHERE (($person_id IS NOT NULL AND p.id = $person_id)
                             OR ($person_bdrc_id IS NOT NULL AND p.bdrc = $person_bdrc_id))
@@ -220,7 +231,7 @@ class TextDatabase:
     RETURN elementId(c) as contribution_element_id
     """
 
-    CREATE_AI_CONTRIBUTION_QUERY = """
+    CREATE_AI_CONTRIBUTION_QUERY: LiteralString = """
     MATCH (e:Text {id: $text_id})
     MATCH (rt:RoleType {name: $role_name})
     MERGE (ai:AI {id: $ai_id})
@@ -269,7 +280,7 @@ class TextDatabase:
                 offset=offset,
                 limit=limit,
                 language=filters.language,
-                title=filters.title,
+                title_search=build_substring_search_value(filters.title),
                 category_id=filters.category_id,
                 author_id=filters.author_id,
                 tag_id=filters.tag_id,

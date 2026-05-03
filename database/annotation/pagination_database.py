@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, LiteralString
 
 from exceptions import DataConflictError, DataNotFoundError
 
@@ -11,7 +11,7 @@ from models.annotation import Page, PaginationInput, PaginationOutput, Span, Vol
 
 
 class PaginationDatabase:
-    _GET_QUERY_BODY = """
+    _GET_QUERY_BODY: LiteralString = """
     WITH pagination, edition, text, volume, page, span
     ORDER BY volume.index, span.start
     WITH pagination, edition, text, volume, page, collect({start: span.start, end: span.end}) AS lines
@@ -20,7 +20,7 @@ class PaginationDatabase:
     RETURN pagination.id AS pagination_id, edition.id AS edition_id, text.id AS text_id, volumes
     """
 
-    GET_BY_ID_QUERY = f"""
+    GET_BY_ID_QUERY: LiteralString = f"""
     MATCH (pagination:Pagination {{id: $pagination_id}})
         -[:PAGINATION_OF]->(edition:Edition)
         -[:EDITION_OF]->(text:Text),
@@ -30,7 +30,7 @@ class PaginationDatabase:
     {_GET_QUERY_BODY}
     """
 
-    GET_BY_EDITION_ID_QUERY = f"""
+    GET_BY_EDITION_ID_QUERY: LiteralString = f"""
     MATCH (edition:Edition {{id: $edition_id}})
         -[:EDITION_OF]->(text:Text),
         (edition)<-[:PAGINATION_OF]-(pagination:Pagination)
@@ -40,7 +40,7 @@ class PaginationDatabase:
     {_GET_QUERY_BODY}
     """
 
-    CREATE_QUERY = """
+    CREATE_QUERY: LiteralString = """
     MATCH (edition:Edition {id: $edition_id})
     CREATE (pagination:Pagination {id: $pagination_id})-[:PAGINATION_OF]->(edition)
     WITH pagination
@@ -55,14 +55,14 @@ class PaginationDatabase:
     RETURN count(*) AS count
     """
 
-    DELETE_QUERY = """
+    DELETE_QUERY: LiteralString = """
     MATCH (pagination:Pagination {id: $pagination_id})
     OPTIONAL MATCH (span:Span)-[:SPAN_OF]->(page:Page)-[:PAGE_OF]->(volume:Volume)-[:VOLUME_OF]->(pagination)
     DETACH DELETE span, page, volume, pagination
     FINISH
     """
 
-    DELETE_ALL_QUERY = """
+    DELETE_ALL_QUERY: LiteralString = """
     MATCH (pagination:Pagination)-[:PAGINATION_OF]->(:Edition {id: $edition_id})
     OPTIONAL MATCH (span:Span)-[:SPAN_OF]->(page:Page)-[:PAGE_OF]->(volume:Volume)-[:VOLUME_OF]->(pagination)
     DETACH DELETE span, page, volume, pagination

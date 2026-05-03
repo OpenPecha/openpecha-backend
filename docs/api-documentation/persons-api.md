@@ -65,7 +65,7 @@ GET /v2/persons
 |------|------|----------|----------|---------|-------------|
 | `limit` | integer | query | No | 20 | Number of results per page (1-100) |
 | `offset` | integer | query | No | 0 | Number of results to skip |
-| `name` | string | query | No | - | Filter by name (case-insensitive substring match, searches both primary name and alternative names) |
+| `name` | string | query | No | - | Filter by name (case-insensitive substring match, searches both primary name and alternative names; minimum 2 characters) |
 | `bdrc` | string | query | No | - | Filter by BDRC ID (exact match) |
 | `wiki` | string | query | No | - | Filter by Wikidata ID (exact match) |
 
@@ -93,7 +93,7 @@ GET /v2/persons
 
 **Error Responses:**
 - `401 Unauthorized`: Missing or invalid API key in deployed environments
-- `422 Validation Error`: Invalid `limit` or `offset`
+- `422 Validation Error`: Invalid `limit` or `offset`, or `name` shorter than 2 characters
 - `500 Server Error`: Internal server error
 
 **Example Usage:**
@@ -107,7 +107,7 @@ curl -X GET "https://api-l25bgmwqoa-uc.a.run.app/v2/persons" \
 curl -X GET "https://api-l25bgmwqoa-uc.a.run.app/v2/persons?limit=50&offset=100" \
   -H "X-API-Key: your_api_key"
 
-# Filter by name (substring match)
+# Filter by name (case-insensitive substring match; minimum 2 characters)
 curl -X GET "https://api-l25bgmwqoa-uc.a.run.app/v2/persons?name=Nagarjuna" \
   -H "X-API-Key: your_api_key"
 

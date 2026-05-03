@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, LiteralString
 
 from database.database_validator import DatabaseValidator
 from exceptions import DataNotFoundError
@@ -12,7 +12,7 @@ from models.annotation import NoteInput, NoteOutput, Span
 
 
 class NoteDatabase:
-    GET_BY_ID_QUERY = """
+    GET_BY_ID_QUERY: LiteralString = """
     MATCH (span:Span)-[:SPAN_OF]->(n:Note {id: $note_id})
         -[:NOTE_OF]->(edition:Edition)-[:EDITION_OF]->(text:Text)
     WHERE span.start < span.end
@@ -25,7 +25,7 @@ class NoteDatabase:
     ORDER BY span.start
     """
 
-    GET_BY_EDITION_ID_QUERY = """
+    GET_BY_EDITION_ID_QUERY: LiteralString = """
     MATCH (edition:Edition {id: $edition_id})<-[:NOTE_OF]-(n:Note)
         -[:HAS_TYPE]->(:NoteType {name: $note_type}),
         (edition)-[:EDITION_OF]->(text:Text)
@@ -40,7 +40,7 @@ class NoteDatabase:
     ORDER BY span.start
     """
 
-    CREATE_QUERY = """
+    CREATE_QUERY: LiteralString = """
     MATCH (m:Edition {id: $edition_id}), (nt:NoteType {name: $note_type})
     CREATE (span:Span {start: $span_start, end: $span_end})
         -[:SPAN_OF]->(n:Note {id: $note_id, text: $text})
@@ -49,14 +49,14 @@ class NoteDatabase:
     RETURN n.id AS note_id
     """
 
-    DELETE_QUERY = """
+    DELETE_QUERY: LiteralString = """
     MATCH (n:Note {id: $note_id})
     OPTIONAL MATCH (span:Span)-[:SPAN_OF]->(n)
     DETACH DELETE span, n
     FINISH
     """
 
-    DELETE_ALL_QUERY = """
+    DELETE_ALL_QUERY: LiteralString = """
     MATCH (n:Note)-[:NOTE_OF]->(:Edition {id: $edition_id})
     OPTIONAL MATCH (span:Span)-[:SPAN_OF]->(n)
     DETACH DELETE span, n

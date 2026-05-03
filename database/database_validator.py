@@ -119,7 +119,11 @@ class DatabaseValidator:
         OPTIONAL MATCH (l:Language {code: $code})
         RETURN l IS NOT NULL AS exists,
                CASE WHEN l IS NULL
-                 THEN COLLECT { MATCH (lang:Language) RETURN lang.code }
+                 THEN COLLECT {
+                   MATCH (lang:Language)
+                   WITH lang ORDER BY lang.code
+                   RETURN lang.code
+                 }
                  ELSE null
                END AS codes
         """
@@ -141,10 +145,17 @@ class DatabaseValidator:
         query = """
         UNWIND $codes_to_check AS code
         OPTIONAL MATCH (l:Language {code: code})
-        WITH code, l IS NOT NULL AS exists
-        WITH collect(CASE WHEN NOT exists THEN code END) AS missing
+        WITH collect(DISTINCT CASE WHEN l IS NULL THEN code END) AS maybe_missing
+        WITH [code IN maybe_missing WHERE code IS NOT NULL] AS missing
         RETURN missing,
-               COLLECT { MATCH (lang:Language) RETURN lang.code } AS codes
+               CASE WHEN size(missing) > 0
+                 THEN COLLECT {
+                   MATCH (lang:Language)
+                   WITH lang ORDER BY lang.code
+                   RETURN lang.code
+                 }
+                 ELSE []
+               END AS codes
         """
         result = await tx.run(query, codes_to_check=[c.lower() for c in language_codes])
         record = await result.single()

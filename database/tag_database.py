@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, LiteralString
 
 from exceptions import DataNotFoundError, DataValidationError
 from identifier import generate_id
@@ -15,7 +15,7 @@ if TYPE_CHECKING:
 
 
 class TagDatabase:
-    GET_ALL_QUERY = """
+    GET_ALL_QUERY: LiteralString = """
     MATCH (t:Tag)-[:BELONGS_TO]->(app:Application {id: $application})
     RETURN {
         id: t.id,
@@ -26,7 +26,7 @@ class TagDatabase:
     } AS tag
     """
 
-    CREATE_QUERY = """
+    CREATE_QUERY: LiteralString = """
         MATCH (n:Nomen {id: $nomen_id})
         MATCH (app:Application {id: $application})
         CREATE (t:Tag {id: $tag_id})
@@ -39,46 +39,49 @@ class TagDatabase:
         RETURN t.id AS tag_id
     """
 
-    FIND_EXISTING_QUERY = """
+    FIND_EXISTING_QUERY: LiteralString = """
+        UNWIND $titles AS title
         MATCH (t:Tag)-[:BELONGS_TO]->(app:Application {id: $application})
         MATCH (t)-[:HAS_TITLE]->(:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
-            -[:HAS_LANGUAGE]->(:Language {code: $language})
-        WHERE toLower(lt.text) = toLower($title_text)
-        RETURN t.id AS tag_id
+            -[r:HAS_LANGUAGE]->(lang:Language)
+        WHERE coalesce(r.bcp47, lang.code) = title.language
+          AND toLower(lt.text) = toLower(title.text)
+        RETURN title.language AS language, title.text AS title_text, t.id AS tag_id
         LIMIT 1
     """
 
-    DELETE_QUERY = """
+    DELETE_QUERY: LiteralString = """
         MATCH (t:Tag {id: $tag_id})-[:BELONGS_TO]->(app:Application {id: $application})
+        WITH t, true AS deleted
         OPTIONAL MATCH (t)-[:HAS_TITLE]->(title_nomen:Nomen)
         OPTIONAL MATCH (title_nomen)-[:HAS_LOCALIZATION]->(title_lt:LocalizedText)
         OPTIONAL MATCH (t)-[:HAS_DESCRIPTION]->(desc_nomen:Nomen)
         OPTIONAL MATCH (desc_nomen)-[:HAS_LOCALIZATION]->(desc_lt:LocalizedText)
         DETACH DELETE t, title_nomen, title_lt, desc_nomen, desc_lt
-        RETURN count(*) AS deleted
+        RETURN deleted
     """
 
-    TAG_WORK_QUERY = """
+    TAG_WORK_QUERY: LiteralString = """
         MATCH (w:Work {id: $work_id})
         MATCH (t:Tag {id: $tag_id})
         MERGE (w)-[:HAS_TAG]->(t)
         RETURN w.id AS work_id
     """
 
-    UNTAG_WORK_QUERY = """
+    UNTAG_WORK_QUERY: LiteralString = """
         MATCH (w:Work {id: $work_id})-[r:HAS_TAG]->(t:Tag {id: $tag_id})
         DELETE r
         RETURN w.id AS work_id
     """
 
-    TAG_SEGMENT_QUERY = """
+    TAG_SEGMENT_QUERY: LiteralString = """
         MATCH (s:Segment {id: $segment_id})
         MATCH (t:Tag {id: $tag_id})
         MERGE (s)-[:HAS_TAG]->(t)
         RETURN s.id AS segment_id
     """
 
-    UNTAG_SEGMENT_QUERY = """
+    UNTAG_SEGMENT_QUERY: LiteralString = """
         MATCH (s:Segment {id: $segment_id})-[r:HAS_TAG]->(t:Tag {id: $tag_id})
         DELETE r
         RETURN s.id AS segment_id
@@ -182,16 +185,14 @@ class TagDatabase:
     async def _validate_not_exists_tx(
         self, tx: AsyncManagedTransaction, application: str, title: dict[str, str]
     ) -> None:
-        for language, title_text in title.items():
-            result = await tx.run(
-                TagDatabase.FIND_EXISTING_QUERY,
-                application=application,
-                language=language,
-                title_text=title_text,
+        result = await tx.run(
+            TagDatabase.FIND_EXISTING_QUERY,
+            application=application,
+            titles=[{"language": language, "text": title_text} for language, title_text in title.items()],
+        )
+        record = await result.single()
+        if record:
+            raise DataValidationError(
+                f"Tag with title '{record['title_text']}' in language '{record['language']}' "
+                f"already exists for application '{application}'"
             )
-            record = await result.single()
-            if record:
-                raise DataValidationError(
-                    f"Tag with title '{title_text}' in language '{language}' "
-                    f"already exists for application '{application}'"
-                )

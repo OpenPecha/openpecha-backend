@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 from dotenv import load_dotenv
 
+from database.search_text import normalize_search_text
 from identifier import generate_id
 from models.enums import AttributeType, LicenseType, NoteType
 
@@ -79,6 +80,42 @@ def migrate_nomen_add_ids(session: Session, batch_size: int = 1000) -> int:
         logger.info("Processed batch of %d Nomen nodes (total: %d)", len(batch), total)
 
     logger.info("Added ID to %d Nomen nodes", total)
+    return total
+
+
+def migrate_localized_text_search_text(session: Session, batch_size: int = 1000) -> int:
+    """Backfill normalized LocalizedText search text for substring indexes."""
+    total = 0
+    while True:
+        result = session.run(
+            """
+            MATCH (lt:LocalizedText)
+            WHERE lt.search_text IS NULL AND lt.text IS NOT NULL
+            RETURN elementId(lt) AS eid, lt.text AS text
+            LIMIT $batch_size
+            """,
+            batch_size=batch_size,
+        )
+        updates = [
+            {"eid": record["eid"], "search_text": normalize_search_text(record["text"])}
+            for record in result
+            if isinstance(record["text"], str)
+        ]
+        if not updates:
+            break
+
+        session.run(
+            """
+            UNWIND $updates AS update
+            MATCH (lt:LocalizedText) WHERE elementId(lt) = update.eid
+            SET lt.search_text = update.search_text
+            """,
+            updates=updates,
+        )
+        total += len(updates)
+        logger.info("Backfilled search_text for %d LocalizedText nodes (total: %d)", len(updates), total)
+
+    logger.info("Backfilled search_text for %d LocalizedText nodes", total)
     return total
 
 
@@ -568,6 +605,7 @@ def run_all_migrations(session: Session) -> dict[str, int | dict[str, int]]:
         "work_category_renamed": migrate_work_category_relationship_rename(session),
         "category_application": migrate_category_application_extraction(session),
         "nomen_ids_added": migrate_nomen_add_ids(session),
+        "localized_text_search_text": migrate_localized_text_search_text(session),
         "license_types_created": migrate_create_license_types(session),
         "copyright_to_license": migrate_copyright_to_license(session),
         "license_to_license_type": migrate_license_to_license_type(session),

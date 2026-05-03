@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, LiteralString
 
 from exceptions import DataNotFoundError, InvalidRequestError
 
@@ -12,7 +12,7 @@ from models.annotation import SegmentationInput, SegmentationOutput, SegmentOutp
 
 
 class SegmentationDatabase:
-    _GET_QUERY_BODY = """
+    _GET_QUERY_BODY: LiteralString = """
     MATCH (edition)-[:EDITION_OF]->(text:Text)
     MATCH (segment:Segment)-[:SEGMENT_OF]->(segmentation)
     CALL (segment) {
@@ -35,16 +35,16 @@ class SegmentationDatabase:
     RETURN segmentation.id AS id, edition.id AS edition_id, text.id AS text_id, segments
     """
 
-    GET_BY_SEGMENTATION_ID_QUERY = f"""
+    GET_BY_SEGMENTATION_ID_QUERY: LiteralString = f"""
     MATCH (segmentation:Segmentation {{id: $segmentation_id}})-[:SEGMENTATION_OF]->(edition:Edition)
     {_GET_QUERY_BODY}
     """
 
-    GET_BY_EDITION_ID_QUERY = f"""
+    GET_BY_EDITION_ID_QUERY: LiteralString = f"""
     MATCH (edition:Edition {{id: $edition_id}})<-[:SEGMENTATION_OF]-(segmentation:Segmentation:Display)
     {_GET_QUERY_BODY}
     """
-    CREATE_QUERY = """
+    CREATE_QUERY: LiteralString = """
     MATCH (m:Edition {id: $edition_id})
     CREATE (segmentation:Segmentation:Display {id: $segmentation_id})-[:SEGMENTATION_OF]->(m)
     WITH segmentation
@@ -56,7 +56,7 @@ class SegmentationDatabase:
     RETURN count(*) AS segment_count
     """
 
-    DELETE_QUERY = """
+    DELETE_QUERY: LiteralString = """
     MATCH (segmentation:Segmentation {id: $segmentation_id})
     OPTIONAL MATCH (segment:Segment)-[:SEGMENT_OF]->(segmentation)
     OPTIONAL MATCH (span:Span)-[:SPAN_OF]->(segment)
@@ -64,7 +64,7 @@ class SegmentationDatabase:
     FINISH
     """
 
-    CHECK_ALIGNMENT_QUERY = """
+    CHECK_ALIGNMENT_QUERY: LiteralString = """
     MATCH (seg:Segmentation {id: $segmentation_id})
     RETURN seg IS NOT NULL AS exists,
            (seg:Aligned OR seg:Target) AS is_aligned

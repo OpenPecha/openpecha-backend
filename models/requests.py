@@ -21,7 +21,7 @@ class PaginationParams(OpenPechaModel):
 
 class TextFilter(OpenPechaModel):
     language: str | None = None
-    title: str | None = None
+    title: str | None = Field(default=None, min_length=2, description="Filter by title, minimum 2 characters")
     category_id: str | None = None
     tag_id: str | None = None
     author_id: str | None = None
@@ -34,7 +34,7 @@ class TextsQueryParams(PaginationParams, TextFilter):
 
 
 class PersonFilter(OpenPechaModel):
-    name: str | None = Field(None, description="Filter by person name")
+    name: str | None = Field(default=None, min_length=2, description="Filter by person name, minimum 2 characters")
     bdrc: str | None = Field(None, description="Filter by BDRC ID")
     wiki: str | None = Field(None, description="Filter by Wiki ID")
 

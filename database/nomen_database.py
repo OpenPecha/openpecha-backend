@@ -1,9 +1,10 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, LiteralString
 
 from exceptions import DataValidationError
 from identifier import generate_id
 
 from .database_validator import DatabaseValidator
+from .search_text import normalize_search_text
 
 if TYPE_CHECKING:
     from neo4j import AsyncManagedTransaction
@@ -12,7 +13,7 @@ if TYPE_CHECKING:
 
 
 class NomenDatabase:
-    CREATE_QUERY = """
+    CREATE_QUERY: LiteralString = """
     OPTIONAL MATCH (primary:Nomen {id: $primary_nomen_id})
     CREATE (n:Nomen {id: $nomen_id})
     WITH n, primary
@@ -23,7 +24,7 @@ class NomenDatabase:
     CALL (n) {
         UNWIND $localized_texts AS lt
         MERGE (l:Language {code: lt.base_lang_code})
-        CREATE (n)-[:HAS_LOCALIZATION]->(locText:LocalizedText {text: lt.text})
+        CREATE (n)-[:HAS_LOCALIZATION]->(locText:LocalizedText {text: lt.text, search_text: lt.search_text})
             -[:HAS_LANGUAGE {bcp47: lt.bcp47_tag}]->(l)
         RETURN count(*) AS _
     }
@@ -43,7 +44,12 @@ class NomenDatabase:
         await DatabaseValidator.validate_language_codes_exist(tx, list(base_codes))
 
         primary_localized_texts = [
-            {"base_lang_code": bcp47_tag.split("-")[0].lower(), "bcp47_tag": bcp47_tag, "text": text}
+            {
+                "base_lang_code": bcp47_tag.split("-")[0].lower(),
+                "bcp47_tag": bcp47_tag,
+                "text": text,
+                "search_text": normalize_search_text(text),
+            }
             for bcp47_tag, text in primary_text.items()
         ]
 
@@ -60,7 +66,12 @@ class NomenDatabase:
 
         for alt_text in alternative_texts or []:
             localized_texts = [
-                {"base_lang_code": bcp47_tag.split("-")[0].lower(), "bcp47_tag": bcp47_tag, "text": text}
+                {
+                    "base_lang_code": bcp47_tag.split("-")[0].lower(),
+                    "bcp47_tag": bcp47_tag,
+                    "text": text,
+                    "search_text": normalize_search_text(text),
+                }
                 for bcp47_tag, text in alt_text.items()
             ]
 

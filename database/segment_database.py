@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, LiteralString
 
 from exceptions import DataNotFoundError
 from models.annotation import (
@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 
 class SegmentDatabase:
-    GET_QUERY = """
+    GET_QUERY: LiteralString = """
     MATCH (seg:Segment {id: $segment_id})-[:SEGMENT_OF]->(segmentation:Segmentation)
         -[:SEGMENTATION_OF]->(edition:Edition)-[:EDITION_OF]->(text:Text)
     MATCH (span:Span)-[:SPAN_OF]->(seg)
@@ -31,7 +31,7 @@ class SegmentDatabase:
     # Discover neighboring editions in both directions via UNION ALL.
     # Downward: Target segments -> ALIGNED_TO <- Aligned segments on child editions.
     # Upward: Aligned segments -> ALIGNED_TO -> Target segments on parent editions.
-    QUERY_DISCOVER = """
+    QUERY_DISCOVER: LiteralString = """
     MATCH (:Edition {id: $edition_id})<-[:SEGMENTATION_OF]-(:Segmentation:Target)
         <-[:SEGMENT_OF]-(local_seg:Segment)<-[:SPAN_OF]-(local_span:Span)
     WHERE ANY(sp IN $spans WHERE local_span.start < sp[1] AND local_span.end > sp[0])
@@ -54,7 +54,7 @@ class SegmentDatabase:
     ORDER BY text_id, edition_id
     """
 
-    RESOLVE_DISPLAY_PAGE_QUERY = """
+    RESOLVE_DISPLAY_PAGE_QUERY: LiteralString = """
     UNWIND $contexts AS context
     MATCH (edition:Edition {id: context.edition_id})-[:EDITION_OF]->(text:Text)
     MATCH (edition)<-[:SEGMENTATION_OF]-(sgn:Segmentation:Display)
@@ -83,7 +83,7 @@ class SegmentDatabase:
     LIMIT $limit
     """
 
-    FIND_BY_SPAN_QUERY = """
+    FIND_BY_SPAN_QUERY: LiteralString = """
     MATCH (:Edition {id: $edition_id})
         <-[:SEGMENTATION_OF]-(:Segmentation)
         <-[:SEGMENT_OF]-(seg:Segment)

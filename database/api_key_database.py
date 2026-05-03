@@ -1,7 +1,7 @@
 import hashlib
 import secrets
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, LiteralString
 
 if TYPE_CHECKING:
     from neo4j import AsyncManagedTransaction, AsyncSession
@@ -10,7 +10,7 @@ if TYPE_CHECKING:
 
 
 class ApiKeyDatabase:
-    CREATE_QUERY = """
+    CREATE_QUERY: LiteralString = """
         CREATE (k:ApiKey {
             id: $key_id,
             name: $name,
@@ -28,25 +28,25 @@ class ApiKeyDatabase:
         RETURN k.id AS id
     """
 
-    VALIDATE_KEY_QUERY = """
+    VALIDATE_KEY_QUERY: LiteralString = """
         MATCH (k:ApiKey {api_key_hash: $api_key_hash, is_active: true})
         OPTIONAL MATCH (k)-[:BOUND_TO]->(a:Application)
         RETURN k.id AS id, a.id AS bound_application_id
     """
 
-    REVOKE_QUERY = """
+    REVOKE_QUERY: LiteralString = """
         MATCH (k:ApiKey {id: $key_id})
         SET k.is_active = false
         RETURN k.id AS id
     """
 
-    ROTATE_KEY_QUERY = """
+    ROTATE_KEY_QUERY: LiteralString = """
         MATCH (k:ApiKey {id: $key_id})
         SET k.api_key_hash = $api_key_hash, k.is_active = true
         RETURN k.id AS id
     """
 
-    LIST_QUERY = """
+    LIST_QUERY: LiteralString = """
         MATCH (k:ApiKey)
         OPTIONAL MATCH (k)-[:BOUND_TO]->(a:Application)
         RETURN k.id AS id, k.name AS name, k.email AS email, k.is_active AS is_active,

@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, LiteralString
 
 from neo4j.exceptions import ConstraintError
 
@@ -11,8 +11,8 @@ if TYPE_CHECKING:
 
 
 class ApplicationDatabase:
-    EXISTS_QUERY = "MATCH (a:Application {id: $application_id}) RETURN a.id AS id LIMIT 1"
-    CREATE_QUERY = "CREATE (a:Application {id: $application_id, name: $name}) RETURN a.id AS id"
+    EXISTS_QUERY: LiteralString = "RETURN EXISTS { (:Application {id: $application_id}) } AS exists"
+    CREATE_QUERY: LiteralString = "CREATE (a:Application {id: $application_id, name: $name}) RETURN a.id AS id"
 
     def __init__(self, db: Database) -> None:
         self._db = db
@@ -24,7 +24,8 @@ class ApplicationDatabase:
     async def exists(self, application_id: str) -> bool:
         async def read(tx: AsyncManagedTransaction) -> bool:
             result = await tx.run(self.EXISTS_QUERY, application_id=application_id)
-            return await result.single() is not None
+            record = await result.single()
+            return bool(record and record["exists"])
 
         async with self.session as session:
             return await session.execute_read(read)

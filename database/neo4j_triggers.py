@@ -591,7 +591,7 @@ TRIGGERS.append(
         WITH DISTINCT node
         WITH node, count { (node)-[:BY]->() } AS cnt
         WHERE cnt > 1
-        With collect(elementId(node)) AS ids
+        WITH collect(elementId(node)) AS ids
         WHERE size(ids) > 0
         CALL apoc.util.validate(
             true,

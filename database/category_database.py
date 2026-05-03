@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, LiteralString
 
 from exceptions import DataValidationError
 from identifier import generate_id
@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 
 class CategoryDatabase:
-    GET_ALL_QUERY = """
+    GET_ALL_QUERY: LiteralString = """
     MATCH (c:Category)-[:BELONGS_TO]->(app:Application {id: $application})
     WHERE ($parent_id IS NULL AND NOT EXISTS { (c)-[:HAS_PARENT]->(:Category) })
        OR (c)-[:HAS_PARENT]->(:Category {id: $parent_id})
@@ -31,7 +31,7 @@ class CategoryDatabase:
     } AS category
     """
 
-    CREATE_QUERY = """
+    CREATE_QUERY: LiteralString = """
         MATCH (n:Nomen {id: $nomen_id})
         MATCH (app:Application {id: $application})
         CREATE (c:Category {id: $category_id})
@@ -46,7 +46,7 @@ class CategoryDatabase:
         RETURN c.id AS category_id
     """
 
-    GET_BY_ID_QUERY = """
+    GET_BY_ID_QUERY: LiteralString = """
     MATCH (c:Category {id: $category_id})-[:BELONGS_TO]->(app:Application {id: $application})
     RETURN {
         id: c.id,
@@ -59,14 +59,16 @@ class CategoryDatabase:
     } AS category
     """
 
-    FIND_EXISTING_QUERY = """
+    FIND_EXISTING_QUERY: LiteralString = """
+        UNWIND $titles AS title
         MATCH (c:Category)-[:BELONGS_TO]->(app:Application {id: $application})
         WHERE ($parent_id IS NULL AND NOT EXISTS { (c)-[:HAS_PARENT]->(:Category) })
         OR (c)-[:HAS_PARENT]->(:Category {id: $parent_id})
         MATCH (c)-[:HAS_TITLE]->(:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
-            -[:HAS_LANGUAGE]->(:Language {code: $language})
-        WHERE toLower(lt.text) = toLower($title_text)
-        RETURN c.id AS category_id
+            -[r:HAS_LANGUAGE]->(lang:Language)
+        WHERE coalesce(r.bcp47, lang.code) = title.language
+          AND toLower(lt.text) = toLower(title.text)
+        RETURN title.language AS language, title.text AS title_text, c.id AS category_id
         LIMIT 1
     """
 
@@ -125,17 +127,15 @@ class CategoryDatabase:
     async def _validate_not_exists_tx(
         self, tx: AsyncManagedTransaction, application: str, title: dict[str, str], parent_id: str | None
     ) -> None:
-        for language, title_text in title.items():
-            result = await tx.run(
-                CategoryDatabase.FIND_EXISTING_QUERY,
-                application=application,
-                parent_id=parent_id,
-                language=language,
-                title_text=title_text,
+        result = await tx.run(
+            CategoryDatabase.FIND_EXISTING_QUERY,
+            application=application,
+            parent_id=parent_id,
+            titles=[{"language": language, "text": title_text} for language, title_text in title.items()],
+        )
+        record = await result.single()
+        if record:
+            raise DataValidationError(
+                f"Category with title '{record['title_text']}' in language '{record['language']}' "
+                f"already exists for application '{application}'"
             )
-            record = await result.single()
-            if record:
-                raise DataValidationError(
-                    f"Category with title '{title_text}' in language '{language}' "
-                    f"already exists for application '{application}'"
-                )

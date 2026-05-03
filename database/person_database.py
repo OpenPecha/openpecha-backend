@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, LiteralString
 
 from neo4j.exceptions import ConstraintError
 
@@ -7,6 +7,7 @@ from identifier import generate_id
 
 from .data_adapter import DataAdapter
 from .nomen_database import NomenDatabase
+from .search_text import build_substring_search_value
 
 if TYPE_CHECKING:
     from neo4j import AsyncManagedTransaction, AsyncSession
@@ -18,7 +19,7 @@ if TYPE_CHECKING:
 
 
 class PersonDatabase:
-    _PERSON_RETURN = """
+    _PERSON_RETURN: LiteralString = """
     {
         id: p.id,
         bdrc: p.bdrc,
@@ -31,24 +32,34 @@ class PersonDatabase:
     }
     """
 
-    GET_QUERY = f"""
+    GET_QUERY: LiteralString = f"""
     MATCH (p:Person {{id: $id}})
     RETURN {_PERSON_RETURN} AS person
     """
 
-    GET_ALL_QUERY = f"""
-    MATCH (p:Person)
-    WHERE ($name IS NULL OR EXISTS {{
-        (p)-[:HAS_NAME]->(n:Nomen)
-        WHERE EXISTS {{
-            (n)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
-            WHERE toLower(lt.text) CONTAINS toLower($name)
-        }} OR EXISTS {{
-            (n)<-[:ALTERNATIVE_OF]-(alt:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
-            WHERE toLower(lt.text) CONTAINS toLower($name)
+    GET_ALL_QUERY: LiteralString = f"""
+    CALL {{
+        WITH $name_search AS name_search
+        WITH name_search WHERE name_search IS NULL
+        MATCH (p:Person)
+        RETURN p
+        UNION
+        WITH $name_search AS name_search
+        WITH name_search WHERE name_search IS NOT NULL
+        MATCH (lt:LocalizedText)
+        WHERE lt.search_text CONTAINS name_search
+        MATCH (lt)<-[:HAS_LOCALIZATION]-(n:Nomen)
+        CALL (n) {{
+            MATCH (n)<-[:HAS_NAME]-(p:Person)
+            RETURN p
+          UNION
+            MATCH (n)-[:ALTERNATIVE_OF]->(:Nomen)<-[:HAS_NAME]-(p:Person)
+            RETURN p
         }}
-    }})
-    AND ($bdrc IS NULL OR p.bdrc = $bdrc)
+        RETURN DISTINCT p
+    }}
+    WITH p
+    WHERE ($bdrc IS NULL OR p.bdrc = $bdrc)
     AND ($wiki IS NULL OR p.wiki = $wiki)
     WITH p
     ORDER BY p.id
@@ -56,20 +67,20 @@ class PersonDatabase:
     RETURN {_PERSON_RETURN} AS person
     """
 
-    CREATE_QUERY = """
+    CREATE_QUERY: LiteralString = """
     MATCH (n:Nomen {id: $primary_nomen_id})
     CREATE (p:Person {id: $id, bdrc: $bdrc, wiki: $wiki})
     CREATE (p)-[:HAS_NAME]->(n)
     RETURN p.id as person_id
     """
 
-    UPDATE_PROPERTIES_QUERY = """
+    UPDATE_PROPERTIES_QUERY: LiteralString = """
     MATCH (p:Person {id: $id})
     SET p.bdrc = $bdrc, p.wiki = $wiki
     RETURN p.id as person_id
     """
 
-    DELETE_NAME_QUERY = """
+    DELETE_NAME_QUERY: LiteralString = """
     MATCH (p:Person {id: $person_id})-[:HAS_NAME]->(n:Nomen)
     OPTIONAL MATCH (n)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
     OPTIONAL MATCH (n)<-[:ALTERNATIVE_OF]-(alt:Nomen)-[:HAS_LOCALIZATION]->(alt_lt:LocalizedText)
@@ -77,7 +88,7 @@ class PersonDatabase:
     FINISH
     """
 
-    LINK_NAME_QUERY = """
+    LINK_NAME_QUERY: LiteralString = """
     MATCH (p:Person {id: $person_id})
     MATCH (n:Nomen {id: $nomen_id})
     CREATE (p)-[:HAS_NAME]->(n)
@@ -113,7 +124,7 @@ class PersonDatabase:
                 PersonDatabase.GET_ALL_QUERY,
                 offset=offset,
                 limit=limit,
-                name=filters.name if filters else None,
+                name_search=build_substring_search_value(filters.name if filters else None),
                 bdrc=filters.bdrc if filters else None,
                 wiki=filters.wiki if filters else None,
             )

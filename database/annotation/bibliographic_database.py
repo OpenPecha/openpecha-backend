@@ -1,4 +1,4 @@
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, LiteralString
 
 from database.database_validator import DatabaseValidator
 from exceptions import DataNotFoundError
@@ -13,7 +13,7 @@ from models.enums import BibliographyType
 
 
 class BibliographicDatabase:
-    GET_BY_ID_QUERY = """
+    GET_BY_ID_QUERY: LiteralString = """
     MATCH (span:Span)-[:SPAN_OF]->(b:BibliographicMetadata {id: $bibliographic_id})
         -[:BIBLIOGRAPHY_OF]->(edition:Edition)-[:EDITION_OF]->(text:Text)
     WHERE span.start < span.end
@@ -27,7 +27,7 @@ class BibliographicDatabase:
     ORDER BY span.start
     """
 
-    GET_BY_EDITION_ID_QUERY = """
+    GET_BY_EDITION_ID_QUERY: LiteralString = """
     MATCH (edition:Edition {id: $edition_id})<-[:BIBLIOGRAPHY_OF]-(b:BibliographicMetadata)
         -[:HAS_TYPE]->(bt:BibliographyType),
         (edition)-[:EDITION_OF]->(text:Text)
@@ -42,7 +42,7 @@ class BibliographicDatabase:
     ORDER BY span.start
     """
 
-    CREATE_QUERY = """
+    CREATE_QUERY: LiteralString = """
     MATCH (m:Edition {id: $edition_id})
     MATCH (bt:BibliographyType {name: $type})
     CREATE (s:Span {start: $span_start, end: $span_end})-[:SPAN_OF]->(b:BibliographicMetadata {id: $id}),
@@ -50,14 +50,14 @@ class BibliographicDatabase:
     RETURN b.id AS id
     """
 
-    DELETE_QUERY = """
+    DELETE_QUERY: LiteralString = """
     MATCH (b:BibliographicMetadata {id: $bibliographic_id})
     OPTIONAL MATCH (span:Span)-[:SPAN_OF]->(b)
     DETACH DELETE span, b
     FINISH
     """
 
-    DELETE_ALL_QUERY = """
+    DELETE_ALL_QUERY: LiteralString = """
     MATCH (b:BibliographicMetadata)-[:BIBLIOGRAPHY_OF]->(:Edition {id: $edition_id})
     OPTIONAL MATCH (span:Span)-[:SPAN_OF]->(b)
     DETACH DELETE span, b
