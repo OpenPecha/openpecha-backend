@@ -95,6 +95,20 @@ class PersonDatabase:
     FINISH
     """
 
+    DELETE_CHECK_QUERY: LiteralString = """
+    MATCH (p:Person {id: $person_id})
+    RETURN count { (:Contribution)-[:BY]->(p) } AS contribution_count
+    """
+
+    DELETE_QUERY: LiteralString = """
+    MATCH (p:Person {id: $person_id})
+    OPTIONAL MATCH (p)-[:HAS_NAME]->(n:Nomen)
+    OPTIONAL MATCH (n)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
+    OPTIONAL MATCH (n)<-[:ALTERNATIVE_OF]-(alt:Nomen)-[:HAS_LOCALIZATION]->(alt_lt:LocalizedText)
+    DETACH DELETE p, n, lt, alt, alt_lt
+    RETURN $person_id AS person_id
+    """
+
     def __init__(self, db: Database) -> None:
         self._db = db
 
@@ -191,3 +205,19 @@ class PersonDatabase:
                 return await self.get(person_id)
             except ConstraintError as e:
                 raise DataConflictError(str(e)) from e
+
+    async def delete(self, person_id: str) -> None:
+        async def write(tx: AsyncManagedTransaction) -> None:
+            result = await tx.run(PersonDatabase.DELETE_CHECK_QUERY, person_id=person_id)
+            record = await result.single()
+            if not record:
+                raise DataNotFoundError(f"Person with ID '{person_id}' not found")
+            if record["contribution_count"] > 0:
+                raise DataConflictError(
+                    f"Person '{person_id}' has {record['contribution_count']} contribution(s) and cannot be deleted"
+                )
+
+            await tx.run(PersonDatabase.DELETE_QUERY, person_id=person_id)
+
+        async with self.session as session:
+            await session.execute_write(write)

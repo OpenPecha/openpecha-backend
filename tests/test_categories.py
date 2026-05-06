@@ -393,6 +393,22 @@ class TestCreateCategoryV2:
         data = response.json()
         assert "error" in data
 
+    async def test_create_category_rejects_parent_from_other_application(self, client, test_database):
+        """Test child categories cannot cross application boundaries."""
+        await _seed_app_b(test_database)
+        parent = CategoryInput.model_validate({"title": {"en": "Cross App Parent"}})
+        parent_id = await test_database.category.create(parent, application="test_application")
+
+        response = await client.post(
+            "/v2/categories/",
+            json={"title": {"en": "Cross App Child"}, "parent_id": parent_id},
+            headers=APP_B_HEADER,
+        )
+
+        assert response.status_code == 404
+        data = response.json()
+        assert "error" in data
+
     async def test_create_category_duplicate_title_rejected(self, client, test_database):
         """Test creating category with duplicate title in same parent fails"""
         category_data = {"title": {"en": "Unique Title For Duplicate Test"}}

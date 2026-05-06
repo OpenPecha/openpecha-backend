@@ -1,7 +1,7 @@
 import logging
 from typing import TYPE_CHECKING, Annotated
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Path, status
 
 from dependencies import get_api_key, get_db
 from models.requests import LanguageCreateRequest
@@ -42,3 +42,18 @@ async def create_language(
     """Create a new language."""
     created_code = await db.language.create(code=data.code, name=data.name)
     return LanguageResponse(code=created_code, name=data.name)
+
+
+@router.delete(
+    "/{code}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete language",
+    description="Delete an unused language.",
+)
+async def delete_language(
+    code: Annotated[str, Path(description="The language code")],
+    _api_key: Annotated[str, Depends(get_api_key)],
+    db: Annotated[Database, Depends(get_db)],
+) -> None:
+    """Delete an unused language."""
+    await db.language.delete(code)

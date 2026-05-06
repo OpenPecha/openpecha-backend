@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING, LiteralString
 
 from neo4j.exceptions import ConstraintError
 
-from exceptions import DataNotFoundError, DataValidationError
+from exceptions import DataConflictError, DataNotFoundError, DataValidationError
 from models.responses import LanguageResponse
 
 if TYPE_CHECKING:
@@ -26,6 +26,17 @@ class LanguageDatabase:
     CREATE_QUERY: LiteralString = """
     CREATE (l:Language {code: $code, name: $name})
     RETURN l.code AS code
+    """
+
+    DELETE_CHECK_QUERY: LiteralString = """
+    MATCH (l:Language {code: $code})
+    RETURN count { ()-[:HAS_LANGUAGE]->(l) } AS reference_count
+    """
+
+    DELETE_QUERY: LiteralString = """
+    MATCH (l:Language {code: $code})
+    DELETE l
+    RETURN $code AS code
     """
 
     def __init__(self, db: Database) -> None:
@@ -64,3 +75,19 @@ class LanguageDatabase:
                 return await session.execute_write(write)
         except ConstraintError as err:
             raise DataValidationError(f"Language with code '{code}' already exists") from err
+
+    async def delete(self, code: str) -> None:
+        async def write(tx: AsyncManagedTransaction) -> None:
+            result = await tx.run(LanguageDatabase.DELETE_CHECK_QUERY, code=code)
+            record = await result.single()
+            if record is None:
+                raise DataNotFoundError(f"Language with code '{code}' not found")
+            if record["reference_count"] > 0:
+                raise DataConflictError(
+                    f"Language '{code}' is referenced by {record['reference_count']} HAS_LANGUAGE relationship(s)"
+                )
+
+            await tx.run(LanguageDatabase.DELETE_QUERY, code=code)
+
+        async with self.session as session:
+            await session.execute_write(write)

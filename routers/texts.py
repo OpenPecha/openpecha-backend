@@ -145,6 +145,21 @@ async def update_text(
     return await db.text.update(text_id, data, application=x_application)
 
 
+@router.delete(
+    "/{text_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete text",
+    description="Delete a text if it has no editions or incoming text relationships.",
+)
+async def delete_text(
+    text_id: Annotated[str, Path(description="The ID of the text to delete")],
+    _api_key: Annotated[str, Depends(get_api_key)],
+    db: Annotated[Database, Depends(get_db)],
+) -> None:
+    """Delete a text."""
+    await db.text.delete(text_id)
+
+
 @router.post(
     "/{text_id}/tags/{tag_id}",
     status_code=status.HTTP_204_NO_CONTENT,

@@ -52,13 +52,13 @@ class TagDatabase:
 
     DELETE_QUERY: LiteralString = """
         MATCH (t:Tag {id: $tag_id})-[:BELONGS_TO]->(app:Application {id: $application})
-        WITH t, true AS deleted
+        WITH t, t.id AS deleted_tag_id
         OPTIONAL MATCH (t)-[:HAS_TITLE]->(title_nomen:Nomen)
         OPTIONAL MATCH (title_nomen)-[:HAS_LOCALIZATION]->(title_lt:LocalizedText)
         OPTIONAL MATCH (t)-[:HAS_DESCRIPTION]->(desc_nomen:Nomen)
         OPTIONAL MATCH (desc_nomen)-[:HAS_LOCALIZATION]->(desc_lt:LocalizedText)
         DETACH DELETE t, title_nomen, title_lt, desc_nomen, desc_lt
-        RETURN deleted
+        RETURN deleted_tag_id
     """
 
     TAG_WORK_QUERY: LiteralString = """
@@ -129,7 +129,7 @@ class TagDatabase:
         async def write(tx: AsyncManagedTransaction) -> None:
             result = await tx.run(TagDatabase.DELETE_QUERY, tag_id=tag_id, application=application)
             record = await result.single()
-            if not record or record["deleted"] == 0:
+            if record is None:
                 raise DataNotFoundError(f"Tag with ID '{tag_id}' not found in application '{application}'")
 
         async with self.session as session:

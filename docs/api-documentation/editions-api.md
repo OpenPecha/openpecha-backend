@@ -116,7 +116,20 @@ The database span adjustment is performed before the storage write. If the stora
 DELETE /v2/editions/{edition_id}
 ```
 
-Deletes the edition metadata, associated annotation data handled by the database layer, and stored base text. Successful deletion returns `204 No Content`.
+Deletes the edition metadata and associated annotation data handled by the database layer. Successful deletion returns `204 No Content`.
+
+Delete behavior:
+
+- Deletes the `Edition` node and its incipit title `Nomen` and `LocalizedText` subgraphs.
+- Cascade-deletes segmentations, alignments, pagination, bibliographic metadata, durchen notes, spans, segments, pages, and volumes associated with the edition, including annotations added after edition creation.
+- Deletes the edition's `HAS_SOURCE` relationship, but preserves the `Source` node.
+- Does not delete the parent `Text`, underlying `Work`, categories, tags, contributors, or lookup/type nodes.
+- Does not delete stored base text or other non-database side effects.
+
+Error responses:
+
+- `404 Not Found`: Edition does not exist.
+- `401 Unauthorized`: Missing or invalid API key in deployed environments.
 
 ## List Editions for a Text
 

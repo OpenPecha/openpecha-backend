@@ -11,6 +11,7 @@ This document provides documentation for all Languages-related endpoints in the 
 3. [Language Endpoints](#language-endpoints)
    - [List All Languages](#list-all-languages)
    - [Create New Language](#create-new-language)
+   - [Delete Language](#delete-language)
 
 ---
 
@@ -206,3 +207,32 @@ curl -X POST "https://api-l25bgmwqoa-uc.a.run.app/v2/languages" \
 - Language codes are free-form non-empty strings; the API does not enforce ISO code membership.
 
 ---
+
+### Delete Language
+
+Delete a language only if no text or localized text references it.
+
+**Endpoint:**
+```
+DELETE /v2/languages/{code}
+```
+
+**Response: 204 No Content**
+
+No response body is returned.
+
+**Error Responses:**
+- `404 Not Found`: Language does not exist
+- `409 Conflict`: Language is still referenced by `HAS_LANGUAGE` relationships
+- `401 Unauthorized`: Missing or invalid API key in deployed environments
+
+**Example Usage:**
+
+```bash
+curl -X DELETE "https://api-l25bgmwqoa-uc.a.run.app/v2/languages/hi" \
+  -H "X-API-Key: your_api_key"
+```
+
+**Delete Behavior:**
+- Deletes only the `Language` node.
+- Does not delete any text, localized text, title, name, category, tag, or annotation data.

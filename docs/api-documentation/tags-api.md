@@ -103,6 +103,18 @@ Deletes the tag from the application in `X-Application`. Deleting a tag in one a
 
 Successful deletion returns `204 No Content`.
 
+Delete behavior:
+
+- Deletes the `Tag` node and its title/description `Nomen` and `LocalizedText` subgraphs.
+- Removes all `HAS_TAG` relationships from works and segments that used this tag.
+- Does not delete works, texts, editions, segmentations, segments, or applications.
+
+Error responses:
+
+- `404 Not Found`: Tag does not exist in the requested application.
+- `401 Unauthorized`: Missing or invalid API key in deployed environments.
+- `422 Validation Error`: Missing `X-Application` header.
+
 ```bash
 curl -X DELETE "https://api-l25bgmwqoa-uc.a.run.app/v2/tags/TAG123" \
   -H "X-API-Key: your_api_key" \

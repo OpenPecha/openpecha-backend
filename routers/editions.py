@@ -256,18 +256,16 @@ async def get_related_editions(
     "/{edition_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete edition",
-    description="Delete an edition and its associated content.",
+    description="Delete edition metadata and associated database annotations.",
 )
 async def delete_edition(
     edition_id: Annotated[str, Path(description="The ID of the edition")],
     _api_key: Annotated[str, Depends(get_api_key)],
     db: Annotated[Database, Depends(get_db)],
-    storage: Annotated[Storage, Depends(get_storage)],
 ) -> None:
     logger.info("Deleting edition with edition ID: %s", edition_id)
-    edition = await db.edition.get(edition_id=edition_id)
+    await db.edition.get(edition_id=edition_id)
     await db.edition.delete(edition_id)
-    await storage.delete_base_text(text_id=edition.text_id, edition_id=edition_id)
 
 
 @router.patch(

@@ -1,10 +1,9 @@
 from typing import TYPE_CHECKING, LiteralString
 
-from exceptions import DataValidationError
+from exceptions import DataNotFoundError, DataValidationError
 from identifier import generate_id
 
 from .data_adapter import DataAdapter
-from .database_validator import DatabaseValidator
 from .nomen_database import NomenDatabase
 
 if TYPE_CHECKING:
@@ -38,7 +37,7 @@ class CategoryDatabase:
         CREATE (c)-[:HAS_TITLE]->(n)
         CREATE (c)-[:BELONGS_TO]->(app)
         WITH c
-        OPTIONAL MATCH (parent:Category {id: $parent_id})
+        OPTIONAL MATCH (parent:Category {id: $parent_id})-[:BELONGS_TO]->(app)
         OPTIONAL MATCH (desc_nomen:Nomen {id: $description_nomen_id})
         WITH c, parent, desc_nomen
         CALL (*) { WHEN parent IS NOT NULL THEN { CREATE (c)-[:HAS_PARENT]->(parent) } }
@@ -72,6 +71,32 @@ class CategoryDatabase:
         LIMIT 1
     """
 
+    PARENT_EXISTS_QUERY: LiteralString = """
+        RETURN EXISTS {
+            (:Category {id: $parent_id})-[:BELONGS_TO]->(:Application {id: $application})
+        } AS exists
+    """
+
+    DELETE_QUERY: LiteralString = """
+    MATCH (root:Category {id: $category_id})-[:BELONGS_TO]->(app:Application {id: $application})
+    WITH root, app
+    MATCH (c:Category)-[:BELONGS_TO]->(app)
+    WHERE c = root OR (c)-[:HAS_PARENT*1..]->(root)
+    WITH collect(DISTINCT c) AS categories
+    WITH categories, size(categories) AS deleted_count
+    UNWIND categories AS c
+    OPTIONAL MATCH (:Work)-[category_rel:HAS_CATEGORY]->(c)
+    DELETE category_rel
+    WITH DISTINCT c, deleted_count
+    OPTIONAL MATCH (c)-[:HAS_TITLE]->(title_nomen:Nomen)
+    OPTIONAL MATCH (title_nomen)-[:HAS_LOCALIZATION]->(title_lt:LocalizedText)
+    OPTIONAL MATCH (c)-[:HAS_DESCRIPTION]->(desc_nomen:Nomen)
+    OPTIONAL MATCH (desc_nomen)-[:HAS_LOCALIZATION]->(desc_lt:LocalizedText)
+    DETACH DELETE c, title_nomen, title_lt, desc_nomen, desc_lt
+    WITH DISTINCT deleted_count
+    RETURN deleted_count
+    """
+
     def __init__(self, db: Database) -> None:
         self._db = db
 
@@ -101,7 +126,7 @@ class CategoryDatabase:
     async def create(self, category: CategoryInput, application: str) -> str:
         async def create_transaction(tx: AsyncManagedTransaction) -> str:
             if category.parent_id is not None:
-                await DatabaseValidator.validate_parent_category_exists(tx, category.parent_id)
+                await self._validate_parent_exists_tx(tx, application, category.parent_id)
             await self._validate_not_exists_tx(tx, application, category.title.root, category.parent_id)
 
             category_id = generate_id()
@@ -124,6 +149,16 @@ class CategoryDatabase:
         async with self.session as session:
             return str(await session.execute_write(create_transaction))
 
+    async def _validate_parent_exists_tx(self, tx: AsyncManagedTransaction, application: str, parent_id: str) -> None:
+        result = await tx.run(
+            CategoryDatabase.PARENT_EXISTS_QUERY,
+            application=application,
+            parent_id=parent_id,
+        )
+        record = await result.single()
+        if not record or not record["exists"]:
+            raise DataNotFoundError(f"Parent category '{parent_id}' not found in application '{application}'")
+
     async def _validate_not_exists_tx(
         self, tx: AsyncManagedTransaction, application: str, title: dict[str, str], parent_id: str | None
     ) -> None:
@@ -139,3 +174,13 @@ class CategoryDatabase:
                 f"Category with title '{record['title_text']}' in language '{record['language']}' "
                 f"already exists for application '{application}'"
             )
+
+    async def delete(self, category_id: str, application: str) -> None:
+        async def write(tx: AsyncManagedTransaction) -> None:
+            result = await tx.run(CategoryDatabase.DELETE_QUERY, category_id=category_id, application=application)
+            record = await result.single()
+            if record is None:
+                raise DataNotFoundError(f"Category '{category_id}' not found in application '{application}'")
+
+        async with self.session as session:
+            await session.execute_write(write)

@@ -10,6 +10,7 @@ This document provides comprehensive documentation for all Applications-related 
 2. [Authentication](#authentication)
 3. [Application Endpoints](#application-endpoints)
    - [Create New Application](#create-new-application)
+   - [Delete Application](#delete-application)
 
 ---
 
@@ -107,7 +108,7 @@ curl -X POST "https://api-l25bgmwqoa-uc.a.run.app/v2/applications" \
     "name": "MyApp"
   }'
 
-# Response: {"id": "myapp", "name": "myapp"}
+# Response: {"id": "342424sdr", "name": "webuddhist"}
 ```
 
 **Use Cases:**
@@ -123,3 +124,32 @@ curl -X POST "https://api-l25bgmwqoa-uc.a.run.app/v2/applications" \
 - Application-scoped category and tag endpoints validate that the requested application exists.
 
 ---
+
+### Delete Application
+
+Delete an application only if nothing is bound to it.
+
+**Endpoint:**
+```
+DELETE /v2/applications/{application_id}
+```
+
+**Response: 204 No Content**
+
+No response body is returned.
+
+**Error Responses:**
+- `404 Not Found`: Application does not exist
+- `409 Conflict`: Application still has tags, categories, or API keys bound to it
+- `401 Unauthorized`: Missing or invalid API key in deployed environments
+
+**Example Usage:**
+
+```bash
+curl -X DELETE "https://api-l25bgmwqoa-uc.a.run.app/v2/applications/myapp" \
+  -H "X-API-Key: your_api_key"
+```
+
+**Delete Behavior:**
+- Deletes only the `Application` node.
+- Does not cascade-delete tags, categories, API keys, texts, works, or editions.

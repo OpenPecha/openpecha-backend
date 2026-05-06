@@ -29,13 +29,10 @@ logger = logging.getLogger(__name__)
 class EditionDatabase:
     DELETE_QUERY: LiteralString = """
     MATCH (m:Edition {id: $edition_id})
-    OPTIONAL MATCH (m)-[:HAS_SOURCE]->(s:Source)
-    WITH m, s, count { (s)<-[:HAS_SOURCE]-(:Edition) } AS source_refs
     OPTIONAL MATCH (m)-[:HAS_INCIPIT_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
     OPTIONAL MATCH (n)<-[:ALTERNATIVE_OF]-(alt:Nomen)-[:HAS_LOCALIZATION]->(alt_lt:LocalizedText)
     DETACH DELETE m, n, lt, alt, alt_lt
-    WITH s, source_refs WHERE s IS NOT NULL AND source_refs <= 1
-    DELETE s
+    FINISH
     """
 
     _EDITION_RETURN: LiteralString = """
