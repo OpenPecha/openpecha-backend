@@ -1,0 +1,326 @@
+openapi: 3.1.0
+info:
+  title: OpenPecha Delete Endpoints
+  version: '1.0.0'
+  description: |
+    Delete endpoints for Expression (Text) and Manifestation (Instance) resources.
+    These endpoints perform cascading deletes to remove related entities and relationships.
+
+paths:
+  /v2/instances/{instance_id}:
+    delete:
+      summary: Delete a manifestation (instance)
+      description: |
+        Delete a manifestation and all its related entities and relationships.
+        
+        **Cascading Deletes:**
+        - The Manifestation node itself
+        - All Annotations linked via ANNOTATION_OF relationship
+        - All Segments linked via SEGMENTATION_OF relationship (from annotations)
+        - All References linked via HAS_REFERENCE relationship (from segments)
+        - All alignment relationships (ALIGNED_TO from segments)
+        
+        **Relationships Removed:**
+        - MANIFESTATION_OF (to Expression)
+        - HAS_TYPE (to ManifestationType)
+        - HAS_COPYRIGHT (to CopyrightStatus)
+        - HAS_INCIPIT_TITLE (to Nomen)
+        
+        **Note:** This operation is irreversible. The parent Expression will remain intact.
+      tags:
+        - Instances
+      operationId: deleteManifestation
+      parameters:
+        - name: instance_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The unique ID of the manifestation (instance) to delete
+          examples:
+            manifestation_id:
+              value: "I12345678"
+              summary: A typical manifestation ID
+      responses:
+        "200":
+          description: Manifestation deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteManifestationResponse'
+              examples:
+                success:
+                  summary: Successful deletion
+                  value:
+                    message: "Manifestation deleted successfully"
+                    id: "I12345678"
+                    deleted_counts:
+                      manifestations: 1
+                      annotations: 3
+                      segments: 150
+                      references: 25
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "404":
+          description: Manifestation not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not_found:
+                  summary: Manifestation does not exist
+                  value:
+                    error: "Manifestation with ID 'I12345678' not found"
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+  /v2/texts/{text_id}:
+    delete:
+      summary: Delete an expression (text)
+      description: |
+        Delete an expression and all its related entities including all manifestations.
+        
+        **Cascading Deletes:**
+        - The Expression node itself
+        - All Manifestations linked via MANIFESTATION_OF relationship
+        - For each Manifestation:
+          - All Annotations linked via ANNOTATION_OF relationship
+          - All Segments linked via SEGMENTATION_OF relationship
+          - All References linked via HAS_REFERENCE relationship
+          - All alignment relationships
+        - All Contributions linked via HAS_CONTRIBUTION relationship
+        - The title Nomen linked via HAS_TITLE relationship (including its LocalizedText)
+        
+        **Relationships Removed:**
+        - EXPRESSION_OF (to Work)
+        - HAS_LANGUAGE (to Language)
+        - TRANSLATION_OF (to other Expression, if exists)
+        - COMMENTARY_OF (to other Expression, if exists)
+        
+        **Note:** This operation is irreversible. Other Expressions that have TRANSLATION_OF 
+        or COMMENTARY_OF relationships pointing to this Expression will have those 
+        relationships removed (the other Expressions themselves will not be deleted).
+      tags:
+        - Texts
+      operationId: deleteExpression
+      parameters:
+        - name: text_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The unique ID of the expression (text) to delete
+          examples:
+            expression_id:
+              value: "T12345678"
+              summary: A typical expression ID
+      responses:
+        "200":
+          description: Expression deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteExpressionResponse'
+              examples:
+                success:
+                  summary: Successful deletion with multiple manifestations
+                  value:
+                    message: "Expression deleted successfully"
+                    id: "T12345678"
+                    deleted_counts:
+                      expressions: 1
+                      manifestations: 2
+                      annotations: 6
+                      segments: 300
+                      references: 50
+                      contributions: 3
+                single_manifestation:
+                  summary: Deletion with single manifestation
+                  value:
+                    message: "Expression deleted successfully"
+                    id: "T12345678"
+                    deleted_counts:
+                      expressions: 1
+                      manifestations: 1
+                      annotations: 2
+                      segments: 100
+                      references: 10
+                      contributions: 1
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "404":
+          description: Expression not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not_found:
+                  summary: Expression does not exist
+                  value:
+                    error: "Expression with ID 'T12345678' not found"
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+components:
+  schemas:
+    DeleteManifestationResponse:
+      type: object
+      required:
+        - message
+        - id
+        - deleted_counts
+      properties:
+        message:
+          type: string
+          description: Success message
+          examples:
+            - "Manifestation deleted successfully"
+        id:
+          type: string
+          description: The ID of the deleted manifestation
+          examples:
+            - "I12345678"
+        deleted_counts:
+          type: object
+          description: Count of deleted entities by type
+          required:
+            - manifestations
+            - annotations
+            - segments
+          properties:
+            manifestations:
+              type: integer
+              minimum: 1
+              description: Number of manifestations deleted (always 1)
+              examples:
+                - 1
+            annotations:
+              type: integer
+              minimum: 0
+              description: Number of annotations deleted
+              examples:
+                - 3
+            segments:
+              type: integer
+              minimum: 0
+              description: Number of segments deleted
+              examples:
+                - 150
+            references:
+              type: integer
+              minimum: 0
+              description: Number of references deleted
+              examples:
+                - 25
+
+    DeleteExpressionResponse:
+      type: object
+      required:
+        - message
+        - id
+        - deleted_counts
+      properties:
+        message:
+          type: string
+          description: Success message
+          examples:
+            - "Expression deleted successfully"
+        id:
+          type: string
+          description: The ID of the deleted expression
+          examples:
+            - "T12345678"
+        deleted_counts:
+          type: object
+          description: Count of deleted entities by type
+          required:
+            - expressions
+            - manifestations
+            - annotations
+            - segments
+          properties:
+            expressions:
+              type: integer
+              minimum: 1
+              description: Number of expressions deleted (always 1)
+              examples:
+                - 1
+            manifestations:
+              type: integer
+              minimum: 0
+              description: Number of manifestations deleted
+              examples:
+                - 2
+            annotations:
+              type: integer
+              minimum: 0
+              description: Number of annotations deleted
+              examples:
+                - 6
+            segments:
+              type: integer
+              minimum: 0
+              description: Number of segments deleted
+              examples:
+                - 300
+            references:
+              type: integer
+              minimum: 0
+              description: Number of references deleted
+              examples:
+                - 50
+            contributions:
+              type: integer
+              minimum: 0
+              description: Number of contributions deleted
+              examples:
+                - 3
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+      properties:
+        error:
+          type: string
+          description: Error message describing what went wrong
+          examples:
+            - "Resource not found"
+            - "Invalid request"
+
+  responses:
+    InvalidRequest:
+      description: There was an error with the request
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            invalid_id:
+              summary: Invalid ID format
+              value:
+                error: "Invalid ID format provided"
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            resource_not_found:
+              value:
+                error: "Resource was not found"
+
+    ServerError:
+      description: Internal server error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+          examples:
+            server_error:
+              value:
+                error: "An internal server error occurred"
