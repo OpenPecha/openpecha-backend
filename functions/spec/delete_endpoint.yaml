@@ -4,80 +4,12 @@ info:
   version: '1.0.0'
   description: |
     Delete endpoints for Expression (Text) and Manifestation (Instance) resources.
-    These endpoints perform cascading deletes to remove related entities and relationships.
+    These endpoints perform cascading deletes and return detailed information about the deleted entities.
 
 paths:
-  /v2/instances/{instance_id}:
-    delete:
-      summary: Delete a manifestation (instance)
-      description: |
-        Delete a manifestation and all its related entities and relationships.
-        
-        **Cascading Deletes:**
-        - The Manifestation node itself
-        - All Annotations linked via ANNOTATION_OF relationship
-        - All Segments linked via SEGMENTATION_OF relationship (from annotations)
-        - All References linked via HAS_REFERENCE relationship (from segments)
-        - All alignment relationships (ALIGNED_TO from segments)
-        
-        **Relationships Removed:**
-        - MANIFESTATION_OF (to Expression)
-        - HAS_TYPE (to ManifestationType)
-        - HAS_COPYRIGHT (to CopyrightStatus)
-        - HAS_INCIPIT_TITLE (to Nomen)
-        
-        **Note:** This operation is irreversible. The parent Expression will remain intact.
-      tags:
-        - Instances
-      operationId: deleteManifestation
-      parameters:
-        - name: instance_id
-          in: path
-          required: true
-          schema:
-            type: string
-          description: The unique ID of the manifestation (instance) to delete
-          examples:
-            manifestation_id:
-              value: "I12345678"
-              summary: A typical manifestation ID
-      responses:
-        "200":
-          description: Manifestation deleted successfully
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/DeleteManifestationResponse'
-              examples:
-                success:
-                  summary: Successful deletion
-                  value:
-                    message: "Manifestation deleted successfully"
-                    id: "I12345678"
-                    deleted_counts:
-                      manifestations: 1
-                      annotations: 3
-                      segments: 150
-                      references: 25
-        "400":
-          $ref: '#/components/responses/InvalidRequest'
-        "404":
-          description: Manifestation not found
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ErrorResponse'
-              examples:
-                not_found:
-                  summary: Manifestation does not exist
-                  value:
-                    error: "Manifestation with ID 'I12345678' not found"
-        "500":
-          $ref: '#/components/responses/ServerError'
-
   /v2/texts/{text_id}:
     delete:
-      summary: Delete an expression (text)
+      summary: Delete a text
       description: |
         Delete an expression and all its related entities including all manifestations.
         
@@ -103,85 +35,221 @@ paths:
         relationships removed (the other Expressions themselves will not be deleted).
       tags:
         - Texts
-      operationId: deleteExpression
+      operationId: deleteText
       parameters:
         - name: text_id
           in: path
           required: true
           schema:
             type: string
-          description: The unique ID of the expression (text) to delete
+          description: The unique ID of the text to delete
           examples:
             expression_id:
               value: "T12345678"
               summary: A typical expression ID
       responses:
         "200":
-          description: Expression deleted successfully
+          description: Text deleted successfully
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/DeleteExpressionResponse'
               examples:
                 success:
-                  summary: Successful deletion with multiple manifestations
+                  summary: Successful deletion with text details
                   value:
-                    message: "Expression deleted successfully"
-                    id: "T12345678"
+                    message: "Text deleted successfully"
+                    text_id: "T12345678"
+                    title: "The Great Commentary on Madhyamika Philosophy"
+                    instances:
+                      - instance_id: "I12345678"
+                        annotations:
+                          - segmentation:
+                              id: ["S001", "S002"]
+                          - alignment:
+                              aligned_from_id: ["AL001", "AL002"]
+                              aligned_to_id: ["AL003", "AL004"]
+                          - bibliography:
+                              id: ["B001", "B002"]
+                      - instance_id: "I12345679"
+                        annotations:
+                          - segmentation:
+                              id: ["S003"]
+                          - bibliography:
+                              id: ["B003"]
                     deleted_counts:
                       expressions: 1
                       manifestations: 2
                       annotations: 6
-                      segments: 300
-                      references: 50
-                      contributions: 3
-                single_manifestation:
-                  summary: Deletion with single manifestation
-                  value:
-                    message: "Expression deleted successfully"
-                    id: "T12345678"
-                    deleted_counts:
-                      expressions: 1
-                      manifestations: 1
-                      annotations: 2
-                      segments: 100
-                      references: 10
-                      contributions: 1
         "400":
           $ref: '#/components/responses/InvalidRequest'
         "404":
-          description: Expression not found
+          description: Text not found
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
               examples:
                 not_found:
-                  summary: Expression does not exist
+                  summary: Text does not exist
                   value:
-                    error: "Expression with ID 'T12345678' not found"
+                    error: "Text with ID 'T12345678' not found"
+        "500":
+          $ref: '#/components/responses/ServerError'
+
+  /v2/instances/{instance_id}:
+    delete:
+      summary: Delete an instance
+      description: |
+        Delete a manifestation and all its related entities and relationships.
+        
+        **Cascading Deletes:**
+        - The Manifestation node itself
+        - All Annotations linked via ANNOTATION_OF relationship
+        - All Segments linked via SEGMENTATION_OF relationship (from annotations)
+        - All References linked via HAS_REFERENCE relationship (from segments)
+        - All alignment relationships (ALIGNED_TO from segments)
+        
+        **Relationships Removed:**
+        - MANIFESTATION_OF (to Expression)
+        - HAS_TYPE (to ManifestationType)
+        - HAS_COPYRIGHT (to CopyrightStatus)
+        - HAS_INCIPIT_TITLE (to Nomen)
+        
+        **Note:** This operation is irreversible. The parent Expression will remain intact.
+      tags:
+        - Instances
+      operationId: deleteInstance
+      parameters:
+        - name: instance_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The unique ID of the instance to delete
+          examples:
+            manifestation_id:
+              value: "I12345678"
+              summary: A typical manifestation ID
+      responses:
+        "200":
+          description: Instance deleted successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DeleteManifestationResponse'
+              examples:
+                success:
+                  summary: Successful deletion with instance details
+                  value:
+                    message: "Instance deleted successfully"
+                    instance_id: "I12345678"
+                    annotations:
+                      - segmentation:
+                          id: ["S001"]
+                      - alignment:
+                          aligned_from_id: ["AL001", "AL002"]
+                          aligned_to_id: ["AL003", "AL004"]
+                      - bibliography:
+                          id: ["B001"]
+                    deleted_counts:
+                      manifestations: 1
+                      annotations: 3
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "404":
+          description: Instance not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                not_found:
+                  summary: Instance does not exist
+                  value:
+                    error: "Instance with ID 'I12345678' not found"
         "500":
           $ref: '#/components/responses/ServerError'
 
 components:
   schemas:
+    InstanceWithAnnotations:
+      type: object
+      required:
+        - instance_id
+        - annotations
+      properties:
+        instance_id:
+          type: string
+          description: The unique ID of the instance
+          examples:
+            - "I12345678"
+        annotations:
+          type: array
+          description: List of annotations for this instance
+          items:
+            $ref: '#/components/schemas/Annotation'
+
+    Annotation:
+      type: object
+      required:
+        - id
+      properties:
+        id:
+          type: string
+          description: The unique ID of the annotation
+          examples:
+            - "A001"
+        segmentation:
+          type: object
+          description: Segmentation information if applicable
+          properties:
+            id:
+              type: string
+              description: The unique ID of the segmentation
+              examples:
+                - "S001"
+        alignment:
+          type: object
+          description: Alignment information if applicable
+          properties:
+            id:
+              type: string
+              description: The unique ID of the alignment
+              examples:
+                - "AL001"
+        bibliography:
+          type: object
+          description: Bibliography information if applicable
+          properties:
+            id:
+              type: string
+              description: The unique ID of the bibliography entry
+              examples:
+                - "B001"
     DeleteManifestationResponse:
       type: object
       required:
         - message
-        - id
+        - instance_id
+        - annotations
         - deleted_counts
       properties:
         message:
           type: string
           description: Success message
           examples:
-            - "Manifestation deleted successfully"
-        id:
+            - "Instance deleted successfully"
+        instance_id:
           type: string
-          description: The ID of the deleted manifestation
+          description: The ID of the deleted instance
           examples:
             - "I12345678"
+        annotations:
+          type: array
+          description: List of annotations that were deleted with this instance
+          items:
+            $ref: '#/components/schemas/Annotation'
         deleted_counts:
           type: object
           description: Count of deleted entities by type
@@ -219,19 +287,31 @@ components:
       type: object
       required:
         - message
-        - id
+        - text_id
+        - title
+        - instances
         - deleted_counts
       properties:
         message:
           type: string
           description: Success message
           examples:
-            - "Expression deleted successfully"
-        id:
+            - "Text deleted successfully"
+        text_id:
           type: string
-          description: The ID of the deleted expression
+          description: The ID of the deleted text
           examples:
             - "T12345678"
+        title:
+          type: string
+          description: The title of the deleted text
+          examples:
+            - "The Great Commentary on Madhyamika Philosophy"
+        instances:
+          type: array
+          description: List of instances that were deleted with this text
+          items:
+            $ref: '#/components/schemas/InstanceWithAnnotations'
         deleted_counts:
           type: object
           description: Count of deleted entities by type
