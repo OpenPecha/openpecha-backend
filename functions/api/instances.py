@@ -190,6 +190,36 @@ def update_instance(manifestation_id: str):
     return jsonify({"message": "Manifestation updated successfully", "id": manifestation_id}), 200
 
 
+@instances_bp.route("/<string:manifestation_id>", methods=["DELETE"], strict_slashes=False)
+def delete_instance(manifestation_id: str):
+    """Delete a manifestation and all its owned nodes (cascade)."""
+    logger.info("Deleting manifestation with ID: %s", manifestation_id)
+
+    db = Neo4JDatabase()
+    result = db.delete_manifestation(manifestation_id=manifestation_id)
+
+    expression_id = result["expression_id"]
+    if expression_id:
+        try:
+            Storage().delete_base_text(expression_id=expression_id, manifestation_id=manifestation_id)
+        except Exception:
+            logger.warning(
+                "Base text not found in storage for expression %s / manifestation %s — skipping",
+                expression_id,
+                manifestation_id,
+            )
+
+    if result.get("segment_ids"):
+        _trigger_delete_search_segments(result["segment_ids"])
+
+    return jsonify({
+        "message": "Instance deleted successfully",
+        "instance_id": manifestation_id,
+        "annotations": result["annotations"],
+        "deleted_counts": result["deleted_counts"],
+    }), 200
+
+
 def _create_aligned_text(
     request_model: AlignedTextRequestModel, text_type: TextType, target_manifestation_id: str
 ) -> tuple[Response, int]:

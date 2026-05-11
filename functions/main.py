@@ -115,7 +115,7 @@ def create_app(testing=False):
     cors=options.CorsOptions(
         # cors_origins=["https://pecha-backend.web.app", "http://localhost:5002"],
         cors_origins=["*"],
-        cors_methods=["GET", "POST", "OPTIONS", "PUT"],
+        cors_methods=["GET", "POST", "OPTIONS", "PUT", "DELETE"],
     ),
     max_instances=1,
     timeout_sec=540,  # Maximum timeout: 540 seconds (9 minutes)

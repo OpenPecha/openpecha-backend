@@ -39,6 +39,50 @@ load_dotenv()
 logger = logging.getLogger(__name__)
 
 
+def _build_annotation_summary(annotation_info: list[dict]) -> list[dict]:
+    """
+    Convert raw annotation_info rows from get_delete_info into the API response
+    `annotations` format grouped by type.
+
+    For alignment annotations the source annotation (aligned_to_id IS NOT NULL) is the
+    "from" side and the annotation it points to is the "to" side.
+    For all other types the annotation IDs are collected under their type key.
+    """
+    by_type: dict[str, list] = {}
+    aligned_to_ids: list[str] = []
+
+    for row in annotation_info:
+        ann_type = row.get("annotation_type")
+        ann_id = row.get("annotation_id")
+        target_id = row.get("aligned_to_id")
+
+        if ann_type is None or ann_id is None:
+            continue
+
+        if ann_type == "alignment":
+            if target_id is not None:
+                by_type.setdefault("alignment_from", []).append(ann_id)
+                aligned_to_ids.append(target_id)
+            else:
+                by_type.setdefault("alignment_from", [])
+        else:
+            by_type.setdefault(ann_type, []).append(ann_id)
+
+    result = []
+    for ann_type, ids in by_type.items():
+        if ann_type == "alignment_from":
+            result.append({
+                "alignment": {
+                    "aligned_from_id": ids,
+                    "aligned_to_id": aligned_to_ids,
+                }
+            })
+        else:
+            result.append({ann_type: {"id": ids}})
+
+    return result
+
+
 class Neo4JDatabase:
     def __init__(self, neo4j_uri: str = None, neo4j_auth: tuple = None) -> None:
         if neo4j_uri and neo4j_auth:
@@ -1630,6 +1674,86 @@ class Neo4JDatabase:
                         )
                     )
             return categories
+
+    def delete_manifestation(self, manifestation_id: str) -> dict:
+        """
+        Cascade-delete a manifestation and all its owned nodes.
+
+        Deletion order (deepest leaf nodes first):
+        1. All annotation types + their segments/references/sections/notes
+        2. Incipit title nomens and type/source relationships (via cleanup_for_update)
+        3. The manifestation node itself
+
+        Shared enum/reference nodes (ManifestationType, CopyrightStatus, Language, Source,
+        Person, AI, RoleType) are never deleted — only relationships to them are removed.
+        Alignment annotations on the paired manifestation are also removed.
+
+        Returns a dict with expression_id, annotations, segment_ids, and deleted_counts.
+        Raises DataNotFound if manifestation does not exist.
+        """
+        with self.get_session() as session:
+            exists = session.execute_read(
+                lambda tx: tx.run(
+                    "MATCH (m:Manifestation {id: $manifestation_id}) RETURN m.id AS id",
+                    manifestation_id=manifestation_id,
+                ).single()
+            )
+            if not exists:
+                raise DataNotFound(f"Manifestation with ID '{manifestation_id}' not found")
+
+            expression_id = session.execute_read(
+                lambda tx: tx.run(
+                    "MATCH (m:Manifestation {id: $manifestation_id})-[:MANIFESTATION_OF]->(e:Expression) RETURN e.id AS expression_id",
+                    manifestation_id=manifestation_id,
+                ).single()
+            )
+            expression_id = expression_id["expression_id"] if expression_id else None
+
+        def transaction_function(tx):
+            record = tx.run(
+                Queries.manifestations["get_delete_info"],
+                manifestation_id=manifestation_id,
+            ).single()
+
+            annotation_info = record["annotation_info"] if record else []
+            segment_ids = [sid for sid in (record["segment_ids"] or []) if sid is not None] if record else []
+            annotation_count = record["annotation_count"] if record else 0
+            segment_count = record["segment_count"] if record else 0
+            reference_count = record["reference_count"] if record else 0
+
+            delete_query_keys = [
+                "delete_segmentation_and_pagination",
+                "delete_search_segmentation",
+                "delete_bibliography_annotations",
+                "delete_toc_annotations",
+                "delete_durchen_annotations",
+                "delete_alignment_annotations",
+            ]
+            for key in delete_query_keys:
+                tx.run(Queries.manifestations[key], manifestation_id=manifestation_id)
+
+            tx.run(Queries.manifestations["cleanup_for_update"], manifestation_id=manifestation_id)
+            tx.run(Queries.manifestations["delete_node"], manifestation_id=manifestation_id)
+
+            return {
+                "expression_id": expression_id,
+                "annotation_info": annotation_info,
+                "segment_ids": segment_ids,
+                "deleted_counts": {
+                    "manifestations": 1,
+                    "annotations": annotation_count,
+                    "segments": segment_count,
+                    "references": reference_count,
+                },
+            }
+
+        with self.get_session() as session:
+            result = session.execute_write(transaction_function)
+
+        annotations = _build_annotation_summary(result["annotation_info"])
+        result["annotations"] = annotations
+        del result["annotation_info"]
+        return result
 
     def delete_annotation_and_its_segments(self, annotation_id: str) -> None:
         with self.get_session() as session:

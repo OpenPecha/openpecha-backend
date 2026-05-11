@@ -791,7 +791,29 @@ RETURN m.id as manifestation_id, {Queries.manifestation_fragment('m')} as metada
         FOREACH (s IN segs2 | DETACH DELETE s)
         FOREACH (a IN anns1 | DETACH DELETE a)
         FOREACH (a IN anns2 | DETACH DELETE a)
-    """
+    """,
+    "get_delete_info": """
+        MATCH (m:Manifestation {id: $manifestation_id})
+        OPTIONAL MATCH (m)<-[:ANNOTATION_OF]-(ann:Annotation)-[:HAS_TYPE]->(at:AnnotationType)
+        OPTIONAL MATCH (ann)-[:ALIGNED_TO]->(target_ann:Annotation)
+        OPTIONAL MATCH (ann)<-[:SEGMENTATION_OF]-(seg:Segment)
+        OPTIONAL MATCH (seg)-[:HAS_REFERENCE]->(ref:Reference)
+
+        RETURN
+            collect(DISTINCT {
+                annotation_id: ann.id,
+                annotation_type: at.name,
+                aligned_to_id: target_ann.id
+            }) AS annotation_info,
+            collect(DISTINCT seg.id) AS segment_ids,
+            count(DISTINCT ann) AS annotation_count,
+            count(DISTINCT seg) AS segment_count,
+            count(DISTINCT ref) AS reference_count
+    """,
+    "delete_node": """
+        MATCH (m:Manifestation {id: $manifestation_id})
+        DETACH DELETE m
+    """,
 }
 
 
