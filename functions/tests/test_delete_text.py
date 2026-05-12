@@ -275,7 +275,8 @@ class TestDeleteExpressionDb:
             return db, mock_driver
 
     def test_raises_data_not_found_when_expression_missing(self):
-        # First execute_read (exists) returns None → must raise without touching write.
+        # The single read tx (`get_manifestation_ids_for_delete`) returns None when the
+        # Expression does not exist → must raise without touching any write tx.
         db, _driver = self._make_db_with_session_mock(read_returns=[None], write_returns=[])
 
         with pytest.raises(DataNotFound, match="Text with ID 'missing' not found"):
@@ -294,8 +295,7 @@ class TestDeleteExpressionDb:
     def test_aggregates_counts_across_manifestations(self):
         """When the expression has manifestations, counts should be summed and
         the contribution_count from stage 2 should be added."""
-        # Setup: exists check returns a record, manifestation_ids returns 2 ids.
-        exists_record = {"id": "T1"}
+        # The combined read tx returns the manifestation_ids list directly.
         manifestation_ids_record = {"manifestation_ids": ["I1", "I2"]}
 
         # Stage 2 transaction returns title + contribution_count + work_deleted.
@@ -306,7 +306,7 @@ class TestDeleteExpressionDb:
         }
 
         db, _driver = self._make_db_with_session_mock(
-            read_returns=[exists_record, manifestation_ids_record],
+            read_returns=[manifestation_ids_record],
             write_returns=[stage2_result],
         )
 
@@ -355,7 +355,7 @@ class TestDeleteExpressionDb:
         }
 
     def test_text_with_no_manifestations_skips_per_manifestation_cascade(self):
-        exists_record = {"id": "T_empty"}
+        # Expression exists but has zero manifestations → list is empty (not None).
         manifestation_ids_record = {"manifestation_ids": []}
 
         stage2_result = {
@@ -365,7 +365,7 @@ class TestDeleteExpressionDb:
         }
 
         db, _driver = self._make_db_with_session_mock(
-            read_returns=[exists_record, manifestation_ids_record],
+            read_returns=[manifestation_ids_record],
             write_returns=[stage2_result],
         )
 

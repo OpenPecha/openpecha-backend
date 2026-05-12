@@ -202,19 +202,24 @@ def delete_instance(manifestation_id: str):
     if expression_id:
         try:
             Storage().delete_base_text(expression_id=expression_id, manifestation_id=manifestation_id)
-        except Exception:
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            # Storage cleanup is best-effort: the request must not fail just because the blob
+            # is missing or storage is temporarily unreachable. Log full exception details so
+            # any non-NotFound errors (auth, network, programming bugs) remain visible.
             logger.warning(
-                "Base text not found in storage for expression %s / manifestation %s — skipping",
+                "Failed to delete base text for expression %s / manifestation %s: %s — skipping",
                 expression_id,
                 manifestation_id,
+                exc,
             )
 
-    if result.get("segment_ids"):
+    if result["segment_ids"]:
         _trigger_delete_search_segments(result["segment_ids"])
 
     return jsonify({
         "message": "Instance deleted successfully",
         "instance_id": manifestation_id,
+        "expression_id": expression_id,
         "annotations": result["annotations"],
         "deleted_counts": result["deleted_counts"],
     }), 200

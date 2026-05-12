@@ -505,35 +505,44 @@ OPTIONAL MATCH (primary_nomen)<-[:ALTERNATIVE_OF]-(alt_nomen:Nomen)-[:HAS_LOCALI
 DETACH DELETE alt_nomen, lt
 RETURN e.id as expression_id
 """,
-    "exists": """
+    "get_manifestation_ids_for_delete": """
+// Single query that asserts the Expression exists AND returns the list of its
+// owned Manifestation ids in one round-trip.
+//
+// If the Expression does not exist, the MATCH fails and `.single()` is None,
+// which the caller turns into a `DataNotFound`. If the Expression exists but
+// has zero manifestations, the OPTIONAL MATCH yields a NULL `m` and we filter
+// it out so the caller gets `[]`.
 MATCH (e:Expression {id: $expression_id})
-RETURN e.id AS id
-""",
-    "get_manifestation_ids": """
-MATCH (m:Manifestation)-[:MANIFESTATION_OF]->(e:Expression {id: $expression_id})
-RETURN collect(DISTINCT m.id) AS manifestation_ids
+OPTIONAL MATCH (m:Manifestation)-[:MANIFESTATION_OF]->(e)
+RETURN [mid IN collect(DISTINCT m.id) WHERE mid IS NOT NULL] AS manifestation_ids
 """,
     "get_delete_info": """
+// Snapshot expression-level metadata that the cascade needs. Each dimension is
+// aggregated with `WITH ... collect/count(...)` BEFORE the next OPTIONAL MATCH so
+// that we don't Cartesian-product titles × contributions × sibling-expressions.
 MATCH (e:Expression {id: $expression_id})
 
-// Collect ALL localizations of the primary title (one row per localization).
+// 1. Collect ALL localizations of the primary title.
 OPTIONAL MATCH (e)-[:HAS_TITLE]->(title_nomen:Nomen)
-OPTIONAL MATCH (title_nomen)-[:HAS_LOCALIZATION]->(title_lt:LocalizedText)
+                 -[:HAS_LOCALIZATION]->(title_lt:LocalizedText)
                  -[:HAS_LANGUAGE]->(title_l:Language)
-WITH e, collect(DISTINCT {language: title_l.code, text: title_lt.text}) AS title_raw
-
-// Filter out null entries that arise when the OPTIONAL MATCH found nothing.
 WITH e,
-     [t IN title_raw WHERE t.language IS NOT NULL AND t.text IS NOT NULL] AS title
+     [t IN collect(DISTINCT {language: title_l.code, text: title_lt.text})
+        WHERE t.language IS NOT NULL AND t.text IS NOT NULL] AS title
 
+// 2. Count contributions independently.
 OPTIONAL MATCH (e)-[:HAS_CONTRIBUTION]->(contrib:Contribution)
-OPTIONAL MATCH (e)-[:EXPRESSION_OF]->(w:Work)
-WITH e, title, w, count(DISTINCT contrib) AS contribution_count
+WITH e, title, count(DISTINCT contrib) AS contribution_count
 
-// Determine if Work would be orphaned: any other Expression linked to this Work?
+// 3. Look up the parent Work (cardinality = 1, but OPTIONAL for safety).
+OPTIONAL MATCH (e)-[:EXPRESSION_OF]->(w:Work)
+WITH e, title, contribution_count, w
+
+// 4. Determine if Work would be orphaned: any other Expression linked to this Work?
 OPTIONAL MATCH (other_e:Expression)-[:EXPRESSION_OF]->(w)
 WHERE other_e.id <> e.id
-WITH e, title, contribution_count, w,
+WITH title, contribution_count, w,
      count(DISTINCT other_e) AS other_expression_count
 RETURN
     title,
@@ -861,36 +870,54 @@ RETURN m.id as manifestation_id, {Queries.manifestation_fragment('m')} as metada
         FOREACH (a IN anns2 | DETACH DELETE a)
     """,
     "get_delete_info": """
+        // Snapshot every entity that will be deleted with the manifestation.
+        //
+        // Important: each information dimension is aggregated with `WITH ... collect/count(...)`
+        // BEFORE moving on to the next OPTIONAL MATCH. Without these intermediate reductions
+        // the chained OPTIONAL MATCHes would Cartesian-product (annotations × segments × refs
+        // × search_segs) and explode for large manifestations. Even though `count(DISTINCT)`
+        // / `collect(DISTINCT)` would still deduplicate, Neo4j has to materialize every
+        // intermediate row first, which is what blows memory and time.
         MATCH (m:Manifestation {id: $manifestation_id})
 
-        // 1. All annotations on m + their counterpart (for alignments) in either direction
+        // 1. Expression on the other side of MANIFESTATION_OF (used by caller for storage cleanup).
+        OPTIONAL MATCH (m)-[:MANIFESTATION_OF]->(e:Expression)
+        WITH m, e
+
+        // 2. All annotations on m + their counterpart (for alignments) in either direction.
         OPTIONAL MATCH (m)<-[:ANNOTATION_OF]-(ann:Annotation)-[:HAS_TYPE]->(at:AnnotationType)
         OPTIONAL MATCH (ann)-[:ALIGNED_TO]-(partner_ann:Annotation)
+        WITH m, e,
+             collect(DISTINCT {
+                 annotation_id: ann.id,
+                 annotation_type: at.name,
+                 partner_id: partner_ann.id
+             }) AS annotation_info,
+             count(DISTINCT ann) AS annotation_count
 
-        // 2. All segments owned by m's annotations (for total segment_count)
-        OPTIONAL MATCH (m)<-[:ANNOTATION_OF]-(any_ann:Annotation)<-[:SEGMENTATION_OF]-(any_seg:Segment)
+        // 3. All segments owned by m's annotations + their references (for totals).
+        //    Note: TOC segments (linked via PART_OF) are NOT counted here unless they
+        //    are also SEGMENTATION_OF some annotation. This is intentional and documented.
+        OPTIONAL MATCH (m)<-[:ANNOTATION_OF]-(any_ann:Annotation)
+                      <-[:SEGMENTATION_OF]-(any_seg:Segment)
         OPTIONAL MATCH (any_seg)-[:HAS_REFERENCE]->(any_ref:Reference)
+        WITH m, e, annotation_info, annotation_count,
+             count(DISTINCT any_seg) AS segment_count,
+             count(DISTINCT any_ref) AS reference_count
 
-        // 3. Only segments fed to the external search index (segmentation + search_segmentation)
+        // 4. Only segments fed to the external search index (segmentation + search_segmentation).
         OPTIONAL MATCH (m)<-[:ANNOTATION_OF]-(search_ann:Annotation)
-            -[:HAS_TYPE]->(search_at:AnnotationType)
-        WHERE search_at.name IN ['segmentation', 'search_segmentation']
+                      -[:HAS_TYPE]->(search_at:AnnotationType)
+            WHERE search_at.name IN ['segmentation', 'search_segmentation']
         OPTIONAL MATCH (search_ann)<-[:SEGMENTATION_OF]-(search_seg:Segment)
-
-        // 4. Expression on the other side of MANIFESTATION_OF (used by caller for storage cleanup)
-        OPTIONAL MATCH (m)-[:MANIFESTATION_OF]->(e:Expression)
 
         RETURN
             e.id AS expression_id,
-            collect(DISTINCT {
-                annotation_id: ann.id,
-                annotation_type: at.name,
-                partner_id: partner_ann.id
-            }) AS annotation_info,
-            collect(DISTINCT search_seg.id) AS segment_ids,
-            count(DISTINCT ann) AS annotation_count,
-            count(DISTINCT any_seg) AS segment_count,
-            count(DISTINCT any_ref) AS reference_count
+            annotation_info,
+            [sid IN collect(DISTINCT search_seg.id) WHERE sid IS NOT NULL] AS segment_ids,
+            annotation_count,
+            segment_count,
+            reference_count
     """,
     "delete_node": """
         MATCH (m:Manifestation {id: $manifestation_id})

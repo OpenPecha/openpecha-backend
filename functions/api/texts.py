@@ -388,11 +388,14 @@ def delete_text(text_id: str) -> tuple[Response, int]:
     for manifestation_id in result["manifestation_ids"]:
         try:
             storage.delete_base_text(expression_id=text_id, manifestation_id=manifestation_id)
-        except Exception:  # pylint: disable=broad-exception-caught
+        except Exception as exc:  # pylint: disable=broad-exception-caught
+            # Storage cleanup is best-effort. Log full exception so any non-NotFound errors
+            # (auth, network, programming bugs) remain visible, but do not fail the request.
             logger.warning(
-                "Base text not found in storage for expression %s / manifestation %s — skipping",
+                "Failed to delete base text for expression %s / manifestation %s: %s — skipping",
                 text_id,
                 manifestation_id,
+                exc,
             )
 
     # Aggregate every search-indexed segment id across all deleted manifestations and

@@ -287,9 +287,12 @@ nodes:
         unique: true
         allowed_values:
           - segmentation
+          - search_segmentation
           - alignment
           - pagination
           - bibliography
+          - table_of_contents
+          - durchen
 
   RoleType:
     enum: true

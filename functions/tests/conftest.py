@@ -187,8 +187,19 @@ def mock_search_segmenter():
 
     These helpers are "fire-and-forget" and call external services; tests should never
     hit the network or spawn those background threads.
+
+    Both `api.instances` and `api.texts` are patched. Although the helpers are defined
+    in `api.instances`, `api.texts` does `from api.instances import _trigger_...` at
+    import time, which copies the reference into the `api.texts` module namespace. Patching
+    only `api.instances` would NOT affect calls made through `api.texts` — they'd hit the
+    network. Patch both lookup sites to be safe.
     """
-    with patch("api.instances._trigger_search_segmenter"), patch("api.instances._trigger_delete_search_segments"):
+    with (
+        patch("api.instances._trigger_search_segmenter"),
+        patch("api.instances._trigger_delete_search_segments"),
+        patch("api.texts._trigger_search_segmenter"),
+        patch("api.texts._trigger_delete_search_segments"),
+    ):
         yield
 
 

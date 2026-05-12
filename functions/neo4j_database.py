@@ -63,12 +63,14 @@ def _build_annotation_summary(annotation_info: list[dict]) -> list[dict]:
     Both source-side and target-side alignment annotations on m are reported under
     `aligned_from_id`; only annotations that have a counterpart contribute to
     `aligned_to_id` (so the two lists are NOT necessarily the same length).
-    De-duplication preserves first-seen order so output is deterministic for tests.
+
+    Output is **fully sorted** so the response is deterministic across calls — Neo4j
+    does not guarantee element order inside `collect(DISTINCT ...)`, so we cannot
+    rely on insertion order. Both the list of buckets (by key name) and every id list
+    inside a bucket are sorted lexicographically.
     """
-    grouped_ids: dict[str, list[str]] = {}
-    seen_ids: dict[str, set[str]] = {}
-    aligned_to_ids: list[str] = []
-    seen_partner_ids: set[str] = set()
+    bucket_ids: dict[str, set[str]] = {}
+    aligned_to_ids: set[str] = set()
 
     for row in annotation_info:
         ann_type = row.get("annotation_type")
@@ -78,27 +80,27 @@ def _build_annotation_summary(annotation_info: list[dict]) -> list[dict]:
         if ann_type is None or ann_id is None:
             continue
 
-        bucket_key = "alignment_from" if ann_type == "alignment" else ann_type
-        bucket_seen = seen_ids.setdefault(bucket_key, set())
-        if ann_id not in bucket_seen:
-            grouped_ids.setdefault(bucket_key, []).append(ann_id)
-            bucket_seen.add(ann_id)
+        # Internal bucket key. Alignment annotations on this manifestation go into a
+        # dedicated bucket so they can be rendered with the {aligned_from_id, aligned_to_id}
+        # shape; everything else uses its annotation type as the bucket key directly.
+        bucket_key = "_alignment" if ann_type == "alignment" else ann_type
+        bucket_ids.setdefault(bucket_key, set()).add(ann_id)
 
-        if ann_type == "alignment" and partner_id is not None and partner_id not in seen_partner_ids:
-            aligned_to_ids.append(partner_id)
-            seen_partner_ids.add(partner_id)
+        if ann_type == "alignment" and partner_id is not None:
+            aligned_to_ids.add(partner_id)
 
     result: list[dict] = []
-    for bucket_key, ids in grouped_ids.items():
-        if bucket_key == "alignment_from":
+    for bucket_key in sorted(bucket_ids):
+        ids_sorted = sorted(bucket_ids[bucket_key])
+        if bucket_key == "_alignment":
             result.append({
                 "alignment": {
-                    "aligned_from_id": ids,
-                    "aligned_to_id": aligned_to_ids,
+                    "aligned_from_id": ids_sorted,
+                    "aligned_to_id": sorted(aligned_to_ids),
                 }
             })
         else:
-            result.append({bucket_key: {"id": ids}})
+            result.append({bucket_key: {"id": ids_sorted}})
 
     return result
 
@@ -1695,12 +1697,17 @@ class Neo4JDatabase:
                     )
             return categories
 
-    # The order matters: shallow-leaf nodes (segments, refs, sections, notes) are removed
-    # first by each helper query, then the annotations themselves, then the manifestation.
-    # `delete_segmentation_and_pagination` MUST run before `delete_toc_annotations` so that
-    # segments shared between segmentation annotations and TOC sections via PART_OF are
-    # already gone when the TOC cleanup runs (the TOC query collects `seg_in_section`
-    # only to remove the section relationships, not to re-delete segmentation segments).
+    # The order matters: each helper query removes leaf nodes (segments, references,
+    # sections, durchen notes) and then the annotations that own them. `cleanup_for_update`
+    # runs after these to drop the manifestation's incipit Nomen + alt Nomens + their
+    # LocalizedTexts, and finally `delete_node` removes the Manifestation itself.
+    #
+    # `delete_segmentation_and_pagination` runs before `delete_toc_annotations` so that
+    # segments shared between segmentation/pagination annotations and TOC sections are
+    # already deleted by the time the TOC query runs. The TOC query DOES `DETACH DELETE`
+    # `seg_in_section`, but on already-deleted nodes that becomes a safe no-op; segments
+    # that exist only under a TOC (PART_OF a Section without SEGMENTATION_OF) are deleted
+    # here. Reordering would still be correct but might double-process the same segments.
     _MANIFESTATION_CASCADE_DELETE_QUERY_KEYS = (
         "delete_segmentation_and_pagination",
         "delete_search_segmentation",
@@ -1828,24 +1835,20 @@ class Neo4JDatabase:
 
         Raises DataNotFound if no Expression node has the given id.
         """
+        # Single read tx that simultaneously asserts the Expression exists and returns its
+        # manifestation ids. `.single()` is None iff the Expression doesn't exist.
         with self.get_session() as session:
-            exists = session.execute_read(
+            record = session.execute_read(
                 lambda tx: tx.run(
-                    Queries.expressions["exists"], expression_id=expression_id
-                ).single()
-            )
-            if exists is None:
-                raise DataNotFound(f"Text with ID '{expression_id}' not found")
-
-            manifestation_ids_record = session.execute_read(
-                lambda tx: tx.run(
-                    Queries.expressions["get_manifestation_ids"], expression_id=expression_id
+                    Queries.expressions["get_manifestation_ids_for_delete"],
+                    expression_id=expression_id,
                 ).single()
             )
 
-        manifestation_ids: list[str] = (
-            manifestation_ids_record["manifestation_ids"] if manifestation_ids_record else []
-        )
+        if record is None:
+            raise DataNotFound(f"Text with ID '{expression_id}' not found")
+
+        manifestation_ids: list[str] = record["manifestation_ids"] or []
 
         # Stage 1: cascade-delete every manifestation owned by this expression.
         manifestation_results: list[dict] = []
