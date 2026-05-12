@@ -1,6 +1,6 @@
 import logging
 
-from api.instances import _trigger_search_segmenter
+from api.instances import _trigger_delete_search_segments, _trigger_search_segmenter
 from api.relation import _get_expression_relations
 from exceptions import DataNotFound, InvalidRequest
 from flask import Blueprint, Response, jsonify, request
@@ -351,3 +351,71 @@ def update_text(expression_id: str) -> tuple[Response, int]:
         db.update_expression(expression_id=expression_id, update_data=update_data)
 
     return jsonify({"message": "Text updated successfully", "id": expression_id}), 200
+
+
+@texts_bp.route("/<string:text_id>", methods=["DELETE"], strict_slashes=False)
+def delete_text(text_id: str) -> tuple[Response, int]:
+    """
+    Cascade-delete a text (Expression) and every entity it exclusively owns.
+
+    Deletes:
+        - Every Manifestation linked via MANIFESTATION_OF (and everything those own:
+          all annotations + their segments / references / sections / durchen notes,
+          incipit titles, alignment counterparts on paired manifestations).
+        - The Expression's title Nomen + alt Nomens + LocalizedTexts.
+        - Contribution nodes (Person / AI / RoleType are shared and preserved).
+        - The parent Work iff no other Expression still references it.
+        - The Expression node itself (which removes HAS_LANGUAGE, EXPRESSION_OF,
+          HAS_LICENSE, HAS_COPYRIGHT, TRANSLATION_OF / COMMENTARY_OF in either
+          direction by DETACH DELETE).
+
+    Side effects:
+        - Removes the base-text blob from storage for every manifestation. Failures
+          are logged but do not fail the request — the storage entry may already be
+          missing for legitimate reasons.
+        - Notifies the external search-segmenter service to clean up search index
+          entries for every search-indexed segment that was deleted.
+
+    Other Expressions that have TRANSLATION_OF / COMMENTARY_OF relationships pointing
+    to this Expression are NOT cascade-deleted; they survive but lose those links.
+    """
+    logger.info("Deleting text with ID: %s", text_id)
+
+    db = Neo4JDatabase()
+    result = db.delete_expression(expression_id=text_id)
+
+    storage = Storage()
+    for manifestation_id in result["manifestation_ids"]:
+        try:
+            storage.delete_base_text(expression_id=text_id, manifestation_id=manifestation_id)
+        except Exception:  # pylint: disable=broad-exception-caught
+            logger.warning(
+                "Base text not found in storage for expression %s / manifestation %s — skipping",
+                text_id,
+                manifestation_id,
+            )
+
+    # Aggregate every search-indexed segment id across all deleted manifestations and
+    # notify the search-segmenter service in a single fire-and-forget call.
+    all_segment_ids: list[str] = []
+    for m_result in result["manifestation_results"]:
+        all_segment_ids.extend(m_result.get("segment_ids", []))
+    if all_segment_ids:
+        _trigger_delete_search_segments(all_segment_ids)
+
+    instances_response = [
+        {
+            "instance_id": m_id,
+            "annotations": m_result["annotations"],
+        }
+        for m_id, m_result in zip(result["manifestation_ids"], result["manifestation_results"])
+    ]
+
+    return jsonify({
+        "message": "Text deleted successfully",
+        "text_id": text_id,
+        "title": result["title"],
+        "instances": instances_response,
+        "deleted_counts": result["deleted_counts"],
+        "work_deleted": result["work_deleted"],
+    }), 200

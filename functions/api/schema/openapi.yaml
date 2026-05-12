@@ -354,6 +354,166 @@ paths:
           $ref: '#/components/responses/NotFound'
         "500":
           $ref: '#/components/responses/ServerError'
+    delete:
+      summary: Delete an instance (cascade)
+      description: |
+        Delete a manifestation (instance) and every entity it exclusively owns.
+
+        **Cascading deletes**
+        - The Manifestation node itself.
+        - All Annotations linked via `ANNOTATION_OF`.
+        - All Segments linked to those annotations via `SEGMENTATION_OF`.
+        - All References linked from those segments via `HAS_REFERENCE`.
+        - All TOC Sections (and their `PART_OF` links) and Durchen Notes.
+        - The incipit title Nomen + alt Nomens + their LocalizedTexts.
+        - Alignment counterpart annotations on the paired manifestation are also
+          removed so no dangling `ALIGNED_TO` targets remain.
+
+        **Relationships removed (target nodes preserved — they are shared enums)**
+        - `MANIFESTATION_OF` to Expression
+        - `HAS_TYPE` to ManifestationType
+        - `HAS_SOURCE` to Source
+        - `HAS_COPYRIGHT` to CopyrightStatus
+
+        **Side effects**
+        - Removes the base-text blob from storage at `base_texts/{expression_id}/{instance_id}.txt`.
+          Failures (e.g. blob already missing) are logged and swallowed.
+        - Notifies the external search-segmenter service to drop search-index entries
+          for the deleted segmentation / search_segmentation segments (fire-and-forget).
+
+        The parent Expression is intentionally left intact.
+
+        **Note:** This operation is irreversible.
+      tags:
+        - Instances
+      operationId: deleteInstance
+      parameters:
+        - name: instance_id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The ID of the instance to delete
+      responses:
+        "200":
+          description: Instance deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - message
+                  - instance_id
+                  - annotations
+                  - deleted_counts
+                properties:
+                  message:
+                    type: string
+                    example: "Instance deleted successfully"
+                  instance_id:
+                    type: string
+                    description: The ID of the deleted instance
+                    example: "I12345678"
+                  annotations:
+                    type: array
+                    description: |
+                      Summary of every annotation that was deleted on this instance,
+                      grouped by annotation type. Each entry has exactly one key.
+                      Alignment entries also report the counterpart annotation IDs on
+                      the paired manifestation under `aligned_to_id`.
+                    items:
+                      type: object
+                      additionalProperties:
+                        type: object
+                        properties:
+                          id:
+                            type: array
+                            description: Annotation IDs (for non-alignment types)
+                            items:
+                              type: string
+                          aligned_from_id:
+                            type: array
+                            description: Alignment annotation IDs on this instance
+                            items:
+                              type: string
+                          aligned_to_id:
+                            type: array
+                            description: Counterpart alignment annotation IDs on the paired instance
+                            items:
+                              type: string
+                  deleted_counts:
+                    type: object
+                    required:
+                      - manifestations
+                      - annotations
+                      - segments
+                      - references
+                    properties:
+                      manifestations:
+                        type: integer
+                        minimum: 1
+                        description: Always 1 for this endpoint
+                      annotations:
+                        type: integer
+                        minimum: 0
+                        description: Number of annotations deleted on this instance
+                      segments:
+                        type: integer
+                        minimum: 0
+                        description: Number of segments deleted across all annotation types
+                      references:
+                        type: integer
+                        minimum: 0
+                        description: Number of Reference nodes deleted
+              examples:
+                success_with_alignment:
+                  summary: Critical instance with segmentation, alignment, and bibliography
+                  value:
+                    message: "Instance deleted successfully"
+                    instance_id: "I12345678"
+                    annotations:
+                      - segmentation:
+                          id: ["A1001"]
+                      - alignment:
+                          aligned_from_id: ["A1002", "A1003"]
+                          aligned_to_id: ["A2001", "A2002"]
+                      - bibliography:
+                          id: ["A1004"]
+                    deleted_counts:
+                      manifestations: 1
+                      annotations: 4
+                      segments: 152
+                      references: 0
+                success_diplomatic:
+                  summary: Diplomatic instance with pagination only
+                  value:
+                    message: "Instance deleted successfully"
+                    instance_id: "I87654321"
+                    annotations:
+                      - pagination:
+                          id: ["A2010"]
+                    deleted_counts:
+                      manifestations: 1
+                      annotations: 1
+                      segments: 240
+                      references: 240
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "404":
+          description: Instance not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              examples:
+                not_found:
+                  value:
+                    error: "Manifestation with ID 'I12345678' not found"
+        "500":
+          $ref: '#/components/responses/ServerError'
 
   /v2/instances/{instance_id}/related:
     get:
@@ -2225,6 +2385,220 @@ paths:
           $ref: '#/components/responses/InvalidRequest'
         "404":
           $ref: '#/components/responses/NotFound'
+        "500":
+          $ref: '#/components/responses/ServerError'
+    delete:
+      summary: Delete a text (cascade)
+      description: |
+        Delete a text (Expression) and every entity it exclusively owns.
+
+        **Cascading deletes**
+        - Every Manifestation linked via `MANIFESTATION_OF`. For each manifestation,
+          the same cascade as `DELETE /v2/instances/{instance_id}` runs:
+          - Annotations (segmentation, pagination, alignment, bibliography,
+            search_segmentation, table_of_contents, durchen).
+          - Segments, References, TOC Sections, Durchen Notes.
+          - Incipit title Nomens / alt Nomens / LocalizedTexts.
+          - Alignment counterpart annotations on paired manifestations.
+        - The Expression's title primary Nomen + alt Nomens + their LocalizedTexts.
+        - Contribution nodes (one per contributor link). Person, AI, and RoleType
+          nodes are shared and **never deleted**, only the relationships to them.
+        - The parent Work iff no other Expression still references it. The Work's
+          `BELONGS_TO` Category link is removed by the cascade; the Category itself
+          is shared and preserved.
+        - The Expression node itself.
+
+        **Relationships removed (target nodes preserved — they are shared)**
+        - `EXPRESSION_OF` to Work (Work is removed only if orphaned, see above)
+        - `HAS_LANGUAGE` to Language
+        - `HAS_LICENSE` to License
+        - `HAS_COPYRIGHT` to CopyrightStatus
+        - `TRANSLATION_OF` / `COMMENTARY_OF` to other Expressions in either
+          direction. Other Expressions that pointed to this text via these
+          relationships **are NOT cascade-deleted** — they survive but lose those
+          links.
+
+        **Side effects**
+        - Removes the base-text blob from storage at
+          `base_texts/{text_id}/{instance_id}.txt` for every deleted manifestation.
+          Failures (e.g. blob already missing) are logged and swallowed.
+        - Notifies the external search-segmenter service to drop search-index
+          entries for every search-indexed segment across all deleted manifestations
+          (single fire-and-forget batched call).
+
+        **Note:** This operation is irreversible.
+      tags:
+        - Texts
+      operationId: deleteText
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+          description: The expression ID of the text to delete
+      responses:
+        "200":
+          description: Text deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - message
+                  - text_id
+                  - instances
+                  - deleted_counts
+                  - work_deleted
+                properties:
+                  message:
+                    type: string
+                    example: "Text deleted successfully"
+                  text_id:
+                    type: string
+                    description: The ID of the deleted text
+                    example: "T12345678"
+                  title:
+                    type: object
+                    nullable: true
+                    description: |
+                      Localized primary title of the deleted text in the form
+                      `{lang_code: text}`. May be `null` if the text had no title.
+                    additionalProperties:
+                      type: string
+                  instances:
+                    type: array
+                    description: |
+                      Per-manifestation deletion summaries, in the order they were
+                      cascade-deleted. Each entry mirrors the shape returned by
+                      `DELETE /v2/instances/{instance_id}` (without `deleted_counts`
+                      and `message`).
+                    items:
+                      type: object
+                      required:
+                        - instance_id
+                        - annotations
+                      properties:
+                        instance_id:
+                          type: string
+                          description: The ID of the deleted instance
+                        annotations:
+                          type: array
+                          description: |
+                            Annotation summary for this instance, grouped by type.
+                            See `DELETE /v2/instances/{instance_id}` for shape.
+                          items:
+                            type: object
+                            additionalProperties:
+                              type: object
+                  deleted_counts:
+                    type: object
+                    description: |
+                      Aggregated counts across this expression and ALL of its
+                      cascaded manifestations.
+                    required:
+                      - expressions
+                      - manifestations
+                      - annotations
+                      - segments
+                      - references
+                      - contributions
+                    properties:
+                      expressions:
+                        type: integer
+                        minimum: 1
+                        description: Always 1 for this endpoint
+                      manifestations:
+                        type: integer
+                        minimum: 0
+                        description: Total Manifestation nodes deleted
+                      annotations:
+                        type: integer
+                        minimum: 0
+                        description: Total Annotation nodes deleted (across all manifestations)
+                      segments:
+                        type: integer
+                        minimum: 0
+                        description: Total Segment nodes deleted (across all manifestations)
+                      references:
+                        type: integer
+                        minimum: 0
+                        description: Total Reference nodes deleted (across all manifestations)
+                      contributions:
+                        type: integer
+                        minimum: 0
+                        description: Number of Contribution nodes deleted on the expression
+                  work_deleted:
+                    type: boolean
+                    description: |
+                      `true` iff the parent Work was orphaned (no remaining
+                      Expressions linked to it) and was therefore deleted.
+              examples:
+                success_with_translations:
+                  summary: Root text with two manifestations and one orphaned Work
+                  value:
+                    message: "Text deleted successfully"
+                    text_id: "T12345678"
+                    title:
+                      en: "The Great Commentary on Madhyamika Philosophy"
+                      bo: "དབུ་མའི་འགྲེལ་པ་ཆེན་མོ།"
+                    instances:
+                      - instance_id: "I10000001"
+                        annotations:
+                          - segmentation:
+                              id: ["A1001"]
+                          - alignment:
+                              aligned_from_id: ["A1002"]
+                              aligned_to_id: ["A2001"]
+                      - instance_id: "I10000002"
+                        annotations:
+                          - pagination:
+                              id: ["A1010"]
+                          - bibliography:
+                              id: ["A1011"]
+                    deleted_counts:
+                      expressions: 1
+                      manifestations: 2
+                      annotations: 4
+                      segments: 320
+                      references: 200
+                      contributions: 3
+                    work_deleted: true
+                success_translation_shared_work:
+                  summary: Translation deleted, parent Work kept (still has the original)
+                  value:
+                    message: "Text deleted successfully"
+                    text_id: "T22222222"
+                    title:
+                      en: "English Translation"
+                    instances:
+                      - instance_id: "I20000001"
+                        annotations:
+                          - segmentation:
+                              id: ["A3001"]
+                    deleted_counts:
+                      expressions: 1
+                      manifestations: 1
+                      annotations: 1
+                      segments: 50
+                      references: 0
+                      contributions: 1
+                    work_deleted: false
+        "400":
+          $ref: '#/components/responses/InvalidRequest'
+        "404":
+          description: Text not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+              examples:
+                not_found:
+                  value:
+                    error: "Text with ID 'T12345678' not found"
         "500":
           $ref: '#/components/responses/ServerError'
   

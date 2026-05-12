@@ -505,6 +505,74 @@ OPTIONAL MATCH (primary_nomen)<-[:ALTERNATIVE_OF]-(alt_nomen:Nomen)-[:HAS_LOCALI
 DETACH DELETE alt_nomen, lt
 RETURN e.id as expression_id
 """,
+    "exists": """
+MATCH (e:Expression {id: $expression_id})
+RETURN e.id AS id
+""",
+    "get_manifestation_ids": """
+MATCH (m:Manifestation)-[:MANIFESTATION_OF]->(e:Expression {id: $expression_id})
+RETURN collect(DISTINCT m.id) AS manifestation_ids
+""",
+    "get_delete_info": """
+MATCH (e:Expression {id: $expression_id})
+
+// Collect ALL localizations of the primary title (one row per localization).
+OPTIONAL MATCH (e)-[:HAS_TITLE]->(title_nomen:Nomen)
+OPTIONAL MATCH (title_nomen)-[:HAS_LOCALIZATION]->(title_lt:LocalizedText)
+                 -[:HAS_LANGUAGE]->(title_l:Language)
+WITH e, collect(DISTINCT {language: title_l.code, text: title_lt.text}) AS title_raw
+
+// Filter out null entries that arise when the OPTIONAL MATCH found nothing.
+WITH e,
+     [t IN title_raw WHERE t.language IS NOT NULL AND t.text IS NOT NULL] AS title
+
+OPTIONAL MATCH (e)-[:HAS_CONTRIBUTION]->(contrib:Contribution)
+OPTIONAL MATCH (e)-[:EXPRESSION_OF]->(w:Work)
+WITH e, title, w, count(DISTINCT contrib) AS contribution_count
+
+// Determine if Work would be orphaned: any other Expression linked to this Work?
+OPTIONAL MATCH (other_e:Expression)-[:EXPRESSION_OF]->(w)
+WHERE other_e.id <> e.id
+WITH e, title, contribution_count, w,
+     count(DISTINCT other_e) AS other_expression_count
+RETURN
+    title,
+    contribution_count,
+    w.id AS work_id,
+    (w IS NOT NULL AND other_expression_count = 0) AS work_is_orphan
+""",
+    "delete_title_nomens": """
+// Delete the primary title Nomen, all alternative Nomens, and their LocalizedTexts.
+// Languages are shared enums and are NEVER deleted, only the relationships to them.
+MATCH (e:Expression {id: $expression_id})-[:HAS_TITLE]->(primary_nomen:Nomen)
+OPTIONAL MATCH (primary_nomen)-[:HAS_LOCALIZATION]->(primary_lt:LocalizedText)
+OPTIONAL MATCH (primary_nomen)<-[:ALTERNATIVE_OF]-(alt_nomen:Nomen)
+OPTIONAL MATCH (alt_nomen)-[:HAS_LOCALIZATION]->(alt_lt:LocalizedText)
+WITH collect(DISTINCT alt_lt) AS alt_lts,
+     collect(DISTINCT alt_nomen) AS alt_nomens,
+     collect(DISTINCT primary_lt) AS primary_lts,
+     collect(DISTINCT primary_nomen) AS primary_nomens
+FOREACH (n IN alt_lts | DETACH DELETE n)
+FOREACH (n IN alt_nomens | DETACH DELETE n)
+FOREACH (n IN primary_lts | DETACH DELETE n)
+FOREACH (n IN primary_nomens | DETACH DELETE n)
+""",
+    "delete_contributions": """
+// Delete Contribution nodes only. Person, AI, and RoleType are shared and preserved.
+MATCH (e:Expression {id: $expression_id})-[:HAS_CONTRIBUTION]->(contrib:Contribution)
+DETACH DELETE contrib
+""",
+    "delete_orphan_work": """
+// Delete a Work iff it no longer has any Expression linked to it via EXPRESSION_OF.
+// The BELONGS_TO->Category relationship is removed by DETACH DELETE; the Category itself stays.
+MATCH (w:Work {id: $work_id})
+WHERE NOT EXISTS { MATCH (:Expression)-[:EXPRESSION_OF]->(w) }
+DETACH DELETE w
+""",
+    "delete_node": """
+MATCH (e:Expression {id: $expression_id})
+DETACH DELETE e
+""",
 }
 
 Queries.persons = {
@@ -794,21 +862,35 @@ RETURN m.id as manifestation_id, {Queries.manifestation_fragment('m')} as metada
     """,
     "get_delete_info": """
         MATCH (m:Manifestation {id: $manifestation_id})
+
+        // 1. All annotations on m + their counterpart (for alignments) in either direction
         OPTIONAL MATCH (m)<-[:ANNOTATION_OF]-(ann:Annotation)-[:HAS_TYPE]->(at:AnnotationType)
-        OPTIONAL MATCH (ann)-[:ALIGNED_TO]->(target_ann:Annotation)
-        OPTIONAL MATCH (ann)<-[:SEGMENTATION_OF]-(seg:Segment)
-        OPTIONAL MATCH (seg)-[:HAS_REFERENCE]->(ref:Reference)
+        OPTIONAL MATCH (ann)-[:ALIGNED_TO]-(partner_ann:Annotation)
+
+        // 2. All segments owned by m's annotations (for total segment_count)
+        OPTIONAL MATCH (m)<-[:ANNOTATION_OF]-(any_ann:Annotation)<-[:SEGMENTATION_OF]-(any_seg:Segment)
+        OPTIONAL MATCH (any_seg)-[:HAS_REFERENCE]->(any_ref:Reference)
+
+        // 3. Only segments fed to the external search index (segmentation + search_segmentation)
+        OPTIONAL MATCH (m)<-[:ANNOTATION_OF]-(search_ann:Annotation)
+            -[:HAS_TYPE]->(search_at:AnnotationType)
+        WHERE search_at.name IN ['segmentation', 'search_segmentation']
+        OPTIONAL MATCH (search_ann)<-[:SEGMENTATION_OF]-(search_seg:Segment)
+
+        // 4. Expression on the other side of MANIFESTATION_OF (used by caller for storage cleanup)
+        OPTIONAL MATCH (m)-[:MANIFESTATION_OF]->(e:Expression)
 
         RETURN
+            e.id AS expression_id,
             collect(DISTINCT {
                 annotation_id: ann.id,
                 annotation_type: at.name,
-                aligned_to_id: target_ann.id
+                partner_id: partner_ann.id
             }) AS annotation_info,
-            collect(DISTINCT seg.id) AS segment_ids,
+            collect(DISTINCT search_seg.id) AS segment_ids,
             count(DISTINCT ann) AS annotation_count,
-            count(DISTINCT seg) AS segment_count,
-            count(DISTINCT ref) AS reference_count
+            count(DISTINCT any_seg) AS segment_count,
+            count(DISTINCT any_ref) AS reference_count
     """,
     "delete_node": """
         MATCH (m:Manifestation {id: $manifestation_id})
