@@ -1717,6 +1717,48 @@ class Neo4JDatabase:
         "delete_alignment_annotations",
     )
 
+    @staticmethod
+    def _format_manifestation_delete_result(result: dict) -> dict:
+        annotations = _build_annotation_summary(result["annotation_info"])
+        result["annotations"] = annotations
+        del result["annotation_info"]
+        return result
+
+    def _delete_manifestation_in_tx(self, tx, manifestation_id: str) -> dict:
+        """Cascade-delete a Manifestation using the caller's active transaction."""
+        record = tx.run(
+            Queries.manifestations["get_delete_info"],
+            manifestation_id=manifestation_id,
+        ).single()
+
+        if record is None:
+            raise DataNotFound(f"Manifestation with ID '{manifestation_id}' not found")
+
+        expression_id = record["expression_id"]
+        annotation_info = record["annotation_info"] or []
+        segment_ids = [sid for sid in (record["segment_ids"] or []) if sid is not None]
+        annotation_count = record["annotation_count"] or 0
+        segment_count = record["segment_count"] or 0
+        reference_count = record["reference_count"] or 0
+
+        for key in self._MANIFESTATION_CASCADE_DELETE_QUERY_KEYS:
+            tx.run(Queries.manifestations[key], manifestation_id=manifestation_id)
+
+        tx.run(Queries.manifestations["cleanup_for_update"], manifestation_id=manifestation_id)
+        tx.run(Queries.manifestations["delete_node"], manifestation_id=manifestation_id)
+
+        return {
+            "expression_id": expression_id,
+            "annotation_info": annotation_info,
+            "segment_ids": segment_ids,
+            "deleted_counts": {
+                "manifestations": 1,
+                "annotations": annotation_count,
+                "segments": segment_count,
+                "references": reference_count,
+            },
+        }
+
     def delete_manifestation(self, manifestation_id: str) -> dict:
         """
         Cascade-delete a manifestation and everything it exclusively owns.
@@ -1749,64 +1791,26 @@ class Neo4JDatabase:
 
         Raises DataNotFound if no Manifestation node has the given id.
         """
-
-        def transaction_function(tx):
-            record = tx.run(
-                Queries.manifestations["get_delete_info"],
-                manifestation_id=manifestation_id,
-            ).single()
-
-            if record is None:
-                raise DataNotFound(f"Manifestation with ID '{manifestation_id}' not found")
-
-            expression_id = record["expression_id"]
-            annotation_info = record["annotation_info"] or []
-            segment_ids = [sid for sid in (record["segment_ids"] or []) if sid is not None]
-            annotation_count = record["annotation_count"] or 0
-            segment_count = record["segment_count"] or 0
-            reference_count = record["reference_count"] or 0
-
-            for key in self._MANIFESTATION_CASCADE_DELETE_QUERY_KEYS:
-                tx.run(Queries.manifestations[key], manifestation_id=manifestation_id)
-
-            tx.run(Queries.manifestations["cleanup_for_update"], manifestation_id=manifestation_id)
-            tx.run(Queries.manifestations["delete_node"], manifestation_id=manifestation_id)
-
-            return {
-                "expression_id": expression_id,
-                "annotation_info": annotation_info,
-                "segment_ids": segment_ids,
-                "deleted_counts": {
-                    "manifestations": 1,
-                    "annotations": annotation_count,
-                    "segments": segment_count,
-                    "references": reference_count,
-                },
-            }
-
         with self.get_session() as session:
-            result = session.execute_write(transaction_function)
+            result = session.execute_write(
+                lambda tx: self._delete_manifestation_in_tx(tx, manifestation_id)
+            )
 
-        annotations = _build_annotation_summary(result["annotation_info"])
-        result["annotations"] = annotations
-        del result["annotation_info"]
-        return result
+        return self._format_manifestation_delete_result(result)
 
     def delete_expression(self, expression_id: str) -> dict:
         """
         Cascade-delete an Expression (text) and all entities it exclusively owns.
 
-        The deletion happens in two stages so that each Manifestation cascade runs in
-        its own write transaction (matching how single-instance deletion behaves and
-        keeping each transaction's working set bounded):
+        The graph deletion happens in one Neo4j write transaction: either every
+        Manifestation cascade and every Expression-level delete commits together, or
+        none of those graph changes commit.
 
-        Stage 1 — per-manifestation cascade (one transaction per manifestation):
-            - Reuses `delete_manifestation` for every Manifestation linked to the
-              Expression via MANIFESTATION_OF. This deletes all annotations, segments,
-              references, sections, durchen notes, alignments, incipit titles, and
-              the Manifestation node itself.
-
-        Stage 2 — expression-level cascade (single transaction):
+        Transaction contents:
+            - Cascade-delete every Manifestation linked to the Expression via
+              MANIFESTATION_OF. This deletes all annotations, segments, references,
+              sections, durchen notes, alignments, incipit titles, and the
+              Manifestation nodes themselves.
             - Snapshot expression metadata (title, contribution_count, work_id, and
               whether the Work would be orphaned) via `expressions.get_delete_info`.
             - Delete the title primary Nomen, alt Nomens, and their LocalizedTexts
@@ -1826,8 +1830,8 @@ class Neo4JDatabase:
             - title: primary title in localized form (or None) for the response body
             - manifestation_ids: ids of all manifestations that were cascade-deleted
               (used by the route layer to clean storage / search-index entries).
-            - manifestation_results: list of per-manifestation results from
-              `delete_manifestation` (annotations + counts), in the same order as
+            - manifestation_results: list of per-manifestation cascade results
+              (annotations + counts), in the same order as
               `manifestation_ids`.
             - work_deleted: True iff the parent Work was orphaned and removed.
             - deleted_counts: aggregated counts across all manifestations + this
@@ -1835,35 +1839,32 @@ class Neo4JDatabase:
 
         Raises DataNotFound if no Expression node has the given id.
         """
-        # Single read tx that simultaneously asserts the Expression exists and returns its
-        # manifestation ids. `.single()` is None iff the Expression doesn't exist.
-        with self.get_session() as session:
-            record = session.execute_read(
-                lambda tx: tx.run(
-                    Queries.expressions["get_manifestation_ids_for_delete"],
-                    expression_id=expression_id,
-                ).single()
-            )
-
-        if record is None:
-            raise DataNotFound(f"Text with ID '{expression_id}' not found")
-
-        manifestation_ids: list[str] = record["manifestation_ids"] or []
-
-        # Stage 1: cascade-delete every manifestation owned by this expression.
-        manifestation_results: list[dict] = []
-        for m_id in manifestation_ids:
-            manifestation_results.append(self.delete_manifestation(manifestation_id=m_id))
-
-        # Stage 2: expression-level cleanup.
         def transaction_function(tx):
+            # Assert the Expression exists and snapshot the owned Manifestation ids before
+            # any deletes. A raised exception rolls back the whole write transaction.
+            record = tx.run(
+                Queries.expressions["get_manifestation_ids_for_delete"],
+                expression_id=expression_id,
+            ).single()
+
+            if record is None:
+                raise DataNotFound(f"Text with ID '{expression_id}' not found")
+
+            manifestation_ids: list[str] = record["manifestation_ids"] or []
+            manifestation_results = [
+                self._format_manifestation_delete_result(
+                    self._delete_manifestation_in_tx(tx, manifestation_id=m_id)
+                )
+                for m_id in manifestation_ids
+            ]
+
             info_record = tx.run(
                 Queries.expressions["get_delete_info"], expression_id=expression_id
             ).single()
 
             if info_record is None:
-                # Expression was somehow removed between stage 1 and stage 2 (race condition
-                # — extremely unlikely for an admin operation, but guard against it).
+                # Expression disappeared inside this transaction before expression-level
+                # cleanup. This should not happen, but keep the rollback behavior explicit.
                 raise DataNotFound(f"Text with ID '{expression_id}' not found")
 
             title = info_record["title"] or []
@@ -1874,42 +1875,51 @@ class Neo4JDatabase:
             tx.run(Queries.expressions["delete_title_nomens"], expression_id=expression_id)
             tx.run(Queries.expressions["delete_contributions"], expression_id=expression_id)
 
+            tx.run(Queries.expressions["delete_node"], expression_id=expression_id)
+
             work_deleted = False
             if work_is_orphan and work_id is not None:
+                # Run this after deleting the Expression so the orphan check sees the
+                # final in-transaction graph state.
                 tx.run(Queries.expressions["delete_orphan_work"], work_id=work_id)
                 work_deleted = True
 
-            tx.run(Queries.expressions["delete_node"], expression_id=expression_id)
+            deleted_counts = {
+                "expressions": 1,
+                "manifestations": sum(
+                    r["deleted_counts"]["manifestations"] for r in manifestation_results
+                ),
+                "annotations": sum(
+                    r["deleted_counts"]["annotations"] for r in manifestation_results
+                ),
+                "segments": sum(r["deleted_counts"]["segments"] for r in manifestation_results),
+                "references": sum(
+                    r["deleted_counts"]["references"] for r in manifestation_results
+                ),
+                "contributions": contribution_count,
+            }
 
             return {
                 "title": title,
-                "contribution_count": contribution_count,
+                "manifestation_ids": manifestation_ids,
+                "manifestation_results": manifestation_results,
                 "work_deleted": work_deleted,
+                "deleted_counts": deleted_counts,
             }
 
         with self.get_session() as session:
-            stage2 = session.execute_write(transaction_function)
-
-        # Aggregate counts across all manifestations + the expression-level entities.
-        deleted_counts = {
-            "expressions": 1,
-            "manifestations": sum(r["deleted_counts"]["manifestations"] for r in manifestation_results),
-            "annotations": sum(r["deleted_counts"]["annotations"] for r in manifestation_results),
-            "segments": sum(r["deleted_counts"]["segments"] for r in manifestation_results),
-            "references": sum(r["deleted_counts"]["references"] for r in manifestation_results),
-            "contributions": stage2["contribution_count"],
-        }
+            result = session.execute_write(transaction_function)
 
         # `__convert_to_localized_text` returns a {lang_code: text} dict (or None) which
         # is the same shape used everywhere else in the API for localized strings.
-        title_localized = self.__convert_to_localized_text(stage2["title"])
+        title_localized = self.__convert_to_localized_text(result["title"])
 
         return {
             "title": title_localized,
-            "manifestation_ids": manifestation_ids,
-            "manifestation_results": manifestation_results,
-            "work_deleted": stage2["work_deleted"],
-            "deleted_counts": deleted_counts,
+            "manifestation_ids": result["manifestation_ids"],
+            "manifestation_results": result["manifestation_results"],
+            "work_deleted": result["work_deleted"],
+            "deleted_counts": result["deleted_counts"],
         }
 
     def delete_annotation_and_its_segments(self, annotation_id: str) -> None:
