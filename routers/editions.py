@@ -15,7 +15,7 @@ from models.annotation import (
     PaginationOutput,
     SegmentationInput,
     SegmentationOutput,
-    SegmentOutput,
+    SegmentWithContextOutput,
 )
 from models.content_operation import ContentOperation, DeleteOperation, InsertOperation, ReplaceOperation
 from models.edition import EditionOutput
@@ -228,7 +228,7 @@ async def get_segment_related(
     params: Annotated[RelatedSegmentsQueryParams, Query()],
     _api_key: Annotated[str, Depends(get_api_key)],
     db: Annotated[Database, Depends(get_db)],
-) -> PaginatedResponse[SegmentOutput]:
+) -> PaginatedResponse[SegmentWithContextOutput]:
     segments = await db.segment.get_related(
         edition_id=edition_id,
         spans=[(params.span_start, params.span_end)],

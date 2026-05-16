@@ -105,10 +105,13 @@ class SegmentTestBase:
     async def _get_segment_ids_from_segmentation(self, client, edition_id, segmentation_index=0):
         resp = await client.get(f"/v2/editions/{edition_id}/segmentations")
         assert resp.status_code == 200
-        data = resp.json()
-        if not data:
+        segmentations = resp.json()
+        if not segmentations:
             return []
-        return [seg["id"] for seg in data[segmentation_index]["segments"]]
+        selected_segmentation_id = segmentations[segmentation_index]["id"]
+        segments_resp = await client.get(f"/v2/segmentations/{selected_segmentation_id}/segments")
+        assert segments_resp.status_code == 200
+        return [seg["id"] for seg in segments_resp.json()["items"]]
 
     async def _create_translation_text(self, db, person_id, original_text_id, language="en"):
         return await self._create_text(
@@ -1062,8 +1065,9 @@ class TestEditionSegmentsRelated(SegmentTestBase):
         resp = await client.get(f"/v2/editions/{src_edition_id}/segmentations")
         assert resp.status_code == 200
         data = resp.json()
-        assert len(data) == 1, "Should only return the display segmentation, not the alignment ones"
-        assert data[0]["id"] == sgn_id
+        assert {segmentation["id"] for segmentation in data} == {sgn_id}, (
+            "Should only return the display segmentation, not the alignment ones"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -1299,15 +1303,15 @@ class TestSegmentContent(SegmentTestBase):
         )
         tgt_edition_id = await self._create_edition(client, tgt_text_id, "ABCDEFGHIJ")
 
-        await self._post_alignment(
+        alignment_id = await self._post_alignment(
             client, src_edition_id, tgt_edition_id,
             source_segments=[(0, 10)],
             target_segments=[(0, 5), (5, 10)],
             alignment_map=[(0, [0, 1])],
         )
 
-        alignments_resp = await client.get(f"/v2/editions/{src_edition_id}/alignments")
-        alignment_data = alignments_resp.json()
+        alignments_resp = await client.get(f"/v2/alignments/{alignment_id}/segments")
+        alignment_data = alignments_resp.json()["items"]
         assert len(alignment_data) >= 1
         target_seg_ids = [s["id"] for s in alignment_data[0]["target_segments"]]
 

@@ -7,7 +7,7 @@ Annotations attach structured information to edition content using character spa
 - **Span**: A half-open character range where `start` is inclusive and `end` is exclusive.
 - **Lines**: Continuous spans inside a segment or page. Adjacent lines must be sorted and touch each other.
 - **Segmentation**: A set of logical content segments for an edition.
-- **Alignment**: A mapping between segments in an aligned/source edition and target segments in another edition.
+- **Alignment**: A mapping between segments in an aligned edition and target segments in another edition.
 - **Pagination**: A mapping from character spans to page or folio references.
 - **Bibliographic metadata**: Span-level metadata such as colophon, title, incipit, or author.
 - **Durchen note**: A span-level critical apparatus note.
@@ -48,8 +48,7 @@ Annotations are created and listed by type under an edition. Each `POST` returns
         {"start": 50, "end": 100}
       ]
     }
-  ],
-  "metadata": {}
+  ]
 }
 ```
 
@@ -74,12 +73,11 @@ Segments must be sorted by their first line's start offset. Lines inside each se
       ],
       "target_indices": [0]
     }
-  ],
-  "metadata": {}
+  ]
 }
 ```
 
-The path `edition_id` is the aligned/source edition. `target_indices` are zero-based indexes into the submitted `target_segments` array.
+The path `edition_id` is the aligned edition. `target_indices` are zero-based indexes into the submitted `target_segments` array.
 
 ### Create Pagination
 
@@ -139,77 +137,108 @@ Supported types:
 
 ```http
 GET /v2/segmentations/{segmentation_id}
+GET /v2/segmentations/{segmentation_id}/segments?limit=500&offset=0
 DELETE /v2/segmentations/{segmentation_id}
 ```
 
-Response:
+`GET /v2/segmentations/{segmentation_id}` response:
 
 ```json
 {
   "id": "SGN123",
   "edition_id": "ED123",
-  "text_id": "TXT123",
-  "segments": [
-    {
-      "id": "SEG123",
-      "segmentation_id": "SGN123",
-      "edition_id": "ED123",
-      "text_id": "TXT123",
-      "lines": [
-        {"start": 0, "end": 50}
-      ],
-      "tag_ids": []
-    }
-  ],
-  "metadata": {}
+  "text_id": "TXT123"
 }
 ```
 
-Deleting a standalone segmentation returns `204 No Content`. If the segmentation belongs to an alignment, deletion is rejected for both aligned/source and target segmentations; delete the alignment instead using the aligned/source segmentation ID, which is the alignment `id` returned by the API.
+`GET /v2/segmentations/{segmentation_id}/segments` query:
+
+| Query | Type | Required | Default |
+|-------|------|----------|---------|
+| `limit` | integer, 1-500 | No | 500 |
+| `offset` | integer, >= 0 | No | 0 |
+
+Segments response:
+
+```json
+{
+  "items": [
+    {
+      "id": "SEG123",
+      "lines": [
+        {"start": 0, "end": 50}
+      ]
+    }
+  ],
+  "has_more": false,
+  "offset": 0,
+  "limit": 500
+}
+```
+
+Deleting a standalone segmentation returns `204 No Content`. If the segmentation belongs to an alignment, deletion is rejected for both aligned and target segmentations; delete the alignment instead using the aligned segmentation ID, which is the alignment `id` returned by the API.
 
 ### Alignment
 
 ```http
 GET /v2/alignments/{alignment_id}
+GET /v2/alignments/{alignment_id}/segments?limit=500&offset=0
 DELETE /v2/alignments/{alignment_id}
 ```
 
-Response:
+`GET /v2/alignments/{alignment_id}` response:
 
 ```json
 {
   "id": "ALN123",
-  "aligned_edition_id": "ED_SOURCE",
+  "aligned_edition_id": "ED_ALIGNED",
+  "aligned_text_id": "TXT_ALIGNED",
   "target_edition_id": "ED_TARGET",
-  "target_segments": [
-    {
-      "id": "SEG_TARGET",
-      "segmentation_id": "SGN_TARGET",
-      "edition_id": "ED_TARGET",
-      "text_id": "TXT_TARGET",
-      "lines": [
-        {"start": 0, "end": 60}
-      ],
-      "tag_ids": []
-    }
-  ],
-  "aligned_segments": [
-    {
-      "id": "SEG_SOURCE",
-      "segmentation_id": "ALN123",
-      "edition_id": "ED_SOURCE",
-      "text_id": "TXT_SOURCE",
-      "lines": [
-        {"start": 0, "end": 55}
-      ],
-      "target_indices": [0]
-    }
-  ],
-  "metadata": {}
+  "target_text_id": "TXT_TARGET",
+  "target_segmentation_id": "SGN_TARGET"
 }
 ```
 
-Deleting an alignment deletes the alignment and its associated source/target segmentations.
+`GET /v2/alignments/{alignment_id}/segments` query:
+
+| Query | Type | Required | Default |
+|-------|------|----------|---------|
+| `limit` | integer, 1-500 | No | 500 |
+| `offset` | integer, >= 0 | No | 0 |
+
+Segments response:
+
+```json
+{
+  "items": [
+    {
+      "aligned_segment": {
+        "id": "SEG_SOURCE",
+        "lines": [
+          {"start": 0, "end": 55}
+        ]
+      },
+      "target_segments": [
+        {
+          "id": "SEG_TARGET",
+          "segmentation_id": "SGN_TARGET",
+          "edition_id": "ED_TARGET",
+          "text_id": "TXT_TARGET",
+          "lines": [
+            {"start": 0, "end": 60}
+          ],
+          "tag_ids": null
+        }
+      ]
+    }
+  ],
+  "has_more": false,
+  "offset": 0,
+  "limit": 500
+}
+```
+
+Deleting an alignment deletes the alignment and its associated aligned/target segmentations.
 
 ### Pagination
 

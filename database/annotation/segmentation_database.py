@@ -12,8 +12,15 @@ from models.annotation import SegmentationInput, SegmentationOutput, SegmentOutp
 
 
 class SegmentationDatabase:
-    _GET_QUERY_BODY: LiteralString = """
+    _GET_PARENT_QUERY_BODY: LiteralString = """
     MATCH (edition)-[:EDITION_OF]->(text:Text)
+    RETURN segmentation.id AS id,
+           edition.id AS edition_id,
+           text.id AS text_id
+    ORDER BY id
+    """
+
+    _GET_SEGMENTS_QUERY_BODY: LiteralString = """
     MATCH (segment:Segment)-[:SEGMENT_OF]->(segmentation)
     CALL (segment) {
         MATCH (span:Span)-[:SPAN_OF]->(segment)
@@ -22,28 +29,29 @@ class SegmentationDatabase:
         RETURN collect({start: span.start, end: span.end}) AS lines,
                min(span.start) AS min_start
     }
-    WITH segmentation, edition, text, segment, lines, min_start
+    WITH segment, lines, min_start
     WHERE size(lines) > 0
     ORDER BY min_start, segment.id
-    WITH segmentation, edition, text, collect({
-        id: segment.id,
-        segmentation_id: segmentation.id,
-        edition_id: edition.id,
-        text_id: text.id,
-        lines: lines
-    }) AS segments
-    RETURN segmentation.id AS id, edition.id AS edition_id, text.id AS text_id, segments
+    SKIP $offset
+    LIMIT $limit
+    RETURN segment.id AS id, lines
     """
 
     GET_BY_SEGMENTATION_ID_QUERY: LiteralString = f"""
     MATCH (segmentation:Segmentation {{id: $segmentation_id}})-[:SEGMENTATION_OF]->(edition:Edition)
-    {_GET_QUERY_BODY}
+    {_GET_PARENT_QUERY_BODY}
     """
 
     GET_BY_EDITION_ID_QUERY: LiteralString = f"""
     MATCH (edition:Edition {{id: $edition_id}})<-[:SEGMENTATION_OF]-(segmentation:Segmentation:Display)
-    {_GET_QUERY_BODY}
+    {_GET_PARENT_QUERY_BODY}
     """
+
+    GET_SEGMENTS_BY_ID_QUERY: LiteralString = f"""
+    MATCH (segmentation:Segmentation {{id: $segmentation_id}})-[:SEGMENTATION_OF]->(edition:Edition)
+    {_GET_SEGMENTS_QUERY_BODY}
+    """
+
     CREATE_QUERY: LiteralString = """
     MATCH (m:Edition {id: $edition_id})
     CREATE (segmentation:Segmentation:Display {id: $segmentation_id})-[:SEGMENTATION_OF]->(m)
@@ -70,43 +78,46 @@ class SegmentationDatabase:
            (seg:Aligned OR seg:Target) AS is_aligned
     """
 
+    CHECK_SEGMENTATION_EXISTS_QUERY: LiteralString = """
+    RETURN EXISTS { (:Segmentation {id: $segmentation_id}) } AS exists
+    """
+
     def __init__(self, db: Database) -> None:
         self._db = db
 
     @staticmethod
     def _parse_record(record: dict | Record) -> SegmentationOutput:
-        segments = [
-            SegmentOutput(
-                id=seg["id"],
-                segmentation_id=seg["segmentation_id"],
-                edition_id=seg["edition_id"],
-                text_id=seg["text_id"],
-                lines=[Span(start=line["start"], end=line["end"]) for line in seg["lines"]],
-            )
-            for seg in record["segments"]
-            if seg["lines"]
-        ]
         return SegmentationOutput(
             id=record["id"],
             edition_id=record["edition_id"],
             text_id=record["text_id"],
-            segments=segments,
+        )
+
+    @staticmethod
+    def _parse_segment_record(record: dict | Record) -> SegmentOutput:
+        return SegmentOutput(
+            id=record["id"],
+            lines=[Span(start=line["start"], end=line["end"]) for line in record["lines"]],
         )
 
     async def get(self, segmentation_id: str) -> SegmentationOutput:
-        async def read(tx: AsyncManagedTransaction) -> SegmentationOutput:
-            result = await tx.run(self.GET_BY_SEGMENTATION_ID_QUERY, segmentation_id=segmentation_id)
-            record = await result.single()
-            if record is None:
-                raise DataNotFoundError(f"Segmentation with ID '{segmentation_id}' not found")
-            return self._parse_record(record)
-
         async with self._db.get_session() as session:
-            return await session.execute_read(read)
+            return await session.execute_read(lambda tx: SegmentationDatabase.get_with_transaction(tx, segmentation_id))
 
     async def get_all(self, edition_id: str) -> list[SegmentationOutput]:
         async with self._db.get_session() as session:
             return await session.execute_read(lambda tx: SegmentationDatabase.get_all_with_transaction(tx, edition_id))
+
+    async def get_segments(self, segmentation_id: str, *, offset: int, limit: int) -> list[SegmentOutput]:
+        async with self._db.get_session() as session:
+            return await session.execute_read(
+                lambda tx: SegmentationDatabase.get_segments_with_transaction(
+                    tx,
+                    segmentation_id,
+                    offset=offset,
+                    limit=limit,
+                )
+            )
 
     @staticmethod
     async def add_with_transaction(
@@ -140,14 +151,44 @@ class SegmentationDatabase:
             )
 
     @staticmethod
+    async def get_with_transaction(tx: AsyncManagedTransaction, segmentation_id: str) -> SegmentationOutput:
+        result = await tx.run(SegmentationDatabase.GET_BY_SEGMENTATION_ID_QUERY, segmentation_id=segmentation_id)
+        record = await result.single()
+        if record is None:
+            raise DataNotFoundError(f"Segmentation with ID '{segmentation_id}' not found")
+        return SegmentationDatabase._parse_record(record)
+
+    @staticmethod
     async def get_all_with_transaction(tx: AsyncManagedTransaction, edition_id: str) -> list[SegmentationOutput]:
         await DatabaseValidator.validate_edition_exists(tx, edition_id)
-        result = await tx.run(
-            SegmentationDatabase.GET_BY_EDITION_ID_QUERY,
-            edition_id=edition_id,
-        )
+        result = await tx.run(SegmentationDatabase.GET_BY_EDITION_ID_QUERY, edition_id=edition_id)
         records = await result.data()
         return [SegmentationDatabase._parse_record(record) for record in records]
+
+    @staticmethod
+    async def get_segments_with_transaction(
+        tx: AsyncManagedTransaction,
+        segmentation_id: str,
+        *,
+        offset: int,
+        limit: int,
+    ) -> list[SegmentOutput]:
+        exists_result = await tx.run(
+            SegmentationDatabase.CHECK_SEGMENTATION_EXISTS_QUERY,
+            segmentation_id=segmentation_id,
+        )
+        exists_record = await exists_result.single()
+        if not exists_record or not exists_record["exists"]:
+            raise DataNotFoundError(f"Segmentation with ID '{segmentation_id}' not found")
+
+        result = await tx.run(
+            SegmentationDatabase.GET_SEGMENTS_BY_ID_QUERY,
+            segmentation_id=segmentation_id,
+            offset=offset,
+            limit=limit,
+        )
+        records = await result.data()
+        return [SegmentationDatabase._parse_segment_record(record) for record in records]
 
     @staticmethod
     async def delete_with_transaction(
@@ -173,16 +214,3 @@ class SegmentationDatabase:
 
         for record in records:
             await SegmentationDatabase.delete_with_transaction(tx, record["id"])
-
-    @staticmethod
-    async def update_with_transaction(
-        tx: AsyncManagedTransaction, segmentation_id: str, edition_id: str, segmentation: SegmentationInput
-    ) -> str:
-        await SegmentationDatabase.delete_with_transaction(tx, segmentation_id)
-        return await SegmentationDatabase.add_with_transaction(tx, edition_id, segmentation)
-
-    async def update(self, segmentation_id: str, edition_id: str, segmentation: SegmentationInput) -> str:
-        async with self._db.get_session() as session:
-            return await session.execute_write(
-                lambda tx: SegmentationDatabase.update_with_transaction(tx, segmentation_id, edition_id, segmentation)
-            )

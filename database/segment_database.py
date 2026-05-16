@@ -2,7 +2,7 @@ from typing import TYPE_CHECKING, LiteralString
 
 from exceptions import DataNotFoundError
 from models.annotation import (
-    SegmentOutput,
+    SegmentWithContextOutput,
     Span,
 )
 
@@ -100,14 +100,14 @@ class SegmentDatabase:
     def _session(self) -> AsyncSession:
         return self._db.get_session()
 
-    async def get(self, segment_id: str, application: str | None = None) -> SegmentOutput:
-        async def _read(tx: AsyncManagedTransaction) -> SegmentOutput:
+    async def get(self, segment_id: str, application: str | None = None) -> SegmentWithContextOutput:
+        async def _read(tx: AsyncManagedTransaction) -> SegmentWithContextOutput:
             result = await tx.run(self.GET_QUERY, segment_id=segment_id, application=application)
             records = await result.data()
             if not records:
                 raise DataNotFoundError(f"Segment '{segment_id}' not found")
             r = records[0]
-            return SegmentOutput(
+            return SegmentWithContextOutput(
                 id=r["segment_id"],
                 segmentation_id=r["segmentation_id"],
                 edition_id=r["edition_id"],
@@ -127,10 +127,10 @@ class SegmentDatabase:
         max_depth: int = 5,
         offset: int = 0,
         limit: int = 20,
-    ) -> list[SegmentOutput]:
+    ) -> list[SegmentWithContextOutput]:
         """Traverse the alignment tree from an edition+spans and return paged display segments."""
 
-        async def _read(tx: AsyncManagedTransaction) -> list[SegmentOutput]:
+        async def _read(tx: AsyncManagedTransaction) -> list[SegmentWithContextOutput]:
             contexts: dict[str, dict] = {}
             visited: set[str] = {edition_id}
             frontier = [(edition_id, _merge_spans([list(s) for s in spans]))]
@@ -176,7 +176,7 @@ class SegmentDatabase:
         application: str | None,
         offset: int,
         limit: int,
-    ) -> list[SegmentOutput]:
+    ) -> list[SegmentWithContextOutput]:
         records = await (
             await tx.run(
                 self.RESOLVE_DISPLAY_PAGE_QUERY,
@@ -187,7 +187,7 @@ class SegmentDatabase:
             )
         ).data()
         return [
-            SegmentOutput(
+            SegmentWithContextOutput(
                 id=rec["segment_id"],
                 segmentation_id=rec["segmentation_id"],
                 edition_id=rec["edition_id"],

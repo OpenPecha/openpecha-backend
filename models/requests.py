@@ -19,6 +19,10 @@ class PaginationParams(OpenPechaModel):
     offset: int = Field(default=0, ge=0, description="Number of items to skip")
 
 
+class AnnotationSegmentsPaginationParams(PaginationParams):
+    limit: int = Field(default=500, ge=1, le=500, description="Maximum number of segments to return")
+
+
 class TextFilter(OpenPechaModel):
     language: str | None = None
     title: str | None = Field(default=None, min_length=2, description="Filter by title, minimum 2 characters")

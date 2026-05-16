@@ -85,7 +85,7 @@ class TestEditionsEndpoints:
             }
         elif edition_type == EditionType.CRITICAL:
             edition_data["segmentation"] = {
-                "segments": [{"start": 0, "end": len(content)}]
+                "segments": [{"lines": [{"start": 0, "end": len(content)}]}]
             }
         response = await client.post(f"/v2/texts/{text_id}/editions", json=edition_data)
         assert response.status_code == 201, f"Failed to create edition: {response.json()}"
@@ -463,14 +463,84 @@ class TestEditionAnnotations(TestEditionsEndpoints):
 
         post_response = await client.post(f"/v2/editions/{edition_id}/segmentations", json=annotation_data)
         assert post_response.status_code == 201
+        segmentation_id = post_response.json()["id"]
 
         get_response = await client.get(f"/v2/editions/{edition_id}/segmentations")
         assert get_response.status_code == 200
         data = get_response.json()
         assert len(data) == 1
+        assert data[0]["id"] == segmentation_id
         assert data[0]["edition_id"] == edition_id
         assert data[0]["text_id"] == text_id
-        assert len(data[0]["segments"]) == 2
+
+        segments_response = await client.get(f"/v2/segmentations/{segmentation_id}/segments")
+        assert segments_response.status_code == 200
+        assert len(segments_response.json()["items"]) == 2
+
+    async def test_get_segmentation_annotations_with_pagination(self, client, test_database, test_person_data):
+        """Test edition segmentation segment rows support pagination."""
+        person_id = await self._create_test_person(test_database, test_person_data)
+        text_id = await self._create_test_text(test_database, person_id)
+        edition_id = await self._create_test_edition(client, text_id, "0123456789")
+
+        annotation_data = {
+            "segments": [
+                {"lines": [{"start": 0, "end": 5}]},
+                {"lines": [{"start": 5, "end": 10}]},
+            ]
+        }
+        post_response = await client.post(f"/v2/editions/{edition_id}/segmentations", json=annotation_data)
+        assert post_response.status_code == 201
+        segmentation_id = post_response.json()["id"]
+
+        first_page = await client.get(f"/v2/segmentations/{segmentation_id}/segments?limit=1")
+        assert first_page.status_code == 200
+        first_body = first_page.json()
+        assert len(first_body["items"]) == 1
+        assert first_body["has_more"] is True
+        assert first_body["offset"] == 0
+        assert first_body["limit"] == 1
+
+        second_page = await client.get(f"/v2/segmentations/{segmentation_id}/segments?limit=1&offset=1")
+        assert second_page.status_code == 200
+        second_body = second_page.json()
+        assert len(second_body["items"]) == 1
+        assert second_body["has_more"] is False
+        assert second_body["offset"] == 1
+        assert second_body["limit"] == 1
+
+    async def test_post_segmentation_annotation_with_multiple_lines(self, client, test_database, test_person_data):
+        """Test one segment can contain multiple line spans through the API and Neo4j storage."""
+        person_id = await self._create_test_person(test_database, test_person_data)
+        text_id = await self._create_test_text(test_database, person_id)
+        edition_id = await self._create_test_edition(client, text_id, "0123456789")
+
+        annotation_data = {
+            "segments": [
+                {"lines": [{"start": 0, "end": 5}, {"start": 5, "end": 10}]},
+            ]
+        }
+
+        post_response = await client.post(f"/v2/editions/{edition_id}/segmentations", json=annotation_data)
+        assert post_response.status_code == 201
+        segmentation_id = post_response.json()["id"]
+
+        get_response = await client.get(f"/v2/segmentations/{segmentation_id}/segments")
+        assert get_response.status_code == 200
+        segment = get_response.json()["items"][0]
+        assert segment["lines"] == [{"start": 0, "end": 5}, {"start": 5, "end": 10}]
+
+        async with test_database.get_session() as session:
+            result = await session.run(
+                """
+                MATCH (:Segmentation {id: $segmentation_id})<-[:SEGMENT_OF]-(segment:Segment)
+                MATCH (span:Span)-[:SPAN_OF]->(segment)
+                RETURN count(span) AS span_count
+                """,
+                segmentation_id=segmentation_id,
+            )
+            record = await result.single()
+        assert record["span_count"] == 2
 
     async def test_post_pagination_annotation(self, client, test_database, test_person_data):
         """Test adding pagination annotation and retrieving it"""
@@ -560,13 +630,121 @@ class TestEditionAnnotations(TestEditionsEndpoints):
 
         post_response = await client.post(f"/v2/editions/{source_edition_id}/alignments", json=annotation_data)
         assert post_response.status_code == 201
+        alignment_id = post_response.json()["id"]
 
         get_response = await client.get(f"/v2/editions/{source_edition_id}/alignments")
         assert get_response.status_code == 200
         data = get_response.json()
         assert len(data) == 1
+        assert data[0]["id"] == alignment_id
         assert data[0]["aligned_edition_id"] == source_edition_id
+        assert data[0]["aligned_text_id"] == source_text_id
         assert data[0]["target_edition_id"] == target_edition_id
+        assert data[0]["target_text_id"] == target_text_id
+        assert data[0]["target_segmentation_id"]
+
+    async def test_get_alignment_annotations_with_pagination(self, client, test_database, test_person_data):
+        """Test edition alignment segment rows support pagination."""
+        person_id = await self._create_test_person(test_database, test_person_data)
+
+        source_text_id = await self._create_test_text(
+            test_database, person_id, title=LocalizedString({"bo": "རྩ་བ།", "en": "Source"})
+        )
+        source_edition_id = await self._create_test_edition(client, source_text_id, "0123456789")
+
+        target_text_id = await self._create_test_text(
+            test_database, person_id, title=LocalizedString({"bo": "དམིགས་བསལ།", "en": "Target"})
+        )
+        target_edition_id = await self._create_test_edition(client, target_text_id, "ABCDEFGHIJ")
+
+        annotation_data = {
+            "target_edition_id": target_edition_id,
+            "target_segments": [
+                {"lines": [{"start": 0, "end": 5}]},
+                {"lines": [{"start": 5, "end": 10}]},
+            ],
+            "aligned_segments": [
+                {"lines": [{"start": 0, "end": 5}], "target_indices": [0]},
+                {"lines": [{"start": 5, "end": 10}], "target_indices": [1]},
+            ],
+        }
+        post_response = await client.post(f"/v2/editions/{source_edition_id}/alignments", json=annotation_data)
+        assert post_response.status_code == 201
+        alignment_id = post_response.json()["id"]
+
+        first_page = await client.get(f"/v2/alignments/{alignment_id}/segments?limit=1")
+        assert first_page.status_code == 200
+        first_body = first_page.json()
+        assert len(first_body["items"]) == 1
+        assert first_body["has_more"] is True
+        assert first_body["offset"] == 0
+        assert first_body["limit"] == 1
+
+        second_page = await client.get(f"/v2/alignments/{alignment_id}/segments?limit=1&offset=1")
+        assert second_page.status_code == 200
+        second_body = second_page.json()
+        assert len(second_body["items"]) == 1
+        assert second_body["has_more"] is False
+        assert second_body["offset"] == 1
+        assert second_body["limit"] == 1
+
+    async def test_post_alignment_annotation_with_multiple_lines(self, client, test_database, test_person_data):
+        """Test aligned and target segments can each contain multiple line spans."""
+        person_id = await self._create_test_person(test_database, test_person_data)
+
+        source_text_id = await self._create_test_text(
+            test_database, person_id, title=LocalizedString({"bo": "རྩ་བ།", "en": "Source"})
+        )
+        source_edition_id = await self._create_test_edition(client, source_text_id, "0123456789")
+
+        target_text_id = await self._create_test_text(
+            test_database, person_id, title=LocalizedString({"bo": "དམིགས་བསལ།", "en": "Target"})
+        )
+        target_edition_id = await self._create_test_edition(client, target_text_id, "ABCDEFGHIJ")
+
+        annotation_data = {
+            "target_edition_id": target_edition_id,
+            "target_segments": [
+                {"lines": [{"start": 0, "end": 5}, {"start": 5, "end": 10}]},
+            ],
+            "aligned_segments": [
+                {"lines": [{"start": 0, "end": 4}, {"start": 4, "end": 10}], "target_indices": [0]},
+            ],
+        }
+
+        post_response = await client.post(f"/v2/editions/{source_edition_id}/alignments", json=annotation_data)
+        assert post_response.status_code == 201
+        alignment_id = post_response.json()["id"]
+
+        get_response = await client.get(f"/v2/alignments/{alignment_id}/segments")
+        assert get_response.status_code == 200
+        row = get_response.json()["items"][0]
+        assert row["aligned_segment"]["lines"] == [{"start": 0, "end": 4}, {"start": 4, "end": 10}]
+        assert row["target_segments"][0]["lines"] == [{"start": 0, "end": 5}, {"start": 5, "end": 10}]
+
+        async with test_database.get_session() as session:
+            result = await session.run(
+                """
+                MATCH (:Segmentation {id: $alignment_id})<-[:SEGMENT_OF]-(segment:Segment)
+                MATCH (span:Span)-[:SPAN_OF]->(segment)
+                RETURN count(span) AS span_count
+                """,
+                alignment_id=alignment_id,
+            )
+            source_record = await result.single()
+
+            result = await session.run(
+                """
+                MATCH (:Segmentation {id: $alignment_id})<-[:SEGMENT_OF]-(:Segment)-[:ALIGNED_TO]->(:Segment)
+                    -[:SEGMENT_OF]->(target_segmentation:Segmentation)
+                MATCH (span:Span)-[:SPAN_OF]->(:Segment)-[:SEGMENT_OF]->(target_segmentation)
+                RETURN count(span) AS span_count
+                """,
+                alignment_id=alignment_id,
+            )
+            target_record = await result.single()
+        assert source_record["span_count"] == 2
+        assert target_record["span_count"] == 2
 
     async def test_get_alignment_annotations_returns_both_directions(self, client, test_database, test_person_data):
         """Test that edition alignments are returned when the edition is on either side."""
@@ -1338,11 +1516,13 @@ class TestPatchContentWithSegmentation(TestEditionsEndpoints):
         """Helper to get segmentation spans."""
         response = await client.get(f"/v2/editions/{edition_id}/segmentations")
         assert response.status_code == 200
-        data = response.json()
-        if len(data) == 0:
+        segmentations = response.json()
+        if len(segmentations) == 0:
             return []
-        segments = data[0]["segments"]
-        return [(s["lines"][0]["start"], s["lines"][0]["end"]) for s in segments]
+        segments_response = await client.get(f"/v2/segmentations/{segmentations[0]['id']}/segments")
+        assert segments_response.status_code == 200
+        data = segments_response.json()["items"]
+        return [(s["lines"][0]["start"], s["lines"][0]["end"]) for s in data]
 
     async def test_insert_shifts_segments_after(self, client, test_database, test_person_data):
         """Insert should shift segments that come after the insert position."""
@@ -1566,14 +1746,20 @@ class TestPatchContentWithMultipleSegmentations(TestEditionsEndpoints):
         """Helper to get all segmentations with their spans."""
         response = await client.get(f"/v2/editions/{edition_id}/segmentations")
         assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.json()}"
-        data = response.json()
-        if not data:
+        segmentations = response.json()
+        if not segmentations:
             return []
-        result = []
-        for seg in data:
-            spans = [(s["lines"][0]["start"], s["lines"][0]["end"]) for s in seg["segments"]]
-            result.append(spans)
-        return result
+        all_spans = []
+        for segmentation in segmentations:
+            segments_response = await client.get(f"/v2/segmentations/{segmentation['id']}/segments")
+            assert segments_response.status_code == 200
+            all_spans.append(
+                [
+                    (segment["lines"][0]["start"], segment["lines"][0]["end"])
+                    for segment in segments_response.json()["items"]
+                ]
+            )
+        return all_spans
 
     async def test_insert_affects_multiple_segmentations(self, client, test_database, test_person_data):
         """Insert should adjust spans in all segmentations."""
@@ -2027,11 +2213,13 @@ class TestPatchContentWithSegmentationAndAnnotations(TestEditionsEndpoints):
         """Helper to get segmentation spans."""
         response = await client.get(f"/v2/editions/{edition_id}/segmentations")
         assert response.status_code == 200
-        data = response.json()
-        if len(data) == 0:
+        segmentations = response.json()
+        if len(segmentations) == 0:
             return []
-        segments = data[0]["segments"]
-        return [(s["lines"][0]["start"], s["lines"][0]["end"]) for s in segments]
+        segments_response = await client.get(f"/v2/segmentations/{segmentations[0]['id']}/segments")
+        assert segments_response.status_code == 200
+        data = segments_response.json()["items"]
+        return [(s["lines"][0]["start"], s["lines"][0]["end"]) for s in data]
 
     async def _get_note_span(self, client, note_id):
         """Helper to get a note's span."""
