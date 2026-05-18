@@ -61,12 +61,6 @@ class RelatedSegmentationOutput(OpenPechaModel):
     segments: list[SegmentWithContextOutput]
 
 
-class RelatedSegmentsOutput(OpenPechaModel):
-    edition_id: NonEmptyStr
-    text_id: NonEmptyStr
-    segmentations: list[RelatedSegmentationOutput]
-
-
 class AlignedSegmentInput(LinesModel):
     target_indices: list[int] = Field(min_length=1)
 

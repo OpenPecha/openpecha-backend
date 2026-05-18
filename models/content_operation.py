@@ -5,10 +5,6 @@ from pydantic import ConfigDict, Field, RootModel, model_validator
 from .base import OpenPechaModel, _validate_range
 
 
-class SegmentContentInput(OpenPechaModel):
-    content: str = Field(..., min_length=1)
-
-
 class ContentOperationBase(OpenPechaModel):
     model_config = ConfigDict(str_strip_whitespace=False)
 

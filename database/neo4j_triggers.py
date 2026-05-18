@@ -945,19 +945,6 @@ async def install_triggers(driver: AsyncDriver) -> None:
 
     logger.info("All %d triggers installed.", len(TRIGGERS))
 
-
-async def uninstall_triggers(driver: AsyncDriver) -> None:
-    """Remove all structural constraint triggers. Useful before bulk imports or migrations."""
-
-    async def write(tx: AsyncManagedTransaction) -> None:
-        for trigger in TRIGGERS:
-            await tx.run(
-                "CALL apoc.trigger.drop($database, $name)",
-                database=DATABASE_NAME,
-                name=trigger["name"],
-            )
-            logger.info("Removed trigger: %s", trigger["name"])
-
     async with driver.session(database=DATABASE_NAME) as session:
         await session.execute_write(write)
 

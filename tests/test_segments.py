@@ -386,6 +386,48 @@ class TestEditionSegmentsRelated(SegmentTestBase):
         total_related = len(data)
         assert total_related >= 2, "Should return both aligned display segments"
 
+    async def test_related_segments_has_more(self, client, test_database):
+        """Related segment pagination should report when another page exists."""
+        person_id = await self._create_person(test_database)
+        src_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "རྩ་བ།", "en": "Src"})
+        )
+        src_edition_id = await self._create_edition(client, src_text_id, "0123456789")
+        await self._post_segmentation(client, src_edition_id, [(0, 10)])
+
+        tgt_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "དམིགས།", "en": "Tgt"})
+        )
+        tgt_edition_id = await self._create_edition(client, tgt_text_id, "ABCDEFGHIJ")
+        await self._post_segmentation(client, tgt_edition_id, [(0, 5), (5, 10)])
+
+        await self._post_alignment(
+            client, src_edition_id, tgt_edition_id,
+            source_segments=[(0, 10)],
+            target_segments=[(0, 5), (5, 10)],
+            alignment_map=[(0, [0, 1])],
+        )
+
+        first_page = await client.get(
+            f"/v2/editions/{src_edition_id}/segments/related?span_start=0&span_end=10&limit=1"
+        )
+        assert first_page.status_code == 200
+        first_body = first_page.json()
+        assert len(first_body["items"]) == 1
+        assert first_body["has_more"] is True
+        assert first_body["offset"] == 0
+        assert first_body["limit"] == 1
+
+        second_page = await client.get(
+            f"/v2/editions/{src_edition_id}/segments/related?span_start=0&span_end=10&limit=1&offset=1"
+        )
+        assert second_page.status_code == 200
+        second_body = second_page.json()
+        assert len(second_body["items"]) == 1
+        assert second_body["has_more"] is False
+        assert second_body["offset"] == 1
+        assert second_body["limit"] == 1
+
     # ---- multiple editions aligned (fan-out) ----
 
     async def test_multiple_related_editions(self, client, test_database):
@@ -1129,6 +1171,47 @@ class TestDirectSegmentRelated(SegmentTestBase):
         data = self._related_items(resp.json())
         assert len(data) >= 1
         assert data[0]["edition_id"] == tgt_edition_id
+
+    async def test_segment_related_has_more(self, client, test_database):
+        """Direct related segment pagination should report when another page exists."""
+        person_id = await self._create_person(test_database)
+        src_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "རྩ་བ།", "en": "Src"})
+        )
+        src_edition_id = await self._create_edition(client, src_text_id, "0123456789")
+        await self._post_segmentation(client, src_edition_id, [(0, 10)])
+
+        tgt_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "དམིགས།", "en": "Tgt"})
+        )
+        tgt_edition_id = await self._create_edition(client, tgt_text_id, "ABCDEFGHIJ")
+        await self._post_segmentation(client, tgt_edition_id, [(0, 5), (5, 10)])
+
+        await self._post_alignment(
+            client, src_edition_id, tgt_edition_id,
+            source_segments=[(0, 10)],
+            target_segments=[(0, 5), (5, 10)],
+            alignment_map=[(0, [0, 1])],
+        )
+
+        seg_ids = await self._get_segment_ids_from_segmentation(client, src_edition_id)
+        assert len(seg_ids) >= 1
+
+        first_page = await client.get(f"/v2/segments/{seg_ids[0]}/related?limit=1")
+        assert first_page.status_code == 200
+        first_body = first_page.json()
+        assert len(first_body["items"]) == 1
+        assert first_body["has_more"] is True
+        assert first_body["offset"] == 0
+        assert first_body["limit"] == 1
+
+        second_page = await client.get(f"/v2/segments/{seg_ids[0]}/related?limit=1&offset=1")
+        assert second_page.status_code == 200
+        second_body = second_page.json()
+        assert len(second_body["items"]) == 1
+        assert second_body["has_more"] is False
+        assert second_body["offset"] == 1
+        assert second_body["limit"] == 1
 
     async def test_segment_related_with_application_header(self, client, test_database):
         """X-Application header should filter tags on returned segments."""

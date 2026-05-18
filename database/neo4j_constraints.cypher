@@ -45,9 +45,6 @@ CREATE CONSTRAINT language_code_unique IF NOT EXISTS FOR (l:Language) REQUIRE l.
 // RoleType nodes - each role type must have a unique name
 CREATE CONSTRAINT role_type_name_unique IF NOT EXISTS FOR (rt:RoleType) REQUIRE rt.name IS UNIQUE;
 
-// AnnotationType nodes - each annotation type must have a unique name
-CREATE CONSTRAINT annotation_type_name_unique IF NOT EXISTS FOR (at:AnnotationType) REQUIRE at.name IS UNIQUE;
-
 // EditionType nodes - each edition type must have a unique name
 CREATE CONSTRAINT edition_type_name_unique IF NOT EXISTS FOR (mt:EditionType) REQUIRE mt.name IS UNIQUE;
 

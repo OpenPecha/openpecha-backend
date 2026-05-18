@@ -352,10 +352,6 @@ class TextDatabase:
         async with self.session as session:
             await session.execute_write(write)
 
-    async def validate_create(self, text: TextInput) -> None:
-        async with self.session as session:
-            await session.execute_read(lambda tx: TextDatabase._validate_create(tx, text))
-
     @staticmethod
     async def _validate_create(tx: AsyncManagedTransaction, text: TextInput) -> None:
         await DatabaseValidator.validate_text_title_unique(tx, text.title.root)

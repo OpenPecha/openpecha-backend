@@ -1,7 +1,7 @@
 import logging
 from typing import Annotated
 
-from fastapi import Depends, Header, Request, Security
+from fastapi import Header, Request, Security
 from fastapi.security import APIKeyHeader
 
 from config import settings
@@ -66,23 +66,3 @@ async def get_api_key(
             raise UnauthorizedError("API key not authorized for this application")
 
     return x_api_key
-
-
-async def get_application(
-    request: Request,
-    _api_key: str = Depends(get_api_key),
-    x_application: str | None = Header(None, alias="X-Application"),
-) -> str:
-    """
-    Validate the application header and check API key binding.
-    The API key is already validated by get_api_key dependency.
-    Returns the application ID.
-    Raises UnauthorizedError if validation fails.
-    """
-    if request.app.state.testing or settings.environment == "dev":
-        return x_application or "dev-application"
-
-    if not x_application:
-        raise UnauthorizedError(f"Missing required header: {APPLICATION_HEADER}")
-
-    return x_application

@@ -3,15 +3,12 @@ from typing import Self
 from pydantic import Field, model_validator
 
 from .annotation import (
-    AlignmentInput,
-    BibliographicMetadataInput,
-    NoteInput,
     PaginationInput,
     SegmentationInput,
 )
-from .base import LocalizedString, NonEmptyStr, OpenPechaModel, _validate_range
+from .base import NonEmptyStr, OpenPechaModel, _validate_range
 from .edition import EditionInput
-from .enums import AnnotationType, EditionType, LicenseType
+from .enums import EditionType
 
 
 class PaginationParams(OpenPechaModel):
@@ -65,36 +62,6 @@ class RelatedSegmentsQueryParams(PaginationParams, SpanQueryParams):
     pass
 
 
-class AnnotationTypeFilter(OpenPechaModel):
-    type: list[AnnotationType] = Field(default_factory=lambda: list(AnnotationType))
-
-    @model_validator(mode="before")
-    @classmethod
-    def coerce_type_to_list(cls, data: dict) -> dict:
-        """Coerce single type string to list for query parameter handling."""
-        if isinstance(data, dict) and "type" in data and isinstance(data["type"], str):
-            data["type"] = [data["type"]]
-        return data
-
-
-class AnnotationRequestInput(OpenPechaModel):
-    segmentation: SegmentationInput | None = None
-    alignment: AlignmentInput | None = None
-    pagination: PaginationInput | None = None
-    bibliographic_metadata: list[BibliographicMetadataInput] | None = Field(default=None, min_length=1)
-    durchen_notes: list[NoteInput] | None = Field(default=None, min_length=1)
-
-    @model_validator(mode="before")
-    @classmethod
-    def validate_exactly_one_annotation(cls, data: object) -> object:
-        """Ensure exactly one annotation type is provided"""
-        if isinstance(data, dict):
-            provided_keys = [k for k, v in data.items() if v is not None]
-            if len(provided_keys) != 1:
-                raise ValueError(f"Exactly one annotation type must be provided, got {len(provided_keys)}")
-        return data
-
-
 class EditionRequestModel(OpenPechaModel):
     metadata: EditionInput
     pagination: PaginationInput | None = None
@@ -115,25 +82,6 @@ class EditionRequestModel(OpenPechaModel):
                 raise ValueError("Diplomatic editions must not have segmentation_annotation")
 
         return self
-
-
-class CategoryRequestModel(OpenPechaModel):
-    application: NonEmptyStr
-    title: LocalizedString
-    parent: NonEmptyStr | None = None
-
-
-class UpdateTitleRequest(OpenPechaModel):
-    title: LocalizedString
-
-
-class UpdateLicenseRequest(OpenPechaModel):
-    license: LicenseType
-
-
-class CategoriesQueryParams(OpenPechaModel):
-    parent_id: str | None = None
-    language: str = "bo"
 
 
 class LanguageCreateRequest(OpenPechaModel):

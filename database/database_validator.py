@@ -187,19 +187,6 @@ class DatabaseValidator:
             )
 
     @staticmethod
-    async def validate_parent_category_exists(tx: AsyncManagedTransaction, parent_id: str) -> None:
-        """Validate that a parent category exists. Raises DataNotFoundError if not."""
-        query = """
-        RETURN EXISTS { (c:Category {id: $parent_id}) } AS exists
-        """
-
-        result = await tx.run(query, parent_id=parent_id)
-        record = await result.single()
-
-        if not record or not record["exists"]:
-            raise DataNotFoundError(f"Parent category '{parent_id}' not found")
-
-    @staticmethod
     async def validate_tags_exist(tx: AsyncManagedTransaction, tag_ids: list[str]) -> None:
         """Validate that all given tag IDs exist. Raises DataValidationError listing missing IDs."""
         if not tag_ids:
