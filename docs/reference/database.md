@@ -45,7 +45,7 @@ Each attribute below is an instance of the corresponding module, used to perform
 | **db.application** | [application_database.py](../../functions/database/application_database.py) | Application (tenant) CRUD; used for multi-tenant isolation. |
 | **db.expression** | [expression_database.py](../../functions/database/expression_database.py) | Expression (text/work) CRUD, contributions, commentary/translation relationships, listing by filter. |
 | **db.edition** | [edition_database.py](../../functions/database/edition_database.py) | Manifestation (edition) CRUD, content, related editions, alignment and expression relationships. |
-| **db.annotation** | [database.py](../../functions/database/database.py) (AnnotationDatabase) | Aggregate for annotation sub-modules: alignment, segmentation, pagination, note, bibliographic, attributes. |
+| **db.annotation** | [database.py](../../functions/database/database.py) (AnnotationDatabase) | Aggregate for annotation sub-modules: alignment, segmentation, pagination, outline, note, bibliographic, attributes. |
 | **db.segment** | [segment_database.py](../../functions/database/segment_database.py) | Segment CRUD and search-related segmentation. |
 | **db.person** | [person_database.py](../../functions/database/person_database.py) | Person CRUD and listing with optional name/bdrc/wiki filters. |
 | **db.language** | [language_database.py](../../functions/database/language_database.py) | Language code CRUD and listing. |
@@ -65,6 +65,7 @@ Method-level detail for each module is left to the source; this doc describes ro
 | **db.annotation.alignment** | [alignment_database.py](../../functions/database/annotation/alignment_database.py) | Alignment annotations (target/aligned segments). |
 | **db.annotation.segmentation** | [segmentation_database.py](../../functions/database/annotation/segmentation_database.py) | Segmentation annotations. |
 | **db.annotation.pagination** | [pagination_database.py](../../functions/database/annotation/pagination_database.py) | Pagination (volume/page) annotations. |
+| **db.annotation.outline** | [outline_database.py](../../functions/database/annotation/outline_database.py) | Outline annotations with localized section titles, summaries, spans, and recursive subsection hierarchy. |
 | **db.annotation.note** | [note_database.py](../../functions/database/annotation/note_database.py) | Note annotations (e.g. durchen). |
 | **db.annotation.bibliographic** | [bibliographic_database.py](../../functions/database/annotation/bibliographic_database.py) | Bibliographic metadata annotations. |
 | **db.annotation.attributes** | [attribute_database.py](../../functions/database/annotation/attribute_database.py) | Attribute annotations (e.g. OCR confidence). |

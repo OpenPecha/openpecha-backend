@@ -9,6 +9,7 @@ Annotations attach structured information to edition content using character spa
 - **Segmentation**: A set of logical content segments for an edition.
 - **Alignment**: A mapping between segments in an aligned edition and target segments in another edition.
 - **Pagination**: A mapping from character spans to page or folio references.
+- **Outline**: A table-of-contents style hierarchy for an edition. Each section has a character span, localized title, optional localized summary, and optional nested subsections.
 - **Bibliographic metadata**: Span-level metadata such as colophon, title, incipit, or author.
 - **Durchen note**: A span-level critical apparatus note.
 
@@ -29,6 +30,7 @@ Annotations are created and listed by type under an edition. Each `POST` returns
 | Segmentation | `GET /v2/editions/{edition_id}/segmentations` | `POST /v2/editions/{edition_id}/segmentations` |
 | Alignment | `GET /v2/editions/{edition_id}/alignments` | `POST /v2/editions/{edition_id}/alignments` |
 | Pagination | `GET /v2/editions/{edition_id}/pagination` | `POST /v2/editions/{edition_id}/pagination` |
+| Outline | `GET /v2/editions/{edition_id}/outlines` | `POST /v2/editions/{edition_id}/outlines` |
 | Bibliographic metadata | `GET /v2/editions/{edition_id}/bibliographic` | `POST /v2/editions/{edition_id}/bibliographic` |
 | Durchen notes | `GET /v2/editions/{edition_id}/durchens` | `POST /v2/editions/{edition_id}/durchens` |
 
@@ -100,6 +102,51 @@ The path `edition_id` is the aligned edition. `target_indices` are zero-based in
 ```
 
 Single-volume pagination omits `index`. Multi-volume pagination requires unique continuous indexes starting at `1`.
+
+### Create Outline
+
+```json
+{
+  "metadata": {
+    "name": "Main sa bcad"
+  },
+  "sections": [
+    {
+      "title": {
+        "bo": "ལེའུ་དང་པོ།",
+        "en": "Chapter 1"
+      },
+      "summary": {
+        "en": "Opening topic"
+      },
+      "span": {"start": 0, "end": 1200},
+      "subsections": [
+        {
+          "title": {
+            "en": "Section 1.1"
+          },
+          "summary": {
+            "en": "Introductory topic"
+          },
+          "span": {"start": 0, "end": 350},
+          "subsections": []
+        }
+      ]
+    }
+  ]
+}
+```
+
+Each outline can contain one or more root `sections`. Sections can be nested with `subsections` to represent a table of contents or Tibetan `sa bcad` hierarchy. Each section and subsection has the same shape:
+
+- `title`: localized string, required.
+- `summary`: localized string, optional.
+- `span`: half-open character range for the section.
+- `subsections`: nested child sections, optional and defaults to an empty list.
+
+Each subsection span must be fully contained inside its parent section span.
+An edition can have multiple outlines. Outline sections are managed as part of the outline annotation; they are not standalone API resources.
+Returned sections and subsections are ordered by their span start/end positions.
 
 ### Create Bibliographic Metadata
 
@@ -270,6 +317,54 @@ Response:
 }
 ```
 
+### Outline
+
+```http
+GET /v2/outlines/{outline_id}
+DELETE /v2/outlines/{outline_id}
+```
+
+Response:
+
+```json
+{
+  "id": "OUT123",
+  "edition_id": "ED123",
+  "text_id": "TXT123",
+  "metadata": {
+    "name": "Main sa bcad"
+  },
+  "sections": [
+    {
+      "id": "SEC_ROOT",
+      "title": {
+        "bo": "ལེའུ་དང་པོ།",
+        "en": "Chapter 1"
+      },
+      "summary": {
+        "en": "Opening topic"
+      },
+      "span": {"start": 0, "end": 1200},
+      "subsections": [
+        {
+          "id": "SEC_CHILD",
+          "title": {
+            "en": "Section 1.1"
+          },
+          "summary": {
+            "en": "Introductory topic"
+          },
+          "span": {"start": 0, "end": 350},
+          "subsections": []
+        }
+      ]
+    }
+  ]
+}
+```
+
+Deleting an outline deletes its outline sections, section spans, title/summary localized text subgraphs, and metadata.
+
 ### Bibliographic Metadata
 
 ```http
@@ -326,6 +421,19 @@ curl -X POST "https://api-l25bgmwqoa-uc.a.run.app/v2/editions/ED123/durchens" \
 
 curl -X DELETE "https://api-l25bgmwqoa-uc.a.run.app/v2/durchens/DUR123" \
   -H "X-API-Key: your_api_key"
+
+curl -X POST "https://api-l25bgmwqoa-uc.a.run.app/v2/editions/ED123/outlines" \
+  -H "X-API-Key: your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "metadata": {"name": "Main sa bcad"},
+    "sections": [
+      {
+        "title": {"en": "Chapter 1"},
+        "span": {"start": 0, "end": 1200}
+      }
+    ]
+  }'
 ```
 
 ## Developer Notes

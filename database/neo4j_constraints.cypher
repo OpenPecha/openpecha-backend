@@ -26,6 +26,15 @@ CREATE CONSTRAINT segmentation_id_unique IF NOT EXISTS FOR (seg:Segmentation) RE
 // Pagination nodes - each pagination must have a unique ID
 CREATE CONSTRAINT pagination_id_unique IF NOT EXISTS FOR (p:Pagination) REQUIRE p.id IS UNIQUE;
 
+// Outline nodes - each outline must have a unique ID
+CREATE CONSTRAINT outline_id_unique IF NOT EXISTS FOR (o:Outline) REQUIRE o.id IS UNIQUE;
+
+// OutlineSection nodes - each outline section must have a unique ID
+CREATE CONSTRAINT outline_section_id_unique IF NOT EXISTS FOR (os:OutlineSection) REQUIRE os.id IS UNIQUE;
+
+// AnnotationMetadata nodes - each metadata node must have a unique ID
+CREATE CONSTRAINT annotation_metadata_id_unique IF NOT EXISTS FOR (am:AnnotationMetadata) REQUIRE am.id IS UNIQUE;
+
 // Note nodes - each note must have a unique ID
 CREATE CONSTRAINT note_id_unique IF NOT EXISTS FOR (n:Note) REQUIRE n.id IS UNIQUE;
 

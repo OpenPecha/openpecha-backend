@@ -121,25 +121,38 @@ class SpanDatabase:
     """
 
     FIND_ANNOTATION_SPANS_QUERY: LiteralString = """
-    MATCH (m:Edition {id: $edition_id})
-        <-[:NOTE_OF|BIBLIOGRAPHY_OF|ATTRIBUTE_OF]-(entity)
-        <-[:SPAN_OF]-(span:Span)
-    RETURN entity.id AS entity_id, span.start AS span_start, span.end AS span_end
-    ORDER BY span.start
+    CALL {
+        MATCH (m:Edition {id: $edition_id})
+            <-[:NOTE_OF|BIBLIOGRAPHY_OF|ATTRIBUTE_OF]-(entity)
+            <-[:SPAN_OF]-(span:Span)
+        RETURN entity.id AS entity_id, span.start AS span_start, span.end AS span_end
+        UNION ALL
+        MATCH (m:Edition {id: $edition_id})
+            <-[:OUTLINE_OF]-(:Outline)
+            <-[:SECTION_OF]-(entity:OutlineSection)
+            <-[:SPAN_OF]-(span:Span)
+        RETURN entity.id AS entity_id, span.start AS span_start, span.end AS span_end
+    }
+    RETURN entity_id, span_start, span_end
+    ORDER BY span_start
     """
 
     BATCH_UPDATE_SPANS_QUERY: LiteralString = """
     UNWIND $updates AS u
-    MATCH (span:Span)-[:SPAN_OF]->(entity:Segment|Page|BibliographicMetadata|Note|Attribute {id: u.entity_id})
+    MATCH (span:Span)-[:SPAN_OF]->(
+        entity:Segment|Page|BibliographicMetadata|Note|Attribute|OutlineSection {id: u.entity_id}
+    )
     SET span.start = u.new_start, span.end = u.new_end
     FINISH
     """
 
     BATCH_DELETE_ENTITIES_QUERY: LiteralString = """
     UNWIND $entity_ids AS eid
-    MATCH (entity:Segment|Page|BibliographicMetadata|Note|Attribute {id: eid})
+    MATCH (entity:Segment|Page|BibliographicMetadata|Note|Attribute|OutlineSection {id: eid})
     OPTIONAL MATCH (span:Span)-[:SPAN_OF]->(entity)
-    DETACH DELETE span, entity
+    OPTIONAL MATCH (entity)-[:HAS_TITLE|HAS_SUMMARY]->(nomen:Nomen)
+    OPTIONAL MATCH (nomen)-[:HAS_LOCALIZATION]->(localized:LocalizedText)
+    DETACH DELETE span, localized, nomen, entity
     FINISH
     """
 

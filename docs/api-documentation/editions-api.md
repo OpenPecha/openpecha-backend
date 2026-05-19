@@ -121,7 +121,7 @@ Deletes the edition metadata and associated annotation data handled by the datab
 Delete behavior:
 
 - Deletes the `Edition` node and its incipit title `Nomen` and `LocalizedText` subgraphs.
-- Cascade-deletes segmentations, alignments, pagination, bibliographic metadata, durchen notes, spans, segments, pages, and volumes associated with the edition, including annotations added after edition creation.
+- Cascade-deletes segmentations, alignments, pagination, outlines, bibliographic metadata, durchen notes, spans, segments, pages, volumes, and outline sections associated with the edition, including annotations added after edition creation.
 - Deletes the edition's `HAS_SOURCE` relationship, but preserves the `Source` node.
 - Does not delete the parent `Text`, underlying `Work`, categories, tags, contributors, or lookup/type nodes.
 - Does not delete stored base text or other non-database side effects.
@@ -342,6 +342,74 @@ POST /v2/editions/{edition_id}/pagination
 ```
 
 A single-volume pagination must omit `index`. Multi-volume pagination must use unique continuous indexes starting at `1`.
+
+### Outlines
+
+```http
+GET /v2/editions/{edition_id}/outlines
+POST /v2/editions/{edition_id}/outlines
+```
+
+GET response:
+
+```json
+[
+  {
+    "id": "OUT123",
+    "edition_id": "ED123",
+    "text_id": "TXT123",
+    "metadata": {
+      "name": "Main sa bcad"
+    },
+    "sections": [
+      {
+        "id": "SEC123",
+        "title": {
+          "bo": "ལེའུ་དང་པོ།",
+          "en": "Chapter 1"
+        },
+        "summary": {
+          "en": "Opening topic"
+        },
+        "span": {"start": 0, "end": 1200},
+        "subsections": []
+      }
+    ]
+  }
+]
+```
+
+Request:
+
+```json
+{
+  "metadata": {
+    "name": "Main sa bcad"
+  },
+  "sections": [
+    {
+      "title": {
+        "bo": "ལེའུ་དང་པོ།",
+        "en": "Chapter 1"
+      },
+      "summary": {
+        "en": "Opening topic"
+      },
+      "span": {"start": 0, "end": 1200},
+      "subsections": [
+        {
+          "title": {
+            "en": "Section 1.1"
+          },
+          "span": {"start": 0, "end": 350}
+        }
+      ]
+    }
+  ]
+}
+```
+
+Each section has a required localized `title`, optional localized `summary`, required `span`, and optional recursive `subsections`. Each subsection span must be fully contained inside its parent section span. Multiple outlines can be attached to the same edition. Returned sections and subsections are ordered by their span start/end positions.
 
 ### Bibliographic Metadata
 

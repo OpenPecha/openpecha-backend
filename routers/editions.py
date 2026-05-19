@@ -11,6 +11,8 @@ from models.annotation import (
     BibliographicMetadataOutput,
     NoteInput,
     NoteOutput,
+    OutlineInput,
+    OutlineOutput,
     PaginationInput,
     PaginationOutput,
     SegmentationInput,
@@ -157,6 +159,36 @@ async def post_pagination_annotation(
 ) -> IdResponse:
     """Add a pagination annotation to an edition."""
     annotation_id = await db.annotation.pagination.add(edition_id, data)
+    return IdResponse(id=annotation_id)
+
+
+@router.get(
+    "/{edition_id}/outlines",
+    summary="Get outline annotations",
+    description="Retrieve all outline annotations for an edition.",
+    response_model_exclude_none=True,
+)
+async def get_outline_annotations(
+    edition_id: Annotated[str, Path(description="The ID of the edition")],
+    _api_key: Annotated[str, Depends(get_api_key)],
+    db: Annotated[Database, Depends(get_db)],
+) -> list[OutlineOutput]:
+    return await db.annotation.outline.get_all(edition_id)
+
+
+@router.post(
+    "/{edition_id}/outlines",
+    status_code=status.HTTP_201_CREATED,
+    summary="Add outline annotation",
+    description="Add an outline annotation to an edition.",
+)
+async def post_outline_annotation(
+    edition_id: Annotated[str, Path(description="The ID of the edition")],
+    data: OutlineInput,
+    _api_key: Annotated[str, Depends(get_api_key)],
+    db: Annotated[Database, Depends(get_db)],
+) -> IdResponse:
+    annotation_id = await db.annotation.outline.add(edition_id, data)
     return IdResponse(id=annotation_id)
 
 

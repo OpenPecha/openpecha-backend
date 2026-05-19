@@ -4,7 +4,7 @@ from typing import Any, Self
 
 from pydantic import ConfigDict, Field, model_validator
 
-from .base import NonEmptyStr, OpenPechaModel, _validate_range
+from .base import LocalizedString, NonEmptyStr, OpenPechaModel, _validate_range
 from .enums import AttributeType, BibliographyType
 
 
@@ -173,6 +173,41 @@ class PaginationOutput(PaginationBase):
     id: NonEmptyStr
     edition_id: NonEmptyStr
     text_id: NonEmptyStr
+
+
+class OutlineSectionInput(OpenPechaModel):
+    title: LocalizedString
+    summary: LocalizedString | None = None
+    span: Span
+    subsections: list[OutlineSectionInput] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_subsection_spans_contained(self) -> Self:
+        for subsection in self.subsections:
+            if subsection.span.start < self.span.start or subsection.span.end > self.span.end:
+                raise ValueError("subsection span must be contained within parent section span")
+        return self
+
+
+class OutlineInput(OpenPechaModel):
+    sections: list[OutlineSectionInput] = Field(min_length=1)
+    metadata: AnnotationMetadata | None = None
+
+
+class OutlineSectionOutput(OpenPechaModel):
+    id: NonEmptyStr
+    title: LocalizedString
+    summary: LocalizedString | None = None
+    span: Span
+    subsections: list[OutlineSectionOutput] = Field(default_factory=list)
+
+
+class OutlineOutput(OpenPechaModel):
+    id: NonEmptyStr
+    edition_id: NonEmptyStr
+    text_id: NonEmptyStr
+    sections: list[OutlineSectionOutput]
+    metadata: AnnotationMetadata | None = None
 
 
 class BibliographicMetadataBase(OpenPechaModel):
