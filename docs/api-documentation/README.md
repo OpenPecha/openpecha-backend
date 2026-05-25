@@ -134,6 +134,7 @@ Annotation objects by ID:
 
 Segments:
 
+- `GET /v2/segments/{segment_id}`
 - `GET /v2/segments/{segment_id}/content`
 - `GET /v2/segments/{segment_id}/related`
 - `GET /v2/segments/search`

@@ -9,6 +9,7 @@ This document provides comprehensive documentation for all Segments-related endp
 1. [Overview](#overview)
 2. [Authentication](#authentication)
 3. [Segment Endpoints](#segment-endpoints)
+   - [Get Segment](#get-segment)
    - [Get Segment Content](#get-segment-content)
    - [Find Related Segments](#find-related-segments)
    - [Search Segments](#search-segments)
@@ -54,11 +55,56 @@ All API requests require authentication using an API key.
 X-API-Key: your_api_key_here
 ```
 
-`X-Application` is optional on segment content and related-segment reads. When supplied, tag IDs are filtered to the requested application.
+`X-Application` is optional on segment, segment content, and related-segment reads. When supplied, tag IDs are filtered to the requested application.
 
 ---
 
 ## Segment Endpoints
+
+### Get Segment
+
+Retrieve a segment with its segmentation, edition, text, line spans, and optional tag context.
+
+**Endpoint:**
+```
+GET /v2/segments/{segment_id}
+```
+
+**Parameters:**
+
+| Name | Type | Location | Required | Description |
+|------|------|----------|----------|-------------|
+| `segment_id` | string | path | Yes | The ID of the segment |
+
+**Response: 200 OK**
+
+```json
+{
+  "id": "SEG001",
+  "segmentation_id": "SGN12345678",
+  "edition_id": "ED12345678",
+  "text_id": "TXT12345678",
+  "lines": [
+    {"start": 0, "end": 100}
+  ],
+  "tag_ids": ["TAG123"]
+}
+```
+
+`tag_ids` is omitted when the segment has no tags. If `X-Application` is supplied, returned tag IDs are filtered to tags belonging to that application.
+
+**Error Responses:**
+- `401 Unauthorized`: Missing or invalid API key in deployed environments
+- `404 Not Found`: Segment does not exist
+
+**Example Usage:**
+
+```bash
+curl -X GET "https://api-l25bgmwqoa-uc.a.run.app/v2/segments/SEG001" \
+  -H "X-API-Key: your_api_key"
+```
+
+---
 
 ### Get Segment Content
 

@@ -194,3 +194,19 @@ async def search_segments(
             "count": len(enriched_results),
         }
     )
+
+
+@router.get(
+    "/{segment_id}",
+    summary="Get segment",
+    description="Retrieve a segment with edition, text, segmentation, lines, and tag context.",
+    response_model_exclude_none=True,
+)
+async def get_segment(
+    segment_id: Annotated[str, Path(description="The ID of the segment")],
+    _api_key: Annotated[str, Depends(get_api_key)],
+    db: Annotated[Database, Depends(get_db)],
+    x_application: OptionalAppHeader = None,
+) -> SegmentWithContextOutput:
+    """Get a segment with context."""
+    return await db.segment.get(segment_id, application=x_application)

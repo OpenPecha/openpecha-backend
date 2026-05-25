@@ -4,6 +4,7 @@ Integration tests for segment-related endpoints.
 
 Tests endpoints:
 - GET /v2/editions/{edition_id}/segments/related
+- GET /v2/segments/{segment_id}
 - GET /v2/segments/{segment_id}/related
 - GET /v2/segments/{segment_id}/content
 
@@ -1275,6 +1276,41 @@ class TestDirectSegmentRelated(SegmentTestBase):
         for segment in data:
             assert segment["edition_id"] != src_edition_id, \
                 "Related segments should exclude the queried segment's own edition"
+
+
+# ---------------------------------------------------------------------------
+# GET /v2/segments/{segment_id}
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio(loop_scope="session")
+class TestGetSegment(SegmentTestBase):
+    """Tests for GET /v2/segments/{segment_id}."""
+
+    async def test_nonexistent_segment_returns_404(self, client, test_database):
+        """Non-existent segment_id -> 404."""
+        resp = await client.get("/v2/segments/nonexistent_id")
+        assert resp.status_code == 404
+
+    async def test_get_segment_with_context(self, client, test_database):
+        """Get a segment with segmentation, edition, text, line, and tag context."""
+        person_id = await self._create_person(test_database)
+        text_id = await self._create_text(test_database, person_id)
+        edition_id = await self._create_edition(client, text_id, "Hello World!", EditionType.DIPLOMATIC)
+        segmentation_id = await self._post_segmentation(client, edition_id, [(0, 5), (5, 12)])
+
+        seg_ids = await self._get_segment_ids_from_segmentation(client, edition_id)
+        assert len(seg_ids) == 2
+
+        resp = await client.get(f"/v2/segments/{seg_ids[0]}")
+        assert resp.status_code == 200
+        assert resp.json() == {
+            "id": seg_ids[0],
+            "segmentation_id": segmentation_id,
+            "edition_id": edition_id,
+            "text_id": text_id,
+            "lines": [{"start": 0, "end": 5}],
+        }
 
 
 # ---------------------------------------------------------------------------
