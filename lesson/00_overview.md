@@ -3,6 +3,7 @@
 ## Learning Objectives
 
 By the end of this lesson you should be able to:
+
 - Describe the full technology stack
 - Explain why each technology was chosen
 - Draw the high-level data flow from HTTP request to database to response
@@ -24,13 +25,15 @@ OpenPecha API v2 is a backend for managing **Tibetan literary texts** and their 
 
 ## 2. Technology Stack
 
-| Layer | Technology | Why |
-|---|---|---|
-| HTTP framework | **FastAPI** (Python) | Async, OpenAPI auto-docs, Pydantic validation |
-| Graph database | **Neo4j** | Text/annotation data is fundamentally a property graph |
-| Object storage | **AWS S3** | Large plaintext content lives outside the graph |
-| Observability | OpenTelemetry | Tracing + metrics |
-| Runtime | Gunicorn + Uvicorn | Production async ASGI |
+
+| Layer          | Technology           | Why                                                    |
+| -------------- | -------------------- | ------------------------------------------------------ |
+| HTTP framework | **FastAPI** (Python) | Async, OpenAPI auto-docs, Pydantic validation          |
+| Graph database | **Neo4j**            | Text/annotation data is fundamentally a property graph |
+| Object storage | **AWS S3**           | Large plaintext content lives outside the graph        |
+| Observability  | OpenTelemetry        | Tracing + metrics                                      |
+| Runtime        | Gunicorn + Uvicorn   | Production async ASGI                                  |
+
 
 ---
 
@@ -49,22 +52,23 @@ OpenPecha API v2 is a backend for managing **Tibetan literary texts** and their 
 │  Middleware: Auth ─ CORS ─ Request Logger ─ Error Handlers       │
 │                                                                  │
 │  Routers                                                         │
-│  ┌─────────┐ ┌──────────┐ ┌────────────┐ ┌──────────────────┐  │
-│  │ /texts  │ │/editions │ │/segments   │ │ /segmentations   │  │
-│  │ /persons│ │/languages│ │/categories │ │ /alignments      │  │
-│  │ /tags   │ │ /apps    │ │            │ │ /paginations     │  │
-│  └────┬────┘ └────┬─────┘ └─────┬──────┘ │ /bibliographic   │  │
-│       │           │             │        │ /durchens        │  │
-└───────┼───────────┼─────────────┼────────┴──────────────────────┘
-        │           │             │
-        ▼           ▼             ▼
+│  ┌─────────┐ ┌──────────┐ ┌────────────┐ ┌──────────────────┐    │
+│  │ /texts  │ │/editions │ │/segments   │ │ /segmentations   │    │
+│  │ /persons│ │/languages│ │/categories │ │ /alignments      │    │
+│  │ /tags   │ │ /apps    │ │            │ │ /paginations     │    │
+│  └────┬────┘ └────┬─────┘ └─────┬──────┘ │ /bibliographic   │    │
+│       │           │             │        │ /durchens        │    │
+│       │           │             │        └────────┬─────────┘    │
+└───────┼───────────┼─────────────┼─────────────────┼──────────────┘
+        │           │             │                 │
+        ▼           ▼             ▼                 ▼
 ┌──────────────────────────────────────────────────────────────────┐
 │                       Database Layer                             │
 │            (TextDatabase, EditionDatabase, ...)                  │
 │            Uses: neo4j Python async driver                       │
 └──────────────────────────────────┬───────────────────────────────┘
-                  ┌─────────────────┴──────────────────┐
-                  ▼                                     ▼
+                  ┌────────────────┴──────────────────┐
+                  ▼                                   ▼
    ┌──────────────────────────┐         ┌──────────────────────────┐
    │        Neo4j             │         │         AWS S3           │
    │  (graph: texts, editions,│         │  (blob: base text        │
@@ -174,6 +178,7 @@ async with self.session as session:
 ### 6.2 Layered validation
 
 Validation happens at two levels:
+
 1. **Pydantic** (model layer) — shape, types, inter-field constraints
 2. **DatabaseValidator** (query layer) — existence checks, uniqueness constraints
 
@@ -205,17 +210,19 @@ await session.execute_write(transaction_function)
 
 ## 7. Quick Glossary
 
-| Term | Meaning |
-|---|---|
-| **Work** | The abstract intellectual entity (the "thing being talked about") |
-| **Text** | A specific version/language of a Work (root, translation, commentary) |
-| **Edition** | A concrete realisation of a Text (diplomatic, critical, collated) |
-| **Nomen** | A multilingual name/title node — maps language codes to strings |
-| **Segment** | A character-range slice of an edition's base text |
-| **Segmentation** | A group of non-overlapping, contiguous segments covering an edition |
-| **Alignment** | A mapping between segments of two different editions |
-| **Span** | A `{start, end}` character-position node pointing to a Segment, Page, BibMeta, Note, or Attribute |
-| **BDRC** | Buddhist Digital Resource Center — external identifier system |
+
+| Term             | Meaning                                                                                           |
+| ---------------- | ------------------------------------------------------------------------------------------------- |
+| **Work**         | The abstract intellectual entity (the "thing being talked about")                                 |
+| **Text**         | A specific version/language of a Work (root, translation, commentary)                             |
+| **Edition**      | A concrete realisation of a Text (diplomatic, critical, collated)                                 |
+| **Nomen**        | A multilingual name/title node — maps language codes to strings                                   |
+| **Segment**      | A character-range slice of an edition's base text                                                 |
+| **Segmentation** | A group of non-overlapping, contiguous segments covering an edition                               |
+| **Alignment**    | A mapping between segments of two different editions                                              |
+| **Span**         | A `{start, end}` character-position node pointing to a Segment, Page, BibMeta, Note, or Attribute |
+| **BDRC**         | Buddhist Digital Resource Center — external identifier system                                     |
+
 
 ---
 

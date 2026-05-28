@@ -16,8 +16,8 @@ This is the most common "add new content" flow.
 ### Step-by-step
 
 ```
-Client                    FastAPI                   Neo4j               S3
-  │                          │                        │                   │
+Client                     FastAPI                   Neo4j                S3
+  │                           │                        │                   │
   │── POST /v2/texts ────────►│                        │                   │
   │   {title, language,       │                        │                   │
   │    contributions, ...}    │                        │                   │
@@ -27,7 +27,7 @@ Client                    FastAPI                   Neo4j               S3
   │                          │   language exists? ─────►                   │
   │                          │   category exists? ─────►                   │
   │                          │   persons exist? ───────►                   │
-  │                          │                        │                   │
+  │                          │                         │                   │
   │                          │── WRITE transaction ───►│                   │
   │                          │   CREATE Work           │                   │
   │                          │   CREATE Text           │                   │
@@ -43,12 +43,12 @@ Client                    FastAPI                   Neo4j               S3
   │                          │                        │                   │
   │── POST /v2/texts/T_001/editions ─────────────────►│                   │
   │   {metadata, content,    │                        │                   │
-  │    pagination}            │  (diplomatic requires  │                   │
+  │    pagination}           │  (diplomatic requires  │                   │
   │                          │   pagination, no seg)  │                   │
   │                          │── generate edition_id  │                   │
   │                          │                        │── store_base_text →│
   │                          │                        │      (S3 write)    │
-  │                          │                        │                   │
+  │                          │                        │                    │
   │                          │── WRITE transaction ───►│                   │
   │                          │   MATCH Text(T_001)     │                   │
   │                          │   CREATE Edition        │                   │
@@ -67,8 +67,8 @@ Client                    FastAPI                   Neo4j               S3
   │                          │   [IF pagination provided]                  │
   │                          │     CREATE Pagination → Volume(s) → Page(s) │
   │                          │     CREATE Span × P                         │
-  │◄── 201 {"id": "E_001"} ──│                        │                   │
-  │                          │                        │                   │
+  │◄── 201 {"id": "E_001"} ──│                         │                   │
+  │                          │                         │                   │
   │                          │── background task ─────────────────────────►
   │                          │   trigger_search_segmenter(E_001)           │
 ```
