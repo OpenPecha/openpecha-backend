@@ -81,7 +81,9 @@ This generic endpoint that returned any annotation type by ID no longer exists.
 | Annotation Type | New Endpoint                                           |
 | --------------- | ------------------------------------------------------ |
 | Segmentation    | `GET /v2/segmentations/{segmentation_id}`               |
+| Segmentation segments | `GET /v2/segmentations/{segmentation_id}/segments` |
 | Alignment       | `GET /v2/alignments/{alignment_id}`                     |
+| Alignment segments | `GET /v2/alignments/{alignment_id}/segments`        |
 | Pagination      | `GET /v2/paginations/{pagination_id}`                   |
 | Durchen (Notes) | `GET /v2/durchens/{note_id}`                           |
 | Bibliographic   | `GET /v2/bibliographic/{bibliographic_id}`             |
@@ -105,19 +107,26 @@ models:
 {
     "id": "seg_abc123",
     "edition_id": "M12345678",
-    "text_id": "E12345678",
-    "segments": [
+    "text_id": "E12345678"
+}
+```
+
+Segmentation segments are paginated separately:
+
+```json
+// GET /v2/segmentations/{segmentation_id}/segments?limit=500&offset=0
+{
+    "items": [
         {
             "id": "segment_001",
-            "edition_id": "M12345678",
-            "text_id": "E12345678",
             "lines": [
                 { "start": 0, "end": 50 }
-            ],
-            "tag_ids": []
+            ]
         }
     ],
-    "metadata": null
+    "has_more": false,
+    "offset": 0,
+    "limit": 500
 }
 ```
 
@@ -127,28 +136,39 @@ models:
 {
     "id": "align_abc123",
     "aligned_edition_id": "M12345678",
+    "aligned_text_id": "E12345678",
     "target_edition_id": "M87654321",
-    "target_segments": [
+    "target_text_id": "E87654321",
+    "target_segmentation_id": "target_sgn_abc123"
+}
+```
+
+Alignment segment rows are paginated separately:
+
+```json
+// GET /v2/alignments/{alignment_id}/segments?limit=500&offset=0
+{
+    "items": [
         {
-            "id": "target_seg_001",
-            "segmentation_id": "target_sgn_abc123",
-            "edition_id": "M87654321",
-            "text_id": "E87654321",
-            "lines": [{ "start": 0, "end": 30 }],
-            "tag_ids": []
+            "aligned_segment": {
+                "id": "aligned_seg_001",
+                "lines": [{ "start": 0, "end": 25 }]
+            },
+            "target_segments": [
+                {
+                    "id": "target_seg_001",
+                    "segmentation_id": "target_sgn_abc123",
+                    "edition_id": "M87654321",
+                    "text_id": "E87654321",
+                    "lines": [{ "start": 0, "end": 30 }],
+                    "tag_ids": null
+                }
+            ]
         }
     ],
-    "aligned_segments": [
-        {
-            "id": "aligned_seg_001",
-            "segmentation_id": "align_abc123",
-            "edition_id": "M12345678",
-            "text_id": "E12345678",
-            "lines": [{ "start": 0, "end": 25 }],
-            "target_indices": [0]
-        }
-    ],
-    "metadata": null
+    "has_more": false,
+    "offset": 0,
+    "limit": 500
 }
 ```
 
@@ -335,9 +355,19 @@ POST /v2/editions/{edition_id}/durchens
     {
         "id": "seg_abc123",
         "edition_id": "M12345678",
-        "text_id": "E12345678",
-        "segments": [...],
-        "metadata": null
+        "text_id": "E12345678"
+    }
+]
+
+// GET /v2/editions/{edition_id}/alignments
+[
+    {
+        "id": "align_abc123",
+        "aligned_edition_id": "M12345678",
+        "aligned_text_id": "E12345678",
+        "target_edition_id": "M87654321",
+        "target_text_id": "E87654321",
+        "target_segmentation_id": "target_sgn_abc123"
     }
 ]
 
@@ -442,7 +472,9 @@ currently implemented** as individual GET endpoints:
 | Action               | Old Endpoint                                    | New Endpoint                                 |
 | -------------------- | ----------------------------------------------- | -------------------------------------------- |
 | Get segmentation     | `GET /v2/annotations/{id}`                      | `GET /v2/segmentations/{id}`                 |
+| Get segmentation segments | N/A                                        | `GET /v2/segmentations/{id}/segments`        |
 | Get alignment        | `GET /v2/annotations/{id}`                      | `GET /v2/alignments/{id}`                    |
+| Get alignment segments | N/A                                          | `GET /v2/alignments/{id}/segments`           |
 | Get pagination       | `GET /v2/annotations/{id}`                      | `GET /v2/paginations/{id}`                   |
 | Get durchen          | `GET /v2/annotations/{id}`                      | `GET /v2/durchens/{id}`                      |
 | Get bibliographic    | `GET /v2/annotations/{id}`                      | `GET /v2/bibliographic/{id}`                 |

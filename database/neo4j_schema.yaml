@@ -254,7 +254,7 @@ nodes:
         required: true
     relationships:
       SPAN_OF:
-        target: Segment | BibliographicMetadata | Note | Attribute | Page
+        target: Segment | BibliographicMetadata | Note | Attribute | Page | TableOfContentsSection
         cardinality: one
         required: true
 
@@ -340,6 +340,46 @@ nodes:
         cardinality: one
         required: false
 
+  TableOfContents:
+    properties:
+      id:
+        type: string
+        required: true
+        unique: true
+    relationships:
+      TOC_OF:
+        target: Edition
+        cardinality: one
+        required: true
+      HAS_METADATA:
+        target: AnnotationMetadata
+        cardinality: one
+        required: false
+
+  TableOfContentsSection:
+    properties:
+      id:
+        type: string
+        required: true
+        unique: true
+    relationships:
+      SECTION_OF:
+        target: TableOfContents
+        cardinality: one
+        required: true
+      SUBSECTION_OF:
+        target: TableOfContentsSection
+        cardinality: one
+        required: false
+      HAS_TITLE:
+        target: Nomen
+        cardinality: one
+        required: true
+      HAS_SUMMARY:
+        target: Nomen
+        cardinality: one
+        required: false
+
   Volume:
     properties:
       id:
@@ -376,6 +416,9 @@ nodes:
         type: string
         required: true
         unique: true
+      name:
+        type: string
+        required: false
 
   Contribution:
     relationships:

@@ -110,6 +110,8 @@ Editions:
 - `POST /v2/editions/{edition_id}/alignments`
 - `GET /v2/editions/{edition_id}/pagination`
 - `POST /v2/editions/{edition_id}/pagination`
+- `GET /v2/editions/{edition_id}/table-of-contents`
+- `POST /v2/editions/{edition_id}/table-of-contents`
 - `GET /v2/editions/{edition_id}/bibliographic`
 - `POST /v2/editions/{edition_id}/bibliographic`
 - `GET /v2/editions/{edition_id}/durchens`
@@ -123,6 +125,8 @@ Annotation objects by ID:
 - `DELETE /v2/alignments/{alignment_id}`
 - `GET /v2/paginations/{pagination_id}`
 - `DELETE /v2/paginations/{pagination_id}`
+- `GET /v2/table-of-contents/{toc_id}`
+- `DELETE /v2/table-of-contents/{toc_id}`
 - `GET /v2/bibliographic/{bibliographic_id}`
 - `DELETE /v2/bibliographic/{bibliographic_id}`
 - `GET /v2/durchens/{durchen_id}`
@@ -130,6 +134,7 @@ Annotation objects by ID:
 
 Segments:
 
+- `GET /v2/segments/{segment_id}`
 - `GET /v2/segments/{segment_id}/content`
 - `GET /v2/segments/{segment_id}/related`
 - `GET /v2/segments/search`

@@ -1,10 +1,10 @@
 from collections.abc import Sequence
 from itertools import pairwise
-from typing import Any, Self, TypeVar
+from typing import Any, Self
 
 from pydantic import ConfigDict, Field, model_validator
 
-from .base import NonEmptyStr, OpenPechaModel, _validate_range
+from .base import LocalizedString, NonEmptyStr, OpenPechaModel, _validate_range
 from .enums import AttributeType, BibliographyType
 
 
@@ -19,7 +19,7 @@ class Span(OpenPechaModel):
 
 
 class AnnotationMetadata(OpenPechaModel):
-    pass
+    name: NonEmptyStr | None = None
 
 
 def _validate_lines(lines: list[Span]) -> None:
@@ -36,19 +36,20 @@ class LinesModel(OpenPechaModel):
         _validate_lines(self.lines)
         return self
 
-
-class SegmentBase(LinesModel):
     @property
     def span(self) -> Span:
-        return Span(start=self.lines[0].start, end=self.lines[-1].end)
+        return Span.model_validate({"start": self.lines[0].start, "end": self.lines[-1].end})
 
 
-class SegmentInput(SegmentBase):
+class SegmentInput(LinesModel):
     pass
 
 
-class SegmentOutput(SegmentBase):
+class SegmentOutput(LinesModel):
     id: NonEmptyStr
+
+
+class SegmentWithContextOutput(SegmentOutput):
     segmentation_id: NonEmptyStr
     edition_id: NonEmptyStr
     text_id: NonEmptyStr
@@ -57,24 +58,16 @@ class SegmentOutput(SegmentBase):
 
 class RelatedSegmentationOutput(OpenPechaModel):
     segmentation_id: NonEmptyStr
-    segments: list[SegmentOutput]
+    segments: list[SegmentWithContextOutput]
 
 
-class RelatedSegmentsOutput(OpenPechaModel):
-    edition_id: NonEmptyStr
-    text_id: NonEmptyStr
-    segmentations: list[RelatedSegmentationOutput]
-
-
-class AlignedSegment(LinesModel):
+class AlignedSegmentInput(LinesModel):
     target_indices: list[int] = Field(min_length=1)
 
 
-class AlignedSegmentOutput(AlignedSegment):
-    id: NonEmptyStr
-    segmentation_id: NonEmptyStr
-    edition_id: NonEmptyStr
-    text_id: NonEmptyStr
+class AlignmentSegmentOutput(OpenPechaModel):
+    aligned_segment: SegmentOutput
+    target_segments: list[SegmentWithContextOutput]
 
 
 def _is_sorted_by_span_start(segments: Sequence[LinesModel]) -> bool:
@@ -87,12 +80,8 @@ def _is_sorted_by_span_start(segments: Sequence[LinesModel]) -> bool:
     return True
 
 
-SegmentType = TypeVar("SegmentType", bound=SegmentBase)
-AlignedSegmentType = TypeVar("AlignedSegmentType", bound=AlignedSegment)
-
-
-class SegmentationBase[SegmentType: SegmentBase](OpenPechaModel):
-    segments: list[SegmentType]
+class SegmentationInput(OpenPechaModel):
+    segments: list[SegmentInput]
     metadata: AnnotationMetadata | None = None
 
     @model_validator(mode="after")
@@ -102,20 +91,17 @@ class SegmentationBase[SegmentType: SegmentBase](OpenPechaModel):
         return self
 
 
-class SegmentationInput(SegmentationBase[SegmentInput]):
-    pass
-
-
-class SegmentationOutput(SegmentationBase[SegmentOutput]):
+class SegmentationOutput(OpenPechaModel):
     id: NonEmptyStr
     edition_id: NonEmptyStr
     text_id: NonEmptyStr
+    metadata: AnnotationMetadata | None = None
 
 
-class AlignmentBase[SegmentType: SegmentBase, AlignedSegmentType: AlignedSegment](OpenPechaModel):
+class AlignmentInput(OpenPechaModel):
     target_edition_id: NonEmptyStr
-    target_segments: list[SegmentType]
-    aligned_segments: list[AlignedSegmentType]
+    target_segments: list[SegmentInput]
+    aligned_segments: list[AlignedSegmentInput]
     metadata: AnnotationMetadata | None = None
 
     @model_validator(mode="after")
@@ -127,13 +113,14 @@ class AlignmentBase[SegmentType: SegmentBase, AlignedSegmentType: AlignedSegment
         return self
 
 
-class AlignmentInput(AlignmentBase[SegmentInput, AlignedSegment]):
-    pass
-
-
-class AlignmentOutput(AlignmentBase[SegmentOutput, AlignedSegmentOutput]):
+class AlignmentOutput(OpenPechaModel):
     id: NonEmptyStr
     aligned_edition_id: NonEmptyStr
+    aligned_text_id: NonEmptyStr
+    target_edition_id: NonEmptyStr
+    target_text_id: NonEmptyStr
+    target_segmentation_id: NonEmptyStr
+    metadata: AnnotationMetadata | None = None
 
 
 class Page(LinesModel):
@@ -186,6 +173,41 @@ class PaginationOutput(PaginationBase):
     id: NonEmptyStr
     edition_id: NonEmptyStr
     text_id: NonEmptyStr
+
+
+class TableOfContentsSectionInput(OpenPechaModel):
+    title: LocalizedString
+    summary: LocalizedString | None = None
+    span: Span
+    subsections: list[TableOfContentsSectionInput] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def validate_subsection_spans_contained(self) -> Self:
+        for subsection in self.subsections:
+            if subsection.span.start < self.span.start or subsection.span.end > self.span.end:
+                raise ValueError("subsection span must be contained within parent section span")
+        return self
+
+
+class TableOfContentsInput(OpenPechaModel):
+    sections: list[TableOfContentsSectionInput] = Field(min_length=1)
+    metadata: AnnotationMetadata | None = None
+
+
+class TableOfContentsSectionOutput(OpenPechaModel):
+    id: NonEmptyStr
+    title: LocalizedString
+    summary: LocalizedString | None = None
+    span: Span
+    subsections: list[TableOfContentsSectionOutput] = Field(default_factory=list)
+
+
+class TableOfContentsOutput(OpenPechaModel):
+    id: NonEmptyStr
+    edition_id: NonEmptyStr
+    text_id: NonEmptyStr
+    sections: list[TableOfContentsSectionOutput]
+    metadata: AnnotationMetadata | None = None
 
 
 class BibliographicMetadataBase(OpenPechaModel):

@@ -240,6 +240,36 @@ class TextDatabase:
     RETURN elementId(c) as contribution_element_id
     """
 
+    DELETE_CHECK_QUERY: LiteralString = """
+    MATCH (e:Text {id: $text_id})-[:TEXT_OF]->(w:Work)
+    RETURN w.id AS work_id,
+           count { (e)<-[:EDITION_OF]-(:Edition) } AS edition_count,
+           count { (e)<-[:TRANSLATION_OF]-(:Text) } AS translation_count,
+           count { (e)<-[:COMMENTARY_OF]-(:Text) } AS commentary_count
+    """
+
+    DELETE_QUERY: LiteralString = """
+    MATCH (e:Text {id: $text_id})-[:TEXT_OF]->(w:Work)
+    WITH e, w, count { (:Text)-[:TEXT_OF]->(w) } AS work_text_count
+    CALL (e) {
+        OPTIONAL MATCH (e)-[:HAS_TITLE]->(n:Nomen)
+        OPTIONAL MATCH (n)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
+        OPTIONAL MATCH (n)<-[:ALTERNATIVE_OF]-(alt:Nomen)-[:HAS_LOCALIZATION]->(alt_lt:LocalizedText)
+        DETACH DELETE n, lt, alt, alt_lt
+        RETURN count(*) AS title_delete_count
+    }
+    CALL (e) {
+        OPTIONAL MATCH (e)-[:HAS_CONTRIBUTION]->(c:Contribution)
+        DETACH DELETE c
+        RETURN count(*) AS contribution_delete_count
+    }
+    WITH e, w, work_text_count
+    DETACH DELETE e
+    WITH w, work_text_count
+    FOREACH (_ IN CASE WHEN work_text_count = 1 THEN [1] ELSE [] END | DETACH DELETE w)
+    RETURN work_text_count = 1 AS work_deleted
+    """
+
     @staticmethod
     def _parse_record(record: dict | Record) -> TextOutput:
         data = record.get("text", record) if isinstance(record, dict) else record.data()["text"]
@@ -300,9 +330,27 @@ class TextDatabase:
         except ConstraintError as e:
             raise DataConflictError(str(e)) from e
 
-    async def validate_create(self, text: TextInput) -> None:
+    async def delete(self, text_id: str) -> None:
+        async def write(tx: AsyncManagedTransaction) -> None:
+            result = await tx.run(TextDatabase.DELETE_CHECK_QUERY, text_id=text_id)
+            record = await result.single()
+            if record is None:
+                raise DataNotFoundError(f"Text with ID '{text_id}' not found")
+
+            blockers = []
+            if record["edition_count"]:
+                blockers.append(f"{record['edition_count']} edition(s)")
+            if record["translation_count"]:
+                blockers.append(f"{record['translation_count']} translation(s)")
+            if record["commentary_count"]:
+                blockers.append(f"{record['commentary_count']} commentary/commentaries")
+            if blockers:
+                raise DataConflictError(f"Text '{text_id}' cannot be deleted because it has {', '.join(blockers)}")
+
+            await tx.run(TextDatabase.DELETE_QUERY, text_id=text_id)
+
         async with self.session as session:
-            await session.execute_read(lambda tx: TextDatabase._validate_create(tx, text))
+            await session.execute_write(write)
 
     @staticmethod
     async def _validate_create(tx: AsyncManagedTransaction, text: TextInput) -> None:

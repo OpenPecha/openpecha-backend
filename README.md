@@ -45,14 +45,32 @@ cp .env.example .env
 
 ### Development
 
+From the repository root:
+
 ```bash
+source .venv/bin/activate
 uvicorn main:app --reload
+```
+
+Or without activating the virtual environment:
+
+```bash
+./.venv/bin/uvicorn main:app --reload
 ```
 
 The API will be available at `http://localhost:8000`
 
 - **Swagger UI**: http://localhost:8000/docs
 - **ReDoc**: http://localhost:8000/redoc
+- **Health check**: http://localhost:8000/__/health
+
+The app initializes Neo4j and S3 when `NEO4J_URI` is set in `.env`. To run only
+docs/health locally without database startup, temporarily unset `NEO4J_URI`:
+
+```bash
+unset NEO4J_URI
+./.venv/bin/uvicorn main:app --reload
+```
 
 ### Production
 

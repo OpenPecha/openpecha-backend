@@ -1,30 +1,11 @@
 from enum import StrEnum
 
 
-class TextType(StrEnum):
-    ROOT = "root"
-    COMMENTARY = "commentary"
-    TRANSLATION = "translation"
-    TRANSLATION_SOURCE = "translation_source"
-    NONE = "none"
-
-
 class ContributorRole(StrEnum):
     TRANSLATOR = "translator"
     REVISER = "reviser"
     AUTHOR = "author"
     SCHOLAR = "scholar"
-
-
-class AnnotationType(StrEnum):
-    SEGMENTATION = "segmentation"
-    ALIGNMENT = "alignment"
-    PAGINATION = "pagination"
-    VERSION = "version"
-    BIBLIOGRAPHY = "bibliography"
-    TABLE_OF_CONTENTS = "table_of_contents"
-    DURCHEN = "durchen"
-    SEARCH_SEGMENTATION = "search_segmentation"
 
 
 class EditionType(StrEnum):

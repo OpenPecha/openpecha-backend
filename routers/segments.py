@@ -7,7 +7,7 @@ from fastapi import APIRouter, Depends, Path, Query, status
 from config import settings
 from dependencies import OptionalAppHeader, get_api_key, get_db, get_storage
 from exceptions import DataNotFoundError, InvalidRequestError
-from models.annotation import SegmentOutput
+from models.annotation import SegmentWithContextOutput
 from models.requests import PaginationParams, SegmentsQueryParams
 from models.responses import PaginatedResponse
 from models.search import SearchFilter, SearchResponse, SearchResult
@@ -32,7 +32,7 @@ async def get_related(
     _api_key: Annotated[str, Depends(get_api_key)],
     db: Annotated[Database, Depends(get_db)],
     x_application: OptionalAppHeader = None,
-) -> PaginatedResponse[SegmentOutput]:
+) -> PaginatedResponse[SegmentWithContextOutput]:
     """Get related segments."""
     try:
         segment = await db.segment.get(segment_id)
@@ -187,8 +187,26 @@ async def search_segments(
                 )
             )
 
-    return SearchResponse(
-        query=search_response_data.get("query", query),
-        results=enriched_results,
-        count=len(enriched_results),
+    return SearchResponse.model_validate(
+        {
+            "query": search_response_data.get("query", query),
+            "results": enriched_results,
+            "count": len(enriched_results),
+        }
     )
+
+
+@router.get(
+    "/{segment_id}",
+    summary="Get segment",
+    description="Retrieve a segment with edition, text, segmentation, lines, and tag context.",
+    response_model_exclude_none=True,
+)
+async def get_segment(
+    segment_id: Annotated[str, Path(description="The ID of the segment")],
+    _api_key: Annotated[str, Depends(get_api_key)],
+    db: Annotated[Database, Depends(get_db)],
+    x_application: OptionalAppHeader = None,
+) -> SegmentWithContextOutput:
+    """Get a segment with context."""
+    return await db.segment.get(segment_id, application=x_application)

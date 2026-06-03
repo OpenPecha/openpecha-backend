@@ -1,7 +1,7 @@
 import logging
 from typing import TYPE_CHECKING, Annotated
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Path, Query, status
 
 from dependencies import RequiredAppHeader, get_api_key, get_db
 from exceptions import DataNotFoundError
@@ -74,3 +74,22 @@ async def create_category(
 
     category_id = await db.category.create(data, application=x_application)
     return IdResponse(id=category_id)
+
+
+@router.delete(
+    "/{category_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete category",
+    description="Delete a category and its child categories for an application.",
+)
+async def delete_category(
+    category_id: Annotated[str, Path(description="The ID of the category")],
+    _api_key: Annotated[str, Depends(get_api_key)],
+    db: Annotated[Database, Depends(get_db)],
+    x_application: RequiredAppHeader,
+) -> None:
+    """Delete a category and its child categories."""
+    if not await db.application.exists(x_application):
+        raise DataNotFoundError(f"Application '{x_application}' not found")
+
+    await db.category.delete(category_id, application=x_application)

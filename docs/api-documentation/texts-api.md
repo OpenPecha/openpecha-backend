@@ -473,6 +473,42 @@ curl -X POST "https://api-l25bgmwqoa-uc.a.run.app/v2/texts" \
 
 ---
 
+### Delete Text
+
+Delete a text when it has no editions and no incoming translation/commentary relationships.
+
+**Endpoint:**
+
+```
+DELETE /v2/texts/{text_id}
+```
+
+**Response: 204 No Content**
+
+No response body is returned.
+
+**Error Responses:**
+
+- `404 Not Found`: Text does not exist
+- `409 Conflict`: Text has editions, translations, or commentaries pointing to it
+- `401 Unauthorized`: Missing or invalid API key in deployed environments
+
+**Example Usage:**
+
+```bash
+curl -X DELETE "https://api-l25bgmwqoa-uc.a.run.app/v2/texts/T12345678" \
+  -H "X-API-Key: your_api_key"
+```
+
+**Delete Behavior:**
+- Deletes the `Text`, title/alternative-title `Nomen` and `LocalizedText` subgraphs, and contribution nodes attached to the text.
+- Blocks if any edition belongs to the text.
+- Blocks if another text points to this text through `TRANSLATION_OF` or `COMMENTARY_OF`.
+- Deletes the underlying `Work` only when no other text still points to that work.
+- If the work is preserved because other texts still use it, existing `HAS_TAG` relationships on the work are preserved.
+
+---
+
 ### Update Text
 
 Partially update a text record. Only provided fields will be updated; omitted fields retain their current values.

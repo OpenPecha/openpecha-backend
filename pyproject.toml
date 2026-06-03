@@ -57,3 +57,48 @@ ignore = [
     "N999",  # Invalid module name (false positive from hyphenated repo name)
 ]
 
+[tool.vulture]
+paths = ["."]
+exclude = [
+    ".venv",
+    "__pycache__",
+    "tests",
+    "scripts",
+    "docs",
+    "storage",
+    ".git",
+    ".ruff_cache",
+    ".pytest_cache",
+]
+ignore_decorators = [
+    "@app.get",
+    "@app.post",
+    "@app.put",
+    "@app.patch",
+    "@app.delete",
+    "@app.head",
+    "@app.options",
+    "@router.get",
+    "@router.post",
+    "@router.put",
+    "@router.patch",
+    "@router.delete",
+    "@router.head",
+    "@router.options",
+    "@app.on_event",
+    "@app.exception_handler",
+    "@app.middleware",
+    "@app.websocket",
+    "@router.websocket",
+    "@asynccontextmanager",
+    "@field_validator",
+    "@model_validator",
+    "@field_serializer",
+    "@model_serializer",
+    "@computed_field",
+]
+ignore_names = [
+    "Config",
+    "model_config",
+    "lifespan",
+]

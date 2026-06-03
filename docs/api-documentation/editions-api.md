@@ -116,7 +116,20 @@ The database span adjustment is performed before the storage write. If the stora
 DELETE /v2/editions/{edition_id}
 ```
 
-Deletes the edition metadata, associated annotation data handled by the database layer, and stored base text. Successful deletion returns `204 No Content`.
+Deletes the edition metadata and associated annotation data handled by the database layer. Successful deletion returns `204 No Content`.
+
+Delete behavior:
+
+- Deletes the `Edition` node and its incipit title `Nomen` and `LocalizedText` subgraphs.
+- Cascade-deletes segmentations, alignments, pagination, table of contents, bibliographic metadata, durchen notes, spans, segments, pages, volumes, and table of contents sections associated with the edition, including annotations added after edition creation.
+- Deletes the edition's `HAS_SOURCE` relationship, but preserves the `Source` node.
+- Does not delete the parent `Text`, underlying `Work`, categories, tags, contributors, or lookup/type nodes.
+- Does not delete stored base text or other non-database side effects.
+
+Error responses:
+
+- `404 Not Found`: Edition does not exist.
+- `401 Unauthorized`: Missing or invalid API key in deployed environments.
 
 ## List Editions for a Text
 
@@ -218,6 +231,7 @@ Important validation rules:
 ## Edition Annotation Collections
 
 Annotations can be listed and created by type under an edition. Creation returns `{ "id": "..." }`.
+Segmentation and alignment collection `GET` endpoints return parent annotation resources. Large segment collections are paginated from the annotation-specific `/segments` endpoints.
 
 ### Segmentations
 
@@ -225,6 +239,20 @@ Annotations can be listed and created by type under an edition. Creation returns
 GET /v2/editions/{edition_id}/segmentations
 POST /v2/editions/{edition_id}/segmentations
 ```
+
+GET response:
+
+```json
+[
+  {
+    "id": "SGN123",
+    "edition_id": "ED123",
+    "text_id": "TXT123"
+  }
+]
+```
+
+Use `GET /v2/segmentations/{segmentation_id}/segments?limit=500&offset=0` to fetch paginated segment rows for a segmentation.
 
 Request:
 
@@ -236,8 +264,7 @@ Request:
         {"start": 0, "end": 50}
       ]
     }
-  ],
-  "metadata": {}
+  ]
 }
 ```
 
@@ -248,7 +275,24 @@ GET /v2/editions/{edition_id}/alignments
 POST /v2/editions/{edition_id}/alignments
 ```
 
-The path `edition_id` is the aligned/source edition. `target_edition_id` is the edition being aligned to.
+GET response:
+
+```json
+[
+  {
+    "id": "ALN123",
+    "aligned_edition_id": "ED_ALIGNED",
+    "aligned_text_id": "TXT_ALIGNED",
+    "target_edition_id": "ED_TARGET",
+    "target_text_id": "TXT_TARGET",
+    "target_segmentation_id": "SGN_TARGET"
+  }
+]
+```
+
+Use `GET /v2/alignments/{alignment_id}/segments?limit=500&offset=0` to fetch paginated aligned segment rows.
+
+The path `edition_id` is the aligned edition when creating an alignment. `target_edition_id` is the edition being aligned to.
 
 ```json
 {
@@ -298,6 +342,74 @@ POST /v2/editions/{edition_id}/pagination
 ```
 
 A single-volume pagination must omit `index`. Multi-volume pagination must use unique continuous indexes starting at `1`.
+
+### Table of contents
+
+```http
+GET /v2/editions/{edition_id}/table-of-contents
+POST /v2/editions/{edition_id}/table-of-contents
+```
+
+GET response:
+
+```json
+[
+  {
+    "id": "OUT123",
+    "edition_id": "ED123",
+    "text_id": "TXT123",
+    "metadata": {
+      "name": "Main sa bcad"
+    },
+    "sections": [
+      {
+        "id": "SEC123",
+        "title": {
+          "bo": "ལེའུ་དང་པོ།",
+          "en": "Chapter 1"
+        },
+        "summary": {
+          "en": "Opening topic"
+        },
+        "span": {"start": 0, "end": 1200},
+        "subsections": []
+      }
+    ]
+  }
+]
+```
+
+Request:
+
+```json
+{
+  "metadata": {
+    "name": "Main sa bcad"
+  },
+  "sections": [
+    {
+      "title": {
+        "bo": "ལེའུ་དང་པོ།",
+        "en": "Chapter 1"
+      },
+      "summary": {
+        "en": "Opening topic"
+      },
+      "span": {"start": 0, "end": 1200},
+      "subsections": [
+        {
+          "title": {
+            "en": "Section 1.1"
+          },
+          "span": {"start": 0, "end": 350}
+        }
+      ]
+    }
+  ]
+}
+```
+
+Each section has a required localized `title`, optional localized `summary`, required `span`, and optional recursive `subsections`. Each subsection span must be fully contained inside its parent section span. Multiple table of contents can be attached to the same edition. Returned sections and subsections are ordered by their span start/end positions.
 
 ### Bibliographic Metadata
 

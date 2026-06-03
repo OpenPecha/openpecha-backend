@@ -418,6 +418,38 @@ curl -X PATCH "https://api-l25bgmwqoa-uc.a.run.app/v2/persons/P12345678" \
   }'
 ```
 
+---
+
+### Delete Person
+
+Delete a person if no text contribution references them.
+
+**Endpoint:**
+```
+DELETE /v2/persons/{person_id}
+```
+
+**Response: 204 No Content**
+
+No response body is returned.
+
+**Error Responses:**
+- `404 Not Found`: Person does not exist
+- `409 Conflict`: Person is referenced by one or more `Contribution` nodes
+- `401 Unauthorized`: Missing or invalid API key in deployed environments
+
+**Example Usage:**
+
+```bash
+curl -X DELETE "https://api-l25bgmwqoa-uc.a.run.app/v2/persons/P12345678" \
+  -H "X-API-Key: your_api_key"
+```
+
+**Delete Behavior:**
+- Deletes the `Person` node.
+- Deletes the person's primary and alternative name `Nomen` and `LocalizedText` subgraphs.
+- Does not delete texts, works, editions, or contributions. If contributions exist, deletion is blocked.
+
 **Developer Notes:**
 - Implemented in `routers/persons.py`.
 - Models live in `models/person.py`.

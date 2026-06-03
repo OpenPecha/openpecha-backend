@@ -26,6 +26,15 @@ CREATE CONSTRAINT segmentation_id_unique IF NOT EXISTS FOR (seg:Segmentation) RE
 // Pagination nodes - each pagination must have a unique ID
 CREATE CONSTRAINT pagination_id_unique IF NOT EXISTS FOR (p:Pagination) REQUIRE p.id IS UNIQUE;
 
+// TableOfContents nodes - each table of contents must have a unique ID
+CREATE CONSTRAINT toc_id_unique IF NOT EXISTS FOR (toc:TableOfContents) REQUIRE toc.id IS UNIQUE;
+
+// TableOfContentsSection nodes - each table of contents section must have a unique ID
+CREATE CONSTRAINT toc_section_id_unique IF NOT EXISTS FOR (tocs:TableOfContentsSection) REQUIRE tocs.id IS UNIQUE;
+
+// AnnotationMetadata nodes - each metadata node must have a unique ID
+CREATE CONSTRAINT annotation_metadata_id_unique IF NOT EXISTS FOR (am:AnnotationMetadata) REQUIRE am.id IS UNIQUE;
+
 // Note nodes - each note must have a unique ID
 CREATE CONSTRAINT note_id_unique IF NOT EXISTS FOR (n:Note) REQUIRE n.id IS UNIQUE;
 
@@ -44,9 +53,6 @@ CREATE CONSTRAINT language_code_unique IF NOT EXISTS FOR (l:Language) REQUIRE l.
 
 // RoleType nodes - each role type must have a unique name
 CREATE CONSTRAINT role_type_name_unique IF NOT EXISTS FOR (rt:RoleType) REQUIRE rt.name IS UNIQUE;
-
-// AnnotationType nodes - each annotation type must have a unique name
-CREATE CONSTRAINT annotation_type_name_unique IF NOT EXISTS FOR (at:AnnotationType) REQUIRE at.name IS UNIQUE;
 
 // EditionType nodes - each edition type must have a unique name
 CREATE CONSTRAINT edition_type_name_unique IF NOT EXISTS FOR (mt:EditionType) REQUIRE mt.name IS UNIQUE;

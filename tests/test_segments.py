@@ -4,6 +4,7 @@ Integration tests for segment-related endpoints.
 
 Tests endpoints:
 - GET /v2/editions/{edition_id}/segments/related
+- GET /v2/segments/{segment_id}
 - GET /v2/segments/{segment_id}/related
 - GET /v2/segments/{segment_id}/content
 
@@ -105,10 +106,13 @@ class SegmentTestBase:
     async def _get_segment_ids_from_segmentation(self, client, edition_id, segmentation_index=0):
         resp = await client.get(f"/v2/editions/{edition_id}/segmentations")
         assert resp.status_code == 200
-        data = resp.json()
-        if not data:
+        segmentations = resp.json()
+        if not segmentations:
             return []
-        return [seg["id"] for seg in data[segmentation_index]["segments"]]
+        selected_segmentation_id = segmentations[segmentation_index]["id"]
+        segments_resp = await client.get(f"/v2/segmentations/{selected_segmentation_id}/segments")
+        assert segments_resp.status_code == 200
+        return [seg["id"] for seg in segments_resp.json()["items"]]
 
     async def _create_translation_text(self, db, person_id, original_text_id, language="en"):
         return await self._create_text(
@@ -382,6 +386,48 @@ class TestEditionSegmentsRelated(SegmentTestBase):
         assert len(data) >= 1
         total_related = len(data)
         assert total_related >= 2, "Should return both aligned display segments"
+
+    async def test_related_segments_has_more(self, client, test_database):
+        """Related segment pagination should report when another page exists."""
+        person_id = await self._create_person(test_database)
+        src_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "རྩ་བ།", "en": "Src"})
+        )
+        src_edition_id = await self._create_edition(client, src_text_id, "0123456789")
+        await self._post_segmentation(client, src_edition_id, [(0, 10)])
+
+        tgt_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "དམིགས།", "en": "Tgt"})
+        )
+        tgt_edition_id = await self._create_edition(client, tgt_text_id, "ABCDEFGHIJ")
+        await self._post_segmentation(client, tgt_edition_id, [(0, 5), (5, 10)])
+
+        await self._post_alignment(
+            client, src_edition_id, tgt_edition_id,
+            source_segments=[(0, 10)],
+            target_segments=[(0, 5), (5, 10)],
+            alignment_map=[(0, [0, 1])],
+        )
+
+        first_page = await client.get(
+            f"/v2/editions/{src_edition_id}/segments/related?span_start=0&span_end=10&limit=1"
+        )
+        assert first_page.status_code == 200
+        first_body = first_page.json()
+        assert len(first_body["items"]) == 1
+        assert first_body["has_more"] is True
+        assert first_body["offset"] == 0
+        assert first_body["limit"] == 1
+
+        second_page = await client.get(
+            f"/v2/editions/{src_edition_id}/segments/related?span_start=0&span_end=10&limit=1&offset=1"
+        )
+        assert second_page.status_code == 200
+        second_body = second_page.json()
+        assert len(second_body["items"]) == 1
+        assert second_body["has_more"] is False
+        assert second_body["offset"] == 1
+        assert second_body["limit"] == 1
 
     # ---- multiple editions aligned (fan-out) ----
 
@@ -1062,8 +1108,9 @@ class TestEditionSegmentsRelated(SegmentTestBase):
         resp = await client.get(f"/v2/editions/{src_edition_id}/segmentations")
         assert resp.status_code == 200
         data = resp.json()
-        assert len(data) == 1, "Should only return the display segmentation, not the alignment ones"
-        assert data[0]["id"] == sgn_id
+        assert {segmentation["id"] for segmentation in data} == {sgn_id}, (
+            "Should only return the display segmentation, not the alignment ones"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -1125,6 +1172,47 @@ class TestDirectSegmentRelated(SegmentTestBase):
         data = self._related_items(resp.json())
         assert len(data) >= 1
         assert data[0]["edition_id"] == tgt_edition_id
+
+    async def test_segment_related_has_more(self, client, test_database):
+        """Direct related segment pagination should report when another page exists."""
+        person_id = await self._create_person(test_database)
+        src_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "རྩ་བ།", "en": "Src"})
+        )
+        src_edition_id = await self._create_edition(client, src_text_id, "0123456789")
+        await self._post_segmentation(client, src_edition_id, [(0, 10)])
+
+        tgt_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "དམིགས།", "en": "Tgt"})
+        )
+        tgt_edition_id = await self._create_edition(client, tgt_text_id, "ABCDEFGHIJ")
+        await self._post_segmentation(client, tgt_edition_id, [(0, 5), (5, 10)])
+
+        await self._post_alignment(
+            client, src_edition_id, tgt_edition_id,
+            source_segments=[(0, 10)],
+            target_segments=[(0, 5), (5, 10)],
+            alignment_map=[(0, [0, 1])],
+        )
+
+        seg_ids = await self._get_segment_ids_from_segmentation(client, src_edition_id)
+        assert len(seg_ids) >= 1
+
+        first_page = await client.get(f"/v2/segments/{seg_ids[0]}/related?limit=1")
+        assert first_page.status_code == 200
+        first_body = first_page.json()
+        assert len(first_body["items"]) == 1
+        assert first_body["has_more"] is True
+        assert first_body["offset"] == 0
+        assert first_body["limit"] == 1
+
+        second_page = await client.get(f"/v2/segments/{seg_ids[0]}/related?limit=1&offset=1")
+        assert second_page.status_code == 200
+        second_body = second_page.json()
+        assert len(second_body["items"]) == 1
+        assert second_body["has_more"] is False
+        assert second_body["offset"] == 1
+        assert second_body["limit"] == 1
 
     async def test_segment_related_with_application_header(self, client, test_database):
         """X-Application header should filter tags on returned segments."""
@@ -1188,6 +1276,41 @@ class TestDirectSegmentRelated(SegmentTestBase):
         for segment in data:
             assert segment["edition_id"] != src_edition_id, \
                 "Related segments should exclude the queried segment's own edition"
+
+
+# ---------------------------------------------------------------------------
+# GET /v2/segments/{segment_id}
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio(loop_scope="session")
+class TestGetSegment(SegmentTestBase):
+    """Tests for GET /v2/segments/{segment_id}."""
+
+    async def test_nonexistent_segment_returns_404(self, client, test_database):
+        """Non-existent segment_id -> 404."""
+        resp = await client.get("/v2/segments/nonexistent_id")
+        assert resp.status_code == 404
+
+    async def test_get_segment_with_context(self, client, test_database):
+        """Get a segment with segmentation, edition, text, line, and tag context."""
+        person_id = await self._create_person(test_database)
+        text_id = await self._create_text(test_database, person_id)
+        edition_id = await self._create_edition(client, text_id, "Hello World!", EditionType.DIPLOMATIC)
+        segmentation_id = await self._post_segmentation(client, edition_id, [(0, 5), (5, 12)])
+
+        seg_ids = await self._get_segment_ids_from_segmentation(client, edition_id)
+        assert len(seg_ids) == 2
+
+        resp = await client.get(f"/v2/segments/{seg_ids[0]}")
+        assert resp.status_code == 200
+        assert resp.json() == {
+            "id": seg_ids[0],
+            "segmentation_id": segmentation_id,
+            "edition_id": edition_id,
+            "text_id": text_id,
+            "lines": [{"start": 0, "end": 5}],
+        }
 
 
 # ---------------------------------------------------------------------------
@@ -1299,15 +1422,15 @@ class TestSegmentContent(SegmentTestBase):
         )
         tgt_edition_id = await self._create_edition(client, tgt_text_id, "ABCDEFGHIJ")
 
-        await self._post_alignment(
+        alignment_id = await self._post_alignment(
             client, src_edition_id, tgt_edition_id,
             source_segments=[(0, 10)],
             target_segments=[(0, 5), (5, 10)],
             alignment_map=[(0, [0, 1])],
         )
 
-        alignments_resp = await client.get(f"/v2/editions/{src_edition_id}/alignments")
-        alignment_data = alignments_resp.json()
+        alignments_resp = await client.get(f"/v2/alignments/{alignment_id}/segments")
+        alignment_data = alignments_resp.json()["items"]
         assert len(alignment_data) >= 1
         target_seg_ids = [s["id"] for s in alignment_data[0]["target_segments"]]
 

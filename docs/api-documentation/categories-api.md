@@ -293,6 +293,47 @@ curl -X POST "https://api-l25bgmwqoa-uc.a.run.app/v2/categories" \
 
 ---
 
+### Delete Category
+
+Delete a category and all of its child categories within the requested application.
+
+**Endpoint:**
+```
+DELETE /v2/categories/{category_id}
+```
+
+**Headers:**
+
+| Name | Type | Required | Description |
+|------|------|----------|-------------|
+| `X-API-Key` | string | Yes | API authentication key |
+| `X-Application` | string | Yes | Application context for the category |
+
+**Response: 204 No Content**
+
+No response body is returned.
+
+**Error Responses:**
+- `404 Not Found`: Application or category does not exist in the requested application
+- `401 Unauthorized`: Missing or invalid API key in deployed environments
+- `422 Validation Error`: Missing `X-Application` header
+
+**Example Usage:**
+
+```bash
+curl -X DELETE "https://api-l25bgmwqoa-uc.a.run.app/v2/categories/CAT12345678" \
+  -H "X-API-Key: your_api_key" \
+  -H "X-Application: webuddhist"
+```
+
+**Delete Behavior:**
+- Recursively deletes the target category and its child categories in the same application.
+- Deletes each removed category's title/description `Nomen` and `LocalizedText` subgraphs.
+- Removes `HAS_CATEGORY` relationships from works that used the removed categories.
+- Does not delete works, texts, editions, tags, or applications.
+
+---
+
 ## Developer Notes
 
 - Implemented in `routers/categories.py`.

@@ -15,7 +15,9 @@ from models.annotation import (
     PaginationOutput,
     SegmentationInput,
     SegmentationOutput,
-    SegmentOutput,
+    SegmentWithContextOutput,
+    TableOfContentsInput,
+    TableOfContentsOutput,
 )
 from models.content_operation import ContentOperation, DeleteOperation, InsertOperation, ReplaceOperation
 from models.edition import EditionOutput
@@ -161,6 +163,36 @@ async def post_pagination_annotation(
 
 
 @router.get(
+    "/{edition_id}/table-of-contents",
+    summary="Get table of contents annotations",
+    description="Retrieve all table of contents annotations for an edition.",
+    response_model_exclude_none=True,
+)
+async def get_table_of_contents_annotations(
+    edition_id: Annotated[str, Path(description="The ID of the edition")],
+    _api_key: Annotated[str, Depends(get_api_key)],
+    db: Annotated[Database, Depends(get_db)],
+) -> list[TableOfContentsOutput]:
+    return await db.annotation.table_of_contents.get_all(edition_id)
+
+
+@router.post(
+    "/{edition_id}/table-of-contents",
+    status_code=status.HTTP_201_CREATED,
+    summary="Add table of contents annotation",
+    description="Add a table of contents annotation to an edition.",
+)
+async def post_table_of_contents_annotation(
+    edition_id: Annotated[str, Path(description="The ID of the edition")],
+    data: TableOfContentsInput,
+    _api_key: Annotated[str, Depends(get_api_key)],
+    db: Annotated[Database, Depends(get_db)],
+) -> IdResponse:
+    annotation_id = await db.annotation.table_of_contents.add(edition_id, data)
+    return IdResponse(id=annotation_id)
+
+
+@router.get(
     "/{edition_id}/bibliographic",
     summary="Get bibliographic metadata annotations",
     description="Retrieve all bibliographic metadata annotations for an edition.",
@@ -228,7 +260,7 @@ async def get_segment_related(
     params: Annotated[RelatedSegmentsQueryParams, Query()],
     _api_key: Annotated[str, Depends(get_api_key)],
     db: Annotated[Database, Depends(get_db)],
-) -> PaginatedResponse[SegmentOutput]:
+) -> PaginatedResponse[SegmentWithContextOutput]:
     segments = await db.segment.get_related(
         edition_id=edition_id,
         spans=[(params.span_start, params.span_end)],
@@ -256,18 +288,16 @@ async def get_related_editions(
     "/{edition_id}",
     status_code=status.HTTP_204_NO_CONTENT,
     summary="Delete edition",
-    description="Delete an edition and its associated content.",
+    description="Delete edition metadata and associated database annotations.",
 )
 async def delete_edition(
     edition_id: Annotated[str, Path(description="The ID of the edition")],
     _api_key: Annotated[str, Depends(get_api_key)],
     db: Annotated[Database, Depends(get_db)],
-    storage: Annotated[Storage, Depends(get_storage)],
 ) -> None:
     logger.info("Deleting edition with edition ID: %s", edition_id)
-    edition = await db.edition.get(edition_id=edition_id)
+    await db.edition.get(edition_id=edition_id)
     await db.edition.delete(edition_id)
-    await storage.delete_base_text(text_id=edition.text_id, edition_id=edition_id)
 
 
 @router.patch(

@@ -1,7 +1,7 @@
 import logging
 from typing import TYPE_CHECKING, Annotated
 
-from fastapi import APIRouter, Depends, Path, Query
+from fastapi import APIRouter, Depends, Path, Query, status
 
 from dependencies import get_api_key, get_db
 from models.person import PersonInput, PersonOutput, PersonPatch
@@ -76,3 +76,18 @@ async def update_person(
     """Update a person."""
     logger.info("Updating person %s with: %s", person_id, data.model_dump_json())
     return await db.person.update(person_id, data)
+
+
+@router.delete(
+    "/{person_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete person",
+    description="Delete a person if they are not referenced by contributions.",
+)
+async def delete_person(
+    person_id: Annotated[str, Path(description="The ID of the person")],
+    _api_key: Annotated[str, Depends(get_api_key)],
+    db: Annotated[Database, Depends(get_db)],
+) -> None:
+    """Delete a person."""
+    await db.person.delete(person_id)

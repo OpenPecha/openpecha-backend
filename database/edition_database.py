@@ -9,6 +9,7 @@ from .annotation.bibliographic_database import BibliographicDatabase
 from .annotation.note_database import NoteDatabase
 from .annotation.pagination_database import PaginationDatabase
 from .annotation.segmentation_database import SegmentationDatabase
+from .annotation.table_of_contents_database import TableOfContentsDatabase
 from .data_adapter import DataAdapter
 from .database_validator import DatabaseValidator, DataValidationError
 from .nomen_database import NomenDatabase
@@ -29,13 +30,10 @@ logger = logging.getLogger(__name__)
 class EditionDatabase:
     DELETE_QUERY: LiteralString = """
     MATCH (m:Edition {id: $edition_id})
-    OPTIONAL MATCH (m)-[:HAS_SOURCE]->(s:Source)
-    WITH m, s, count { (s)<-[:HAS_SOURCE]-(:Edition) } AS source_refs
     OPTIONAL MATCH (m)-[:HAS_INCIPIT_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
     OPTIONAL MATCH (n)<-[:ALTERNATIVE_OF]-(alt:Nomen)-[:HAS_LOCALIZATION]->(alt_lt:LocalizedText)
     DETACH DELETE m, n, lt, alt, alt_lt
-    WITH s, source_refs WHERE s IS NOT NULL AND source_refs <= 1
-    DELETE s
+    FINISH
     """
 
     _EDITION_RETURN: LiteralString = """
@@ -189,6 +187,7 @@ class EditionDatabase:
         await AlignmentDatabase.delete_all_with_transaction(tx, edition_id)
         await SegmentationDatabase.delete_all_with_transaction(tx, edition_id)
         await PaginationDatabase.delete_all_with_transaction(tx, edition_id)
+        await TableOfContentsDatabase.delete_all_with_transaction(tx, edition_id)
         await BibliographicDatabase.delete_all_with_transaction(tx, edition_id)
         await NoteDatabase.delete_all_with_transaction(tx, edition_id)
         await tx.run(EditionDatabase.DELETE_QUERY, edition_id=edition_id)
