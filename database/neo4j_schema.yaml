@@ -254,7 +254,7 @@ nodes:
         required: true
     relationships:
       SPAN_OF:
-        target: Segment | BibliographicMetadata | Note | Attribute | Page | OutlineSection
+        target: Segment | BibliographicMetadata | Note | Attribute | Page | TableOfContentsSection
         cardinality: one
         required: true
 
@@ -340,14 +340,14 @@ nodes:
         cardinality: one
         required: false
 
-  Outline:
+  TableOfContents:
     properties:
       id:
         type: string
         required: true
         unique: true
     relationships:
-      OUTLINE_OF:
+      TOC_OF:
         target: Edition
         cardinality: one
         required: true
@@ -356,7 +356,7 @@ nodes:
         cardinality: one
         required: false
 
-  OutlineSection:
+  TableOfContentsSection:
     properties:
       id:
         type: string
@@ -364,11 +364,11 @@ nodes:
         unique: true
     relationships:
       SECTION_OF:
-        target: Outline
+        target: TableOfContents
         cardinality: one
         required: true
       SUBSECTION_OF:
-        target: OutlineSection
+        target: TableOfContentsSection
         cardinality: one
         required: false
       HAS_TITLE:

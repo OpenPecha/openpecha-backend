@@ -175,11 +175,11 @@ class PaginationOutput(PaginationBase):
     text_id: NonEmptyStr
 
 
-class OutlineSectionInput(OpenPechaModel):
+class TableOfContentsSectionInput(OpenPechaModel):
     title: LocalizedString
     summary: LocalizedString | None = None
     span: Span
-    subsections: list[OutlineSectionInput] = Field(default_factory=list)
+    subsections: list[TableOfContentsSectionInput] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def validate_subsection_spans_contained(self) -> Self:
@@ -189,24 +189,24 @@ class OutlineSectionInput(OpenPechaModel):
         return self
 
 
-class OutlineInput(OpenPechaModel):
-    sections: list[OutlineSectionInput] = Field(min_length=1)
+class TableOfContentsInput(OpenPechaModel):
+    sections: list[TableOfContentsSectionInput] = Field(min_length=1)
     metadata: AnnotationMetadata | None = None
 
 
-class OutlineSectionOutput(OpenPechaModel):
+class TableOfContentsSectionOutput(OpenPechaModel):
     id: NonEmptyStr
     title: LocalizedString
     summary: LocalizedString | None = None
     span: Span
-    subsections: list[OutlineSectionOutput] = Field(default_factory=list)
+    subsections: list[TableOfContentsSectionOutput] = Field(default_factory=list)
 
 
-class OutlineOutput(OpenPechaModel):
+class TableOfContentsOutput(OpenPechaModel):
     id: NonEmptyStr
     edition_id: NonEmptyStr
     text_id: NonEmptyStr
-    sections: list[OutlineSectionOutput]
+    sections: list[TableOfContentsSectionOutput]
     metadata: AnnotationMetadata | None = None
 
 

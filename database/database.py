@@ -7,9 +7,9 @@ from .annotation.alignment_database import AlignmentDatabase
 from .annotation.attribute_database import AttributeDatabase
 from .annotation.bibliographic_database import BibliographicDatabase
 from .annotation.note_database import NoteDatabase
-from .annotation.outline_database import OutlineDatabase
 from .annotation.pagination_database import PaginationDatabase
 from .annotation.segmentation_database import SegmentationDatabase
+from .annotation.table_of_contents_database import TableOfContentsDatabase
 from .api_key_database import ApiKeyDatabase
 from .application_database import ApplicationDatabase
 from .category_database import CategoryDatabase
@@ -28,7 +28,7 @@ class AnnotationDatabase:
     Alignment = AlignmentDatabase
     Segmentation = SegmentationDatabase
     Pagination = PaginationDatabase
-    Outline = OutlineDatabase
+    TableOfContents = TableOfContentsDatabase
     Note = NoteDatabase
     Bibliographic = BibliographicDatabase
     Attribute = AttributeDatabase
@@ -38,7 +38,7 @@ class AnnotationDatabase:
         self.alignment = AlignmentDatabase(db)
         self.segmentation = SegmentationDatabase(db)
         self.pagination = PaginationDatabase(db)
-        self.outline = OutlineDatabase(db)
+        self.table_of_contents = TableOfContentsDatabase(db)
         self.note = NoteDatabase(db)
         self.bibliographic = BibliographicDatabase(db)
         self.attributes = AttributeDatabase(db)

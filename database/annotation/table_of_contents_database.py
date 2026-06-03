@@ -7,11 +7,11 @@ from exceptions import DataNotFoundError
 from identifier import generate_id
 from models.annotation import (
     AnnotationMetadata,
-    OutlineInput,
-    OutlineOutput,
-    OutlineSectionInput,
-    OutlineSectionOutput,
     Span,
+    TableOfContentsInput,
+    TableOfContentsOutput,
+    TableOfContentsSectionInput,
+    TableOfContentsSectionOutput,
 )
 from models.base import LocalizedString
 
@@ -21,26 +21,26 @@ if TYPE_CHECKING:
     from database.database import Database
 
 
-class OutlineDatabase:
-    CREATE_OUTLINE_QUERY: LiteralString = """
+class TableOfContentsDatabase:
+    CREATE_TOC_QUERY: LiteralString = """
     MATCH (edition:Edition {id: $edition_id})
-    CREATE (outline:Outline {id: $outline_id})-[:OUTLINE_OF]->(edition)
-    WITH outline
+    CREATE (toc:TableOfContents {id: $toc_id})-[:TOC_OF]->(edition)
+    WITH toc
     CALL (*) {
         WHEN $metadata_id IS NOT NULL THEN {
             CREATE (metadata:AnnotationMetadata {id: $metadata_id, name: $metadata_name})
-            CREATE (outline)-[:HAS_METADATA]->(metadata)
+            CREATE (toc)-[:HAS_METADATA]->(metadata)
         }
     }
-    RETURN outline.id AS id
+    RETURN toc.id AS id
     """
 
     CREATE_SECTIONS_QUERY: LiteralString = """
-    MATCH (outline:Outline {id: $outline_id})
+    MATCH (toc:TableOfContents {id: $toc_id})
     UNWIND $sections AS section_data
     MATCH (title:Nomen {id: section_data.title_nomen_id})
     OPTIONAL MATCH (summary:Nomen {id: section_data.summary_nomen_id})
-    CREATE (section:OutlineSection {id: section_data.id})-[:SECTION_OF]->(outline)
+    CREATE (section:TableOfContentsSection {id: section_data.id})-[:SECTION_OF]->(toc)
     CREATE (section)-[:HAS_TITLE]->(title)
     CREATE (:Span {start: section_data.span_start, end: section_data.span_end})-[:SPAN_OF]->(section)
     WITH section, summary
@@ -56,16 +56,16 @@ class OutlineDatabase:
     UNWIND $sections AS section_data
     WITH section_data
     WHERE section_data.parent_id IS NOT NULL
-    MATCH (section:OutlineSection {id: section_data.id})
-    MATCH (parent:OutlineSection {id: section_data.parent_id})
+    MATCH (section:TableOfContentsSection {id: section_data.id})
+    MATCH (parent:TableOfContentsSection {id: section_data.parent_id})
     CREATE (section)-[:SUBSECTION_OF]->(parent)
     RETURN count(section) AS count
     """
 
     GET_BY_ID_QUERY: LiteralString = """
-    MATCH (outline:Outline {id: $outline_id})-[:OUTLINE_OF]->(edition:Edition)-[:EDITION_OF]->(text:Text)
-    OPTIONAL MATCH (outline)-[:HAS_METADATA]->(metadata:AnnotationMetadata)
-    RETURN outline.id AS id,
+    MATCH (toc:TableOfContents {id: $toc_id})-[:TOC_OF]->(edition:Edition)-[:EDITION_OF]->(text:Text)
+    OPTIONAL MATCH (toc)-[:HAS_METADATA]->(metadata:AnnotationMetadata)
+    RETURN toc.id AS id,
            edition.id AS edition_id,
            text.id AS text_id,
            metadata.name AS metadata_name
@@ -73,19 +73,19 @@ class OutlineDatabase:
 
     GET_BY_EDITION_ID_QUERY: LiteralString = """
     MATCH (edition:Edition {id: $edition_id})-[:EDITION_OF]->(text:Text)
-    MATCH (outline:Outline)-[:OUTLINE_OF]->(edition)
-    OPTIONAL MATCH (outline)-[:HAS_METADATA]->(metadata:AnnotationMetadata)
-    RETURN outline.id AS id,
+    MATCH (toc:TableOfContents)-[:TOC_OF]->(edition)
+    OPTIONAL MATCH (toc)-[:HAS_METADATA]->(metadata:AnnotationMetadata)
+    RETURN toc.id AS id,
            edition.id AS edition_id,
            text.id AS text_id,
            metadata.name AS metadata_name
-    ORDER BY outline.id
+    ORDER BY toc.id
     """
 
     GET_SECTIONS_QUERY: LiteralString = """
-    MATCH (section:OutlineSection)-[:SECTION_OF]->(:Outline {id: $outline_id})
+    MATCH (section:TableOfContentsSection)-[:SECTION_OF]->(:TableOfContents {id: $toc_id})
     MATCH (span:Span)-[:SPAN_OF]->(section)
-    OPTIONAL MATCH (section)-[:SUBSECTION_OF]->(parent:OutlineSection)
+    OPTIONAL MATCH (section)-[:SUBSECTION_OF]->(parent:TableOfContentsSection)
     RETURN section.id AS id,
            parent.id AS parent_id,
            span.start AS span_start,
@@ -104,24 +104,24 @@ class OutlineDatabase:
     """
 
     DELETE_QUERY: LiteralString = """
-    MATCH (outline:Outline {id: $outline_id})
-    OPTIONAL MATCH (outline)-[:HAS_METADATA]->(metadata:AnnotationMetadata)
-    OPTIONAL MATCH (section:OutlineSection)-[:SECTION_OF]->(outline)
+    MATCH (toc:TableOfContents {id: $toc_id})
+    OPTIONAL MATCH (toc)-[:HAS_METADATA]->(metadata:AnnotationMetadata)
+    OPTIONAL MATCH (section:TableOfContentsSection)-[:SECTION_OF]->(toc)
     OPTIONAL MATCH (span:Span)-[:SPAN_OF]->(section)
     OPTIONAL MATCH (section)-[:HAS_TITLE|HAS_SUMMARY]->(nomen:Nomen)
     OPTIONAL MATCH (nomen)-[:HAS_LOCALIZATION]->(localized:LocalizedText)
-    DETACH DELETE span, localized, nomen, section, metadata, outline
+    DETACH DELETE span, localized, nomen, section, metadata, toc
     FINISH
     """
 
     DELETE_ALL_QUERY: LiteralString = """
-    MATCH (outline:Outline)-[:OUTLINE_OF]->(:Edition {id: $edition_id})
-    OPTIONAL MATCH (outline)-[:HAS_METADATA]->(metadata:AnnotationMetadata)
-    OPTIONAL MATCH (section:OutlineSection)-[:SECTION_OF]->(outline)
+    MATCH (toc:TableOfContents)-[:TOC_OF]->(:Edition {id: $edition_id})
+    OPTIONAL MATCH (toc)-[:HAS_METADATA]->(metadata:AnnotationMetadata)
+    OPTIONAL MATCH (section:TableOfContentsSection)-[:SECTION_OF]->(toc)
     OPTIONAL MATCH (span:Span)-[:SPAN_OF]->(section)
     OPTIONAL MATCH (section)-[:HAS_TITLE|HAS_SUMMARY]->(nomen:Nomen)
     OPTIONAL MATCH (nomen)-[:HAS_LOCALIZATION]->(localized:LocalizedText)
-    DETACH DELETE span, localized, nomen, section, metadata, outline
+    DETACH DELETE span, localized, nomen, section, metadata, toc
     FINISH
     """
 
@@ -131,7 +131,7 @@ class OutlineDatabase:
     @staticmethod
     async def _flatten_sections(
         tx: AsyncManagedTransaction,
-        sections: list[OutlineSectionInput],
+        sections: list[TableOfContentsSectionInput],
         *,
         parent_id: str | None = None,
     ) -> list[dict[str, str | int | None]]:
@@ -154,7 +154,9 @@ class OutlineDatabase:
                     "span_end": section.span.end,
                 }
             )
-            flattened.extend(await OutlineDatabase._flatten_sections(tx, section.subsections, parent_id=section_id))
+            flattened.extend(
+                await TableOfContentsDatabase._flatten_sections(tx, section.subsections, parent_id=section_id)
+            )
         return flattened
 
     @staticmethod
@@ -164,9 +166,9 @@ class OutlineDatabase:
         return AnnotationMetadata(name=record["metadata_name"])
 
     @staticmethod
-    def _parse_section_record(record: dict[str, Any] | Record) -> OutlineSectionOutput:
+    def _parse_section_record(record: dict[str, Any] | Record) -> TableOfContentsSectionOutput:
         summary = dict(record["summary"] or {})
-        return OutlineSectionOutput(
+        return TableOfContentsSectionOutput(
             id=record["id"],
             title=LocalizedString(dict(record["title"] or {})),
             summary=LocalizedString(summary) if summary else None,
@@ -175,18 +177,18 @@ class OutlineDatabase:
         )
 
     @staticmethod
-    def _build_sections(records: Sequence[dict[str, Any] | Record]) -> list[OutlineSectionOutput]:
-        nodes: dict[str, OutlineSectionOutput] = {}
+    def _build_sections(records: Sequence[dict[str, Any] | Record]) -> list[TableOfContentsSectionOutput]:
+        nodes: dict[str, TableOfContentsSectionOutput] = {}
         parent_ids: dict[str, str | None] = {}
         spans: dict[str, tuple[int, int]] = {}
 
         for record in records:
-            node = OutlineDatabase._parse_section_record(record)
+            node = TableOfContentsDatabase._parse_section_record(record)
             nodes[node.id] = node
             parent_ids[node.id] = record["parent_id"]
             spans[node.id] = (record["span_start"], record["span_end"])
 
-        roots: list[OutlineSectionOutput] = []
+        roots: list[TableOfContentsSectionOutput] = []
         for node_id, node in nodes.items():
             parent_id = parent_ids[node_id]
             if parent_id and parent_id in nodes:
@@ -200,64 +202,68 @@ class OutlineDatabase:
         return roots
 
     @staticmethod
-    async def _parse_outline(tx: AsyncManagedTransaction, record: dict[str, Any] | Record) -> OutlineOutput:
-        result = await tx.run(OutlineDatabase.GET_SECTIONS_QUERY, outline_id=record["id"])
-        sections = OutlineDatabase._build_sections(await result.data())
-        return OutlineOutput(
+    async def _parse_toc(tx: AsyncManagedTransaction, record: dict[str, Any] | Record) -> TableOfContentsOutput:
+        result = await tx.run(TableOfContentsDatabase.GET_SECTIONS_QUERY, toc_id=record["id"])
+        sections = TableOfContentsDatabase._build_sections(await result.data())
+        return TableOfContentsOutput(
             id=record["id"],
             edition_id=record["edition_id"],
             text_id=record["text_id"],
-            metadata=OutlineDatabase._parse_metadata(record),
+            metadata=TableOfContentsDatabase._parse_metadata(record),
             sections=sections,
         )
 
-    async def get(self, outline_id: str) -> OutlineOutput:
+    async def get(self, toc_id: str) -> TableOfContentsOutput:
         async with self._db.get_session() as session:
-            return await session.execute_read(lambda tx: OutlineDatabase.get_with_transaction(tx, outline_id))
+            return await session.execute_read(lambda tx: TableOfContentsDatabase.get_with_transaction(tx, toc_id))
 
-    async def get_all(self, edition_id: str) -> list[OutlineOutput]:
+    async def get_all(self, edition_id: str) -> list[TableOfContentsOutput]:
         async with self._db.get_session() as session:
-            return await session.execute_read(lambda tx: OutlineDatabase.get_all_with_transaction(tx, edition_id))
+            return await session.execute_read(
+                lambda tx: TableOfContentsDatabase.get_all_with_transaction(tx, edition_id)
+            )
 
-    async def add(self, edition_id: str, outline: OutlineInput) -> str:
+    async def add(self, edition_id: str, toc: TableOfContentsInput) -> str:
         async with self._db.get_session() as session:
-            return await session.execute_write(lambda tx: OutlineDatabase.add_with_transaction(tx, edition_id, outline))
+            return await session.execute_write(
+                lambda tx: TableOfContentsDatabase.add_with_transaction(tx, edition_id, toc)
+            )
 
-    async def delete(self, outline_id: str) -> None:
+    async def delete(self, toc_id: str) -> None:
         async with self._db.get_session() as session:
-            await session.execute_write(lambda tx: OutlineDatabase.delete_with_transaction(tx, outline_id))
+            await session.execute_write(lambda tx: TableOfContentsDatabase.delete_with_transaction(tx, toc_id))
 
     @staticmethod
-    async def get_with_transaction(tx: AsyncManagedTransaction, outline_id: str) -> OutlineOutput:
-        result = await tx.run(OutlineDatabase.GET_BY_ID_QUERY, outline_id=outline_id)
+    async def get_with_transaction(tx: AsyncManagedTransaction, toc_id: str) -> TableOfContentsOutput:
+        result = await tx.run(TableOfContentsDatabase.GET_BY_ID_QUERY, toc_id=toc_id)
         record = await result.single()
         if record is None:
-            raise DataNotFoundError(f"Outline with ID '{outline_id}' not found")
-        return await OutlineDatabase._parse_outline(tx, record)
+            raise DataNotFoundError(f"Table of contents with ID '{toc_id}' not found")
+        return await TableOfContentsDatabase._parse_toc(tx, record)
 
     @staticmethod
-    async def get_all_with_transaction(tx: AsyncManagedTransaction, edition_id: str) -> list[OutlineOutput]:
+    async def get_all_with_transaction(tx: AsyncManagedTransaction, edition_id: str) -> list[TableOfContentsOutput]:
         await DatabaseValidator.validate_edition_exists(tx, edition_id)
-        result = await tx.run(OutlineDatabase.GET_BY_EDITION_ID_QUERY, edition_id=edition_id)
-        return [await OutlineDatabase._parse_outline(tx, record) for record in await result.data()]
+        result = await tx.run(TableOfContentsDatabase.GET_BY_EDITION_ID_QUERY, edition_id=edition_id)
+        return [await TableOfContentsDatabase._parse_toc(tx, record) for record in await result.data()]
 
     @staticmethod
     async def add_with_transaction(
         tx: AsyncManagedTransaction,
         edition_id: str,
-        outline: OutlineInput,
+        toc: TableOfContentsInput,
     ) -> str:
         await DatabaseValidator.validate_edition_exists(tx, edition_id)
 
-        outline_id = generate_id()
-        metadata_id = generate_id() if outline.metadata is not None else None
-        metadata_name = outline.metadata.name if outline.metadata is not None else None
-        sections = await OutlineDatabase._flatten_sections(tx, outline.sections)
+        toc_id = generate_id()
+        metadata_id = generate_id() if toc.metadata is not None else None
+        metadata_name = toc.metadata.name if toc.metadata is not None else None
+        sections = await TableOfContentsDatabase._flatten_sections(tx, toc.sections)
 
         result = await tx.run(
-            OutlineDatabase.CREATE_OUTLINE_QUERY,
+            TableOfContentsDatabase.CREATE_TOC_QUERY,
             edition_id=edition_id,
-            outline_id=outline_id,
+            toc_id=toc_id,
             metadata_id=metadata_id,
             metadata_name=metadata_name,
         )
@@ -265,18 +271,18 @@ class OutlineDatabase:
         if record is None:
             raise DataNotFoundError(f"Edition with ID '{edition_id}' not found")
 
-        sections_result = await tx.run(OutlineDatabase.CREATE_SECTIONS_QUERY, outline_id=outline_id, sections=sections)
+        sections_result = await tx.run(TableOfContentsDatabase.CREATE_SECTIONS_QUERY, toc_id=toc_id, sections=sections)
         sections_record = await sections_result.single()
         if not sections_record or sections_record["count"] != len(sections):
-            raise DataNotFoundError(f"Failed to create outline sections for outline '{outline_id}'")
+            raise DataNotFoundError(f"Failed to create table of contents sections for table of contents '{toc_id}'")
 
-        await tx.run(OutlineDatabase.CREATE_HIERARCHY_QUERY, sections=sections)
-        return outline_id
+        await tx.run(TableOfContentsDatabase.CREATE_HIERARCHY_QUERY, sections=sections)
+        return toc_id
 
     @staticmethod
-    async def delete_with_transaction(tx: AsyncManagedTransaction, outline_id: str) -> None:
-        await tx.run(OutlineDatabase.DELETE_QUERY, outline_id=outline_id)
+    async def delete_with_transaction(tx: AsyncManagedTransaction, toc_id: str) -> None:
+        await tx.run(TableOfContentsDatabase.DELETE_QUERY, toc_id=toc_id)
 
     @staticmethod
     async def delete_all_with_transaction(tx: AsyncManagedTransaction, edition_id: str) -> None:
-        await tx.run(OutlineDatabase.DELETE_ALL_QUERY, edition_id=edition_id)
+        await tx.run(TableOfContentsDatabase.DELETE_ALL_QUERY, edition_id=edition_id)

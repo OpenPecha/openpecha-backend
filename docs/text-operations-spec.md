@@ -70,11 +70,11 @@ PATCH /v2/editions/{edition_id}/content
 | Note | Annotation | `Note → Manifestation` |
 | BibliographicMetadata | Annotation | `BibMeta → Manifestation` |
 | Attribute | Annotation | `Attribute → Manifestation` |
-| OutlineSection | Annotation | `OutlineSection → Outline → Manifestation` |
+| TableOfContentsSection | Annotation | `TableOfContentsSection → TableOfContents → Manifestation` |
 
 ### Behavior Summary
 
-| Operation | Continuous (Segment/Page) | Annotation (Note/BibMeta/Attribute/OutlineSection) |
+| Operation | Continuous (Segment/Page) | Annotation (Note/BibMeta/Attribute/TableOfContentsSection) |
 |-----------|---------------------------|------------------------------------------------|
 | Insert at start boundary | **Shift**† | **Shift** |
 | Insert at end boundary | **Expand** | **Unchanged** |

@@ -7,9 +7,9 @@ from models.enums import EditionType
 from .annotation.alignment_database import AlignmentDatabase
 from .annotation.bibliographic_database import BibliographicDatabase
 from .annotation.note_database import NoteDatabase
-from .annotation.outline_database import OutlineDatabase
 from .annotation.pagination_database import PaginationDatabase
 from .annotation.segmentation_database import SegmentationDatabase
+from .annotation.table_of_contents_database import TableOfContentsDatabase
 from .data_adapter import DataAdapter
 from .database_validator import DatabaseValidator, DataValidationError
 from .nomen_database import NomenDatabase
@@ -187,7 +187,7 @@ class EditionDatabase:
         await AlignmentDatabase.delete_all_with_transaction(tx, edition_id)
         await SegmentationDatabase.delete_all_with_transaction(tx, edition_id)
         await PaginationDatabase.delete_all_with_transaction(tx, edition_id)
-        await OutlineDatabase.delete_all_with_transaction(tx, edition_id)
+        await TableOfContentsDatabase.delete_all_with_transaction(tx, edition_id)
         await BibliographicDatabase.delete_all_with_transaction(tx, edition_id)
         await NoteDatabase.delete_all_with_transaction(tx, edition_id)
         await tx.run(EditionDatabase.DELETE_QUERY, edition_id=edition_id)

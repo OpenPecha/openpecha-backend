@@ -12,7 +12,7 @@ from models.text import TextInput
 
 @pytest.fixture
 def test_person_data() -> PersonInput:
-    return PersonInput(name=LocalizedString({"en": "Outline Test Author"}), bdrc=f"P{generate_id()[:8]}")
+    return PersonInput(name=LocalizedString({"en": "Table Of Contents Test Author"}), bdrc=f"P{generate_id()[:8]}")
 
 
 async def _create_test_person(db, person_data: PersonInput) -> str:
@@ -22,7 +22,7 @@ async def _create_test_person(db, person_data: PersonInput) -> str:
 async def _create_test_text(db, person_id: str) -> str:
     text_data = TextInput(
         category_id="category",
-        title=LocalizedString({"en": "Outline Test Text", "bo": "ས་བཅད་ཚོད་ལྟ།"}),
+        title=LocalizedString({"en": "Table Of Contents Test Text", "bo": "ས་བཅད་ཚོད་ལྟ།"}),
         language="bo",
         contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
     )
@@ -31,7 +31,9 @@ async def _create_test_text(db, person_id: str) -> str:
 
 async def _create_test_edition(db, text_id: str) -> str:
     edition_id = generate_id()
-    edition_data = EditionInput(type=EditionType.DIPLOMATIC, bdrc=f"W{edition_id[:8]}", source="Outline Test Source")
+    edition_data = EditionInput(
+        type=EditionType.DIPLOMATIC, bdrc=f"W{edition_id[:8]}", source="Table Of Contents Test Source"
+    )
     await db.edition.create(edition_data, edition_id, text_id)
     return edition_id
 
@@ -43,7 +45,7 @@ async def _create_test_graph(test_database, person_data: PersonInput) -> tuple[s
     return text_id, edition_id
 
 
-def _outline_payload(name: str = "Main sa bcad") -> dict:
+def _table_of_contents_payload(name: str = "Main sa bcad") -> dict:
     return {
         "metadata": {"name": name},
         "sections": [
@@ -81,93 +83,111 @@ async def _scalar(test_database, query: str, **params):
 
 
 @pytest.mark.asyncio(loop_scope="session")
-class TestOutlines:
-    async def test_outline_round_trip_with_nested_sections(self, client, test_database, test_person_data):
+class TestTableOfContents:
+    async def test_table_of_contents_round_trip_with_nested_sections(
+        self, client, test_database, test_person_data
+    ):
         text_id, edition_id = await _create_test_graph(test_database, test_person_data)
 
-        post_response = await client.post(f"/v2/editions/{edition_id}/outlines", json=_outline_payload())
+        post_response = await client.post(
+            f"/v2/editions/{edition_id}/table-of-contents", json=_table_of_contents_payload()
+        )
         assert post_response.status_code == 201, post_response.json()
-        outline_id = post_response.json()["id"]
+        toc_id = post_response.json()["id"]
 
-        get_response = await client.get(f"/v2/outlines/{outline_id}")
+        get_response = await client.get(f"/v2/table-of-contents/{toc_id}")
         assert get_response.status_code == 200
-        outline = get_response.json()
-        assert outline["id"] == outline_id
-        assert outline["edition_id"] == edition_id
-        assert outline["text_id"] == text_id
-        assert outline["metadata"]["name"] == "Main sa bcad"
-        assert outline["sections"][0]["title"]["en"] == "Chapter 1"
-        assert outline["sections"][0]["title"]["bo"] == "ལེའུ་དང་པོ།"
-        assert outline["sections"][0]["summary"]["en"] == "Opening topic"
-        assert outline["sections"][0]["subsections"][0]["summary"]["en"] == "Introductory topic"
-        assert outline["sections"][0]["subsections"][0]["subsections"][0]["title"]["en"] == "Subsection 1.1.1"
-        assert outline["sections"][0]["subsections"][1]["title"]["en"] == "Section 1.2"
+        toc = get_response.json()
+        assert toc["id"] == toc_id
+        assert toc["edition_id"] == edition_id
+        assert toc["text_id"] == text_id
+        assert toc["metadata"]["name"] == "Main sa bcad"
+        assert toc["sections"][0]["title"]["en"] == "Chapter 1"
+        assert toc["sections"][0]["title"]["bo"] == "ལེའུ་དང་པོ།"
+        assert toc["sections"][0]["summary"]["en"] == "Opening topic"
+        assert toc["sections"][0]["subsections"][0]["summary"]["en"] == "Introductory topic"
+        assert toc["sections"][0]["subsections"][0]["subsections"][0]["title"]["en"] == "Subsection 1.1.1"
+        assert toc["sections"][0]["subsections"][1]["title"]["en"] == "Section 1.2"
 
-        list_response = await client.get(f"/v2/editions/{edition_id}/outlines")
+        list_response = await client.get(f"/v2/editions/{edition_id}/table-of-contents")
         assert list_response.status_code == 200
-        assert [item["id"] for item in list_response.json()] == [outline_id]
+        assert [item["id"] for item in list_response.json()] == [toc_id]
 
-        delete_response = await client.delete(f"/v2/outlines/{outline_id}")
+        delete_response = await client.delete(f"/v2/table-of-contents/{toc_id}")
         assert delete_response.status_code == 204
-        assert (await client.get(f"/v2/outlines/{outline_id}")).status_code == 404
-        assert (await client.delete(f"/v2/outlines/{outline_id}")).status_code == 204
+        assert (await client.get(f"/v2/table-of-contents/{toc_id}")).status_code == 404
+        assert (await client.delete(f"/v2/table-of-contents/{toc_id}")).status_code == 204
 
-    async def test_multiple_outlines_can_attach_to_one_edition(self, client, test_database, test_person_data):
+    async def test_multiple_tables_of_contents_can_attach_to_one_edition(
+        self, client, test_database, test_person_data
+    ):
         _, edition_id = await _create_test_graph(test_database, test_person_data)
 
-        first = await client.post(f"/v2/editions/{edition_id}/outlines", json=_outline_payload("First outline"))
-        second = await client.post(f"/v2/editions/{edition_id}/outlines", json=_outline_payload("Second outline"))
+        first = await client.post(
+            f"/v2/editions/{edition_id}/table-of-contents", json=_table_of_contents_payload("First toc")
+        )
+        second = await client.post(
+            f"/v2/editions/{edition_id}/table-of-contents", json=_table_of_contents_payload("Second toc")
+        )
 
         assert first.status_code == 201, first.json()
         assert second.status_code == 201, second.json()
-        response = await client.get(f"/v2/editions/{edition_id}/outlines")
+        response = await client.get(f"/v2/editions/{edition_id}/table-of-contents")
         assert response.status_code == 200
-        names = {outline["metadata"]["name"] for outline in response.json()}
-        assert names == {"First outline", "Second outline"}
+        names = {toc["metadata"]["name"] for toc in response.json()}
+        assert names == {"First toc", "Second toc"}
 
-    async def test_add_outline_edition_not_found(self, client):
-        response = await client.post("/v2/editions/nonexistent_id/outlines", json=_outline_payload())
+    async def test_add_table_of_contents_edition_not_found(self, client):
+        response = await client.post(
+            "/v2/editions/nonexistent_id/table-of-contents", json=_table_of_contents_payload()
+        )
 
         assert response.status_code == 404
         assert "error" in response.json()
 
-    async def test_add_outline_rejects_subsection_outside_parent_span(self, client, test_database, test_person_data):
+    async def test_add_table_of_contents_rejects_subsection_outside_parent_span(
+        self, client, test_database, test_person_data
+    ):
         _, edition_id = await _create_test_graph(test_database, test_person_data)
-        outline = _outline_payload()
-        outline["sections"][0]["subsections"][0]["span"] = {"start": 9, "end": 12}
+        toc = _table_of_contents_payload()
+        toc["sections"][0]["subsections"][0]["span"] = {"start": 9, "end": 12}
 
-        response = await client.post(f"/v2/editions/{edition_id}/outlines", json=outline)
+        response = await client.post(f"/v2/editions/{edition_id}/table-of-contents", json=toc)
 
         assert response.status_code == 422
         assert "contained" in str(response.json()).lower()
 
-    async def test_delete_edition_cascades_outlines(self, client, test_database, test_person_data):
+    async def test_delete_edition_cascades_tables_of_contents(self, client, test_database, test_person_data):
         _, edition_id = await _create_test_graph(test_database, test_person_data)
-        post_response = await client.post(f"/v2/editions/{edition_id}/outlines", json=_outline_payload())
+        post_response = await client.post(
+            f"/v2/editions/{edition_id}/table-of-contents", json=_table_of_contents_payload()
+        )
         assert post_response.status_code == 201, post_response.json()
-        outline_id = post_response.json()["id"]
+        toc_id = post_response.json()["id"]
 
         await test_database.edition.delete(edition_id)
 
-        assert (await client.get(f"/v2/outlines/{outline_id}")).status_code == 404
-        assert await _scalar(test_database, "RETURN EXISTS { (:Outline {id: $outline_id}) }", outline_id=outline_id) is False
+        assert (await client.get(f"/v2/table-of-contents/{toc_id}")).status_code == 404
+        assert (
+            await _scalar(test_database, "RETURN EXISTS { (:TableOfContents {id: $toc_id}) }", toc_id=toc_id) is False
+        )
         assert (
             await _scalar(
                 test_database,
-                "MATCH (:OutlineSection)-[:SECTION_OF]->(:Outline {id: $outline_id}) RETURN count(*)",
-                outline_id=outline_id,
+                "MATCH (:TableOfContentsSection)-[:SECTION_OF]->(:TableOfContents {id: $toc_id}) RETURN count(*)",
+                toc_id=toc_id,
             )
             == 0
         )
 
-    async def test_patch_content_adjusts_outline_section_spans(self, client, test_database):
-        person_response = await client.post("/v2/persons", json={"name": {"en": "Outline Patch Author"}})
+    async def test_patch_content_adjusts_table_of_contents_section_spans(self, client, test_database):
+        person_response = await client.post("/v2/persons", json={"name": {"en": "Table Of Contents Patch Author"}})
         assert person_response.status_code == 201, person_response.json()
         person_id = person_response.json()["id"]
         text_response = await client.post(
             "/v2/texts",
             json={
-                "title": {"en": "Outline Patch Text"},
+                "title": {"en": "Table Of Contents Patch Text"},
                 "language": "en",
                 "category_id": "category",
                 "contributions": [{"person_id": person_id, "role": "author"}],
@@ -182,7 +202,7 @@ class TestOutlines:
                 "metadata": {
                     "type": "diplomatic",
                     "bdrc": f"W{generate_id()[:8]}",
-                    "source": "Outline Patch Source",
+                    "source": "Table Of Contents Patch Source",
                 },
                 "pagination": {
                     "volumes": [{"pages": [{"reference": "1a", "lines": [{"start": 0, "end": 10}]}]}],
@@ -191,7 +211,7 @@ class TestOutlines:
         )
         assert edition_response.status_code == 201, edition_response.json()
         edition_id = edition_response.json()["id"]
-        outline_data = {
+        toc_data = {
             "sections": [
                 {
                     "title": {"en": "Middle section"},
@@ -199,9 +219,9 @@ class TestOutlines:
                 }
             ]
         }
-        outline_response = await client.post(f"/v2/editions/{edition_id}/outlines", json=outline_data)
-        assert outline_response.status_code == 201, outline_response.json()
-        outline_id = outline_response.json()["id"]
+        toc_response = await client.post(f"/v2/editions/{edition_id}/table-of-contents", json=toc_data)
+        assert toc_response.status_code == 201, toc_response.json()
+        toc_id = toc_response.json()["id"]
 
         patch_response = await client.patch(
             f"/v2/editions/{edition_id}/content",
@@ -209,5 +229,5 @@ class TestOutlines:
         )
         assert patch_response.status_code == 204
 
-        outline = (await client.get(f"/v2/outlines/{outline_id}")).json()
-        assert outline["sections"][0]["span"] == {"start": 2, "end": 7}
+        toc = (await client.get(f"/v2/table-of-contents/{toc_id}")).json()
+        assert toc["sections"][0]["span"] == {"start": 2, "end": 7}

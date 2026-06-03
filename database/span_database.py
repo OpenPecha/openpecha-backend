@@ -128,8 +128,8 @@ class SpanDatabase:
         RETURN entity.id AS entity_id, span.start AS span_start, span.end AS span_end
         UNION ALL
         MATCH (m:Edition {id: $edition_id})
-            <-[:OUTLINE_OF]-(:Outline)
-            <-[:SECTION_OF]-(entity:OutlineSection)
+            <-[:TOC_OF]-(:TableOfContents)
+            <-[:SECTION_OF]-(entity:TableOfContentsSection)
             <-[:SPAN_OF]-(span:Span)
         RETURN entity.id AS entity_id, span.start AS span_start, span.end AS span_end
     }
@@ -140,7 +140,7 @@ class SpanDatabase:
     BATCH_UPDATE_SPANS_QUERY: LiteralString = """
     UNWIND $updates AS u
     MATCH (span:Span)-[:SPAN_OF]->(
-        entity:Segment|Page|BibliographicMetadata|Note|Attribute|OutlineSection {id: u.entity_id}
+        entity:Segment|Page|BibliographicMetadata|Note|Attribute|TableOfContentsSection {id: u.entity_id}
     )
     SET span.start = u.new_start, span.end = u.new_end
     FINISH
@@ -148,7 +148,7 @@ class SpanDatabase:
 
     BATCH_DELETE_ENTITIES_QUERY: LiteralString = """
     UNWIND $entity_ids AS eid
-    MATCH (entity:Segment|Page|BibliographicMetadata|Note|Attribute|OutlineSection {id: eid})
+    MATCH (entity:Segment|Page|BibliographicMetadata|Note|Attribute|TableOfContentsSection {id: eid})
     OPTIONAL MATCH (span:Span)-[:SPAN_OF]->(entity)
     OPTIONAL MATCH (entity)-[:HAS_TITLE|HAS_SUMMARY]->(nomen:Nomen)
     OPTIONAL MATCH (nomen)-[:HAS_LOCALIZATION]->(localized:LocalizedText)

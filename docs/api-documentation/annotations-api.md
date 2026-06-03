@@ -9,7 +9,7 @@ Annotations attach structured information to edition content using character spa
 - **Segmentation**: A set of logical content segments for an edition.
 - **Alignment**: A mapping between segments in an aligned edition and target segments in another edition.
 - **Pagination**: A mapping from character spans to page or folio references.
-- **Outline**: A table-of-contents style hierarchy for an edition. Each section has a character span, localized title, optional localized summary, and optional nested subsections.
+- **Table of contents**: A table-of-contents style hierarchy for an edition. Each section has a character span, localized title, optional localized summary, and optional nested subsections.
 - **Bibliographic metadata**: Span-level metadata such as colophon, title, incipit, or author.
 - **Durchen note**: A span-level critical apparatus note.
 
@@ -30,7 +30,7 @@ Annotations are created and listed by type under an edition. Each `POST` returns
 | Segmentation | `GET /v2/editions/{edition_id}/segmentations` | `POST /v2/editions/{edition_id}/segmentations` |
 | Alignment | `GET /v2/editions/{edition_id}/alignments` | `POST /v2/editions/{edition_id}/alignments` |
 | Pagination | `GET /v2/editions/{edition_id}/pagination` | `POST /v2/editions/{edition_id}/pagination` |
-| Outline | `GET /v2/editions/{edition_id}/outlines` | `POST /v2/editions/{edition_id}/outlines` |
+| Table of contents | `GET /v2/editions/{edition_id}/table-of-contents` | `POST /v2/editions/{edition_id}/table-of-contents` |
 | Bibliographic metadata | `GET /v2/editions/{edition_id}/bibliographic` | `POST /v2/editions/{edition_id}/bibliographic` |
 | Durchen notes | `GET /v2/editions/{edition_id}/durchens` | `POST /v2/editions/{edition_id}/durchens` |
 
@@ -103,7 +103,7 @@ The path `edition_id` is the aligned edition. `target_indices` are zero-based in
 
 Single-volume pagination omits `index`. Multi-volume pagination requires unique continuous indexes starting at `1`.
 
-### Create Outline
+### Create table of contents
 
 ```json
 {
@@ -137,7 +137,7 @@ Single-volume pagination omits `index`. Multi-volume pagination requires unique 
 }
 ```
 
-Each outline can contain one or more root `sections`. Sections can be nested with `subsections` to represent a table of contents or Tibetan `sa bcad` hierarchy. Each section and subsection has the same shape:
+Each table of contents can contain one or more root `sections`. Sections can be nested with `subsections` to represent a table of contents or Tibetan `sa bcad` hierarchy. Each section and subsection has the same shape:
 
 - `title`: localized string, required.
 - `summary`: localized string, optional.
@@ -145,7 +145,7 @@ Each outline can contain one or more root `sections`. Sections can be nested wit
 - `subsections`: nested child sections, optional and defaults to an empty list.
 
 Each subsection span must be fully contained inside its parent section span.
-An edition can have multiple outlines. Outline sections are managed as part of the outline annotation; they are not standalone API resources.
+An edition can have multiple table of contents. Table of contents sections are managed as part of the table of contents annotation; they are not standalone API resources.
 Returned sections and subsections are ordered by their span start/end positions.
 
 ### Create Bibliographic Metadata
@@ -317,11 +317,11 @@ Response:
 }
 ```
 
-### Outline
+### Table of contents
 
 ```http
-GET /v2/outlines/{outline_id}
-DELETE /v2/outlines/{outline_id}
+GET /v2/table-of-contents/{toc_id}
+DELETE /v2/table-of-contents/{toc_id}
 ```
 
 Response:
@@ -363,7 +363,7 @@ Response:
 }
 ```
 
-Deleting an outline deletes its outline sections, section spans, title/summary localized text subgraphs, and metadata.
+Deleting an table of contents deletes its table of contents sections, section spans, title/summary localized text subgraphs, and metadata.
 
 ### Bibliographic Metadata
 
@@ -422,7 +422,7 @@ curl -X POST "https://api-l25bgmwqoa-uc.a.run.app/v2/editions/ED123/durchens" \
 curl -X DELETE "https://api-l25bgmwqoa-uc.a.run.app/v2/durchens/DUR123" \
   -H "X-API-Key: your_api_key"
 
-curl -X POST "https://api-l25bgmwqoa-uc.a.run.app/v2/editions/ED123/outlines" \
+curl -X POST "https://api-l25bgmwqoa-uc.a.run.app/v2/editions/ED123/table-of-contents" \
   -H "X-API-Key: your_api_key" \
   -H "Content-Type: application/json" \
   -d '{
