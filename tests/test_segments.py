@@ -469,6 +469,64 @@ class TestEditionSegmentsRelated(SegmentTestBase):
         assert trans_edition_id in edition_ids
         assert comm_edition_id in edition_ids
 
+    async def test_related_segments_filters_by_text_edition_language(self, client, test_database):
+        """Related span endpoint filters display results by text, edition, and language."""
+        person_id = await self._create_person(test_database)
+
+        root_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "རྩ་བ།", "en": "Filter Root"})
+        )
+        root_edition_id = await self._create_edition(client, root_text_id, "0123456789")
+        await self._post_segmentation(client, root_edition_id, [(0, 10)])
+
+        trans_text_id = await self._create_translation_text(test_database, person_id, root_text_id, language="en")
+        trans_edition_id = await self._create_edition(client, trans_text_id, "ABCDEFGHIJ")
+        await self._post_segmentation(client, trans_edition_id, [(0, 10)])
+
+        comm_text_id = await self._create_commentary_text(test_database, person_id, root_text_id)
+        comm_edition_id = await self._create_edition(client, comm_text_id, "KLMNOPQRST")
+        await self._post_segmentation(client, comm_edition_id, [(0, 10)])
+
+        await self._post_alignment(
+            client, root_edition_id, trans_edition_id,
+            source_segments=[(0, 10)],
+            target_segments=[(0, 10)],
+            alignment_map=[(0, [0])],
+        )
+        await self._post_alignment(
+            client, root_edition_id, comm_edition_id,
+            source_segments=[(0, 10)],
+            target_segments=[(0, 10)],
+            alignment_map=[(0, [0])],
+        )
+
+        text_resp = await client.get(
+            f"/v2/editions/{root_edition_id}/segments/related"
+            f"?span_start=0&span_end=10&text_id={trans_text_id}"
+        )
+        assert text_resp.status_code == 200
+        assert {item["text_id"] for item in self._related_items(text_resp.json())} == {trans_text_id}
+
+        edition_resp = await client.get(
+            f"/v2/editions/{root_edition_id}/segments/related"
+            f"?span_start=0&span_end=10&edition_id={comm_edition_id}"
+        )
+        assert edition_resp.status_code == 200
+        assert {item["edition_id"] for item in self._related_items(edition_resp.json())} == {comm_edition_id}
+
+        language_resp = await client.get(
+            f"/v2/editions/{root_edition_id}/segments/related?span_start=0&span_end=10&language=en"
+        )
+        assert language_resp.status_code == 200
+        assert {item["text_id"] for item in self._related_items(language_resp.json())} == {trans_text_id}
+
+        empty_resp = await client.get(
+            f"/v2/editions/{root_edition_id}/segments/related"
+            f"?span_start=0&span_end=10&text_id={trans_text_id}&edition_id={comm_edition_id}"
+        )
+        assert empty_resp.status_code == 200
+        assert self._related_items(empty_resp.json()) == []
+
     # ---- transitive alignment (chain) ----
 
     async def test_transitive_alignment_chain(self, client, test_database):
@@ -514,6 +572,47 @@ class TestEditionSegmentsRelated(SegmentTestBase):
         edition_ids = self._collect_edition_ids(data)
         assert edition_b_id in edition_ids
         assert edition_c_id in edition_ids, "Should find C transitively via A->B->C"
+
+    async def test_related_segments_filter_preserves_transitive_discovery(self, client, test_database):
+        """Filtering happens after traversal so a deeper matching edition can still be returned."""
+        person_id = await self._create_person(test_database)
+
+        text_a_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "ཀ", "en": "Filter Text A"})
+        )
+        edition_a_id = await self._create_edition(client, text_a_id, "0123456789")
+        await self._post_segmentation(client, edition_a_id, [(0, 10)])
+
+        text_b_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "ཁ", "en": "Filter Text B"})
+        )
+        edition_b_id = await self._create_edition(client, text_b_id, "ABCDEFGHIJ")
+        await self._post_segmentation(client, edition_b_id, [(0, 10)])
+
+        text_c_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "ག", "en": "Filter Text C"})
+        )
+        edition_c_id = await self._create_edition(client, text_c_id, "KLMNOPQRST")
+        await self._post_segmentation(client, edition_c_id, [(0, 10)])
+
+        await self._post_alignment(
+            client, edition_b_id, edition_a_id,
+            source_segments=[(0, 10)],
+            target_segments=[(0, 10)],
+            alignment_map=[(0, [0])],
+        )
+        await self._post_alignment(
+            client, edition_c_id, edition_b_id,
+            source_segments=[(0, 10)],
+            target_segments=[(0, 10)],
+            alignment_map=[(0, [0])],
+        )
+
+        resp = await client.get(
+            f"/v2/editions/{edition_a_id}/segments/related?span_start=0&span_end=10&text_id={text_c_id}"
+        )
+        assert resp.status_code == 200
+        assert {item["edition_id"] for item in self._related_items(resp.json())} == {edition_c_id}
 
     async def test_transitive_chain_from_leaf(self, client, test_database):
         """A<-B<-C chain: querying from C should return both B and A."""
@@ -1172,6 +1271,58 @@ class TestDirectSegmentRelated(SegmentTestBase):
         data = self._related_items(resp.json())
         assert len(data) >= 1
         assert data[0]["edition_id"] == tgt_edition_id
+
+    async def test_segment_related_filters_by_text_edition_language(self, client, test_database):
+        """Direct segment related endpoint uses the same related-result filters."""
+        person_id = await self._create_person(test_database)
+
+        root_text_id = await self._create_text(
+            test_database, person_id, title=LocalizedString({"bo": "རྩ་བ།", "en": "Direct Filter Root"})
+        )
+        root_edition_id = await self._create_edition(client, root_text_id, "0123456789")
+        await self._post_segmentation(client, root_edition_id, [(0, 10)])
+
+        trans_text_id = await self._create_translation_text(test_database, person_id, root_text_id, language="en")
+        trans_edition_id = await self._create_edition(client, trans_text_id, "ABCDEFGHIJ")
+        await self._post_segmentation(client, trans_edition_id, [(0, 10)])
+
+        comm_text_id = await self._create_commentary_text(test_database, person_id, root_text_id)
+        comm_edition_id = await self._create_edition(client, comm_text_id, "KLMNOPQRST")
+        await self._post_segmentation(client, comm_edition_id, [(0, 10)])
+
+        await self._post_alignment(
+            client, root_edition_id, trans_edition_id,
+            source_segments=[(0, 10)],
+            target_segments=[(0, 10)],
+            alignment_map=[(0, [0])],
+        )
+        await self._post_alignment(
+            client, root_edition_id, comm_edition_id,
+            source_segments=[(0, 10)],
+            target_segments=[(0, 10)],
+            alignment_map=[(0, [0])],
+        )
+
+        seg_ids = await self._get_segment_ids_from_segmentation(client, root_edition_id)
+        assert len(seg_ids) >= 1
+
+        text_resp = await client.get(f"/v2/segments/{seg_ids[0]}/related?text_id={trans_text_id}")
+        assert text_resp.status_code == 200
+        assert {item["text_id"] for item in self._related_items(text_resp.json())} == {trans_text_id}
+
+        edition_resp = await client.get(f"/v2/segments/{seg_ids[0]}/related?edition_id={comm_edition_id}")
+        assert edition_resp.status_code == 200
+        assert {item["edition_id"] for item in self._related_items(edition_resp.json())} == {comm_edition_id}
+
+        language_resp = await client.get(f"/v2/segments/{seg_ids[0]}/related?language=en")
+        assert language_resp.status_code == 200
+        assert {item["text_id"] for item in self._related_items(language_resp.json())} == {trans_text_id}
+
+        empty_resp = await client.get(
+            f"/v2/segments/{seg_ids[0]}/related?text_id={trans_text_id}&edition_id={comm_edition_id}"
+        )
+        assert empty_resp.status_code == 200
+        assert self._related_items(empty_resp.json()) == []
 
     async def test_segment_related_has_more(self, client, test_database):
         """Direct related segment pagination should report when another page exists."""

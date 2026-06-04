@@ -5,6 +5,7 @@ from models.annotation import (
     SegmentWithContextOutput,
     Span,
 )
+from models.requests import RelatedSegmentsFilter
 
 if TYPE_CHECKING:
     from neo4j import AsyncManagedTransaction, AsyncSession
@@ -57,6 +58,9 @@ class SegmentDatabase:
     RESOLVE_DISPLAY_PAGE_QUERY: LiteralString = """
     UNWIND $contexts AS context
     MATCH (edition:Edition {id: context.edition_id})-[:EDITION_OF]->(text:Text)
+    WHERE ($text_id IS NULL OR text.id = $text_id)
+      AND ($filter_edition_id IS NULL OR edition.id = $filter_edition_id)
+      AND ($language IS NULL OR (text)-[:HAS_LANGUAGE]->(:Language {code: $language}))
     MATCH (edition)<-[:SEGMENTATION_OF]-(sgn:Segmentation:Display)
         <-[:SEGMENT_OF]-(seg:Segment)
     CALL (seg) {
@@ -127,8 +131,10 @@ class SegmentDatabase:
         max_depth: int = 5,
         offset: int = 0,
         limit: int = 20,
+        filters: RelatedSegmentsFilter | None = None,
     ) -> list[SegmentWithContextOutput]:
         """Traverse the alignment tree from an edition+spans and return paged display segments."""
+        filters = filters or RelatedSegmentsFilter()
 
         async def _read(tx: AsyncManagedTransaction) -> list[SegmentWithContextOutput]:
             contexts: dict[str, dict] = {}
@@ -164,6 +170,7 @@ class SegmentDatabase:
                 application=application,
                 offset=offset,
                 limit=limit,
+                filters=filters,
             )
 
         async with self._session as session:
@@ -176,6 +183,7 @@ class SegmentDatabase:
         application: str | None,
         offset: int,
         limit: int,
+        filters: RelatedSegmentsFilter,
     ) -> list[SegmentWithContextOutput]:
         records = await (
             await tx.run(
@@ -184,6 +192,9 @@ class SegmentDatabase:
                 application=application,
                 offset=offset,
                 limit=limit,
+                text_id=filters.text_id,
+                filter_edition_id=filters.edition_id,
+                language=filters.language,
             )
         ).data()
         return [

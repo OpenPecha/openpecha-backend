@@ -8,7 +8,7 @@ from config import settings
 from dependencies import OptionalAppHeader, get_api_key, get_db, get_storage
 from exceptions import DataNotFoundError, InvalidRequestError
 from models.annotation import SegmentWithContextOutput
-from models.requests import PaginationParams, SegmentsQueryParams
+from models.requests import DirectRelatedSegmentsQueryParams, SegmentsQueryParams
 from models.responses import PaginatedResponse
 from models.search import SearchFilter, SearchResponse, SearchResult
 
@@ -28,7 +28,7 @@ router = APIRouter(prefix="/v2/segments", tags=["Segments"])
 )
 async def get_related(
     segment_id: Annotated[str, Path(description="The ID of the segment")],
-    params: Annotated[PaginationParams, Query()],
+    params: Annotated[DirectRelatedSegmentsQueryParams, Query()],
     _api_key: Annotated[str, Depends(get_api_key)],
     db: Annotated[Database, Depends(get_db)],
     x_application: OptionalAppHeader = None,
@@ -44,6 +44,7 @@ async def get_related(
         application=x_application,
         offset=params.offset,
         limit=params.limit + 1,
+        filters=params,
     )
     return PaginatedResponse.from_items(segments, offset=params.offset, limit=params.limit)
 

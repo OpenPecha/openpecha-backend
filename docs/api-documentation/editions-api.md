@@ -465,6 +465,11 @@ Finds segments overlapping a span in the edition, then returns aligned segments 
 | `span_end` | integer | Yes | - |
 | `limit` | integer | No | 20 |
 | `offset` | integer | No | 0 |
+| `text_id` | string | No | - |
+| `edition_id` | string | No | - |
+| `language` | string | No | - |
+
+Optional filters are applied to related display segments before pagination. When multiple filters are supplied, returned segments must match all of them.
 
 ```json
 {

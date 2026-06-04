@@ -266,6 +266,7 @@ async def get_segment_related(
         spans=[(params.span_start, params.span_end)],
         offset=params.offset,
         limit=params.limit + 1,
+        filters=params,
     )
     return PaginatedResponse.from_items(segments, offset=params.offset, limit=params.limit)
 

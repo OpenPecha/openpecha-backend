@@ -58,7 +58,17 @@ class SpanQueryParams(OpenPechaModel):
         return self
 
 
-class RelatedSegmentsQueryParams(PaginationParams, SpanQueryParams):
+class RelatedSegmentsFilter(OpenPechaModel):
+    text_id: str | None = Field(default=None, description="Filter related segments by text ID")
+    edition_id: str | None = Field(default=None, description="Filter related segments by edition ID")
+    language: str | None = Field(default=None, description="Filter related segments by text language")
+
+
+class DirectRelatedSegmentsQueryParams(PaginationParams, RelatedSegmentsFilter):
+    pass
+
+
+class RelatedSegmentsQueryParams(PaginationParams, SpanQueryParams, RelatedSegmentsFilter):
     pass
 
 

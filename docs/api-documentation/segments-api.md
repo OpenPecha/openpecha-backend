@@ -167,6 +167,9 @@ GET /v2/segments/{segment_id}/related
 | `segment_id` | string | path | Yes | - | The ID of the segment to find related segments for |
 | `limit` | integer | query | No | 20 | Number of related segments to return (1-100) |
 | `offset` | integer | query | No | 0 | Number of related segments to skip |
+| `text_id` | string | query | No | - | Filter related segments to one text |
+| `edition_id` | string | query | No | - | Filter related segments to one edition |
+| `language` | string | query | No | - | Filter related segments by text language code |
 
 **Response: 200 OK**
 
@@ -191,6 +194,7 @@ GET /v2/segments/{segment_id}/related
 **Response Structure:**
 - Returns a paginated object with flat segment objects in `items`
 - Each segment includes `segmentation_id`, `edition_id`, and `text_id`
+- Optional filters are applied to related display results before pagination; combined filters are conjunctive
 - Empty result uses `"items": []`
 
 **Error Responses:**
@@ -204,6 +208,11 @@ If the segment ID does not exist, this endpoint returns an empty paginated respo
 
 ```bash
 curl -X GET "https://api-l25bgmwqoa-uc.a.run.app/v2/segments/SEG001/related" \
+  -H "X-API-Key: your_api_key"
+```
+
+```bash
+curl -X GET "https://api-l25bgmwqoa-uc.a.run.app/v2/segments/SEG001/related?text_id=TXT456&language=en" \
   -H "X-API-Key: your_api_key"
 ```
 
