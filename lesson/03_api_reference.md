@@ -51,7 +51,13 @@ Response envelope:
 
 `has_more` is computed by fetching `limit + 1` rows and checking if the extra row exists.
 
-**Paginated endpoints:** `GET /v2/texts`, `GET /v2/persons`, `GET /v2/editions/{id}/segments/related`, `GET /v2/segments/{id}/related`
+**Paginated endpoints:**
+- `GET /v2/texts` — `PaginatedResponse[TextOutput]`
+- `GET /v2/persons` — `PaginatedResponse[PersonOutput]`
+- `GET /v2/editions/{id}/segments/related` — `PaginatedResponse[SegmentWithContextOutput]`
+- `GET /v2/segments/{id}/related` — `PaginatedResponse[SegmentWithContextOutput]`
+- `GET /v2/segmentations/{id}/segments` — `PaginatedResponse[SegmentOutput]` (default `limit` 500, max 500)
+- `GET /v2/alignments/{id}/segments` — `PaginatedResponse[AlignmentSegmentOutput]` (default `limit` 500, max 500)
 
 ---
 
@@ -178,6 +184,18 @@ Content-Type: application/json
 ```
 
 Only the provided fields are updated. Response: full `TextOutput`.
+
+---
+
+### 3.4b Delete Text
+
+```
+DELETE /v2/texts/{text_id}
+```
+
+Deletes the text (and its Work if the Work has no other texts). Returns `204 No Content`.
+
+**Conflict rules (`409`):** deletion is rejected if the text still has editions, or if another text points to it via `TRANSLATION_OF` or `COMMENTARY_OF`. Delete the editions / dependent texts first. Tags on a shared Work are preserved when only one of several texts is deleted.
 
 ---
 
@@ -315,7 +333,7 @@ Response: `204 No Content`
 DELETE /v2/editions/{edition_id}
 ```
 
-Cascades: deletes all segmentations, alignments, pagination, bibliographic metadata, notes — and the S3 base text file. Response: `204 No Content`.
+Cascades: deletes all segmentations, alignments, pagination, tables of contents, bibliographic metadata, notes — and the S3 base text file. Response: `204 No Content`.
 
 ---
 
@@ -329,6 +347,8 @@ Cascades: deletes all segmentations, alignments, pagination, bibliographic metad
 | `POST` | `/v2/editions/{id}/alignments` | Add an alignment |
 | `GET` | `/v2/editions/{id}/pagination` | The single pagination (or null) |
 | `POST` | `/v2/editions/{id}/pagination` | Add pagination |
+| `GET` | `/v2/editions/{id}/table-of-contents` | All table-of-contents annotations |
+| `POST` | `/v2/editions/{id}/table-of-contents` | Add a table of contents |
 | `GET` | `/v2/editions/{id}/bibliographic` | All bibliographic metadata |
 | `POST` | `/v2/editions/{id}/bibliographic` | Add bibliographic metadata |
 | `GET` | `/v2/editions/{id}/durchens` | All durchen (note) annotations |
@@ -356,7 +376,7 @@ GET /v2/editions/{edition_id}/segments/related?span_start=0&span_end=100&limit=2
 
 Required params: `span_start`, `span_end`. Optional: `limit` (default 20), `offset` (default 0).
 
-Traverses the alignment graph (up to depth 5) and returns display segments from related editions that overlap the given span. Response is a flat `PaginatedResponse[SegmentOutput]`:
+Traverses the alignment graph (up to depth 5) and returns display segments from related editions that overlap the given span. Response is a flat `PaginatedResponse[SegmentWithContextOutput]`:
 
 ```json
 {
@@ -376,7 +396,7 @@ Traverses the alignment graph (up to depth 5) and returns display segments from 
 }
 ```
 
-Each `SegmentOutput` carries `edition_id`, `text_id`, and `segmentation_id` so clients can group by edition/segmentation themselves if needed.
+Each `SegmentWithContextOutput` carries `edition_id`, `text_id`, and `segmentation_id` so clients can group by edition/segmentation themselves if needed.
 
 ---
 
@@ -384,10 +404,11 @@ Each `SegmentOutput` carries `edition_id`, `text_id`, and `segmentation_id` so c
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/v2/segmentations/{segmentation_id}` | Get a specific segmentation |
+| `GET` | `/v2/segmentations/{segmentation_id}` | Get a specific segmentation (header only: `id`, `edition_id`, `text_id`, `metadata`) |
+| `GET` | `/v2/segmentations/{segmentation_id}/segments` | Paginated segments — `PaginatedResponse[SegmentOutput]` (`limit` default/max 500) |
 | `DELETE` | `/v2/segmentations/{segmentation_id}` | Delete (fails with error if part of alignment — use alignment delete instead) |
 
-> Note: There is no `PUT` endpoint. To replace a segmentation, use the `update()` method directly in code (delete + re-create in one transaction) or call DELETE then POST.
+> Note: There is no `PUT` endpoint. `SegmentationOutput` no longer embeds its segment list — fetch segments via the `/segments` sub-endpoint. To replace a segmentation, delete then POST a new one.
 
 ---
 
@@ -395,7 +416,8 @@ Each `SegmentOutput` carries `edition_id`, `text_id`, and `segmentation_id` so c
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/v2/alignments/{alignment_id}` | Get a specific alignment |
+| `GET` | `/v2/alignments/{alignment_id}` | Get a specific alignment (header only — no embedded segments) |
+| `GET` | `/v2/alignments/{alignment_id}/segments` | Paginated aligned-segment rows — `PaginatedResponse[AlignmentSegmentOutput]` (`limit` default/max 500) |
 | `DELETE` | `/v2/alignments/{alignment_id}` | Delete alignment + both segmentations |
 
 **Alignment creation request** (via `POST /v2/editions/{id}/alignments`):
@@ -447,14 +469,28 @@ Rules:
 
 ---
 
-## 8. Segments (`/v2/segments`)
+## 8. Table of Contents (`/v2/table-of-contents`)
 
-There is no `GET /v2/segments` list endpoint and no `GET /v2/segments/{id}` direct fetch. Segments are retrieved through their parent segmentation or via the related/content sub-endpoints.
+> Previously named "outline"; renamed during the dev sync.
 
 | Method | Path | Description |
 |---|---|---|
+| `GET` | `/v2/table-of-contents/{toc_id}` | Get a table of contents with its nested sections |
+| `DELETE` | `/v2/table-of-contents/{toc_id}` | Delete the table of contents and all its sections |
+
+Creation/listing happen under an edition (`POST`/`GET /v2/editions/{id}/table-of-contents`). See Lesson 04 §6 for the full request/response shape. Response model: `TableOfContentsOutput` with a nested `sections[]` tree (each section has `id`, `title`, optional `summary`, `span`, and `subsections[]`).
+
+---
+
+## 9. Segments (`/v2/segments`)
+
+There is no `GET /v2/segments` list endpoint, but you **can** fetch a single segment directly.
+
+| Method | Path | Description |
+|---|---|---|
+| `GET` | `/v2/segments/{segment_id}` | Get a single segment with context — returns `SegmentWithContextOutput` (`id`, `lines`, `segmentation_id`, `edition_id`, `text_id`, `tag_ids`). 404 fields are omitted via `response_model_exclude_none`. |
 | `GET` | `/v2/segments/{segment_id}/content` | Get the raw text for this segment (fetches from S3, slices by span) |
-| `GET` | `/v2/segments/{segment_id}/related` | Related segments across aligned editions (transitive traversal). Returns `PaginatedResponse[SegmentOutput]`. |
+| `GET` | `/v2/segments/{segment_id}/related` | Related segments across aligned editions (transitive traversal). Returns `PaginatedResponse[SegmentWithContextOutput]`. |
 | `POST` | `/v2/segments/{segment_id}/tags/{tag_id}` | Tag a segment |
 | `DELETE` | `/v2/segments/{segment_id}/tags/{tag_id}` | Untag a segment |
 | `GET` | `/v2/segments/search?query=...` | Semantic/full-text search via external search API |
@@ -473,7 +509,7 @@ There is no `GET /v2/segments` list endpoint and no `GET /v2/segments/{id}` dire
 
 ---
 
-## 9. Persons (`/v2/persons`)
+## 10. Persons (`/v2/persons`)
 
 | Method | Path | Description |
 |---|---|---|
@@ -481,6 +517,7 @@ There is no `GET /v2/segments` list endpoint and no `GET /v2/segments/{id}` dire
 | `GET` | `/v2/persons/{person_id}` | Get single person |
 | `POST` | `/v2/persons` | Create person |
 | `PATCH` | `/v2/persons/{person_id}` | Partial update |
+| `DELETE` | `/v2/persons/{person_id}` | Delete person — `204`; rejected with `409` if the person is referenced by any text contribution |
 
 **Create request:**
 
@@ -497,7 +534,7 @@ There is no `GET /v2/segments` list endpoint and no `GET /v2/segments/{id}` dire
 
 ---
 
-## 10. Categories (`/v2/categories`)
+## 11. Categories (`/v2/categories`)
 
 **Required header on all requests:** `X-Application: <application_id>`
 
@@ -506,6 +543,7 @@ There is no `GET /v2/segments` list endpoint and no `GET /v2/segments/{id}` dire
 | `GET` | `/v2/categories` | All categories for the application (optional `parent_id` filter) |
 | `GET` | `/v2/categories/{category_id}` | Get a single category by ID |
 | `POST` | `/v2/categories` | Create a category |
+| `DELETE` | `/v2/categories/{category_id}` | Delete a category and **recursively** its child categories (and their `HAS_CATEGORY` links). `204`. Returns `404` if the category does not belong to the `X-Application`. |
 
 **Query params for list:**
 
@@ -541,39 +579,42 @@ Response: `{"id": "CAT_001"}`
 
 ---
 
-## 11. Tags (`/v2/tags`)
+## 12. Tags (`/v2/tags`)
 
-**Required header for POST:** `X-Application: <application_id>`
+**Required header on all requests:** `X-Application: <application_id>`
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/v2/tags` | All tags |
+| `GET` | `/v2/tags` | All tags for the application |
 | `POST` | `/v2/tags` | Create a tag |
-| `GET` | `/v2/tags/{tag_id}` | Get single tag |
+| `DELETE` | `/v2/tags/{tag_id}` | Delete a tag (and its `HAS_TAG` links). `204`. Returns `404` if the tag does not belong to the `X-Application`. |
+
+> Note: there is no `GET /v2/tags/{tag_id}` direct-fetch endpoint; tags are listed via `GET /v2/tags`.
 
 ---
 
-## 12. Languages (`/v2/languages`)
+## 13. Languages (`/v2/languages`)
 
 | Method | Path | Description |
 |---|---|---|
 | `GET` | `/v2/languages` | All languages |
 | `POST` | `/v2/languages` | Create a language |
+| `DELETE` | `/v2/languages/{code}` | Delete an unused language. `204`; rejected with `409` if any text references it via `HAS_LANGUAGE`. |
 
 Language `code` is a BCP-47 base (e.g. `bo`, `en`, `sa`). Text nodes carry the full `bcp47` tag (e.g. `bo-x-ewts`) on the `HAS_LANGUAGE` relationship.
 
 ---
 
-## 13. Applications (`/v2/applications`) — Admin
+## 14. Applications (`/v2/applications`) — Admin
 
 | Method | Path | Description |
 |---|---|---|
-| `GET` | `/v2/applications` | List all applications |
 | `POST` | `/v2/applications` | Create application |
+| `DELETE` | `/v2/applications/{application_id}` | Delete an unused application. `204`; rejected with `409` if it is still referenced by a category, tag, or API key. |
 
 ---
 
-## 14. Error Reference
+## 15. Error Reference
 
 | Status | Description |
 |---|---|

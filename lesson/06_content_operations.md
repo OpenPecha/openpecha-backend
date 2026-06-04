@@ -3,7 +3,7 @@
 ## Learning Objectives
 
 - Explain the three content operations: INSERT, DELETE, REPLACE
-- Distinguish "continuous" spans (Segment, Page) from "annotation" spans (Note, BibMeta, Attribute)
+- Distinguish "continuous" spans (Segment, Page) from "annotation" spans (Note, BibMeta, Attribute, TableOfContentsSection)
 - Apply the adjustment algorithm by hand for any operation
 - Understand the edge cases: insert at 0, boundary inserts, encompassed spans
 - Read the Python code in `database/span_database.py` and predict the outcome
@@ -37,7 +37,7 @@ The adjustment algorithm treats spans differently depending on their entity type
 | Category | Entity types | Behavior |
 |---|---|---|
 | **Continuous** | `Segment`, `Page` | Cover contiguous text with no gaps; expand at boundaries |
-| **Annotation** | `Note`, `BibliographicMetadata`, `Attribute` | Point at a specific text region; shift at boundaries |
+| **Annotation** | `Note`, `BibliographicMetadata`, `Attribute`, `TableOfContentsSection` | Point at a specific text region; shift at boundaries |
 
 The key difference is at **insert at boundary**:
 - A `Segment` covering `[0, 10)` with an insert at position 10 **expands** to `[0, 10+len)`
@@ -271,7 +271,7 @@ async def adjust_spans_for_insert(self, edition_id, position, length):
                                  "new_start": adjusted[0],
                                  "new_end": adjusted[1]})
 
-        # Annotation spans: Notes, BibMeta, Attributes
+        # Annotation spans: Notes, BibMeta, Attributes, TableOfContentsSections
         result = await tx.run(FIND_ANNOTATION_SPANS_QUERY, edition_id=edition_id)
         for record in await result.data():
             adjusted = _adjust_annotation_for_insert(...)
@@ -287,23 +287,25 @@ async def adjust_spans_for_insert(self, edition_id, position, length):
 The Cypher batch update:
 ```cypher
 UNWIND $updates AS u
-MATCH (span:Span)-[:SPAN_OF]->(entity:Segment|Page|BibliographicMetadata|Note|Attribute {id: u.entity_id})
+MATCH (span:Span)-[:SPAN_OF]->(entity:Segment|Page|BibliographicMetadata|Note|Attribute|TableOfContentsSection {id: u.entity_id})
 SET span.start = u.new_start, span.end = u.new_end
 ```
 
-The batch delete:
+The batch delete (note: for `TableOfContentsSection` it also removes the section's title/summary Nomen subgraph):
 ```cypher
 UNWIND $entity_ids AS eid
-MATCH (entity:Segment|Page|BibliographicMetadata|Note|Attribute {id: eid})
+MATCH (entity:Segment|Page|BibliographicMetadata|Note|Attribute|TableOfContentsSection {id: eid})
 OPTIONAL MATCH (span:Span)-[:SPAN_OF]->(entity)
-DETACH DELETE span, entity
+OPTIONAL MATCH (entity)-[:HAS_TITLE|HAS_SUMMARY]->(nomen:Nomen)
+OPTIONAL MATCH (nomen)-[:HAS_LOCALIZATION]->(localized:LocalizedText)
+DETACH DELETE span, localized, nomen, entity
 ```
 
 ---
 
 ## 8. Summary Table: All Operation × Category Combinations
 
-| Operation | Position/Overlap | Continuous (Seg/Page) | Annotation (Note/Bib/Attr) |
+| Operation | Position/Overlap | Continuous (Seg/Page) | Annotation (Note/Bib/Attr/TOC Section) |
 |---|---|---|---|
 | **INSERT** | pos == 0, span starts at 0 | Expand | Shift |
 | **INSERT** | pos ≤ start | Shift | Shift |

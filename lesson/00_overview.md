@@ -56,7 +56,8 @@ OpenPecha API v2 is a backend for managing **Tibetan literary texts** and their 
 │  │ /texts  │ │/editions │ │/segments   │ │ /segmentations   │    │
 │  │ /persons│ │/languages│ │/categories │ │ /alignments      │    │
 │  │ /tags   │ │ /apps    │ │            │ │ /paginations     │    │
-│  └────┬────┘ └────┬─────┘ └─────┬──────┘ │ /bibliographic   │    │
+│  └────┬────┘ └────┬─────┘ └─────┬──────┘ │ /table-of-contents│   │
+│       │           │             │        │ /bibliographic   │    │
 │       │           │             │        │ /durchens        │    │
 │       │           │             │        └────────┬─────────┘    │
 └───────┼───────────┼─────────────┼─────────────────┼──────────────┘
@@ -128,6 +129,7 @@ openpecha-backend/
 │       ├── segmentations.py
 │       ├── alignments.py
 │       ├── paginations.py
+│       ├── table_of_contents.py
 │       ├── bibliographic.py
 │       └── durchens.py
 │
@@ -154,6 +156,7 @@ openpecha-backend/
 │       ├── segmentation_database.py
 │       ├── alignment_database.py
 │       ├── pagination_database.py
+│       ├── table_of_contents_database.py
 │       ├── bibliographic_database.py
 │       └── note_database.py
 │
@@ -220,6 +223,7 @@ await session.execute_write(transaction_function)
 | **Segment**      | A character-range slice of an edition's base text                                                 |
 | **Segmentation** | A group of non-overlapping, contiguous segments covering an edition                               |
 | **Alignment**    | A mapping between segments of two different editions                                              |
+| **Table of contents** | A nested hierarchy of titled, span-anchored sections for an edition (Tibetan `sa bcad`); formerly called "outline" |
 | **Span**         | A `{start, end}` character-position node pointing to a Segment, Page, BibMeta, Note, or Attribute |
 | **BDRC**         | Buddhist Digital Resource Center — external identifier system                                     |
 

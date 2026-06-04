@@ -236,6 +236,30 @@ Attribute             ──[HAS_TYPE]──► AttributeType
 
 ---
 
+### 2.8b Table of Contents Nodes
+
+A table of contents (Tibetan `sa bcad`) is a hierarchy of titled sections, each pointing at a character span. It attaches to an edition via its own relationship:
+
+```
+Edition
+  ◄──[TOC_OF]── TableOfContents {id}
+                    ◄──[SECTION_OF]── TableOfContentsSection {id}   ← root section
+                                          ──[HAS_TITLE]──►   Nomen        (required)
+                                          ──[HAS_SUMMARY]──► Nomen        (optional)
+                                          ◄──[SPAN_OF]──     Span {start, end}
+                                          ◄──[SUBSECTION_OF]── TableOfContentsSection  ← nested child
+```
+
+- An edition can have **multiple** table-of-contents annotations.
+- Sections nest arbitrarily deep via `SUBSECTION_OF` (a section pointing at its parent section).
+- Each section's `title` and optional `summary` are multilingual strings stored with the **Nomen pattern**.
+- Each subsection span must be fully contained within its parent section span (enforced in the Pydantic model).
+- A section's text region is a `Span` (`SPAN_OF → TableOfContentsSection`), so section spans are adjusted automatically when edition content is patched (see Lesson 06).
+
+> Naming note: this annotation type was previously called "outline" and was renamed to "table of contents" (`TableOfContents` / `TableOfContentsSection`, `TOC_OF`, `SECTION_OF`) during the dev sync.
+
+---
+
 ### 2.9 The Nomen Pattern (Multilingual Strings)
 
 This is a key design pattern throughout the schema. Instead of storing a string directly in a node property, multilingual text lives in a **sub-graph**:
@@ -265,6 +289,7 @@ This is a key design pattern throughout the schema. Instead of storing a string 
 | Person | `HAS_NAME` |
 | Tag | `HAS_TITLE`, `HAS_DESCRIPTION` |
 | Category | `HAS_TITLE`, `HAS_DESCRIPTION` |
+| TableOfContentsSection | `HAS_TITLE`, `HAS_SUMMARY` |
 
 ---
 
@@ -316,8 +341,9 @@ Tags and Categories are **application-scoped** — they belong to a specific App
 | `TRANSLATION_OF` | Text | Text | 0..1 | Different language |
 | `COMMENTARY_OF` | Text | Text | 0..1 | Different work |
 | `HAS_LANGUAGE` | Text | Language | 1 | props: `bcp47` |
-| `HAS_TITLE` | Text/Tag/Category/Edition | Nomen | 1 | |
+| `HAS_TITLE` | Text/Tag/Category/Edition/TableOfContentsSection | Nomen | 1 | |
 | `HAS_DESCRIPTION` | Tag/Category | Nomen | 0..1 | |
+| `HAS_SUMMARY` | TableOfContentsSection | Nomen | 0..1 | |
 | `HAS_LICENSE` | Text | LicenseType | 1 | |
 | `HAS_CONTRIBUTION` | Text | Contribution | 0..* | |
 | `HAS_CATEGORY` | Work | Category | 1 | |
@@ -327,16 +353,19 @@ Tags and Categories are **application-scoped** — they belong to a specific App
 | `HAS_SOURCE` | Edition | Source | 0..1 | |
 | `HAS_INCIPIT_TITLE` | Edition | Nomen | 0..1 | |
 | `SEGMENTATION_OF` | Segmentation | Edition | 1 | |
-| `HAS_METADATA` | Segm./Bib./Note/Attr./Pag. | AnnotationMetadata | 0..1 | |
+| `HAS_METADATA` | Segm./Bib./Note/Attr./Pag./TableOfContents | AnnotationMetadata | 0..1 | |
 | `SEGMENT_OF` | Segment | Segmentation | 1 | |
 | `ALIGNED_TO` | Segment | Segment | 0..* | Source→Target |
-| `SPAN_OF` | Span | Segment/Page/BibMeta/Note/Attr | 1 | |
+| `SPAN_OF` | Span | Segment/Page/BibMeta/Note/Attr/TableOfContentsSection | 1 | |
 | `PAGINATION_OF` | Pagination | Edition | 1 | |
 | `VOLUME_OF` | Volume | Pagination | 1 | |
 | `PAGE_OF` | Page | Volume | 1 | |
 | `BIBLIOGRAPHY_OF` | BibliographicMetadata | Edition | 1 | |
 | `NOTE_OF` | Note | Edition | 1 | |
 | `ATTRIBUTE_OF` | Attribute | Edition | 1 | |
+| `TOC_OF` | TableOfContents | Edition | 1 | Table of contents |
+| `SECTION_OF` | TableOfContentsSection | TableOfContents | 1 | |
+| `SUBSECTION_OF` | TableOfContentsSection | TableOfContentsSection | 0..1 | Nested child → parent |
 | `BY` | Contribution | Person/AI | 1 | |
 | `WITH_ROLE` | Contribution | RoleType | 1 | |
 | `HAS_NAME` | Person | Nomen | 1 | |

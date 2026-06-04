@@ -380,7 +380,7 @@ curl "$BASE/v2/editions/$EDITION_ID/segments/related?span_start=0&span_end=13&li
 
 After re-creating the alignment from Exercise 2, this should return the English segment covering `[0,19)` in E_EN.
 
-**Response shape:** `PaginatedResponse[SegmentOutput]` — a flat list where each item includes `edition_id`, `text_id`, and `segmentation_id`.
+**Response shape:** `PaginatedResponse[SegmentWithContextOutput]` — a flat list where each item includes `edition_id`, `text_id`, and `segmentation_id`.
 
 **Acceptance criteria:**
 - [ ] Response has `items` array and `has_more` field
@@ -441,7 +441,7 @@ curl -X DELETE "$BASE/v2/segmentations/$ALIGN_SGN" -H "$H"
 # Expect: 4xx - "Segmentation is part of an alignment. Use alignment delete instead."
 ```
 
-Note: there is no `GET /v2/segments/{id}` endpoint. To inspect a segment, use `GET /v2/segments/{id}/content` for its text, or fetch the parent segmentation via `GET /v2/segmentations/{segmentation_id}`.
+Note: to inspect a single segment, call `GET /v2/segments/{id}` (returns a `SegmentWithContextOutput` with its lines, edition/text/segmentation IDs, and tags), `GET /v2/segments/{id}/content` for its raw text, or list a segmentation's segments via `GET /v2/segmentations/{segmentation_id}/segments`.
 
 ---
 
@@ -481,6 +481,79 @@ ORDER BY span.start
 
 ---
 
+## Exercise 11 — Table of Contents (`sa bcad`)
+
+**Scenario:** Add a two-level table of contents to the Tibetan edition from Exercise 1.
+
+```bash
+curl -X POST "$BASE/v2/editions/$EDITION_ID/table-of-contents" \
+  -H "$H" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "metadata": {"name": "Main sa bcad"},
+    "sections": [
+      {
+        "title": {"bo": "ལེའུ་དང་པོ།", "en": "Chapter 1"},
+        "summary": {"en": "Opening"},
+        "span": {"start": 0, "end": 28},
+        "subsections": [
+          {"title": {"en": "Section 1.1"}, "span": {"start": 0, "end": 13}, "subsections": []}
+        ]
+      },
+      {
+        "title": {"en": "Chapter 2"},
+        "span": {"start": 28, "end": 50},
+        "subsections": []
+      }
+    ]
+  }'
+# Save: TOC_ID=...
+```
+
+**Then fetch it back and delete it:**
+
+```bash
+curl "$BASE/v2/table-of-contents/$TOC_ID" -H "$H"      # nested sections tree
+curl -X DELETE "$BASE/v2/table-of-contents/$TOC_ID" -H "$H"   # expect 204
+```
+
+**Acceptance criteria:**
+- [ ] `GET /v2/editions/$EDITION_ID/table-of-contents` returns 1 table of contents with 2 root sections
+- [ ] Chapter 1 has 1 subsection whose span is contained within `[0,28)`
+- [ ] A subsection span outside its parent (e.g. `{"start": 0, "end": 99}`) is rejected with `422`
+
+---
+
+## Exercise 12 — Deletes and Conflict Rules
+
+**Scenario:** Explore the reference-integrity rules on the new DELETE endpoints.
+
+```bash
+# A person who has contributed to a text cannot be deleted (409)
+curl -X DELETE "$BASE/v2/persons/$PERSON_ID" -H "$H"
+# Expect: 409 - references a contribution
+
+# A text that still has editions cannot be deleted (409)
+curl -X DELETE "$BASE/v2/texts/$TEXT_ID" -H "$H"
+# Expect: 409 - has editions
+
+# A language still referenced by a text cannot be deleted (409)
+curl -X DELETE "$BASE/v2/languages/bo" -H "$H"
+# Expect: 409 - HAS_LANGUAGE
+
+# Deleting a parent category recursively removes its children (204)
+curl -X DELETE "$BASE/v2/categories/$PARENT_CAT_ID" \
+  -H "$H" -H "X-Application: your-app-id"
+# Expect: 204; child + grandchild categories also gone
+```
+
+**Acceptance criteria:**
+- [ ] Each conflicting delete returns `409` and leaves the node intact
+- [ ] Deleting a category with `X-Application` for the wrong app returns `404`
+- [ ] Deleting an edition first, then its text, succeeds with `204`
+
+---
+
 ## Final Project
 
 Build a small Python script that:
@@ -491,8 +564,8 @@ Build a small Python script that:
 4. Creates a 1:1 alignment between the Tibetan and English editions
 5. Patches the Tibetan content (insert 5 characters at position 0)
 6. Fetches the segmentation again and verifies all 3 segment spans shifted by 5
-7. Calls `GET /v2/editions/{tibetan_edition_id}/segments/related?span_start=0&span_end=X` and prints the `edition_id` and `lines` of each returned `SegmentOutput`
+7. Calls `GET /v2/editions/{tibetan_edition_id}/segments/related?span_start=0&span_end=X` and prints the `edition_id` and `lines` of each returned `SegmentWithContextOutput`
 
-Response from step 7 is `PaginatedResponse[SegmentOutput]` — iterate `response["items"]`.
+Response from step 7 is `PaginatedResponse[SegmentWithContextOutput]` — iterate `response["items"]`.
 
 Use the `httpx` or `requests` library. All API keys should come from environment variables.

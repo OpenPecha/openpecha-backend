@@ -132,15 +132,15 @@ In case 2, the traversal reads:
 The `AlignmentDatabase._parse_record` method deserializes the Cypher result into `AlignmentOutput`. The challenge is reconstructing `target_indices`:
 
 ```python
-target_min_start_to_segment: dict[int, SegmentOutput] = {}
+target_min_start_to_segment: dict[int, SegmentWithContextOutput] = {}
 target_min_starts_ordered: list[int] = []
 
 for source_seg in record["segments"]:
     for target_data in source_seg["aligned_targets"]:
         target_min_start = target_data["min_start"]
         if target_min_start not in target_min_start_to_segment:
-            # Record unique target segments
-            target_min_start_to_segment[target_min_start] = SegmentOutput(...)
+            # Record unique target segments (with edition/text/segmentation context)
+            target_min_start_to_segment[target_min_start] = SegmentWithContextOutput(...)
             target_min_starts_ordered.append(target_min_start)
 
     # Convert min_start → index in target list
@@ -204,7 +204,7 @@ WHERE m.id <> $edition_id
 
 ### 7.4 Response Format
 
-Results are returned as a flat `PaginatedResponse[SegmentOutput]`. Each item carries `edition_id`, `text_id`, and `segmentation_id` directly, so clients can group by edition or segmentation if needed:
+Results are returned as a flat `PaginatedResponse[SegmentWithContextOutput]`. Each item carries `edition_id`, `text_id`, and `segmentation_id` directly, so clients can group by edition or segmentation if needed:
 
 ```json
 {
@@ -232,24 +232,29 @@ Results are returned as a flat `PaginatedResponse[SegmentOutput]`. Each item car
 }
 ```
 
-The `RelatedSegmentsOutput` / `RelatedSegmentationOutput` models exist in `models/annotation.py` but are not currently returned by any router — they are available for future use or client-side grouping utilities.
+The `RelatedSegmentationOutput` model exists in `models/annotation.py` (a `segmentation_id` plus a list of `SegmentWithContextOutput`) but is not currently returned by any router — it is available for future use or client-side grouping utilities.
 
 ---
 
-## 7.5 SegmentOutput Field Note
+## 7.5 SegmentOutput vs SegmentWithContextOutput
 
-The migration guide mentioned removing `edition_id`/`text_id` from `SegmentOutput`. **This did not happen.** The current `SegmentOutput` model includes:
+During the dev sync the segment models were **split into two**:
 
 ```python
-class SegmentOutput(SegmentBase):
+class SegmentOutput(LinesModel):       # minimal: id + lines
     id: NonEmptyStr
+
+class SegmentWithContextOutput(SegmentOutput):
     segmentation_id: NonEmptyStr
-    edition_id: NonEmptyStr      # ← still present
-    text_id: NonEmptyStr         # ← still present
+    edition_id: NonEmptyStr
+    text_id: NonEmptyStr
     tag_ids: list[str] | None = None
 ```
 
-These fields are populated whenever a segment is fetched — including in related-segment results.
+- **`SegmentOutput`** — the bare segment: just `id` and `lines`. Used where the parent context is already known: the paginated `GET /v2/segmentations/{id}/segments` list and the `aligned_segment` of an alignment row.
+- **`SegmentWithContextOutput`** — adds `segmentation_id`, `edition_id`, `text_id`, and `tag_ids`. Used where a segment is returned out of context and the client needs to locate it: `GET /v2/segments/{id}`, related-segment results, and the `target_segments` of an alignment row (`AlignmentSegmentOutput`).
+
+> This replaces the earlier single `SegmentOutput` that always carried the context fields. If you have older client code expecting `edition_id`/`text_id` on **every** segment, switch those call sites to the endpoints that return `SegmentWithContextOutput`.
 
 ---
 

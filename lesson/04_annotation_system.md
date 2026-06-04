@@ -2,7 +2,7 @@
 
 ## Learning Objectives
 
-- Identify all five annotation types and their graph structure
+- Identify all six annotation types and their graph structure
 - Understand how `Span` nodes work and what they point to
 - Know the difference between continuous (segment/page) and point-in-text (bib/note/attr) annotations
 - Read and write each annotation type via the API
@@ -23,7 +23,7 @@ Base text (S3):
 A Segment or Annotation saying start=5, end=15 points to: "སྤྱན་རས་གཟིགས"
 ```
 
-All five annotation types attach to an `Edition` node in the graph.
+All six annotation types attach to an `Edition` node in the graph.
 
 ---
 
@@ -34,6 +34,7 @@ All five annotation types attach to an `Edition` node in the graph.
 | **Segmentation** | `Segmentation:Display` → `Segment` → `Span` | `/editions/{id}/segmentations` | Many per edition | Multi-line segments (contiguous) |
 | **Alignment** | `Segmentation:Aligned` + `Segmentation:Target` + `ALIGNED_TO` | `/editions/{id}/alignments` | Many per edition | Multi-line segments (may overlap) |
 | **Pagination** | `Pagination` → `Volume` → `Page` → `Span` | `/editions/{id}/pagination` | **One** per edition | Pages contiguous within volume |
+| **Table of contents** | `TableOfContents` → `TableOfContentsSection` ← `Span` | `/editions/{id}/table-of-contents` | Many per edition | Nested sections, each a single span |
 | **Bibliographic** | `BibliographicMetadata` ← `Span` | `/editions/{id}/bibliographic` | Many per edition | Single span |
 | **Durchen (Note)** | `Note` ← `Span` | `/editions/{id}/durchens` | Many per edition | Single span |
 
@@ -80,24 +81,33 @@ A segment with two lines represents a segment that spans a line break. The span 
 
 ### 3.4 Response Body
 
+`SegmentationOutput` is now a **lightweight header** — it no longer embeds the segment list. Fetch segments via the paginated `GET /v2/segmentations/{id}/segments` endpoint.
+
 ```json
+// GET /v2/segmentations/SGN_001
 {
     "id": "SGN_001",
     "edition_id": "E_001",
     "text_id": "T_001",
-    "segments": [
-        {
-            "id": "SEG_001",
-            "segmentation_id": "SGN_001",
-            "edition_id": "E_001",
-            "text_id": "T_001",
-            "lines": [{"start": 0, "end": 50}],
-            "tag_ids": null
-        }
-    ],
     "metadata": null
 }
 ```
+
+```json
+// GET /v2/segmentations/SGN_001/segments?limit=500&offset=0
+// → PaginatedResponse[SegmentOutput] (minimal segment shape: id + lines only)
+{
+    "items": [
+        {"id": "SEG_001", "lines": [{"start": 0, "end": 50}]},
+        {"id": "SEG_002", "lines": [{"start": 50, "end": 100}]}
+    ],
+    "has_more": false,
+    "offset": 0,
+    "limit": 500
+}
+```
+
+> Model note: `SegmentOutput` is now minimal (`id` + `lines`). The context-rich fields (`segmentation_id`, `edition_id`, `text_id`, `tag_ids`) live on a separate model, `SegmentWithContextOutput`, returned by `GET /v2/segments/{id}` and the related-segments endpoints. See Lesson 07 §7.5.
 
 ### 3.5 Deletion Rules
 
@@ -167,34 +177,51 @@ POST /v2/editions/{source_edition_id}/alignments
 
 ### 4.4 Response Body
 
+Like `SegmentationOutput`, `AlignmentOutput` is now a **header** that no longer embeds the aligned/target segment rows. It identifies the two editions/segmentations involved:
+
 ```json
+// GET /v2/alignments/ALIGN_001
 {
     "id": "ALIGN_001",
     "aligned_edition_id": "E_001",
+    "aligned_text_id": "T_001",
     "target_edition_id": "E_002",
-    "target_segments": [
-        {
-            "id": "T_SEG_001",
-            "segmentation_id": "SGN_TARGET_001",
-            "edition_id": "E_002",
-            "text_id": "T_002",
-            "lines": [{"start": 0, "end": 30}],
-            "tag_ids": null
-        }
-    ],
-    "aligned_segments": [
-        {
-            "id": "S_SEG_001",
-            "segmentation_id": "ALIGN_001",
-            "edition_id": "E_001",
-            "text_id": "T_001",
-            "lines": [{"start": 0, "end": 25}],
-            "target_indices": [0]
-        }
-    ],
+    "target_text_id": "T_002",
+    "target_segmentation_id": "SGN_TARGET_001",
     "metadata": null
 }
 ```
+
+The actual aligned segment rows are fetched via the paginated `GET /v2/alignments/{id}/segments` endpoint, which returns `PaginatedResponse[AlignmentSegmentOutput]`:
+
+```json
+// GET /v2/alignments/ALIGN_001/segments?limit=500&offset=0
+{
+    "items": [
+        {
+            "aligned_segment": {
+                "id": "S_SEG_001",
+                "lines": [{"start": 0, "end": 25}]
+            },
+            "target_segments": [
+                {
+                    "id": "T_SEG_001",
+                    "segmentation_id": "SGN_TARGET_001",
+                    "edition_id": "E_002",
+                    "text_id": "T_002",
+                    "lines": [{"start": 0, "end": 30}],
+                    "tag_ids": null
+                }
+            ]
+        }
+    ],
+    "has_more": false,
+    "offset": 0,
+    "limit": 500
+}
+```
+
+Note: `aligned_segment` is a minimal `SegmentOutput` (`id` + `lines`), while each entry in `target_segments` is a `SegmentWithContextOutput` carrying edition/text/segmentation context.
 
 ### 4.5 Retrieving Alignments
 
@@ -287,13 +314,97 @@ Only **one** pagination per edition is allowed. Attempting to add a second retur
 
 ---
 
-## 6. Bibliographic Metadata
+## 6. Table of Contents
+
+> Previously called "outline". Renamed to "table of contents" during the dev sync (`TableOfContents` node, `/table-of-contents` endpoints).
 
 ### 6.1 Concept
 
-Marks a character span as having a specific bibliographic role (colophon text, incipit, authorship statement, etc.).
+A table of contents represents a section hierarchy over an edition (e.g. chapters and sub-chapters, or a Tibetan `sa bcad`). Each section has a localized `title`, an optional localized `summary`, a character `span`, and optional nested `subsections`. An edition can have **multiple** table-of-contents annotations.
 
 ### 6.2 Graph Structure
+
+```
+Edition ◄──[TOC_OF]── TableOfContents {id}
+                          ◄──[SECTION_OF]── TableOfContentsSection {id}   ← root section
+                                                ──[HAS_TITLE]──►   Nomen   (required)
+                                                ──[HAS_SUMMARY]──► Nomen   (optional)
+                                                ◄──[SPAN_OF]──     Span {start, end}
+                                                ◄──[SUBSECTION_OF]── TableOfContentsSection  ← nested child
+```
+
+### 6.3 Invariants
+
+- A table of contents must have at least one root section (`sections` has `min_length=1`).
+- Each subsection's span must be **fully contained** within its parent section's span (Pydantic `TableOfContentsSectionInput.validate_subsection_spans_contained`).
+- Returned sections/subsections are ordered by their span start/end.
+- Section spans are `Span` nodes, so they are **adjusted automatically** when edition content is patched (treated as annotation spans — they shift, they don't expand; see Lesson 06).
+
+### 6.4 Request Body
+
+```json
+POST /v2/editions/{edition_id}/table-of-contents
+{
+    "metadata": {"name": "Main sa bcad"},
+    "sections": [
+        {
+            "title": {"bo": "ལེའུ་དང་པོ།", "en": "Chapter 1"},
+            "summary": {"en": "Opening topic"},
+            "span": {"start": 0, "end": 1200},
+            "subsections": [
+                {
+                    "title": {"en": "Section 1.1"},
+                    "span": {"start": 0, "end": 350},
+                    "subsections": []
+                }
+            ]
+        }
+    ]
+}
+```
+
+Response: `{"id": "TOC_001"}`
+
+### 6.5 Response Body (by ID)
+
+```json
+// GET /v2/table-of-contents/TOC_001
+{
+    "id": "TOC_001",
+    "edition_id": "E_001",
+    "text_id": "T_001",
+    "sections": [
+        {
+            "id": "SEC_ROOT",
+            "title": {"bo": "ལེའུ་དང་པོ།", "en": "Chapter 1"},
+            "summary": {"en": "Opening topic"},
+            "span": {"start": 0, "end": 1200},
+            "subsections": [
+                {
+                    "id": "SEC_CHILD",
+                    "title": {"en": "Section 1.1"},
+                    "summary": null,
+                    "span": {"start": 0, "end": 350},
+                    "subsections": []
+                }
+            ]
+        }
+    ],
+    "metadata": {"name": "Main sa bcad"}
+}
+```
+
+Deleting a table of contents (`DELETE /v2/table-of-contents/{toc_id}`) removes its sections, section spans, title/summary Nomen subgraphs, and metadata. Sections are **not** standalone API resources — they are managed only as part of the parent table-of-contents annotation.
+
+---
+
+## 7. Bibliographic Metadata
+
+### 7.1 Concept
+
+Marks a character span as having a specific bibliographic role (colophon text, incipit, authorship statement, etc.).
+
+### 7.2 Graph Structure
 
 ```
 BibliographicMetadata {id}
@@ -302,7 +413,7 @@ BibliographicMetadata {id}
     ◄──[SPAN_OF]────────── Span {start, end}
 ```
 
-### 6.3 BibliographyType Values
+### 7.3 BibliographyType Values
 
 | Value | Meaning |
 |---|---|
@@ -314,7 +425,7 @@ BibliographicMetadata {id}
 | `title` | The title as it appears in the text |
 | `author` | Author attribution statement in the text |
 
-### 6.4 Request/Response
+### 7.4 Request/Response
 
 ```json
 POST /v2/editions/{edition_id}/bibliographic
@@ -329,13 +440,13 @@ Response: `{"id": "BIB_001"}`
 
 ---
 
-## 7. Durchen (Note)
+## 8. Durchen (Note)
 
-### 7.1 Concept
+### 8.1 Concept
 
 "Durchen" (གདུར་ཅན།) is a Tibetan textual criticism notation marking variant readings. In this system it is modelled as a `Note` with `type: "durchen"`.
 
-### 7.2 Graph Structure
+### 8.2 Graph Structure
 
 ```
 Note {id, text: string}
@@ -344,7 +455,7 @@ Note {id, text: string}
     ◄──[SPAN_OF]── Span {start, end}
 ```
 
-### 7.3 Request/Response
+### 8.3 Request/Response
 
 ```json
 POST /v2/editions/{edition_id}/durchens
@@ -359,22 +470,22 @@ Response: `{"id": "NOTE_001"}`
 
 ---
 
-## 8. AnnotationMetadata
+## 9. AnnotationMetadata
 
-All annotation types have an optional `metadata` field. In the current schema:
+All annotation types have an optional `metadata` field. In the current schema it carries an optional `name`:
 
 ```python
 class AnnotationMetadata(OpenPechaModel):
-    pass
+    name: str | None = None
 ```
 
-It is a **placeholder** — currently empty but present in the graph as an `AnnotationMetadata` node attached via `HAS_METADATA`. This is reserved for future expansion (e.g. provenance, revision history, confidence scores).
+It is present in the graph as an `AnnotationMetadata` node attached via `HAS_METADATA` and is largely a **placeholder** reserved for future expansion (e.g. provenance, revision history, confidence scores). The table-of-contents request, for example, uses `metadata.name` to label the table of contents (`{"name": "Main sa bcad"}`).
 
-In all current requests, pass `"metadata": null` or omit it.
+In most requests you can pass `"metadata": null` or omit it.
 
 ---
 
-## 9. Span Pointing: What Can a Span Point To?
+## 10. Span Pointing: What Can a Span Point To?
 
 ```cypher
 // The SPAN_OF relationship target can be:
@@ -383,18 +494,19 @@ Span ──[SPAN_OF]──► Page
 Span ──[SPAN_OF]──► BibliographicMetadata
 Span ──[SPAN_OF]──► Note
 Span ──[SPAN_OF]──► Attribute
+Span ──[SPAN_OF]──► TableOfContentsSection
 ```
 
 The `BATCH_UPDATE_SPANS_QUERY` in `span_database.py` updates all of these in one pass using the multi-label match:
 
 ```cypher
-MATCH (span:Span)-[:SPAN_OF]->(entity:Segment|Page|BibliographicMetadata|Note|Attribute {id: u.entity_id})
+MATCH (span:Span)-[:SPAN_OF]->(entity:Segment|Page|BibliographicMetadata|Note|Attribute|TableOfContentsSection {id: u.entity_id})
 SET span.start = u.new_start, span.end = u.new_end
 ```
 
 ---
 
-## 10. Annotation Deletion Cascade
+## 11. Annotation Deletion Cascade
 
 When `DELETE /v2/editions/{edition_id}` is called, the delete order is:
 
@@ -403,6 +515,7 @@ When `DELETE /v2/editions/{edition_id}` is called, the delete order is:
 await AlignmentDatabase.delete_all_with_transaction(tx, edition_id)
 await SegmentationDatabase.delete_all_with_transaction(tx, edition_id)
 await PaginationDatabase.delete_all_with_transaction(tx, edition_id)
+await TableOfContentsDatabase.delete_all_with_transaction(tx, edition_id)
 await BibliographicDatabase.delete_all_with_transaction(tx, edition_id)
 await NoteDatabase.delete_all_with_transaction(tx, edition_id)
 await tx.run(EditionDatabase.DELETE_QUERY, edition_id=edition_id)
@@ -412,23 +525,28 @@ Alignments are deleted first because their associated segmentations include both
 
 ---
 
-## 11. Annotation Endpoint Matrix (Full)
+## 12. Annotation Endpoint Matrix (Full)
 
 | Action | Endpoint | Method | Returns |
 |---|---|---|---|
 | Add segmentation | `/v2/editions/{id}/segmentations` | POST | `{"id": "..."}` |
 | List segmentations | `/v2/editions/{id}/segmentations` | GET | `[SegmentationOutput]` |
 | Get segmentation | `/v2/segmentations/{id}` | GET | `SegmentationOutput` |
-| Replace segmentation | `/v2/segmentations/{id}` | PUT | `{"id": "..."}` |
+| Get segmentation segments | `/v2/segmentations/{id}/segments` | GET | `PaginatedResponse[SegmentOutput]` |
 | Delete segmentation | `/v2/segmentations/{id}` | DELETE | 204 |
 | Add alignment | `/v2/editions/{id}/alignments` | POST | `{"id": "..."}` |
 | List alignments | `/v2/editions/{id}/alignments` | GET | `[AlignmentOutput]` |
 | Get alignment | `/v2/alignments/{id}` | GET | `AlignmentOutput` |
+| Get alignment segments | `/v2/alignments/{id}/segments` | GET | `PaginatedResponse[AlignmentSegmentOutput]` |
 | Delete alignment | `/v2/alignments/{id}` | DELETE | 204 |
 | Add pagination | `/v2/editions/{id}/pagination` | POST | `{"id": "..."}` |
 | Get pagination | `/v2/editions/{id}/pagination` | GET | `PaginationOutput \| null` |
 | Get pagination by ID | `/v2/paginations/{id}` | GET | `PaginationOutput` |
 | Delete pagination | `/v2/paginations/{id}` | DELETE | 204 |
+| Add table of contents | `/v2/editions/{id}/table-of-contents` | POST | `{"id": "..."}` |
+| List tables of contents | `/v2/editions/{id}/table-of-contents` | GET | `[TableOfContentsOutput]` |
+| Get table of contents | `/v2/table-of-contents/{id}` | GET | `TableOfContentsOutput` |
+| Delete table of contents | `/v2/table-of-contents/{id}` | DELETE | 204 |
 | Add bibliographic | `/v2/editions/{id}/bibliographic` | POST | `{"id": "..."}` |
 | List bibliographic | `/v2/editions/{id}/bibliographic` | GET | `[BibliographicMetadataOutput]` |
 | Get bibliographic | `/v2/bibliographic/{id}` | GET | `BibliographicMetadataOutput` |

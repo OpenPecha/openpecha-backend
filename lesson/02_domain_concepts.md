@@ -228,10 +228,10 @@ background_tasks.add_task(trigger_search_segmenter, edition_id)
           │  colophon? │
           └──────┬─────┘
                  │
-       ┌─────────┼────────────────────────────────────────────┐
-       ▼         ▼         ▼           ▼           ▼          ▼
- Segmentation  Pagination  Note   Bibliographic  Attribute  (base text in S3)
-   (graph)     (graph)    (graph)   (graph)      (graph)
+       ┌─────────┼──────────┬──────────┬──────────────┬──────────┬──────────┐
+       ▼         ▼          ▼          ▼              ▼          ▼          ▼
+ Segmentation Pagination TableOfContents Note   Bibliographic Attribute (base text in S3)
+   (graph)     (graph)     (graph)     (graph)    (graph)      (graph)
 ```
 
 ---

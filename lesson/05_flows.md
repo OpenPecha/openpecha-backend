@@ -317,7 +317,7 @@ No further hops needed here. But with deeper chains:
 
 The algorithm traverses **up to depth 5 by default**. It collects all reachable editions via alignment links, then resolves display segments that overlap the queried span from each of those editions.
 
-Response is a flat `PaginatedResponse[SegmentOutput]`. Each `SegmentOutput` includes `edition_id`, `text_id`, and `segmentation_id` so clients can group client-side if needed. See Lesson 03 §4.7 for the full response shape.
+Response is a flat `PaginatedResponse[SegmentWithContextOutput]`. Each `SegmentWithContextOutput` includes `edition_id`, `text_id`, and `segmentation_id` so clients can group client-side if needed. See Lesson 03 §4.7 for the full response shape.
 
 ---
 
@@ -344,19 +344,23 @@ DELETE /v2/editions/E_001
 3. PaginationDatabase.delete_all_with_transaction(tx, E_001)
    Deletes: Pagination + Volumes + Pages + Spans
 
-4. BibliographicDatabase.delete_all_with_transaction(tx, E_001)
+4. TableOfContentsDatabase.delete_all_with_transaction(tx, E_001)
+   Deletes: TableOfContents + TableOfContentsSections + Spans
+            + each section's title/summary Nomen + LocalizedText
+
+5. BibliographicDatabase.delete_all_with_transaction(tx, E_001)
    DETACH DELETE BibliographicMetadata + Span
 
-5. NoteDatabase.delete_all_with_transaction(tx, E_001)
+6. NoteDatabase.delete_all_with_transaction(tx, E_001)
    DETACH DELETE Note + Span
 
-6. EditionDatabase.DELETE_QUERY
+7. EditionDatabase.DELETE_QUERY
    DETACH DELETE Edition
    Also cleans up: Source (if no other editions reference it)
    Also cleans up: Nomen + LocalizedText for incipit_title
 
 After transaction:
-7. storage.delete_base_text(text_id, edition_id)  ← S3 delete
+8. storage.delete_base_text(text_id, edition_id)  ← S3 delete
 ```
 
 ---

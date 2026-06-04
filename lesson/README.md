@@ -13,7 +13,7 @@ Source code: `openpecha-backend/` | Live docs: `http://13.250.189.160/redoc`
 | 01 | [01_graph_data_model.md](01_graph_data_model.md) | All Neo4j nodes, relationships, enum nodes, Nomen pattern | 60 min |
 | 02 | [02_domain_concepts.md](02_domain_concepts.md) | Work/Text/Edition hierarchy, Pydantic models, validation rules | 45 min |
 | 03 | [03_api_reference.md](03_api_reference.md) | All endpoints, request/response shapes, pagination, auth | 60 min |
-| 04 | [04_annotation_system.md](04_annotation_system.md) | Segmentation, Alignment, Pagination, BibMeta, Notes | 60 min |
+| 04 | [04_annotation_system.md](04_annotation_system.md) | Segmentation, Alignment, Pagination, Table of Contents, BibMeta, Notes | 60 min |
 | 05 | [05_flows.md](05_flows.md) | 8 end-to-end operational flows with full traces | 60 min |
 | 06 | [06_content_operations.md](06_content_operations.md) | Span adjustment algorithms: INSERT/DELETE/REPLACE | 60 min |
 | 07 | [07_alignment_deep_dive.md](07_alignment_deep_dive.md) | Alignment model, bidirectional lookup, transitive traversal | 45 min |
@@ -53,7 +53,7 @@ See: [03_api_reference.md](03_api_reference.md#5-segmentations), [04_annotation_
 
 ### 2. Related Segments: Transitive Traversal
 Old: One-hop alignment lookup  
-New: Multi-hop transitive traversal (default depth 5), still returning flat `PaginatedResponse[SegmentOutput]`. Each item carries `edition_id`, `text_id`, and `segmentation_id` for client-side grouping. The `RelatedSegmentsOutput` model exists in `models/annotation.py` but is not yet returned by any router.
+New: Multi-hop transitive traversal (default depth 5), returning a flat `PaginatedResponse[SegmentWithContextOutput]`. Each item carries `edition_id`, `text_id`, and `segmentation_id` for client-side grouping. The `RelatedSegmentationOutput` model exists in `models/annotation.py` but is not yet returned by any router.
 
 See: [07_alignment_deep_dive.md](07_alignment_deep_dive.md#7-related-segments-transitive-traversal)
 
@@ -62,6 +62,15 @@ Old: All segmentations were equivalent
 New: Explicit Neo4j labels distinguish user-facing display segmentations from internal alignment segmentations
 
 See: [01_graph_data_model.md](01_graph_data_model.md#25-segmentation--segment-nodes), [04_annotation_system.md](04_annotation_system.md#3-segmentation)
+
+---
+
+## Recent Dev-Sync Changes (reflected in these lessons)
+
+- **Table of Contents annotation** (renamed from "outline"): a new annotation type with nested, span-anchored sections — `TableOfContents` / `TableOfContentsSection` nodes and `/v2/editions/{id}/table-of-contents` + `/v2/table-of-contents/{id}` endpoints. See [04_annotation_system.md](04_annotation_system.md) §6 and [01_graph_data_model.md](01_graph_data_model.md) §2.8b.
+- **Segment model split**: `SegmentOutput` is now minimal (`id` + `lines`); the context-rich fields moved to a new `SegmentWithContextOutput`. `SegmentationOutput` and `AlignmentOutput` no longer embed their segment lists — fetch them via the paginated `/segmentations/{id}/segments` and `/alignments/{id}/segments` sub-endpoints. See [07_alignment_deep_dive.md](07_alignment_deep_dive.md) §7.5.
+- **`GET /v2/segments/{id}`**: single segments can now be fetched directly (returns `SegmentWithContextOutput`).
+- **New DELETE endpoints with reference-integrity rules**: texts, persons, categories (recursive), languages, tags, and applications. See [03_api_reference.md](03_api_reference.md).
 
 ---
 
