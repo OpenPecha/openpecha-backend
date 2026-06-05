@@ -5,6 +5,7 @@ from models.annotation import (
     SegmentWithContextOutput,
     Span,
 )
+from models.enums import SegmentType
 from models.requests import RelatedSegmentsFilter
 
 if TYPE_CHECKING:
@@ -23,6 +24,7 @@ class SegmentDatabase:
     RETURN seg.id AS segment_id, segmentation.id AS segmentation_id,
         edition.id AS edition_id, text.id AS text_id,
         collect({start: span.start, end: span.end}) AS lines,
+        seg:Verse AS is_verse, seg.verse_index AS verse_index,
         [(seg)-[:HAS_TAG]->(t:Tag)
             WHERE ($application IS NULL
                 OR (t)-[:BELONGS_TO]->(:Application {id: $application}))
@@ -81,7 +83,8 @@ class SegmentDatabase:
             | t.id] AS tag_ids
     RETURN seg.id AS segment_id, sgn.id AS segmentation_id,
            edition.id AS edition_id, text.id AS text_id,
-           lines, tag_ids, min_start
+           lines, tag_ids, min_start,
+           seg:Verse AS is_verse, seg.verse_index AS verse_index
     ORDER BY text_id, edition_id, segmentation_id, min_start, segment_id
     SKIP $offset
     LIMIT $limit
@@ -117,6 +120,8 @@ class SegmentDatabase:
                 edition_id=r["edition_id"],
                 text_id=r["text_id"],
                 lines=[Span(start=ln["start"], end=ln["end"]) for ln in r["lines"]],
+                type=SegmentType.VERSE if r["is_verse"] else None,
+                verse_index=r["verse_index"],
                 tag_ids=r.get("tag_ids") or None,
             )
 
@@ -204,6 +209,8 @@ class SegmentDatabase:
                 edition_id=rec["edition_id"],
                 text_id=rec["text_id"],
                 lines=[Span(start=ln["start"], end=ln["end"]) for ln in rec["lines"]],
+                type=SegmentType.VERSE if rec["is_verse"] else None,
+                verse_index=rec["verse_index"],
                 tag_ids=rec.get("tag_ids") or None,
             )
             for rec in records

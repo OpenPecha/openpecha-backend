@@ -7,6 +7,7 @@ Annotations attach structured information to edition content using character spa
 - **Span**: A half-open character range where `start` is inclusive and `end` is exclusive.
 - **Lines**: Continuous spans inside a segment or page. Adjacent lines must be sorted and touch each other.
 - **Segmentation**: A set of logical content segments for an edition.
+- **Verse segment**: A Display-segmentation segment marked with `"type": "verse"`. A verse must carry a `verse_index` of the form `chapter.verse` (e.g. `1.1`, `1.10`, `2.1`). The index is a string (not a number — `1.10` follows `1.9`), both parts are integers ≥ 1, and it must be unique within a segmentation. Non-verse segments omit both fields.
 - **Alignment**: A mapping between segments in an aligned edition and target segments in another edition.
 - **Pagination**: A mapping from character spans to page or folio references.
 - **Table of contents**: A table-of-contents style hierarchy for an edition. Each section has a character span, localized title, optional localized summary, and optional nested subsections.
@@ -41,6 +42,8 @@ Annotations are created and listed by type under an edition. Each `POST` returns
 {
   "segments": [
     {
+      "type": "verse",
+      "verse_index": "1.1",
       "lines": [
         {"start": 0, "end": 50}
       ]
@@ -55,6 +58,8 @@ Annotations are created and listed by type under an edition. Each `POST` returns
 ```
 
 Segments must be sorted by their first line's start offset. Lines inside each segment must be continuous.
+
+A segment may optionally be a verse via `"type": "verse"`. When it is, `verse_index` is **required** and must match `chapter.verse` (both integers ≥ 1, e.g. `1.1`, `1.10`, `2.1`); verse indices must be unique within the segmentation. `verse_index` is rejected unless `type` is `"verse"`. Non-verse segments omit both fields. Verse marking applies only to Display segmentations (created here), not to alignment segments.
 
 ### Create Alignment
 
@@ -212,6 +217,8 @@ Segments response:
   "items": [
     {
       "id": "SEG123",
+      "type": "verse",
+      "verse_index": "1.1",
       "lines": [
         {"start": 0, "end": 50}
       ]
@@ -222,6 +229,8 @@ Segments response:
   "limit": 500
 }
 ```
+
+`type` and `verse_index` appear only on verse segments; they are omitted for non-verse segments.
 
 Deleting a standalone segmentation returns `204 No Content`. If the segmentation belongs to an alignment, deletion is rejected for both aligned and target segmentations; delete the alignment instead using the aligned segmentation ID, which is the alignment `id` returned by the API.
 

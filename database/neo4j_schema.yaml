@@ -230,6 +230,12 @@ nodes:
         type: string
         required: true
         unique: true
+      verse_index:
+        type: string
+        required: false
+    subtypes:
+      Verse:
+        description: Segment that is a verse; carries a verse_index property (only on Display segmentations)
     relationships:
       SEGMENT_OF:
         target: Segmentation

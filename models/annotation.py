@@ -1,3 +1,4 @@
+import re
 from collections.abc import Sequence
 from itertools import pairwise
 from typing import Any, Self
@@ -5,7 +6,9 @@ from typing import Any, Self
 from pydantic import ConfigDict, Field, model_validator
 
 from .base import LocalizedString, NonEmptyStr, OpenPechaModel, _validate_range
-from .enums import AttributeType, BibliographyType
+from .enums import AttributeType, BibliographyType, SegmentType
+
+VERSE_INDEX_RE = re.compile(r"^[1-9][0-9]*\.[1-9][0-9]*$")
 
 
 class Span(OpenPechaModel):
@@ -45,8 +48,26 @@ class SegmentInput(LinesModel):
     pass
 
 
+class DisplaySegmentInput(LinesModel):
+    type: SegmentType | None = Field(default=None, description="Segment subtype; 'verse' marks a verse")
+    verse_index: str | None = Field(default=None, description="Verse index 'chapter.verse', e.g. '1.1'")
+
+    @model_validator(mode="after")
+    def validate_verse(self) -> Self:
+        if self.type is SegmentType.VERSE:
+            if self.verse_index is None:
+                raise ValueError("verse_index is required when type is 'verse'")
+            if not VERSE_INDEX_RE.match(self.verse_index):
+                raise ValueError("verse_index must look like '<chapter>.<verse>', e.g. '1.1'")
+        elif self.verse_index is not None:
+            raise ValueError("verse_index is only allowed when type is 'verse'")
+        return self
+
+
 class SegmentOutput(LinesModel):
     id: NonEmptyStr
+    type: SegmentType | None = None
+    verse_index: str | None = None
 
 
 class SegmentWithContextOutput(SegmentOutput):
@@ -81,13 +102,20 @@ def _is_sorted_by_span_start(segments: Sequence[LinesModel]) -> bool:
 
 
 class SegmentationInput(OpenPechaModel):
-    segments: list[SegmentInput]
+    segments: list[DisplaySegmentInput]
     metadata: AnnotationMetadata | None = None
 
     @model_validator(mode="after")
     def validate_segments_sorted(self) -> Self:
         if hasattr(self, "segments") and not _is_sorted_by_span_start(self.segments):
             raise ValueError("segments must be sorted by span start")
+        return self
+
+    @model_validator(mode="after")
+    def validate_verse_indices_unique(self) -> Self:
+        indices = [seg.verse_index for seg in self.segments if seg.type is SegmentType.VERSE]
+        if len(indices) != len(set(indices)):
+            raise ValueError("verse_index values must be unique within a segmentation")
         return self
 
 

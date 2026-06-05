@@ -28,6 +28,7 @@ from models.annotation import (
     AlignmentInput,
     AnnotationMetadata,
     BibliographicMetadataInput,
+    DisplaySegmentInput,
     NoteInput,
     Page,
     PaginationInput,
@@ -105,8 +106,8 @@ class TestGetSegmentation(TestAnnotationsEndpoints):
 
         segmentation = SegmentationInput(
             segments=[
-                SegmentInput(lines=[Span(start=0, end=5)]),
-                SegmentInput(lines=[Span(start=5, end=10)]),
+                DisplaySegmentInput(lines=[Span(start=0, end=5)]),
+                DisplaySegmentInput(lines=[Span(start=5, end=10)]),
             ]
         )
         segmentation_id = await test_database.annotation.segmentation.add(edition_id, segmentation)
@@ -142,8 +143,8 @@ class TestGetSegmentation(TestAnnotationsEndpoints):
 
         segmentation = SegmentationInput(
             segments=[
-                SegmentInput(lines=[Span(start=0, end=4), Span(start=4, end=8)]),
-                SegmentInput(lines=[Span(start=8, end=16)]),
+                DisplaySegmentInput(lines=[Span(start=0, end=4), Span(start=4, end=8)]),
+                DisplaySegmentInput(lines=[Span(start=8, end=16)]),
             ]
         )
         segmentation_id = await test_database.annotation.segmentation.add(edition_id, segmentation)
@@ -163,8 +164,8 @@ class TestGetSegmentation(TestAnnotationsEndpoints):
 
         segmentation = SegmentationInput(
             segments=[
-                SegmentInput(lines=[Span(start=0, end=5)]),
-                SegmentInput(lines=[Span(start=5, end=10)]),
+                DisplaySegmentInput(lines=[Span(start=0, end=5)]),
+                DisplaySegmentInput(lines=[Span(start=5, end=10)]),
             ]
         )
         segmentation_id = await test_database.annotation.segmentation.add(edition_id, segmentation)
@@ -195,7 +196,7 @@ class TestDeleteSegmentation(TestAnnotationsEndpoints):
         edition_id = await self._create_test_edition(test_database, text_id, "0123456789")
 
         segmentation = SegmentationInput(
-            segments=[SegmentInput(lines=[Span(start=0, end=10)])]
+            segments=[DisplaySegmentInput(lines=[Span(start=0, end=10)])]
         )
         segmentation_id = await test_database.annotation.segmentation.add(edition_id, segmentation)
 
@@ -222,7 +223,7 @@ class TestDeleteSegmentation(TestAnnotationsEndpoints):
         edition_id = await self._create_test_edition(test_database, text_id, "0123456789")
 
         segmentation = SegmentationInput(
-            segments=[SegmentInput(lines=[Span(start=0, end=10)])]
+            segments=[DisplaySegmentInput(lines=[Span(start=0, end=10)])]
         )
         segmentation_id = await test_database.annotation.segmentation.add(edition_id, segmentation)
 
@@ -505,7 +506,7 @@ class TestDeleteAlignment(TestAnnotationsEndpoints):
         )
 
         segmentation = SegmentationInput(
-            segments=[SegmentInput(lines=[Span(start=0, end=11)])]
+            segments=[DisplaySegmentInput(lines=[Span(start=0, end=11)])]
         )
         segmentation_id = await test_database.annotation.segmentation.add(edition_id, segmentation)
 
@@ -813,7 +814,7 @@ class TestAddAnnotationEditionNotFound(TestAnnotationsEndpoints):
         from exceptions import DataNotFoundError
 
         segmentation = SegmentationInput(
-            segments=[SegmentInput(lines=[Span(start=0, end=10)])]
+            segments=[DisplaySegmentInput(lines=[Span(start=0, end=10)])]
         )
 
         with pytest.raises(DataNotFoundError) as exc_info:
@@ -865,7 +866,7 @@ class TestDeleteEditionWithAnnotations(TestAnnotationsEndpoints):
         )
 
         segmentation = SegmentationInput(
-            segments=[SegmentInput(lines=[Span(start=0, end=10)])]
+            segments=[DisplaySegmentInput(lines=[Span(start=0, end=10)])]
         )
         segmentation_id = await test_database.annotation.segmentation.add(source_edition_id, segmentation)
 
@@ -930,8 +931,8 @@ class TestAnnotationRoundTrip(TestAnnotationsEndpoints):
 
         segmentation = SegmentationInput(
             segments=[
-                SegmentInput(lines=[Span(start=0, end=10)]),
-                SegmentInput(lines=[Span(start=11, end=23)]),
+                DisplaySegmentInput(lines=[Span(start=0, end=10)]),
+                DisplaySegmentInput(lines=[Span(start=11, end=23)]),
             ]
         )
         segmentation_id = await test_database.annotation.segmentation.add(edition_id, segmentation)

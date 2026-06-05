@@ -44,3 +44,7 @@ class BibliographyType(StrEnum):
 
 class AttributeType(StrEnum):
     OCR_CONFIDENCE = "ocr_confidence"
+
+
+class SegmentType(StrEnum):
+    VERSE = "verse"
