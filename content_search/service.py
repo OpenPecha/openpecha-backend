@@ -55,12 +55,15 @@ class ContentSearchService:
     async def delete_index(self) -> None:
         await self._client.delete_index()
 
+    async def refresh_index(self) -> None:
+        await self._client.refresh_index()
+
     async def setup_index(self) -> None:
         if await self._client.index_exists():
             return
         await self._client.create_index(_index_body())
 
-    async def index_edition(self, edition_id: str, db: Database, storage: Storage) -> None:
+    async def index_edition(self, edition_id: str, db: Database, storage: Storage, *, refresh: bool = True) -> None:
         try:
             edition = await db.edition.get(edition_id)
             text = await db.text.get(edition.text_id)
@@ -78,15 +81,15 @@ class ContentSearchService:
                 context_chars=self.context_chars,
             )
 
-            await self.delete_edition(edition_id)
-            await self._client.bulk_index(documents)
+            await self.delete_edition(edition_id, refresh=refresh)
+            await self._client.bulk_index(documents, refresh=refresh)
             logger.info("Indexed %d content search chunks for edition %s", len(documents), edition_id)
         except Exception:
             logger.exception("Failed to index content search chunks for edition %s", edition_id)
             raise
 
-    async def delete_edition(self, edition_id: str) -> None:
-        await self._client.delete_edition(edition_id)
+    async def delete_edition(self, edition_id: str, *, refresh: bool = True) -> None:
+        await self._client.delete_edition(edition_id, refresh=refresh)
 
     async def search(
         self,

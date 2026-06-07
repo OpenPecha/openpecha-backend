@@ -5,6 +5,8 @@ from opensearchpy import AIOHttpConnection, AsyncOpenSearch, AWSV4SignerAsyncAut
 
 from exceptions import InvalidRequestError
 
+BULK_CHUNK_DOCUMENTS = 100
+
 
 class ContentSearchOpenSearchClient:
     def __init__(
@@ -40,6 +42,9 @@ class ContentSearchOpenSearchClient:
             verify_certs=True,
             connection_class=AIOHttpConnection,
             http_auth=http_auth,
+            timeout=120,
+            max_retries=3,
+            retry_on_timeout=True,
         )
 
     async def close(self) -> None:
@@ -61,20 +66,28 @@ class ContentSearchOpenSearchClient:
         if not documents:
             return
 
-        body: list[dict] = []
-        for document in documents:
-            body.append({"index": {"_index": self.index_name, "_id": document["id"]}})
-            body.append(document)
+        for start in range(0, len(documents), BULK_CHUNK_DOCUMENTS):
+            chunk = documents[start : start + BULK_CHUNK_DOCUMENTS]
+            body: list[dict] = []
+            for document in chunk:
+                body.append({"index": {"_index": self.index_name, "_id": document["id"]}})
+                body.append(document)
 
-        response = await self._require_client().bulk(body=body, params={"refresh": str(refresh).lower()})
-        if response.get("errors"):
-            raise InvalidRequestError("OpenSearch bulk indexing failed")
+            response = await self._require_client().bulk(body=body, params={"refresh": "false"})
+            if response.get("errors"):
+                raise InvalidRequestError("OpenSearch bulk indexing failed")
 
-    async def delete_edition(self, edition_id: str) -> None:
+        if refresh:
+            await self.refresh_index()
+
+    async def refresh_index(self) -> None:
+        await self._require_client().indices.refresh(index=self.index_name)
+
+    async def delete_edition(self, edition_id: str, *, refresh: bool = True) -> None:
         await self._require_client().delete_by_query(
             index=self.index_name,
             body={"query": {"term": {"edition_id": edition_id}}},
-            params={"conflicts": "proceed", "ignore_unavailable": "true", "refresh": "true"},
+            params={"conflicts": "proceed", "ignore_unavailable": "true", "refresh": str(refresh).lower()},
         )
 
     async def search(self, body: dict) -> dict:

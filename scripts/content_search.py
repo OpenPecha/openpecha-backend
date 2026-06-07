@@ -1,5 +1,6 @@
 import argparse
 import asyncio
+import logging
 from typing import LiteralString
 
 from neo4j import AsyncManagedTransaction
@@ -14,6 +15,8 @@ MATCH (m:Edition)
 RETURN m.id AS edition_id
 ORDER BY edition_id
 """
+
+logger = logging.getLogger(__name__)
 
 
 def _service() -> ContentSearchService:
@@ -40,11 +43,24 @@ async def _reindex(edition_ids: list[str] | None) -> None:
     search = _service()
     await db.verify_connectivity()
     await storage.connect()
-    await search.connect()
     try:
+        await search.connect()
         ids = edition_ids or await _get_all_edition_ids(db)
-        for edition_id in ids:
-            await search.index_edition(edition_id, db, storage)
+        total = len(ids)
+        logger.info("Starting content search reindex for %d edition(s)", total)
+        failed: list[str] = []
+        for index, edition_id in enumerate(ids, start=1):
+            logger.info("Reindexing edition %s (%d/%d)", edition_id, index, total)
+            try:
+                await search.index_edition(edition_id, db, storage, refresh=False)
+            except Exception:
+                failed.append(edition_id)
+                logger.exception("Failed to reindex edition %s (%d/%d)", edition_id, index, total)
+        logger.info("Refreshing content search index")
+        await search.refresh_index()
+        if failed:
+            raise RuntimeError(f"Failed to reindex {len(failed)} edition(s): {', '.join(failed)}")
+        logger.info("Finished content search reindex for %d edition(s)", total)
     finally:
         await search.close()
         await storage.close()
@@ -62,8 +78,10 @@ async def _get_all_edition_ids(db: Database) -> list[str]:
 
 async def _setup_index() -> None:
     search = _service()
-    await search.connect()
-    await search.close()
+    try:
+        await search.connect()
+    finally:
+        await search.close()
 
 
 def main() -> None:
@@ -82,4 +100,6 @@ def main() -> None:
 
 
 if __name__ == "__main__":
+    logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(name)s - %(message)s")
+    logging.getLogger("neo4j").setLevel(logging.WARNING)
     main()
