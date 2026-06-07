@@ -1,9 +1,10 @@
 import logging
 from typing import TYPE_CHECKING, Annotated
 
-from fastapi import APIRouter, Depends, Path, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, Path, Query, status
 
-from dependencies import get_api_key, get_db, get_storage
+from content_search import ContentSearchService
+from dependencies import get_api_key, get_content_search, get_db, get_storage
 from models.annotation import (
     AlignmentInput,
     AlignmentOutput,
@@ -295,10 +296,12 @@ async def delete_edition(
     edition_id: Annotated[str, Path(description="The ID of the edition")],
     _api_key: Annotated[str, Depends(get_api_key)],
     db: Annotated[Database, Depends(get_db)],
+    content_search: Annotated[ContentSearchService, Depends(get_content_search)],
 ) -> None:
     logger.info("Deleting edition with edition ID: %s", edition_id)
     await db.edition.get(edition_id=edition_id)
     await db.edition.delete(edition_id)
+    await content_search.delete_edition(edition_id)
 
 
 @router.patch(
@@ -310,9 +313,11 @@ async def delete_edition(
 async def patch_content(
     edition_id: Annotated[str, Path(description="The ID of the edition")],
     data: ContentOperation,
+    background_tasks: BackgroundTasks,
     _api_key: Annotated[str, Depends(get_api_key)],
     db: Annotated[Database, Depends(get_db)],
     storage: Annotated[Storage, Depends(get_storage)],
+    content_search: Annotated[ContentSearchService, Depends(get_content_search)],
 ) -> None:
     op = data.operation
     logger.info("Applying %s operation to edition %s", op.type, edition_id)
@@ -385,3 +390,5 @@ async def patch_content(
                 new_len=op.end - op.start,
             )
             raise
+
+    background_tasks.add_task(content_search.index_edition, edition_id, db, storage)

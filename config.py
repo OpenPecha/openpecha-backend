@@ -19,6 +19,13 @@ class Settings(BaseSettings):
 
     search_api_url: str = ""
 
+    opensearch_endpoint: str = ""
+    opensearch_index: str = "content-search"
+    opensearch_auth_mode: str = "none"
+    opensearch_username: str = ""
+    opensearch_password: str = ""
+    opensearch_context_chars: int = 120
+
     environment: str = ""
 
 

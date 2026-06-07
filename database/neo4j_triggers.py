@@ -794,6 +794,48 @@ TRIGGERS.append(
     }
 )
 
+# --- Edition: at most one Display segmentation -----------------------------
+TRIGGERS.append(
+    {
+        "name": "enforce_edition_single_display_segmentation",
+        "description": "Each Edition must have at most one Display segmentation",
+        "phase": "before",
+        "query": """
+        CALL () {
+            UNWIND $createdNodes AS node
+            WITH node
+            WHERE node:Segmentation:Display
+            MATCH (node)-[:SEGMENTATION_OF]->(edition:Edition)
+            RETURN edition
+          UNION
+            UNWIND $createdRelationships AS rel
+            WITH rel
+            WHERE type(rel) = 'SEGMENTATION_OF'
+            WITH startNode(rel) AS segmentation, endNode(rel) AS edition
+            WHERE segmentation:Segmentation:Display AND edition:Edition
+            RETURN edition
+        }
+        WITH DISTINCT edition
+        MATCH (edition)<-[:SEGMENTATION_OF]-(segmentation:Segmentation:Display)
+        WITH edition, collect(segmentation.id) AS segmentation_ids
+        WHERE size(segmentation_ids) > 1
+        CALL apoc.util.validate(
+            true,
+            'enforce_edition_single_display_segmentation: Edition has multiple Display segmentations. '
+            + 'Edition %s has: %s',
+            [edition.id, apoc.text.join(segmentation_ids, ', ')]
+        )
+        RETURN null
+    """,
+        "audit": """
+        MATCH (edition:Edition)<-[:SEGMENTATION_OF]-(segmentation:Segmentation:Display)
+        WITH edition, collect(segmentation.id) AS segmentation_ids
+        WHERE size(segmentation_ids) > 1
+        RETURN edition.id + ': ' + apoc.text.join(segmentation_ids, ', ') AS violating_id
+    """,
+    }
+)
+
 # --- Span: start must be strictly less than end ----------------------------
 TRIGGERS.append(
     {

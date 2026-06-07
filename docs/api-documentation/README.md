@@ -96,6 +96,10 @@ Texts:
 - `GET /v2/texts/{text_id}/editions`
 - `POST /v2/texts/{text_id}/editions`
 
+Content Search:
+
+- `GET /v2/content-search`
+
 Editions:
 
 - `GET /v2/editions/{edition_id}`
