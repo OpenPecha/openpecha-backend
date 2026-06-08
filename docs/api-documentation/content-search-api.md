@@ -28,7 +28,7 @@ Query parameters:
 | `text_id` | string | No | - | Filter to one text |
 | `edition_id` | string | No | - | Filter to one edition |
 
-Exact search uses the analyzed content field to find candidate chunks, then verifies the exact substring and computes `match_span` from the returned chunk text. Similar search uses the same analyzed content field with a high term-overlap requirement and boosted near-phrase matches, and leaves `match_span` as `null` unless a precise match span is available.
+Exact search uses the analyzed content field to find candidate chunks, then verifies the exact substring and computes `match_span` from the returned chunk text. Similar search uses the same analyzed content field for near-phrase matches and leaves `match_span` as `null` unless a precise match span is available.
 
 `context` is a plain text fragment from the matched chunk. `context_span` is the location of that returned `context` in the full edition text.
 

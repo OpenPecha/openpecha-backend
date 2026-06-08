@@ -21,7 +21,6 @@ logger = logging.getLogger(__name__)
 DEFAULT_CHUNK_CHARS = 4000
 DEFAULT_CHUNK_OVERLAP_CHARS = 500
 SEGMENT_PAGE_SIZE = 1000
-SIMILAR_MINIMUM_SHOULD_MATCH = "85%"
 SIMILAR_PHRASE_SLOP = 12
 CONTEXT_CHARS = 200
 
@@ -361,23 +360,7 @@ def _exact_candidate_query(query: str) -> dict:
 
 
 def _similar_candidate_query(query: str) -> dict:
-    return {
-        "bool": {
-            "should": [
-                {"match_phrase": {"content": {"query": query, "slop": SIMILAR_PHRASE_SLOP, "boost": 6}}},
-                {
-                    "match": {
-                        "content": {
-                            "query": query,
-                            "minimum_should_match": SIMILAR_MINIMUM_SHOULD_MATCH,
-                            "boost": 2,
-                        }
-                    }
-                },
-            ],
-            "minimum_should_match": 1,
-        }
-    }
+    return {"match_phrase": {"content": {"query": query, "slop": SIMILAR_PHRASE_SLOP}}}
 
 
 def _parse_results(response: dict, *, query: str, search_type: str, limit: int) -> list[ContentSearchResult]:
