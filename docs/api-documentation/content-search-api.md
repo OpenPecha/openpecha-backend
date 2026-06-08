@@ -2,7 +2,7 @@
 
 Content search finds where a query appears in stored edition content and returns the text, edition, and segment locations.
 
-The base text remains canonical in S3. OpenSearch stores derived, segment-anchored chunks with enough neighboring context to support cross-segment matches.
+The base text remains canonical in S3. OpenSearch stores derived, fixed-size overlapping chunks with segment span metadata.
 
 ## Authentication
 
@@ -28,7 +28,7 @@ Query parameters:
 | `text_id` | string | No | - | Filter to one text |
 | `edition_id` | string | No | - | Filter to one edition |
 
-Exact search uses an ngram-backed OpenSearch field to find candidate chunks, then computes `match_span` from the returned chunk text. Similar search uses the normal analyzed content field, returns `context_span`, and leaves `match_span` as `null` unless a precise match span is available.
+Exact search uses the analyzed content field to find candidate chunks, then verifies the exact substring and computes `match_span` from the returned chunk text. Similar search uses the same analyzed content field, returns `context_span`, and leaves `match_span` as `null` unless a precise match span is available.
 
 `segments` contains all segment records covered by the result. For exact search, these are the segments overlapping `match_span`; for similar search, these are the segments covered by `context_span`.
 
@@ -80,7 +80,7 @@ Error responses:
 
 The content search index is derived data:
 
-- Creating an edition indexes segment-anchored chunks in the background.
+- Creating an edition indexes overlapping content chunks in the background.
 - Patching edition content reindexes the edition after the storage write succeeds.
 - Deleting an edition deletes derived OpenSearch documents for that edition.
 - Existing editions can be bulk indexed with `python -m scripts.content_search reindex`.
@@ -89,6 +89,13 @@ The content search index is derived data:
 
 ```bash
 python -m scripts.content_search setup-index
+python -m scripts.content_search reindex
+```
+
+When the OpenSearch mapping changes, recreate the derived index before reindexing:
+
+```bash
+python -m scripts.content_search recreate-index
 python -m scripts.content_search reindex
 ```
 

@@ -29,7 +29,6 @@ def _service() -> ContentSearchService:
         auth_mode=settings.opensearch_auth_mode,
         username=settings.opensearch_username,
         password=settings.opensearch_password,
-        context_chars=settings.opensearch_context_chars,
     )
 
 
@@ -84,17 +83,32 @@ async def _setup_index() -> None:
         await search.close()
 
 
+async def _recreate_index() -> None:
+    search = _service()
+    try:
+        await search.connect()
+        logger.warning("Deleting content search index %s", settings.opensearch_index)
+        await search.delete_index()
+        logger.info("Creating content search index %s", settings.opensearch_index)
+        await search.setup_index()
+    finally:
+        await search.close()
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="Manage the OpenSearch content search index.")
     subparsers = parser.add_subparsers(dest="command", required=True)
 
     subparsers.add_parser("setup-index", help="Create the content search index if it does not exist.")
+    subparsers.add_parser("recreate-index", help="Delete and recreate the content search index.")
     reindex = subparsers.add_parser("reindex", help="Reindex editions into OpenSearch.")
     reindex.add_argument("edition_ids", nargs="*", help="Edition IDs to reindex. If omitted, reindex all editions.")
 
     args = parser.parse_args()
     if args.command == "setup-index":
         asyncio.run(_setup_index())
+    elif args.command == "recreate-index":
+        asyncio.run(_recreate_index())
     elif args.command == "reindex":
         asyncio.run(_reindex(args.edition_ids or None))
 

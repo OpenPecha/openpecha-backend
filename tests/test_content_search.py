@@ -2,8 +2,10 @@
 import pytest
 
 from config import settings
+from content_search.service import _build_chunk_documents
 from identifier import generate_id
 from main import create_app
+from models.annotation import SegmentWithContextOutput, Span
 from models.base import LocalizedString
 from models.contribution import ContributionInput
 from models.enums import ContributorRole, EditionType
@@ -49,6 +51,36 @@ async def _create_critical_edition(client, text_id: str, content: str, segments:
     return response.json()["id"]
 
 
+def _segment(segment_id: str, start: int, end: int) -> SegmentWithContextOutput:
+    return SegmentWithContextOutput(
+        id=segment_id,
+        segmentation_id="segmentation",
+        edition_id="edition",
+        text_id="text",
+        lines=[Span(start=start, end=end)],
+    )
+
+
+def test_overlapping_chunks_cover_boundary_matches():
+    documents = _build_chunk_documents(
+        text_id="text",
+        edition_id="edition",
+        edition_type=EditionType.CRITICAL.value,
+        language="bo",
+        title={"bo": "Title"},
+        source=None,
+        content="0123456789",
+        segments=[_segment("s1", 0, 4), _segment("s2", 4, 8), _segment("s3", 8, 10)],
+        chunk_chars=6,
+        chunk_overlap_chars=3,
+    )
+
+    boundary_document = next(document for document in documents if "4567" in document["content"])
+    assert boundary_document["context_span_start"] == 3
+    assert boundary_document["context_span_end"] == 9
+    assert set(boundary_document["segment_ids"]) == {"s1", "s2", "s3"}
+
+
 @pytest.mark.asyncio(loop_scope="session")
 class TestContentSearch:
     async def test_exact_search_returns_match_span_and_all_overlapping_segments(
@@ -61,11 +93,11 @@ class TestContentSearch:
         edition_id = await _create_critical_edition(
             client,
             text_id,
-            content="abcdefghi",
-            segments=[(0, 3), (3, 6), (6, 9)],
+            content="ab cd ef gh",
+            segments=[(0, 5), (5, 11)],
         )
 
-        response = await client.get("/v2/content-search", params={"query": "cdef", "search_type": "exact"})
+        response = await client.get("/v2/content-search", params={"query": "cd ef", "search_type": "exact"})
 
         assert response.status_code == 200, response.json()
         data = response.json()
@@ -73,8 +105,8 @@ class TestContentSearch:
         result = data["results"][0]
         assert result["text_id"] == text_id
         assert result["edition_id"] == edition_id
-        assert result["match_span"] == {"start": 2, "end": 6}
-        assert result["matched_text"] == "cdef"
+        assert result["match_span"] == {"start": 3, "end": 8}
+        assert result["matched_text"] == "cd ef"
         assert {segment["id"] for segment in result["segments"]} == set(result["segment_ids"])
         assert len(result["segments"]) == 2
 

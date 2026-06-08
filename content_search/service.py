@@ -18,8 +18,8 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-DEFAULT_CONTEXT_CHARS = 120
-EXACT_MAX_GRAM = 64
+DEFAULT_CHUNK_CHARS = 4000
+DEFAULT_CHUNK_OVERLAP_CHARS = 500
 SEGMENT_PAGE_SIZE = 1000
 
 
@@ -33,8 +33,11 @@ class ContentSearchService:
         auth_mode: str = "basic",
         username: str = "",
         password: str = "",
-        context_chars: int = DEFAULT_CONTEXT_CHARS,
+        chunk_chars: int = DEFAULT_CHUNK_CHARS,
+        chunk_overlap_chars: int = DEFAULT_CHUNK_OVERLAP_CHARS,
     ) -> None:
+        if chunk_overlap_chars >= chunk_chars:
+            raise ValueError("chunk_overlap_chars must be smaller than chunk_chars")
         self._client = ContentSearchOpenSearchClient(
             endpoint=endpoint,
             index_name=index_name,
@@ -43,7 +46,8 @@ class ContentSearchService:
             username=username,
             password=password,
         )
-        self.context_chars = context_chars
+        self.chunk_chars = chunk_chars
+        self.chunk_overlap_chars = chunk_overlap_chars
 
     async def connect(self) -> None:
         await self._client.connect()
@@ -69,6 +73,13 @@ class ContentSearchService:
             text = await db.text.get(edition.text_id)
             content = await storage.retrieve_base_text(text_id=edition.text_id, edition_id=edition_id)
             segments = await _get_display_segments_for_edition(db, edition_id=edition_id, text_id=edition.text_id)
+            if not segments:
+                logger.warning(
+                    "Skipping content search indexing for edition %s because it has no display segments",
+                    edition_id,
+                )
+                await self.delete_edition(edition_id, refresh=refresh)
+                return
             documents = _build_chunk_documents(
                 text_id=edition.text_id,
                 edition_id=edition_id,
@@ -78,7 +89,8 @@ class ContentSearchService:
                 source=edition.source,
                 content=content,
                 segments=segments,
-                context_chars=self.context_chars,
+                chunk_chars=self.chunk_chars,
+                chunk_overlap_chars=self.chunk_overlap_chars,
             )
 
             await self.delete_edition(edition_id, refresh=refresh)
@@ -148,28 +160,12 @@ async def _get_display_segments_for_edition(
 def _index_body() -> dict:
     return {
         "settings": {
-            "index": {
-                "max_ngram_diff": EXACT_MAX_GRAM - 2,
-            },
             "analysis": {
-                "filter": {
-                    "content_exact_ngram_filter": {
-                        "type": "ngram",
-                        "min_gram": 2,
-                        "max_gram": EXACT_MAX_GRAM,
-                        "preserve_original": True,
-                    },
-                },
                 "analyzer": {
                     "content_search_default": {
                         "type": "custom",
                         "tokenizer": "icu_tokenizer",
                         "filter": ["lowercase"],
-                    },
-                    "content_exact_ngram": {
-                        "type": "custom",
-                        "tokenizer": "keyword",
-                        "filter": ["content_exact_ngram_filter"],
                     },
                 },
             },
@@ -199,13 +195,6 @@ def _index_body() -> dict:
                 "content": {
                     "type": "text",
                     "analyzer": "content_search_default",
-                    "fields": {
-                        "exact": {
-                            "type": "text",
-                            "analyzer": "content_exact_ngram",
-                            "search_analyzer": "keyword",
-                        },
-                    },
                 },
             },
         },
@@ -222,48 +211,45 @@ def _build_chunk_documents(
     source: str | None,
     content: str,
     segments: list[SegmentWithContextOutput],
-    context_chars: int,
+    chunk_chars: int,
+    chunk_overlap_chars: int,
 ) -> list[dict]:
-    if not segments:
-        return [
-            _document(
-                document_id=f"{edition_id}:full",
-                text_id=text_id,
-                edition_id=edition_id,
-                primary_segment_id=None,
-                edition_type=edition_type,
-                language=language,
-                title=title,
-                source=source,
-                content=content,
-                context_start=0,
-                context_end=len(content),
-                segments=[],
-            )
-        ]
-
     documents = []
-    for segment in segments:
-        anchor = segment.span
-        context_start = max(0, anchor.start - context_chars)
-        context_end = min(len(content), anchor.end + context_chars)
-        covered_segments = _segments_overlapping(segments, context_start, context_end)
+    overlap_start_index = 0
+    chunk_start = 0
+    chunk_index = 0
+    step = chunk_chars - chunk_overlap_chars
+    while chunk_start < len(content):
+        chunk_end = min(len(content), chunk_start + chunk_chars)
+        covered_segments, overlap_start_index = _segments_overlapping_from_index(
+            segments,
+            start=chunk_start,
+            end=chunk_end,
+            start_index=overlap_start_index,
+        )
+        if not covered_segments:
+            chunk_start += step
+            continue
         documents.append(
             _document(
-                document_id=f"{edition_id}:{segment.id}",
+                document_id=f"{edition_id}:chunk:{chunk_index}",
                 text_id=text_id,
                 edition_id=edition_id,
-                primary_segment_id=segment.id,
+                primary_segment_id=covered_segments[0].id,
                 edition_type=edition_type,
                 language=language,
                 title=title,
                 source=source,
-                content=content[context_start:context_end],
-                context_start=context_start,
-                context_end=context_end,
+                content=content[chunk_start:chunk_end],
+                context_start=chunk_start,
+                context_end=chunk_end,
                 segments=covered_segments,
             )
         )
+        chunk_index += 1
+        if chunk_end == len(content):
+            break
+        chunk_start += step
     return documents
 
 
@@ -308,12 +294,26 @@ def _document(
     }
 
 
-def _segments_overlapping(
+def _segments_overlapping_from_index(
     segments: list[SegmentWithContextOutput],
+    *,
     start: int,
     end: int,
-) -> list[SegmentWithContextOutput]:
-    return [segment for segment in segments if segment.span.start < end and segment.span.end > start]
+    start_index: int,
+) -> tuple[list[SegmentWithContextOutput], int]:
+    while start_index < len(segments) and segments[start_index].span.end <= start:
+        start_index += 1
+
+    overlapping = []
+    index = start_index
+    while index < len(segments):
+        segment = segments[index]
+        if segment.span.start >= end:
+            break
+        if segment.span.end > start:
+            overlapping.append(segment)
+        index += 1
+    return overlapping, start_index
 
 
 def _search_body(
@@ -330,7 +330,7 @@ def _search_body(
     if edition_id:
         filters.append({"term": {"edition_id": edition_id}})
 
-    must = _exact_candidate_clauses(query) if search_type == "exact" else [{"match": {"content": query}}]
+    must = [_exact_candidate_query(query)] if search_type == "exact" else [{"match": {"content": query}}]
     return {
         "size": max(limit * 10, 50) if search_type == "exact" else limit,
         "query": {"bool": {"must": must, "filter": filters}},
@@ -345,21 +345,16 @@ def _search_body(
     }
 
 
-def _exact_candidate_clauses(query: str) -> list[dict]:
-    return [{"match": {"content.exact": {"query": part, "operator": "and"}}} for part in _exact_candidate_parts(query)]
-
-
-def _exact_candidate_parts(query: str) -> list[str]:
-    if len(query) <= EXACT_MAX_GRAM:
-        return [query]
-
-    middle_start = max(0, (len(query) - EXACT_MAX_GRAM) // 2)
-    parts = [
-        query[:EXACT_MAX_GRAM],
-        query[middle_start : middle_start + EXACT_MAX_GRAM],
-        query[-EXACT_MAX_GRAM:],
-    ]
-    return list(dict.fromkeys(parts))
+def _exact_candidate_query(query: str) -> dict:
+    return {
+        "bool": {
+            "should": [
+                {"match_phrase": {"content": {"query": query, "boost": 3}}},
+                {"match": {"content": {"query": query, "operator": "and"}}},
+            ],
+            "minimum_should_match": 1,
+        }
+    }
 
 
 def _parse_results(response: dict, *, query: str, search_type: str, limit: int) -> list[ContentSearchResult]:
