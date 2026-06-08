@@ -116,4 +116,5 @@ def main() -> None:
 if __name__ == "__main__":
     logging.basicConfig(level=logging.INFO, format="%(levelname)s - %(name)s - %(message)s")
     logging.getLogger("neo4j").setLevel(logging.WARNING)
+    logging.getLogger("neo4j.notifications").setLevel(logging.ERROR)
     main()
