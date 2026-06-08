@@ -20,8 +20,7 @@ class ContentSearchResult(OpenPechaModel):
     context_span: ContentSearchSpan
     match_span: ContentSearchSpan | None = None
     score: float
-    snippet: str | None = None
-    matched_text: str | None = None
+    context: str
 
 
 class ContentSearchResponse(OpenPechaModel):

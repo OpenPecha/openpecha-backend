@@ -90,10 +90,11 @@ class TestContentSearch:
     ):
         person_id = await _create_person(test_database)
         text_id = await _create_text(test_database, person_id)
+        content = "ab cd ef gh"
         edition_id = await _create_critical_edition(
             client,
             text_id,
-            content="ab cd ef gh",
+            content=content,
             segments=[(0, 5), (5, 11)],
         )
 
@@ -106,7 +107,7 @@ class TestContentSearch:
         assert result["text_id"] == text_id
         assert result["edition_id"] == edition_id
         assert result["match_span"] == {"start": 3, "end": 8}
-        assert result["matched_text"] == "cd ef"
+        assert result["context"] == content[result["context_span"]["start"] : result["context_span"]["end"]]
         assert len(result["segments"]) == 2
 
     async def test_tibetan_exact_search_returns_unicode_match_span(self, client, test_database):
@@ -134,7 +135,7 @@ class TestContentSearch:
         assert result["text_id"] == text_id
         assert result["edition_id"] == edition_id
         assert result["match_span"] == {"start": expected_start, "end": expected_end}
-        assert result["matched_text"] == query
+        assert result["context"] == content[result["context_span"]["start"] : result["context_span"]["end"]]
         assert len(result["segments"]) == 2
 
     async def test_tibetan_similar_search_uses_icu_analyzer(self, client, test_database):
@@ -157,6 +158,7 @@ class TestContentSearch:
         assert result["text_id"] == text_id
         assert result["match_span"] is None
         assert result["context_span"] == {"start": 0, "end": len(content)}
+        assert result["context"] == content
         assert result["segments"]
 
     async def test_similar_search_returns_context_without_match_span(self, client, test_database):
@@ -177,6 +179,23 @@ class TestContentSearch:
         assert result["match_span"] is None
         assert result["context_span"]["start"] == 0
         assert result["segments"]
+        assert result["context"] == content[result["context_span"]["start"] : result["context_span"]["end"]]
+        assert "<em>" not in result["context"]
+
+    async def test_similar_search_requires_meaningful_overlap_for_long_queries(self, client, test_database):
+        person_id = await _create_person(test_database)
+        weak_text_id = await _create_text(test_database, person_id, "Weak Match", language="en")
+        strong_text_id = await _create_text(test_database, person_id, "Strong Match", language="en")
+        await _create_critical_edition(client, weak_text_id, "alpha unrelated filler", [(0, 22)])
+        await _create_critical_edition(client, strong_text_id, "alpha beta gamma delta epsilon", [(0, 30)])
+
+        response = await client.get(
+            "/v2/content-search",
+            params={"query": "alpha beta gamma delta epsilon", "search_type": "similar", "limit": 10},
+        )
+
+        assert response.status_code == 200, response.json()
+        assert {result["text_id"] for result in response.json()["results"]} == {strong_text_id}
 
     async def test_search_filters_by_text_and_edition(self, client, test_database):
         person_id = await _create_person(test_database)

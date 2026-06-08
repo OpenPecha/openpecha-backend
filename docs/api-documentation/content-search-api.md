@@ -28,7 +28,9 @@ Query parameters:
 | `text_id` | string | No | - | Filter to one text |
 | `edition_id` | string | No | - | Filter to one edition |
 
-Exact search uses the analyzed content field to find candidate chunks, then verifies the exact substring and computes `match_span` from the returned chunk text. Similar search uses the same analyzed content field, returns `context_span`, and leaves `match_span` as `null` unless a precise match span is available.
+Exact search uses the analyzed content field to find candidate chunks, then verifies the exact substring and computes `match_span` from the returned chunk text. Similar search uses the same analyzed content field with a minimum term-overlap requirement and leaves `match_span` as `null` unless a precise match span is available.
+
+`context` is a plain text fragment from the matched chunk. `context_span` is the location of that returned `context` in the full edition text.
 
 `segments` contains all segment records covered by the result. For exact search, these are the segments overlapping `match_span`; for similar search, these are the segments covered by `context_span`.
 
@@ -53,8 +55,7 @@ Response:
       "context_span": {"start": 80, "end": 220},
       "match_span": {"start": 132, "end": 151},
       "score": 12.4,
-      "snippet": "...",
-      "matched_text": "བདེ་ལེགས"
+      "context": "..."
     }
   ],
   "count": 1
