@@ -23,7 +23,7 @@ Query parameters:
 | Query | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `query` | string | Yes | - | Search string |
-| `search_type` | `exact` or `similar` | No | `similar` | Exact substring search or OpenSearch-ranked similar search |
+| `search_type` | `exact` or `similar` | No | `exact` | Exact substring search or OpenSearch-ranked similar search |
 | `limit` | integer | No | `10` | Maximum results, 1-100 |
 | `text_id` | string | No | - | Filter to one text |
 | `edition_id` | string | No | - | Filter to one edition |
