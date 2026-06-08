@@ -32,34 +32,22 @@ Exact search uses the analyzed content field to find candidate chunks, then veri
 
 `context` is a plain text fragment from the matched chunk. `context_span` is the location of that returned `context` in the full edition text.
 
-`segments` contains all segment records covered by the result. For exact search, these are the segments overlapping `match_span`; for similar search, these are the segments covered by `context_span`.
+`segment_ids` contains all segment IDs covered by the result. For exact search, these are the segments overlapping `match_span`; for similar search, these are the segments covered by `context_span`.
 
 Response:
 
 ```json
-{
-  "results": [
-    {
-      "text_id": "TXT123",
-      "edition_id": "ED123",
-      "segments": [
-        {
-          "id": "SEG001",
-          "span": {"start": 100, "end": 140}
-        },
-        {
-          "id": "SEG002",
-          "span": {"start": 140, "end": 180}
-        }
-      ],
-      "context_span": {"start": 80, "end": 220},
-      "match_span": {"start": 132, "end": 151},
-      "score": 12.4,
-      "context": "..."
-    }
-  ],
-  "count": 1
-}
+[
+  {
+    "text_id": "TXT123",
+    "edition_id": "ED123",
+    "segment_ids": ["SEG001", "SEG002"],
+    "context_span": {"start": 80, "end": 220},
+    "match_span": {"start": 132, "end": 151},
+    "score": 12.4,
+    "context": "..."
+  }
+]
 ```
 
 Example:

@@ -6,9 +6,7 @@ from typing import TYPE_CHECKING
 from content_search.opensearch_client import ContentSearchOpenSearchClient
 from models.annotation import SegmentWithContextOutput
 from models.content_search import (
-    ContentSearchResponse,
     ContentSearchResult,
-    ContentSearchSegment,
     ContentSearchSpan,
 )
 
@@ -113,7 +111,7 @@ class ContentSearchService:
         limit: int,
         text_id: str | None = None,
         edition_id: str | None = None,
-    ) -> ContentSearchResponse:
+    ) -> list[ContentSearchResult]:
         response = await self._client.search(
             _search_body(
                 query=query,
@@ -123,8 +121,7 @@ class ContentSearchService:
                 edition_id=edition_id,
             ),
         )
-        results = _parse_results(response, query=query, search_type=search_type, limit=limit)
-        return ContentSearchResponse(results=results, count=len(results))
+        return _parse_results(response, query=query, search_type=search_type, limit=limit)
 
 
 async def _get_display_segments_for_edition(
@@ -414,7 +411,7 @@ def _exact_results_from_hit(hit: dict, source: dict, query: str) -> list[Content
                 context=context,
                 context_span=result_context_span,
                 match_span=match_span,
-                segments=_segments_from_source(source, match_span),
+                segment_ids=_segment_ids_from_source(source, match_span),
             )
         )
         search_from = local_start + 1
@@ -429,7 +426,7 @@ def _similar_result_from_hit(hit: dict, source: dict) -> ContentSearchResult:
         context=context,
         context_span=context_span,
         match_span=None,
-        segments=_segments_from_source(source, context_span),
+        segment_ids=_segment_ids_from_source(source, context_span),
     )
 
 
@@ -440,12 +437,12 @@ def _result(
     context: str,
     context_span: ContentSearchSpan,
     match_span: ContentSearchSpan | None,
-    segments: list[ContentSearchSegment],
+    segment_ids: list[str],
 ) -> ContentSearchResult:
     return ContentSearchResult(
         text_id=source["text_id"],
         edition_id=source["edition_id"],
-        segments=segments,
+        segment_ids=segment_ids,
         context_span=context_span,
         match_span=match_span,
         score=float(hit.get("_score") or 0.0),
@@ -453,10 +450,10 @@ def _result(
     )
 
 
-def _segments_from_source(
+def _segment_ids_from_source(
     source: dict,
     match_span: ContentSearchSpan | None = None,
-) -> list[ContentSearchSegment]:
+) -> list[str]:
     raw_segments = source.get("segments", [])
     if match_span is not None:
         raw_segments = [
@@ -464,13 +461,7 @@ def _segments_from_source(
             for segment in raw_segments
             if segment["span_start"] < match_span.end and segment["span_end"] > match_span.start
         ]
-    return [
-        ContentSearchSegment(
-            id=segment["id"],
-            span=ContentSearchSpan(start=segment["span_start"], end=segment["span_end"]),
-        )
-        for segment in raw_segments
-    ]
+    return [segment["id"] for segment in raw_segments]
 
 
 def _context_around_match(source: dict, match_span: ContentSearchSpan) -> tuple[str, ContentSearchSpan]:

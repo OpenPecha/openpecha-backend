@@ -101,14 +101,14 @@ class TestContentSearch:
         response = await client.get("/v2/content-search", params={"query": "cd ef", "search_type": "exact"})
 
         assert response.status_code == 200, response.json()
-        data = response.json()
-        assert data["count"] == 1
-        result = data["results"][0]
+        results = response.json()
+        assert len(results) == 1
+        result = results[0]
         assert result["text_id"] == text_id
         assert result["edition_id"] == edition_id
         assert result["match_span"] == {"start": 3, "end": 8}
         assert result["context"] == content[result["context_span"]["start"] : result["context_span"]["end"]]
-        assert len(result["segments"]) == 2
+        assert len(result["segment_ids"]) == 2
 
     async def test_tibetan_exact_search_returns_unicode_match_span(self, client, test_database):
         person_id = await _create_person(test_database)
@@ -129,14 +129,14 @@ class TestContentSearch:
         response = await client.get("/v2/content-search", params={"query": query, "search_type": "exact"})
 
         assert response.status_code == 200, response.json()
-        data = response.json()
-        assert data["count"] == 1
-        result = data["results"][0]
+        results = response.json()
+        assert len(results) == 1
+        result = results[0]
         assert result["text_id"] == text_id
         assert result["edition_id"] == edition_id
         assert result["match_span"] == {"start": expected_start, "end": expected_end}
         assert result["context"] == content[result["context_span"]["start"] : result["context_span"]["end"]]
-        assert len(result["segments"]) == 2
+        assert len(result["segment_ids"]) == 2
 
     async def test_tibetan_similar_search_uses_icu_analyzer(self, client, test_database):
         person_id = await _create_person(test_database)
@@ -152,14 +152,14 @@ class TestContentSearch:
         response = await client.get("/v2/content-search", params={"query": "བདེ་ལེགས", "search_type": "similar"})
 
         assert response.status_code == 200, response.json()
-        data = response.json()
-        assert data["count"] == 1
-        result = data["results"][0]
+        results = response.json()
+        assert len(results) == 1
+        result = results[0]
         assert result["text_id"] == text_id
         assert result["match_span"] is None
         assert result["context_span"] == {"start": 0, "end": len(content)}
         assert result["context"] == content
-        assert result["segments"]
+        assert result["segment_ids"]
 
     async def test_similar_search_returns_context_without_match_span(self, client, test_database):
         person_id = await _create_person(test_database)
@@ -175,10 +175,10 @@ class TestContentSearch:
         response = await client.get("/v2/content-search", params={"query": "SEARCH", "search_type": "similar"})
 
         assert response.status_code == 200, response.json()
-        result = response.json()["results"][0]
+        result = response.json()[0]
         assert result["match_span"] is None
         assert result["context_span"]["start"] == 0
-        assert result["segments"]
+        assert result["segment_ids"]
         assert result["context"] == content[result["context_span"]["start"] : result["context_span"]["end"]]
         assert "<em>" not in result["context"]
 
@@ -195,7 +195,7 @@ class TestContentSearch:
         )
 
         assert response.status_code == 200, response.json()
-        assert {result["text_id"] for result in response.json()["results"]} == {strong_text_id}
+        assert {result["text_id"] for result in response.json()} == {strong_text_id}
 
     async def test_search_filters_by_text_and_edition(self, client, test_database):
         person_id = await _create_person(test_database)
@@ -214,9 +214,9 @@ class TestContentSearch:
         )
 
         assert text_response.status_code == 200, text_response.json()
-        assert {result["text_id"] for result in text_response.json()["results"]} == {first_text_id}
+        assert {result["text_id"] for result in text_response.json()} == {first_text_id}
         assert edition_response.status_code == 200, edition_response.json()
-        assert {result["edition_id"] for result in edition_response.json()["results"]} == {first_edition_id}
+        assert {result["edition_id"] for result in edition_response.json()} == {first_edition_id}
 
     async def test_patch_reindexes_content(self, client, test_database):
         person_id = await _create_person(test_database)
@@ -224,7 +224,7 @@ class TestContentSearch:
         edition_id = await _create_critical_edition(client, text_id, "hello world", [(0, 11)])
 
         response_before = await client.get("/v2/content-search", params={"query": "planet", "search_type": "exact"})
-        assert response_before.json()["count"] == 0
+        assert response_before.json() == []
 
         patch_response = await client.patch(
             f"/v2/editions/{edition_id}/content",
@@ -234,20 +234,16 @@ class TestContentSearch:
 
         response_after = await client.get("/v2/content-search", params={"query": "planet", "search_type": "exact"})
         assert response_after.status_code == 200
-        assert response_after.json()["count"] == 1
+        assert len(response_after.json()) == 1
 
     async def test_delete_removes_indexed_documents(self, client, test_database):
         person_id = await _create_person(test_database)
         text_id = await _create_text(test_database, person_id)
         edition_id = await _create_critical_edition(client, text_id, "delete me", [(0, 9)])
 
-        assert (await client.get("/v2/content-search", params={"query": "delete", "search_type": "exact"})).json()[
-            "count"
-        ] == 1
+        assert len((await client.get("/v2/content-search", params={"query": "delete", "search_type": "exact"})).json()) == 1
 
         delete_response = await client.delete(f"/v2/editions/{edition_id}")
         assert delete_response.status_code == 204
 
-        assert (await client.get("/v2/content-search", params={"query": "delete", "search_type": "exact"})).json()[
-            "count"
-        ] == 0
+        assert (await client.get("/v2/content-search", params={"query": "delete", "search_type": "exact"})).json() == []
