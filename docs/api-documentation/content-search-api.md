@@ -36,7 +36,6 @@ Response:
 
 ```json
 {
-  "query": "བདེ་ལེགས",
   "results": [
     {
       "text_id": "TXT123",
@@ -51,7 +50,6 @@ Response:
           "span": {"start": 140, "end": 180}
         }
       ],
-      "segment_ids": ["SEG001", "SEG002"],
       "context_span": {"start": 80, "end": 220},
       "match_span": {"start": 132, "end": 151},
       "score": 12.4,

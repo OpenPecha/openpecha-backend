@@ -78,7 +78,7 @@ def test_overlapping_chunks_cover_boundary_matches():
     boundary_document = next(document for document in documents if "4567" in document["content"])
     assert boundary_document["context_span_start"] == 3
     assert boundary_document["context_span_end"] == 9
-    assert set(boundary_document["segment_ids"]) == {"s1", "s2", "s3"}
+    assert {segment["id"] for segment in boundary_document["segments"]} == {"s1", "s2", "s3"}
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -107,7 +107,6 @@ class TestContentSearch:
         assert result["edition_id"] == edition_id
         assert result["match_span"] == {"start": 3, "end": 8}
         assert result["matched_text"] == "cd ef"
-        assert {segment["id"] for segment in result["segments"]} == set(result["segment_ids"])
         assert len(result["segments"]) == 2
 
     async def test_tibetan_exact_search_returns_unicode_match_span(self, client, test_database):

@@ -122,7 +122,7 @@ class ContentSearchService:
             ),
         )
         results = _parse_results(response, query=query, search_type=search_type, limit=limit)
-        return ContentSearchResponse(query=query, results=results, count=len(results))
+        return ContentSearchResponse(results=results, count=len(results))
 
 
 async def _get_display_segments_for_edition(
@@ -181,7 +181,6 @@ def _index_body() -> dict:
                 "language": {"type": "keyword"},
                 "title": {"type": "object", "enabled": False},
                 "source": {"type": "keyword"},
-                "segment_ids": {"type": "keyword"},
                 "segments": {
                     "type": "nested",
                     "properties": {
@@ -287,7 +286,6 @@ def _document(
         "title": title,
         "source": source,
         "segments": segment_docs,
-        "segment_ids": [segment["id"] for segment in segment_docs],
         "context_span_start": context_start,
         "context_span_end": context_end,
         "content": content,
@@ -334,14 +332,6 @@ def _search_body(
     return {
         "size": max(limit * 10, 50) if search_type == "exact" else limit,
         "query": {"bool": {"must": must, "filter": filters}},
-        "highlight": {
-            "fields": {
-                "content": {
-                    "number_of_fragments": 1,
-                    "fragment_size": 180,
-                }
-            }
-        },
     }
 
 
@@ -429,7 +419,6 @@ def _result(
         text_id=source["text_id"],
         edition_id=source["edition_id"],
         segments=segments,
-        segment_ids=[segment.id for segment in segments],
         context_span=ContentSearchSpan(start=source["context_span_start"], end=source["context_span_end"]),
         match_span=match_span,
         score=float(hit.get("_score") or 0.0),
@@ -459,7 +448,4 @@ def _segments_from_source(
 
 
 def _snippet(hit: dict) -> str | None:
-    highlights = hit.get("highlight", {}).get("content", [])
-    if highlights:
-        return highlights[0]
-    return None
+    return hit.get("_source", {}).get("content")
