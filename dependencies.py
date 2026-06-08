@@ -5,6 +5,7 @@ from fastapi import Header, Request, Security
 from fastapi.security import APIKeyHeader
 
 from config import settings
+from content_search import ContentSearchService
 from database import Database
 from exceptions import UnauthorizedError
 from storage import Storage
@@ -28,6 +29,11 @@ def get_db(request: Request) -> Database:
 def get_storage(request: Request) -> Storage:
     """Dependency that provides the storage instance from app.state."""
     return request.app.state.storage
+
+
+def get_content_search(request: Request) -> ContentSearchService:
+    """Dependency that provides the content search service from app.state."""
+    return request.app.state.content_search
 
 
 async def get_api_key(

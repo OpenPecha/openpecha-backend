@@ -4,7 +4,8 @@ from typing import TYPE_CHECKING, Annotated
 from fastapi import APIRouter, BackgroundTasks, Depends, Path, Query, status
 
 from background_tasks import trigger_search_segmenter
-from dependencies import OptionalAppHeader, get_api_key, get_db, get_storage
+from content_search import ContentSearchService
+from dependencies import OptionalAppHeader, get_api_key, get_content_search, get_db, get_storage
 from identifier import generate_id
 from models.edition import EditionOutput
 from models.requests import EditionRequestModel, EditionsQueryParams, TextsQueryParams
@@ -105,6 +106,7 @@ async def create_edition(
     _api_key: Annotated[str, Depends(get_api_key)],
     db: Annotated[Database, Depends(get_db)],
     storage: Annotated[Storage, Depends(get_storage)],
+    content_search: Annotated[ContentSearchService, Depends(get_content_search)],
 ) -> IdResponse:
     """Create a new edition for a text."""
     edition_id = generate_id()
@@ -124,6 +126,7 @@ async def create_edition(
     )
 
     background_tasks.add_task(trigger_search_segmenter, edition_id)
+    background_tasks.add_task(content_search.index_edition, edition_id, db, storage)
 
     return IdResponse(id=edition_id)
 

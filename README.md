@@ -136,6 +136,7 @@ sudo systemctl restart openpecha-api
   `.env`
 - **AWS S3**: Configured via `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`,
   `AWS_S3_BUCKET` in `.env`
+- **OpenSearch content search**: Configured via `OPENSEARCH_ENDPOINT`
 
 ## Documentation
 

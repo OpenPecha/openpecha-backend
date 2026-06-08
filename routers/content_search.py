@@ -1,0 +1,36 @@
+import logging
+from typing import Annotated, Literal
+
+from fastapi import APIRouter, Depends, Query
+
+from content_search import ContentSearchService
+from dependencies import get_api_key, get_content_search
+from models.content_search import ContentSearchResponse
+
+logger = logging.getLogger(__name__)
+
+router = APIRouter(prefix="/v2/content-search", tags=["Content Search"])
+
+
+@router.get(
+    "",
+    summary="Search edition content",
+    description="Search base text content and return text, edition, and segment locations.",
+)
+async def search_content(
+    query: Annotated[str, Query(description="Search query", min_length=1)],
+    _api_key: Annotated[str, Depends(get_api_key)],
+    content_search: Annotated[ContentSearchService, Depends(get_content_search)],
+    search_type: Annotated[Literal["exact", "similar"], Query(description="Type of content search")] = "similar",
+    limit: Annotated[int, Query(ge=1, le=100, description="Maximum number of results")] = 10,
+    text_id: Annotated[str | None, Query(description="Filter results to one text")] = None,
+    edition_id: Annotated[str | None, Query(description="Filter results to one edition")] = None,
+) -> ContentSearchResponse:
+    logger.info("Searching edition content with search_type=%s", search_type)
+    return await content_search.search(
+        query=query,
+        search_type=search_type,
+        limit=limit,
+        text_id=text_id,
+        edition_id=edition_id,
+    )

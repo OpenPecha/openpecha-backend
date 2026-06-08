@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from pydantic import ValidationError
 
 from config import settings
+from content_search import ContentSearchService
 from database import Database
 from exceptions import OpenPechaError
 from observability import setup_telemetry, shutdown_telemetry
@@ -19,6 +20,7 @@ from routers.annotation.segmentations import router as segmentations_router
 from routers.annotation.table_of_contents import router as table_of_contents_router
 from routers.applications import router as applications_router
 from routers.categories import router as categories_router
+from routers.content_search import router as content_search_router
 from routers.editions import router as editions_router
 from routers.languages import router as languages_router
 from routers.persons import router as persons_router
@@ -38,6 +40,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
     setup_telemetry(app)
 
+    if not app.state.testing and not settings.opensearch_endpoint:
+        raise RuntimeError("OPENSEARCH_ENDPOINT is required")
+
     if not app.state.testing and settings.neo4j_uri:
         db = Database(
             neo4j_uri=settings.neo4j_uri,
@@ -49,11 +54,23 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         storage = Storage(bucket_name=settings.aws_s3_bucket, region=settings.aws_region)
         await storage.connect()
         app.state.storage = storage
-        logger.info("Database and storage initialized")
+        content_search = ContentSearchService(
+            endpoint=settings.opensearch_endpoint,
+            index_name=settings.opensearch_index,
+            region=settings.aws_region,
+            auth_mode=settings.opensearch_auth_mode,
+            username=settings.opensearch_username,
+            password=settings.opensearch_password,
+            context_chars=settings.opensearch_context_chars,
+        )
+        await content_search.connect()
+        app.state.content_search = content_search
+        logger.info("Database, storage, and content search initialized")
         yield
+        await content_search.close()
         await storage.close()
         await db.close()
-        logger.info("Database and storage connections closed")
+        logger.info("Database, storage, and content search connections closed")
     else:
         logger.info("Skipping database initialization (testing mode or no NEO4J_URI)")
         yield
@@ -65,7 +82,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 def create_app(*, testing: bool = False) -> FastAPI:
     app = FastAPI(
         title="OpenPecha API v2",
-        version="2.6.0",
+        version="2.7.0",
         lifespan=lifespan,
         docs_url="/docs",
         redoc_url="/redoc",
@@ -137,6 +154,7 @@ def create_app(*, testing: bool = False) -> FastAPI:
     app.include_router(bibliographic_router)
     app.include_router(durchens_router)
     app.include_router(applications_router)
+    app.include_router(content_search_router)
     app.include_router(segments_router)
 
     return app
