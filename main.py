@@ -61,7 +61,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
             auth_mode=settings.opensearch_auth_mode,
             username=settings.opensearch_username,
             password=settings.opensearch_password,
-            context_chars=settings.opensearch_context_chars,
         )
         await content_search.connect()
         app.state.content_search = content_search

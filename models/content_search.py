@@ -17,7 +17,6 @@ class ContentSearchResult(OpenPechaModel):
     text_id: NonEmptyStr
     edition_id: NonEmptyStr
     segments: list[ContentSearchSegment] = Field(default_factory=list)
-    segment_ids: list[NonEmptyStr] = Field(default_factory=list)
     context_span: ContentSearchSpan
     match_span: ContentSearchSpan | None = None
     score: float
@@ -26,6 +25,5 @@ class ContentSearchResult(OpenPechaModel):
 
 
 class ContentSearchResponse(OpenPechaModel):
-    query: str
     results: list[ContentSearchResult]
     count: int
