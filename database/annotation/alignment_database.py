@@ -119,13 +119,13 @@ class AlignmentDatabase:
               -[:SEGMENTATION_OF]->(target_edition)
     WITH aligned_segmentation, target_segmentation
     UNWIND $target_segments AS target_segment_data
-    CREATE (segment:Segment {id: target_segment_data.id})-[:SEGMENT_OF]->(target_segmentation)
+    CREATE (segment:Segment:Paragraph {id: target_segment_data.id})-[:SEGMENT_OF]->(target_segmentation)
     WITH aligned_segmentation, segment, target_segment_data
     UNWIND target_segment_data.lines AS line
     CREATE (:Span {start: line.start, end: line.end})-[:SPAN_OF]->(segment)
     WITH DISTINCT aligned_segmentation
     UNWIND $aligned_segments AS aligned_segment_data
-    CREATE (segment:Segment {id: aligned_segment_data.id})-[:SEGMENT_OF]->(aligned_segmentation)
+    CREATE (segment:Segment:Paragraph {id: aligned_segment_data.id})-[:SEGMENT_OF]->(aligned_segmentation)
     WITH segment, aligned_segment_data
     UNWIND aligned_segment_data.lines AS line
     CREATE (:Span {start: line.start, end: line.end})-[:SPAN_OF]->(segment)

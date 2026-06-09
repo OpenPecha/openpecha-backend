@@ -85,7 +85,7 @@ GET /v2/segments/{segment_id}
   "edition_id": "ED12345678",
   "text_id": "TXT12345678",
   "type": "verse",
-  "verse_index": "1.1",
+  "verse_index": [1, 1],
   "lines": [
     {"start": 0, "end": 100}
   ],
@@ -93,7 +93,7 @@ GET /v2/segments/{segment_id}
 }
 ```
 
-`tag_ids` is omitted when the segment has no tags. If `X-Application` is supplied, returned tag IDs are filtered to tags belonging to that application. `type` and `verse_index` appear only on verse segments and are omitted otherwise.
+`tag_ids` is omitted when the segment has no tags. If `X-Application` is supplied, returned tag IDs are filtered to tags belonging to that application. `type` is always present (`"paragraph"` or `"verse"`); `verse_index` (an integer `[chapter, verse]` pair) appears only on verse segments and is omitted otherwise.
 
 **Error Responses:**
 - `401 Unauthorized`: Missing or invalid API key in deployed environments
@@ -183,6 +183,7 @@ GET /v2/segments/{segment_id}/related
       "segmentation_id": "SGN12345678",
       "edition_id": "M12345678",
       "text_id": "E12345678",
+      "type": "paragraph",
       "lines": [{"start": 0, "end": 100}],
       "tag_ids": ["TAG123"]
     }
@@ -195,8 +196,8 @@ GET /v2/segments/{segment_id}/related
 
 **Response Structure:**
 - Returns a paginated object with flat segment objects in `items`
-- Each segment includes `segmentation_id`, `edition_id`, and `text_id`
-- Verse segments additionally carry `type: "verse"` and `verse_index`. Note: unlike `GET /v2/segments/{id}` and the segmentation segment listing (which omit null fields), this endpoint currently returns `type`, `verse_index`, and `tag_ids` as `null` for non-verse / untagged segments
+- Each segment includes `segmentation_id`, `edition_id`, `text_id`, and `type` (`"paragraph"` or `"verse"`)
+- Verse segments additionally carry `verse_index`, an integer `[chapter, verse]` pair. Note: unlike `GET /v2/segments/{id}` and the segmentation segment listing (which omit null fields), this endpoint returns `verse_index` and `tag_ids` as `null` for paragraph / untagged segments
 - Optional filters are applied to related display results before pagination; combined filters are conjunctive
 - Empty result uses `"items": []`
 

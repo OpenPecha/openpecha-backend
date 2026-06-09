@@ -47,4 +47,5 @@ class AttributeType(StrEnum):
 
 
 class SegmentType(StrEnum):
+    PARAGRAPH = "paragraph"
     VERSE = "verse"

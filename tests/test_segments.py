@@ -1484,6 +1484,7 @@ class TestGetSegment(SegmentTestBase):
             "segmentation_id": segmentation_id,
             "edition_id": edition_id,
             "text_id": text_id,
+            "type": "paragraph",
             "lines": [{"start": 0, "end": 5}],
         }
 
@@ -1886,13 +1887,13 @@ class TestVerseSegments(SegmentTestBase):
         return edition_id
 
     async def test_round_trip_lists_verse_fields(self, client, test_database):
-        """A verse segment exposes type/verse_index; a non-verse segment omits both."""
+        """A verse segment exposes type/verse_index; a paragraph segment is typed but has no index."""
         edition_id = await self._edition(client, test_database)
         segmentation_id = await self._post_segmentation(
             client,
             edition_id,
             [
-                {"start": 0, "end": 5, "type": "verse", "verse_index": "1.1"},
+                {"start": 0, "end": 5, "type": "verse", "verse_index": [1, 1]},
                 {"start": 5, "end": 10},
             ],
         )
@@ -1904,18 +1905,32 @@ class TestVerseSegments(SegmentTestBase):
 
         verse, plain = items[0], items[1]
         assert verse["type"] == "verse"
-        assert verse["verse_index"] == "1.1"
-        assert "type" not in plain
+        assert verse["verse_index"] == [1, 1]
+        assert plain["type"] == "paragraph"
         assert "verse_index" not in plain
 
+    async def test_explicit_null_type_becomes_paragraph(self, client, test_database):
+        """An explicit `type: null` is normalized to a paragraph segment."""
+        edition_id = await self._edition(client, test_database)
+        segmentation_id = await self._post_segmentation(
+            client,
+            edition_id,
+            [{"start": 0, "end": 5, "type": None}],
+        )
+
+        items = (await client.get(f"/v2/segmentations/{segmentation_id}/segments")).json()["items"]
+        assert len(items) == 1
+        assert items[0]["type"] == "paragraph"
+        assert "verse_index" not in items[0]
+
     async def test_get_single_segment_verse_fields(self, client, test_database):
-        """GET /v2/segments/{id} returns verse fields for a verse and omits them otherwise."""
+        """GET /v2/segments/{id} returns the verse index for a verse and omits it for a paragraph."""
         edition_id = await self._edition(client, test_database)
         segmentation_id = await self._post_segmentation(
             client,
             edition_id,
             [
-                {"start": 0, "end": 5, "type": "verse", "verse_index": "2.10"},
+                {"start": 0, "end": 5, "type": "verse", "verse_index": [2, 10]},
                 {"start": 5, "end": 10},
             ],
         )
@@ -1924,10 +1939,10 @@ class TestVerseSegments(SegmentTestBase):
 
         verse = (await client.get(f"/v2/segments/{verse_id}")).json()
         assert verse["type"] == "verse"
-        assert verse["verse_index"] == "2.10"
+        assert verse["verse_index"] == [2, 10]
 
         plain = (await client.get(f"/v2/segments/{plain_id}")).json()
-        assert "type" not in plain
+        assert plain["type"] == "paragraph"
         assert "verse_index" not in plain
 
     async def test_verse_without_index_rejected(self, client, test_database):
@@ -1939,16 +1954,16 @@ class TestVerseSegments(SegmentTestBase):
         assert resp.status_code == 422
 
     async def test_index_without_type_rejected(self, client, test_database):
-        """verse_index without type=verse -> 422."""
+        """verse_index without type=verse -> 422 (defaults to paragraph, which forbids an index)."""
         edition_id = await self._edition(client, test_database)
         resp = await self._post_segmentation_raw(
-            client, edition_id, [{"start": 0, "end": 5, "verse_index": "1.1"}]
+            client, edition_id, [{"start": 0, "end": 5, "verse_index": [1, 1]}]
         )
         assert resp.status_code == 422
 
-    @pytest.mark.parametrize("bad_index", ["1", "1.0", "0.1", "01.2", "1.2.3", "a.b", "1.", ".1", "1 .1"])
+    @pytest.mark.parametrize("bad_index", [[0, 1], [1, 0], [-1, 1], [1], [1, 2, 3], "1.1", ["a", "b"]])
     async def test_bad_index_format_rejected(self, client, test_database, bad_index):
-        """Malformed verse_index values -> 422."""
+        """Malformed verse_index values (not an int pair, or parts < 1) -> 422."""
         edition_id = await self._edition(client, test_database)
         resp = await self._post_segmentation_raw(
             client, edition_id, [{"start": 0, "end": 5, "type": "verse", "verse_index": bad_index}]
@@ -1970,8 +1985,8 @@ class TestVerseSegments(SegmentTestBase):
             client,
             edition_id,
             [
-                {"start": 0, "end": 5, "type": "verse", "verse_index": "1.1"},
-                {"start": 5, "end": 10, "type": "verse", "verse_index": "1.1"},
+                {"start": 0, "end": 5, "type": "verse", "verse_index": [1, 1]},
+                {"start": 5, "end": 10, "type": "verse", "verse_index": [1, 1]},
             ],
         )
         assert resp.status_code == 422
@@ -1992,7 +2007,7 @@ class TestVerseSegments(SegmentTestBase):
         await self._post_segmentation(
             client,
             tgt_edition_id,
-            [{"start": 0, "end": 5, "type": "verse", "verse_index": "1.1"}, (5, 10)],
+            [{"start": 0, "end": 5, "type": "verse", "verse_index": [1, 1]}, (5, 10)],
         )
 
         await self._post_alignment(
@@ -2005,20 +2020,20 @@ class TestVerseSegments(SegmentTestBase):
         resp = await client.get(f"/v2/editions/{src_edition_id}/segments/related?span_start=0&span_end=5")
         assert resp.status_code == 200
         items = self._related_items(resp.json())
-        verse_items = [i for i in items if i.get("verse_index") == "1.1"]
+        verse_items = [i for i in items if i.get("verse_index") == [1, 1]]
         assert verse_items, f"expected a verse segment in related results: {items}"
         assert verse_items[0]["type"] == "verse"
 
     async def test_multiple_distinct_verses_persist(self, client, test_database):
-        """Several verses with distinct indices (incl. '1.10' vs '1.1') persist and round-trip; a plain segment stays plain."""
+        """Several verses with distinct indices (incl. [1, 10] vs [1, 1]) persist; a paragraph stays a paragraph."""
         edition_id = await self._edition(client, test_database)
         segmentation_id = await self._post_segmentation(
             client,
             edition_id,
             [
-                {"start": 0, "end": 2, "type": "verse", "verse_index": "1.1"},
-                {"start": 2, "end": 4, "type": "verse", "verse_index": "1.10"},
-                {"start": 4, "end": 6, "type": "verse", "verse_index": "2.1"},
+                {"start": 0, "end": 2, "type": "verse", "verse_index": [1, 1]},
+                {"start": 2, "end": 4, "type": "verse", "verse_index": [1, 10]},
+                {"start": 4, "end": 6, "type": "verse", "verse_index": [2, 1]},
                 {"start": 6, "end": 8},
             ],
         )
@@ -2026,10 +2041,10 @@ class TestVerseSegments(SegmentTestBase):
         items = (await client.get(f"/v2/segmentations/{segmentation_id}/segments")).json()["items"]
         assert len(items) == 4
 
-        # '1.10' is a distinct string index from '1.1' (verse indices are strings, not floats).
+        # [1, 10] is a distinct index from [1, 1] (verse indices are integer pairs, not floats).
         verse_indices = [i.get("verse_index") for i in items if i.get("type") == "verse"]
-        assert sorted(verse_indices) == ["1.1", "1.10", "2.1"]
+        assert sorted(verse_indices) == [[1, 1], [1, 10], [2, 1]]
 
-        plain = [i for i in items if "type" not in i]
+        plain = [i for i in items if i.get("type") == "paragraph"]
         assert len(plain) == 1
         assert "verse_index" not in plain[0]

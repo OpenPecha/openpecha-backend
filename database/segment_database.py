@@ -120,7 +120,7 @@ class SegmentDatabase:
                 edition_id=r["edition_id"],
                 text_id=r["text_id"],
                 lines=[Span(start=ln["start"], end=ln["end"]) for ln in r["lines"]],
-                type=SegmentType.VERSE if r["is_verse"] else None,
+                type=SegmentType.VERSE if r["is_verse"] else SegmentType.PARAGRAPH,
                 verse_index=r["verse_index"],
                 tag_ids=r.get("tag_ids") or None,
             )
@@ -209,7 +209,7 @@ class SegmentDatabase:
                 edition_id=rec["edition_id"],
                 text_id=rec["text_id"],
                 lines=[Span(start=ln["start"], end=ln["end"]) for ln in rec["lines"]],
-                type=SegmentType.VERSE if rec["is_verse"] else None,
+                type=SegmentType.VERSE if rec["is_verse"] else SegmentType.PARAGRAPH,
                 verse_index=rec["verse_index"],
                 tag_ids=rec.get("tag_ids") or None,
             )

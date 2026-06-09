@@ -1,14 +1,11 @@
-import re
 from collections.abc import Sequence
 from itertools import pairwise
 from typing import Any, Self
 
-from pydantic import ConfigDict, Field, model_validator
+from pydantic import ConfigDict, Field, field_validator, model_validator
 
 from .base import LocalizedString, NonEmptyStr, OpenPechaModel, _validate_range
 from .enums import AttributeType, BibliographyType, SegmentType
-
-VERSE_INDEX_RE = re.compile(r"^[1-9][0-9]*\.[1-9][0-9]*$")
 
 
 class Span(OpenPechaModel):
@@ -45,20 +42,28 @@ class LinesModel(OpenPechaModel):
 
 
 class SegmentInput(LinesModel):
-    pass
+    type: SegmentType = Field(default=SegmentType.PARAGRAPH, description="Segment subtype; defaults to 'paragraph'")
+
+    @field_validator("type", mode="before")
+    @classmethod
+    def _default_type(cls, value: object) -> object:
+        # An omitted or explicit-null type means a plain paragraph segment.
+        return SegmentType.PARAGRAPH if value is None else value
 
 
-class DisplaySegmentInput(LinesModel):
-    type: SegmentType | None = Field(default=None, description="Segment subtype; 'verse' marks a verse")
-    verse_index: str | None = Field(default=None, description="Verse index 'chapter.verse', e.g. '1.1'")
+class VerseSegmentInput(SegmentInput):
+    verse_index: tuple[int, int] | None = Field(
+        default=None, description="(chapter, verse) pair, both >= 1; required when type is 'verse'"
+    )
 
     @model_validator(mode="after")
     def validate_verse(self) -> Self:
         if self.type is SegmentType.VERSE:
             if self.verse_index is None:
                 raise ValueError("verse_index is required when type is 'verse'")
-            if not VERSE_INDEX_RE.match(self.verse_index):
-                raise ValueError("verse_index must look like '<chapter>.<verse>', e.g. '1.1'")
+            chapter, verse = self.verse_index
+            if chapter < 1 or verse < 1:
+                raise ValueError("verse_index chapter and verse must both be >= 1")
         elif self.verse_index is not None:
             raise ValueError("verse_index is only allowed when type is 'verse'")
         return self
@@ -66,8 +71,8 @@ class DisplaySegmentInput(LinesModel):
 
 class SegmentOutput(LinesModel):
     id: NonEmptyStr
-    type: SegmentType | None = None
-    verse_index: str | None = None
+    type: SegmentType = SegmentType.PARAGRAPH
+    verse_index: tuple[int, int] | None = None
 
 
 class SegmentWithContextOutput(SegmentOutput):
@@ -82,7 +87,7 @@ class RelatedSegmentationOutput(OpenPechaModel):
     segments: list[SegmentWithContextOutput]
 
 
-class AlignedSegmentInput(LinesModel):
+class AlignedSegmentInput(SegmentInput):
     target_indices: list[int] = Field(min_length=1)
 
 
@@ -102,7 +107,7 @@ def _is_sorted_by_span_start(segments: Sequence[LinesModel]) -> bool:
 
 
 class SegmentationInput(OpenPechaModel):
-    segments: list[DisplaySegmentInput]
+    segments: list[VerseSegmentInput]
     metadata: AnnotationMetadata | None = None
 
     @model_validator(mode="after")
@@ -138,6 +143,15 @@ class AlignmentInput(OpenPechaModel):
             raise ValueError("target_segments must be sorted by span start")
         if not _is_sorted_by_span_start(self.aligned_segments):
             raise ValueError("aligned_segments must be sorted by span start")
+        return self
+
+    @model_validator(mode="after")
+    def validate_no_verse_segments(self) -> Self:
+        # Verses are a Display-segmentation concept; alignment segments cannot be verses.
+        if any(seg.type is SegmentType.VERSE for seg in self.target_segments):
+            raise ValueError("target segments of an alignment cannot be verses")
+        if any(seg.type is SegmentType.VERSE for seg in self.aligned_segments):
+            raise ValueError("aligned segments of an alignment cannot be verses")
         return self
 
 
