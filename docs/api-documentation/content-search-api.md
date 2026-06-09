@@ -23,42 +23,31 @@ Query parameters:
 | Query | Type | Required | Default | Description |
 |-------|------|----------|---------|-------------|
 | `query` | string | Yes | - | Search string |
-| `search_type` | `exact` or `similar` | No | `similar` | Exact substring search or OpenSearch-ranked similar search |
+| `search_type` | `exact` or `similar` | No | `exact` | Exact substring search or OpenSearch-ranked similar search |
 | `limit` | integer | No | `10` | Maximum results, 1-100 |
 | `text_id` | string | No | - | Filter to one text |
 | `edition_id` | string | No | - | Filter to one edition |
 
-Exact search uses the analyzed content field to find candidate chunks, then verifies the exact substring and computes `match_span` from the returned chunk text. Similar search uses the same analyzed content field, returns `context_span`, and leaves `match_span` as `null` unless a precise match span is available.
+Exact search uses the analyzed content field to find candidate chunks, then verifies the exact substring and computes `match_span` from the returned chunk text. Similar search uses the same analyzed content field for near-phrase matches and leaves `match_span` as `null` unless a precise match span is available.
 
-`segments` contains all segment records covered by the result. For exact search, these are the segments overlapping `match_span`; for similar search, these are the segments covered by `context_span`.
+`context` is a plain text fragment from the matched chunk. `context_span` is the location of that returned `context` in the full edition text.
+
+`segment_ids` contains all segment IDs covered by the result. For exact search, these are the segments overlapping `match_span`; for similar search, these are the segments covered by `context_span`.
 
 Response:
 
 ```json
-{
-  "results": [
-    {
-      "text_id": "TXT123",
-      "edition_id": "ED123",
-      "segments": [
-        {
-          "id": "SEG001",
-          "span": {"start": 100, "end": 140}
-        },
-        {
-          "id": "SEG002",
-          "span": {"start": 140, "end": 180}
-        }
-      ],
-      "context_span": {"start": 80, "end": 220},
-      "match_span": {"start": 132, "end": 151},
-      "score": 12.4,
-      "snippet": "...",
-      "matched_text": "བདེ་ལེགས"
-    }
-  ],
-  "count": 1
-}
+[
+  {
+    "text_id": "TXT123",
+    "edition_id": "ED123",
+    "segment_ids": ["SEG001", "SEG002"],
+    "context_span": {"start": 80, "end": 220},
+    "match_span": {"start": 132, "end": 151},
+    "score": 12.4,
+    "context": "..."
+  }
+]
 ```
 
 Example:

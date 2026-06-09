@@ -6,9 +6,7 @@ from typing import TYPE_CHECKING
 from content_search.opensearch_client import ContentSearchOpenSearchClient
 from models.annotation import SegmentWithContextOutput
 from models.content_search import (
-    ContentSearchResponse,
     ContentSearchResult,
-    ContentSearchSegment,
     ContentSearchSpan,
 )
 
@@ -21,6 +19,8 @@ logger = logging.getLogger(__name__)
 DEFAULT_CHUNK_CHARS = 4000
 DEFAULT_CHUNK_OVERLAP_CHARS = 500
 SEGMENT_PAGE_SIZE = 1000
+SIMILAR_PHRASE_SLOP = 12
+CONTEXT_CHARS = 200
 
 
 class ContentSearchService:
@@ -111,7 +111,7 @@ class ContentSearchService:
         limit: int,
         text_id: str | None = None,
         edition_id: str | None = None,
-    ) -> ContentSearchResponse:
+    ) -> list[ContentSearchResult]:
         response = await self._client.search(
             _search_body(
                 query=query,
@@ -121,8 +121,7 @@ class ContentSearchService:
                 edition_id=edition_id,
             ),
         )
-        results = _parse_results(response, query=query, search_type=search_type, limit=limit)
-        return ContentSearchResponse(results=results, count=len(results))
+        return _parse_results(response, query=query, search_type=search_type, limit=limit)
 
 
 async def _get_display_segments_for_edition(
@@ -328,10 +327,20 @@ def _search_body(
     if edition_id:
         filters.append({"term": {"edition_id": edition_id}})
 
-    must = [_exact_candidate_query(query)] if search_type == "exact" else [{"match": {"content": query}}]
+    must = [_exact_candidate_query(query)] if search_type == "exact" else [_similar_candidate_query(query)]
     return {
         "size": max(limit * 10, 50) if search_type == "exact" else limit,
         "query": {"bool": {"must": must, "filter": filters}},
+        "highlight": {
+            "pre_tags": [""],
+            "post_tags": [""],
+            "fields": {
+                "content": {
+                    "number_of_fragments": 1,
+                    "fragment_size": CONTEXT_CHARS,
+                }
+            },
+        },
     }
 
 
@@ -345,6 +354,10 @@ def _exact_candidate_query(query: str) -> dict:
             "minimum_should_match": 1,
         }
     }
+
+
+def _similar_candidate_query(query: str) -> dict:
+    return {"match_phrase": {"content": {"query": query, "slop": SIMILAR_PHRASE_SLOP}}}
 
 
 def _parse_results(response: dict, *, query: str, search_type: str, limit: int) -> list[ContentSearchResult]:
@@ -390,13 +403,15 @@ def _exact_results_from_hit(hit: dict, source: dict, query: str) -> list[Content
             break
         local_end = local_start + len(query)
         match_span = ContentSearchSpan(start=context_start + local_start, end=context_start + local_end)
+        context, result_context_span = _context_around_match(source, match_span)
         results.append(
             _result(
                 hit=hit,
                 source=source,
+                context=context,
+                context_span=result_context_span,
                 match_span=match_span,
-                matched_text=query,
-                segments=_segments_from_source(source, match_span),
+                segment_ids=_segment_ids_from_source(source, match_span),
             )
         )
         search_from = local_start + 1
@@ -404,33 +419,41 @@ def _exact_results_from_hit(hit: dict, source: dict, query: str) -> list[Content
 
 
 def _similar_result_from_hit(hit: dict, source: dict) -> ContentSearchResult:
-    return _result(hit=hit, source=source, match_span=None, matched_text=None, segments=_segments_from_source(source))
+    context, context_span = _context_from_hit(hit, source)
+    return _result(
+        hit=hit,
+        source=source,
+        context=context,
+        context_span=context_span,
+        match_span=None,
+        segment_ids=_segment_ids_from_source(source, context_span),
+    )
 
 
 def _result(
     *,
     hit: dict,
     source: dict,
+    context: str,
+    context_span: ContentSearchSpan,
     match_span: ContentSearchSpan | None,
-    matched_text: str | None,
-    segments: list[ContentSearchSegment],
+    segment_ids: list[str],
 ) -> ContentSearchResult:
     return ContentSearchResult(
         text_id=source["text_id"],
         edition_id=source["edition_id"],
-        segments=segments,
-        context_span=ContentSearchSpan(start=source["context_span_start"], end=source["context_span_end"]),
+        segment_ids=segment_ids,
+        context_span=context_span,
         match_span=match_span,
         score=float(hit.get("_score") or 0.0),
-        snippet=_snippet(hit),
-        matched_text=matched_text,
+        context=context,
     )
 
 
-def _segments_from_source(
+def _segment_ids_from_source(
     source: dict,
     match_span: ContentSearchSpan | None = None,
-) -> list[ContentSearchSegment]:
+) -> list[str]:
     raw_segments = source.get("segments", [])
     if match_span is not None:
         raw_segments = [
@@ -438,14 +461,39 @@ def _segments_from_source(
             for segment in raw_segments
             if segment["span_start"] < match_span.end and segment["span_end"] > match_span.start
         ]
-    return [
-        ContentSearchSegment(
-            id=segment["id"],
-            span=ContentSearchSpan(start=segment["span_start"], end=segment["span_end"]),
-        )
-        for segment in raw_segments
-    ]
+    return [segment["id"] for segment in raw_segments]
 
 
-def _snippet(hit: dict) -> str | None:
-    return hit.get("_source", {}).get("content")
+def _context_around_match(source: dict, match_span: ContentSearchSpan) -> tuple[str, ContentSearchSpan]:
+    content = source.get("content", "")
+    chunk_start = source.get("context_span_start", 0)
+    local_start = max(0, match_span.start - chunk_start)
+    local_end = min(len(content), match_span.end - chunk_start)
+    match_length = local_end - local_start
+    remaining_context_chars = max(CONTEXT_CHARS - match_length, 0)
+    before_chars = remaining_context_chars // 2
+    after_chars = remaining_context_chars - before_chars
+    context_start = max(0, local_start - before_chars)
+    context_end = min(len(content), local_end + after_chars)
+    return _context_from_local_span(source, context_start, context_end)
+
+
+def _context_from_hit(hit: dict, source: dict) -> tuple[str, ContentSearchSpan]:
+    content = source.get("content", "")
+    highlights = hit.get("highlight", {}).get("content", [])
+    if highlights:
+        highlighted_context = highlights[0]
+        local_start = content.find(highlighted_context)
+        if local_start != -1:
+            return _context_from_local_span(source, local_start, local_start + len(highlighted_context))
+
+    return _context_from_local_span(source, 0, min(len(content), CONTEXT_CHARS))
+
+
+def _context_from_local_span(source: dict, start: int, end: int) -> tuple[str, ContentSearchSpan]:
+    content = source.get("content", "")
+    chunk_start = source.get("context_span_start", 0)
+    return (
+        content[start:end],
+        ContentSearchSpan(start=chunk_start + start, end=chunk_start + end),
+    )
