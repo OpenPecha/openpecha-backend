@@ -6,7 +6,7 @@ from .annotation import (
     PaginationInput,
     SegmentationInput,
 )
-from .base import NonEmptyStr, OpenPechaModel, _validate_range
+from .base import NonEmptyStr, OpenPechaModel
 from .edition import EditionInput
 from .enums import EditionType
 
@@ -48,16 +48,6 @@ class EditionsQueryParams(OpenPechaModel):
     edition_type: EditionType | None = Field(None, description="Filter by edition type")
 
 
-class SpanQueryParams(OpenPechaModel):
-    span_start: int = Field(..., ge=0)
-    span_end: int = Field(..., ge=1)
-
-    @model_validator(mode="after")
-    def validate_span_range(self) -> Self:
-        _validate_range(self.span_start, self.span_end, start_name="span_start", end_name="span_end")
-        return self
-
-
 class RelatedSegmentsFilter(OpenPechaModel):
     text_id: str | None = Field(default=None, description="Filter related segments by text ID")
     edition_id: str | None = Field(default=None, description="Filter related segments by edition ID")
@@ -65,10 +55,6 @@ class RelatedSegmentsFilter(OpenPechaModel):
 
 
 class DirectRelatedSegmentsQueryParams(PaginationParams, RelatedSegmentsFilter):
-    pass
-
-
-class RelatedSegmentsQueryParams(PaginationParams, SpanQueryParams, RelatedSegmentsFilter):
     pass
 
 

@@ -451,46 +451,6 @@ GET /v2/editions/{edition_id}/related
 
 Returns editions related through alignment or text relationships.
 
-## Related Segments by Span
-
-```http
-GET /v2/editions/{edition_id}/segments/related
-```
-
-Finds segments overlapping a span in the edition, then returns aligned segments from related editions.
-
-| Query | Type | Required | Default |
-|-------|------|----------|---------|
-| `span_start` | integer | Yes | - |
-| `span_end` | integer | Yes | - |
-| `limit` | integer | No | 20 |
-| `offset` | integer | No | 0 |
-| `text_id` | string | No | - |
-| `edition_id` | string | No | - |
-| `language` | string | No | - |
-
-Optional filters are applied to related display segments before pagination. When multiple filters are supplied, returned segments must match all of them.
-
-```json
-{
-  "items": [
-    {
-      "id": "SEG123",
-      "segmentation_id": "SGN123",
-      "edition_id": "ED456",
-      "text_id": "TXT456",
-      "lines": [
-        {"start": 0, "end": 50}
-      ],
-      "tag_ids": []
-    }
-  ],
-  "has_more": false,
-  "offset": 0,
-  "limit": 20
-}
-```
-
 ## Developer Notes
 
 - Router: `routers/editions.py`.

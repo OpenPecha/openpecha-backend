@@ -977,7 +977,6 @@ POST /v2/texts/T87654321/editions
 | `GET /v2/instances/{instance_id}/annotations`      | `GET /v2/editions/{edition_id}/annotations`      |
 | `POST /v2/instances/{instance_id}/annotations`     | `POST /v2/editions/{edition_id}/annotations`     |
 | `GET /v2/instances/{instance_id}/related`          | `GET /v2/editions/{edition_id}/related`          |
-| `GET /v2/instances/{instance_id}/segments/related` | `GET /v2/editions/{edition_id}/segments/related` |
 | N/A                                                | `DELETE /v2/editions/{edition_id}`               |
 
 ---
@@ -1325,16 +1324,15 @@ GET /v2/segments/search?query=your+search+text
 
 ### Summary of Changes
 
-The related segments endpoints have been redesigned to support **transitive
-traversal** across the full alignment tree. Previously, these endpoints only
-returned directly aligned segments (one hop). Now they traverse multiple hops
+The related segments endpoint has been redesigned to support **transitive
+traversal** across the full alignment tree. Previously, this endpoint only
+returned directly aligned segments (one hop). Now it traverses multiple hops
 in both directions (up toward root texts, down toward translations/commentaries),
 bridging between alignment and display segmentations via character span overlap.
 
-**Affected endpoints:**
+**Affected endpoint:**
 
 - `GET /v2/segments/{segment_id}/related`
-- `GET /v2/editions/{edition_id}/segments/related`
 
 ---
 
@@ -1342,7 +1340,7 @@ bridging between alignment and display segmentations via character span overlap.
 
 #### 1. Response Structure Changed
 
-Both endpoints now return `list[RelatedSegmentsOutput]` instead of
+The endpoint now returns `list[RelatedSegmentsOutput]` instead of
 `list[SegmentOutput]`.
 
 Results are grouped by edition, and within each edition by segmentation
@@ -1424,7 +1422,7 @@ Results are grouped by edition, and within each edition by segmentation
 
 #### 2. Transitive Traversal (New Behavior)
 
-The endpoints now follow alignment chains transitively. For example, given
+The endpoint now follows alignment chains transitively. For example, given
 texts A ← B ← C (B is a translation of A, C is a commentary on B):
 
 - Querying related segments from **A** now returns display segments from

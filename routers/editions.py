@@ -16,14 +16,12 @@ from models.annotation import (
     PaginationOutput,
     SegmentationInput,
     SegmentationOutput,
-    SegmentWithContextOutput,
     TableOfContentsInput,
     TableOfContentsOutput,
 )
 from models.content_operation import ContentOperation, DeleteOperation, InsertOperation, ReplaceOperation
 from models.edition import EditionOutput
-from models.requests import RelatedSegmentsQueryParams
-from models.responses import IdResponse, PaginatedResponse
+from models.responses import IdResponse
 
 if TYPE_CHECKING:
     from database import Database
@@ -249,27 +247,6 @@ async def post_durchen_annotation(
 ) -> IdResponse:
     annotation_id = await db.annotation.note.add_durchen(edition_id, data)
     return IdResponse(id=annotation_id)
-
-
-@router.get(
-    "/{edition_id}/segments/related",
-    summary="Get related segments",
-    description="Find segments related to a span in an edition.",
-)
-async def get_segment_related(
-    edition_id: Annotated[str, Path(description="The ID of the edition")],
-    params: Annotated[RelatedSegmentsQueryParams, Query()],
-    _api_key: Annotated[str, Depends(get_api_key)],
-    db: Annotated[Database, Depends(get_db)],
-) -> PaginatedResponse[SegmentWithContextOutput]:
-    segments = await db.segment.get_related(
-        edition_id=edition_id,
-        spans=[(params.span_start, params.span_end)],
-        offset=params.offset,
-        limit=params.limit + 1,
-        filters=params,
-    )
-    return PaginatedResponse.from_items(segments, offset=params.offset, limit=params.limit)
 
 
 @router.get(
