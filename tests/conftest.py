@@ -7,7 +7,6 @@ from collections.abc import AsyncGenerator, Generator
 from contextlib import suppress
 from pathlib import Path
 from typing import LiteralString, cast
-from unittest.mock import patch
 
 import httpx
 from neo4j import GraphDatabase
@@ -259,20 +258,6 @@ async def content_search(_opensearch_endpoint: str) -> AsyncGenerator[ContentSea
             await service.delete_index()
         await service.close()
 
-
-@pytest.fixture(autouse=True)
-def mock_search_segmenter():
-    """
-    Prevent background threads / network calls during tests.
-
-    These helpers are "fire-and-forget" and call external services; tests should never
-    hit the network or spawn those background threads.
-    """
-    with (
-        patch("background_tasks.trigger_search_segmenter"),
-        patch("background_tasks.trigger_delete_search_segments"),
-    ):
-        yield
 
 
 class MockS3Storage:
