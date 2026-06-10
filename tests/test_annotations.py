@@ -106,8 +106,8 @@ class TestGetSegmentation(TestAnnotationsEndpoints):
 
         segmentation = SegmentationInput(
             segments=[
-                VerseSegmentInput(lines=[Span(start=0, end=5)]),
-                VerseSegmentInput(lines=[Span(start=5, end=10)]),
+                SegmentInput(lines=[Span(start=0, end=5)]),
+                SegmentInput(lines=[Span(start=5, end=10)]),
             ]
         )
         segmentation_id = await test_database.annotation.segmentation.add(edition_id, segmentation)
@@ -143,8 +143,8 @@ class TestGetSegmentation(TestAnnotationsEndpoints):
 
         segmentation = SegmentationInput(
             segments=[
-                VerseSegmentInput(lines=[Span(start=0, end=4), Span(start=4, end=8)]),
-                VerseSegmentInput(lines=[Span(start=8, end=16)]),
+                SegmentInput(lines=[Span(start=0, end=4), Span(start=4, end=8)]),
+                SegmentInput(lines=[Span(start=8, end=16)]),
             ]
         )
         segmentation_id = await test_database.annotation.segmentation.add(edition_id, segmentation)
@@ -164,8 +164,8 @@ class TestGetSegmentation(TestAnnotationsEndpoints):
 
         segmentation = SegmentationInput(
             segments=[
-                VerseSegmentInput(lines=[Span(start=0, end=5)]),
-                VerseSegmentInput(lines=[Span(start=5, end=10)]),
+                SegmentInput(lines=[Span(start=0, end=5)]),
+                SegmentInput(lines=[Span(start=5, end=10)]),
             ]
         )
         segmentation_id = await test_database.annotation.segmentation.add(edition_id, segmentation)
@@ -196,7 +196,7 @@ class TestDeleteSegmentation(TestAnnotationsEndpoints):
         edition_id = await self._create_test_edition(test_database, text_id, "0123456789")
 
         segmentation = SegmentationInput(
-            segments=[VerseSegmentInput(lines=[Span(start=0, end=10)])]
+            segments=[SegmentInput(lines=[Span(start=0, end=10)])]
         )
         segmentation_id = await test_database.annotation.segmentation.add(edition_id, segmentation)
 
@@ -223,7 +223,7 @@ class TestDeleteSegmentation(TestAnnotationsEndpoints):
         edition_id = await self._create_test_edition(test_database, text_id, "0123456789")
 
         segmentation = SegmentationInput(
-            segments=[VerseSegmentInput(lines=[Span(start=0, end=10)])]
+            segments=[SegmentInput(lines=[Span(start=0, end=10)])]
         )
         segmentation_id = await test_database.annotation.segmentation.add(edition_id, segmentation)
 
