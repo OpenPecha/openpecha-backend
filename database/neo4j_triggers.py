@@ -1030,14 +1030,3 @@ async def audit_triggers(driver: AsyncDriver) -> dict[str, list[str]]:
         logger.warning("Audit found violations in %d constraint(s).", len(violations))
 
     return violations
-
-
-async def list_triggers(driver: AsyncDriver) -> list[dict]:
-    """List all currently installed triggers. Returns raw APOC trigger info."""
-
-    async def read(tx: AsyncManagedTransaction) -> list[dict]:
-        result = await tx.run("CALL apoc.trigger.show($database)", database=DATABASE_NAME)
-        return await result.data()
-
-    async with driver.session(database=DATABASE_NAME) as session:
-        return await session.execute_read(read)

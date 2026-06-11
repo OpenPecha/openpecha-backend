@@ -54,17 +54,6 @@ class LanguageDatabase:
         async with self.session as session:
             return await session.execute_read(read)
 
-    async def get(self, code: str) -> LanguageResponse:
-        async def read(tx: AsyncManagedTransaction) -> LanguageResponse:
-            result = await tx.run(LanguageDatabase.GET_QUERY, code=code)
-            record = await result.single()
-            if not record:
-                raise DataNotFoundError(f"Language with code '{code}' not found")
-            return LanguageResponse(code=record["code"], name=record["name"])
-
-        async with self.session as session:
-            return await session.execute_read(read)
-
     async def create(self, code: str, name: str) -> str:
         async def write(tx: AsyncManagedTransaction) -> str:
             await tx.run(LanguageDatabase.CREATE_QUERY, code=code, name=name)

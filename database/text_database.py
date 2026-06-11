@@ -4,7 +4,7 @@ from neo4j.exceptions import ConstraintError
 
 from exceptions import DataConflictError, DataNotFoundError, DataValidationError
 from identifier import generate_id
-from models.contribution import AIContribution, ContributionBase, ContributionInput
+from models.contribution import AIContribution, ContributionBase
 from models.requests import TextFilter
 from models.text import TextInput, TextOutput, TextPatch
 
@@ -351,18 +351,6 @@ class TextDatabase:
 
         async with self.session as session:
             await session.execute_write(write)
-
-    @staticmethod
-    async def _validate_create(tx: AsyncManagedTransaction, text: TextInput) -> None:
-        await DatabaseValidator.validate_text_title_unique(tx, text.title.root)
-        if not text.contributions:
-            return
-        person_ids = [c.person_id for c in text.contributions if isinstance(c, ContributionInput) and c.person_id]
-        person_bdrc_ids = [
-            c.person_bdrc_id for c in text.contributions if isinstance(c, ContributionInput) and c.person_bdrc_id
-        ]
-        await DatabaseValidator.validate_person_references(tx, person_ids)
-        await DatabaseValidator.validate_person_bdrc_references(tx, person_bdrc_ids)
 
     @staticmethod
     async def create_with_transaction(tx: AsyncManagedTransaction, text: TextInput, text_id: str | None = None) -> str:
