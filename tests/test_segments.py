@@ -79,28 +79,30 @@ class SegmentTestBase:
         return resp.json()["id"]
 
     async def _post_alignment(self, client, source_edition_id, target_edition_id, source_segments, target_segments, alignment_map):
-        """Create an alignment between two editions.
+        """Create direct alignments between existing source and target display segments.
 
         Args:
-            source_segments: list of (start, end) tuples for the source (aligned) segments
-            target_segments: list of (start, end) tuples for the target segments
+            source_segments: unused; kept to make existing tests read naturally
+            target_segments: unused; kept to make existing tests read naturally
             alignment_map: list of (source_idx, [target_indices]) pairs
         """
-        aligned_segments = []
+        source_edition = (await client.get(f"/v2/editions/{source_edition_id}")).json()
+        target_edition = (await client.get(f"/v2/editions/{target_edition_id}")).json()
+        source_segment_ids = await self._get_segment_ids_from_segmentation(client, source_edition_id)
+        target_segment_ids = await self._get_segment_ids_from_segmentation(client, target_edition_id)
+        alignments = []
         for src_idx, target_indices in alignment_map:
-            aligned_segments.append({
-                "lines": [{"start": source_segments[src_idx][0], "end": source_segments[src_idx][1]}],
-                "target_indices": target_indices,
-            })
+            for target_idx in target_indices:
+                alignments.append({
+                    "source_segment_id": source_segment_ids[src_idx],
+                    "target_segment_id": target_segment_ids[target_idx],
+                })
 
-        data = {
-            "target_edition_id": target_edition_id,
-            "target_segments": [{"lines": [{"start": t[0], "end": t[1]}]} for t in target_segments],
-            "aligned_segments": aligned_segments,
-        }
-        resp = await client.post(f"/v2/editions/{source_edition_id}/alignments", json=data)
-        assert resp.status_code == 201, f"Failed to create alignment: {resp.json()}"
-        return resp.json()["id"]
+        resp = await client.put(
+            f"/v2/texts/{source_edition['text_id']}/alignments/{target_edition['text_id']}",
+            json={"alignments": alignments},
+        )
+        assert resp.status_code == 204, f"Failed to create alignment: {resp.json()}"
 
     async def _get_segment_ids_from_segmentation(self, client, edition_id, segmentation_index=0):
         resp = await client.get(f"/v2/editions/{edition_id}/segmentations")
@@ -157,12 +159,12 @@ class SegmentTestBase:
 
 @pytest.mark.asyncio(loop_scope="session")
 class TestSegmentAnnotationLabels(SegmentTestBase):
-    """Tests segmentation labels on display and alignment annotations."""
+    """Tests segmentation labels after alignment annotations were removed."""
 
     # ---- segmentation label correctness ----
 
-    async def test_display_segmentation_has_correct_label(self, client, test_database):
-        """Display segmentation created via POST should have :Segmentation:Display labels."""
+    async def test_segmentation_has_no_subtype_labels(self, client, test_database):
+        """Segmentation created via POST should be a plain :Segmentation node."""
         person_id = await self._create_person(test_database)
         text_id = await self._create_text(test_database, person_id)
         edition_id = await self._create_edition(client, text_id, "0123456789")
@@ -170,22 +172,30 @@ class TestSegmentAnnotationLabels(SegmentTestBase):
 
         async with test_database.get_session() as session:
             result = await session.run("""
-                MATCH (sgn:Segmentation:Display {id: $sgn_id})
-                RETURN sgn.id AS id
+                MATCH (sgn:Segmentation {id: $sgn_id})
+                RETURN sgn.id AS id,
+                       sgn:Display AS is_display,
+                       sgn:Aligned AS is_aligned,
+                       sgn:Target AS is_target
             """, sgn_id=sgn_id)
             record = await result.single()
-            assert record is not None, "Display segmentation should have :Display label"
+            assert record is not None
+            assert record["is_display"] is False
+            assert record["is_aligned"] is False
+            assert record["is_target"] is False
 
-    async def test_alignment_segmentations_have_correct_labels(self, client, test_database):
-        """Alignment segmentations should have :Aligned and :Target labels."""
+    async def test_alignment_does_not_create_segmentations(self, client, test_database):
+        """Direct alignments should only create ALIGNED_TO relationships."""
         person_id = await self._create_person(test_database)
         src_text_id = await self._create_text(test_database, person_id, title=LocalizedString({"en": "Src", "bo": "འབྱུང།"}))
         src_edition_id = await self._create_edition(client, src_text_id, "0123456789")
+        src_sgn_id = await self._post_segmentation(client, src_edition_id, [(0, 10)])
 
         tgt_text_id = await self._create_text(test_database, person_id, title=LocalizedString({"en": "Tgt", "bo": "དམིགས།"}))
         tgt_edition_id = await self._create_edition(client, tgt_text_id, "ABCDEFGHIJ")
+        tgt_sgn_id = await self._post_segmentation(client, tgt_edition_id, [(0, 10)])
 
-        alignment_id = await self._post_alignment(
+        await self._post_alignment(
             client, src_edition_id, tgt_edition_id,
             source_segments=[(0, 10)],
             target_segments=[(0, 10)],
@@ -193,25 +203,18 @@ class TestSegmentAnnotationLabels(SegmentTestBase):
         )
 
         async with test_database.get_session() as session:
-            # Aligned segmentation (source side)
             result = await session.run("""
-                MATCH (sgn:Segmentation:Aligned {id: $sgn_id})
-                RETURN sgn.id AS id
-            """, sgn_id=alignment_id)
+                MATCH (sgn:Segmentation)
+                WHERE sgn.id IN [$src_sgn_id, $tgt_sgn_id]
+                RETURN collect(sgn.id) AS ids,
+                       count { (:Segment)-[:ALIGNED_TO]->(:Segment) } AS alignment_count
+            """, src_sgn_id=src_sgn_id, tgt_sgn_id=tgt_sgn_id)
             record = await result.single()
-            assert record is not None, "Aligned segmentation should have :Aligned label"
+            assert set(record["ids"]) == {src_sgn_id, tgt_sgn_id}
+            assert record["alignment_count"] == 1
 
-            # Target segmentation (via aligned segments)
-            result = await session.run("""
-                MATCH (sgn:Segmentation:Aligned {id: $sgn_id})<-[:SEGMENT_OF]-(:Segment)-[:ALIGNED_TO]->(:Segment)
-                      -[:SEGMENT_OF]->(target_sgn:Segmentation:Target)
-                RETURN target_sgn.id AS id
-            """, sgn_id=alignment_id)
-            record = await result.single()
-            assert record is not None, "Target segmentation should have :Target label"
-
-    async def test_get_segmentations_only_returns_display(self, client, test_database):
-        """GET /editions/{id}/segmentations should only return display segmentations."""
+    async def test_get_segmentations_returns_plain_segmentations(self, client, test_database):
+        """GET /editions/{id}/segmentations should return user-created segmentations."""
         person_id = await self._create_person(test_database)
         src_text_id = await self._create_text(test_database, person_id, title=LocalizedString({"en": "Src", "bo": "འབྱུང།"}))
         src_edition_id = await self._create_edition(client, src_text_id, "0123456789")
@@ -219,6 +222,7 @@ class TestSegmentAnnotationLabels(SegmentTestBase):
 
         tgt_text_id = await self._create_text(test_database, person_id, title=LocalizedString({"en": "Tgt", "bo": "དམིགས།"}))
         tgt_edition_id = await self._create_edition(client, tgt_text_id, "ABCDEFGHIJ")
+        await self._post_segmentation(client, tgt_edition_id, [(0, 10)])
 
         await self._post_alignment(
             client, src_edition_id, tgt_edition_id,
@@ -230,9 +234,7 @@ class TestSegmentAnnotationLabels(SegmentTestBase):
         resp = await client.get(f"/v2/editions/{src_edition_id}/segmentations")
         assert resp.status_code == 200
         data = resp.json()
-        assert {segmentation["id"] for segmentation in data} == {sgn_id}, (
-            "Should only return the display segmentation, not the alignment ones"
-        )
+        assert {segmentation["id"] for segmentation in data} == {sgn_id}
 
 
 # ---------------------------------------------------------------------------
@@ -584,7 +586,7 @@ class TestSegmentContent(SegmentTestBase):
         assert resp.json() == "Hello Beautiful"
 
     async def test_content_from_aligned_target_segment(self, client, test_database):
-        """Get content of a segment that belongs to the target side of an alignment."""
+        """Get content of a target segment that has a direct alignment."""
         person_id = await self._create_person(test_database)
         src_text_id = await self._create_text(
             test_database, person_id, title=LocalizedString({"bo": "རྩ་བ།", "en": "Src"})
@@ -595,18 +597,21 @@ class TestSegmentContent(SegmentTestBase):
             test_database, person_id, title=LocalizedString({"bo": "དམིགས།", "en": "Tgt"})
         )
         tgt_edition_id = await self._create_edition(client, tgt_text_id, "ABCDEFGHIJ")
+        await self._post_segmentation(client, src_edition_id, [(0, 10)])
+        await self._post_segmentation(client, tgt_edition_id, [(0, 5), (5, 10)])
 
-        alignment_id = await self._post_alignment(
+        await self._post_alignment(
             client, src_edition_id, tgt_edition_id,
             source_segments=[(0, 10)],
             target_segments=[(0, 5), (5, 10)],
             alignment_map=[(0, [0, 1])],
         )
 
-        alignments_resp = await client.get(f"/v2/alignments/{alignment_id}/segments")
+        alignments_resp = await client.get(f"/v2/texts/{src_text_id}/alignments/{tgt_text_id}")
+        assert alignments_resp.status_code == 200
         alignment_data = alignments_resp.json()["items"]
         assert len(alignment_data) >= 1
-        target_seg_ids = [s["id"] for s in alignment_data[0]["target_segments"]]
+        target_seg_ids = [row["target_segment"]["id"] for row in alignment_data]
 
         resp = await client.get(f"/v2/segments/{target_seg_ids[0]}/content")
         assert resp.status_code == 200

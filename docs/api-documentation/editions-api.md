@@ -271,51 +271,27 @@ Request:
 ### Alignments
 
 ```http
-GET /v2/editions/{edition_id}/alignments
-POST /v2/editions/{edition_id}/alignments
+PUT /v2/texts/{source_text_id}/alignments/{target_text_id}
+GET /v2/texts/{source_text_id}/alignments/{target_text_id}?limit=500&offset=0
+DELETE /v2/texts/{source_text_id}/alignments/{target_text_id}
 ```
 
-GET response:
+Alignments are no longer edition-scoped annotations. They are direct `ALIGNED_TO` relationships between existing source and target text segments.
 
-```json
-[
-  {
-    "id": "ALN123",
-    "aligned_edition_id": "ED_ALIGNED",
-    "aligned_text_id": "TXT_ALIGNED",
-    "target_edition_id": "ED_TARGET",
-    "target_text_id": "TXT_TARGET",
-    "target_segmentation_id": "SGN_TARGET"
-  }
-]
-```
-
-Use `GET /v2/alignments/{alignment_id}/segments?limit=500&offset=0` to fetch paginated aligned segment rows.
-
-The path `edition_id` is the aligned edition when creating an alignment. `target_edition_id` is the edition being aligned to.
+PUT request:
 
 ```json
 {
-  "target_edition_id": "ED_TARGET",
-  "target_segments": [
+  "alignments": [
     {
-      "lines": [
-        {"start": 0, "end": 40}
-      ]
-    }
-  ],
-  "aligned_segments": [
-    {
-      "lines": [
-        {"start": 0, "end": 35}
-      ],
-      "target_indices": [0]
+      "source_segment_id": "SEG_SOURCE",
+      "target_segment_id": "SEG_TARGET"
     }
   ]
 }
 ```
 
-`target_indices` are zero-based indexes into `target_segments`.
+`PUT` returns `204 No Content`. `GET` returns paginated source/target `SegmentWithContextOutput` pairs.
 
 ### Pagination
 

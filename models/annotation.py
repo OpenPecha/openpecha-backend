@@ -61,15 +61,6 @@ class RelatedSegmentationOutput(OpenPechaModel):
     segments: list[SegmentWithContextOutput]
 
 
-class AlignedSegmentInput(LinesModel):
-    target_indices: list[int] = Field(min_length=1)
-
-
-class AlignmentSegmentOutput(OpenPechaModel):
-    aligned_segment: SegmentOutput
-    target_segments: list[SegmentWithContextOutput]
-
-
 def _is_sorted_by_span_start(segments: Sequence[LinesModel]) -> bool:
     previous_start: int | None = None
     for segment in segments:
@@ -95,31 +86,6 @@ class SegmentationOutput(OpenPechaModel):
     id: NonEmptyStr
     edition_id: NonEmptyStr
     text_id: NonEmptyStr
-    metadata: AnnotationMetadata | None = None
-
-
-class AlignmentInput(OpenPechaModel):
-    target_edition_id: NonEmptyStr
-    target_segments: list[SegmentInput]
-    aligned_segments: list[AlignedSegmentInput]
-    metadata: AnnotationMetadata | None = None
-
-    @model_validator(mode="after")
-    def validate_segments_sorted(self) -> Self:
-        if not _is_sorted_by_span_start(self.target_segments):
-            raise ValueError("target_segments must be sorted by span start")
-        if not _is_sorted_by_span_start(self.aligned_segments):
-            raise ValueError("aligned_segments must be sorted by span start")
-        return self
-
-
-class AlignmentOutput(OpenPechaModel):
-    id: NonEmptyStr
-    aligned_edition_id: NonEmptyStr
-    aligned_text_id: NonEmptyStr
-    target_edition_id: NonEmptyStr
-    target_text_id: NonEmptyStr
-    target_segmentation_id: NonEmptyStr
     metadata: AnnotationMetadata | None = None
 
 

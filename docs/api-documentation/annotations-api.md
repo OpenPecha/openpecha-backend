@@ -28,7 +28,6 @@ Annotations are created and listed by type under an edition. Each `POST` returns
 | Type | List | Create |
 |------|------|--------|
 | Segmentation | `GET /v2/editions/{edition_id}/segmentations` | `POST /v2/editions/{edition_id}/segmentations` |
-| Alignment | `GET /v2/editions/{edition_id}/alignments` | `POST /v2/editions/{edition_id}/alignments` |
 | Pagination | `GET /v2/editions/{edition_id}/pagination` | `POST /v2/editions/{edition_id}/pagination` |
 | Table of contents | `GET /v2/editions/{edition_id}/table-of-contents` | `POST /v2/editions/{edition_id}/table-of-contents` |
 | Bibliographic metadata | `GET /v2/editions/{edition_id}/bibliographic` | `POST /v2/editions/{edition_id}/bibliographic` |
@@ -56,30 +55,30 @@ Annotations are created and listed by type under an edition. Each `POST` returns
 
 Segments must be sorted by their first line's start offset. Lines inside each segment must be continuous.
 
-### Create Alignment
+### Text Pair Alignment
+
+Alignment is no longer an annotation type. Use the text-pair alignment endpoints to create direct `ALIGNED_TO` relationships between existing segments:
+
+```http
+PUT /v2/texts/{source_text_id}/alignments/{target_text_id}
+GET /v2/texts/{source_text_id}/alignments/{target_text_id}?limit=500&offset=0
+DELETE /v2/texts/{source_text_id}/alignments/{target_text_id}
+```
+
+`PUT` replaces all alignments from source text segments to target text segments and returns `204 No Content`.
 
 ```json
 {
-  "target_edition_id": "ED_TARGET",
-  "target_segments": [
+  "alignments": [
     {
-      "lines": [
-        {"start": 0, "end": 60}
-      ]
-    }
-  ],
-  "aligned_segments": [
-    {
-      "lines": [
-        {"start": 0, "end": 55}
-      ],
-      "target_indices": [0]
+      "source_segment_id": "SEG_SOURCE",
+      "target_segment_id": "SEG_TARGET"
     }
   ]
 }
 ```
 
-The path `edition_id` is the aligned edition. `target_indices` are zero-based indexes into the submitted `target_segments` array.
+If one source segment aligns to multiple target segments, repeat the `source_segment_id` in multiple rows.
 
 ### Create Pagination
 
@@ -223,30 +222,15 @@ Segments response:
 }
 ```
 
-Deleting a standalone segmentation returns `204 No Content`. If the segmentation belongs to an alignment, deletion is rejected for both aligned and target segmentations; delete the alignment instead using the aligned segmentation ID, which is the alignment `id` returned by the API.
+Deleting a segmentation returns `204 No Content`. Any `ALIGNED_TO` relationships attached to its segments are removed with the segments.
 
 ### Alignment
 
 ```http
-GET /v2/alignments/{alignment_id}
-GET /v2/alignments/{alignment_id}/segments?limit=500&offset=0
-DELETE /v2/alignments/{alignment_id}
+GET /v2/texts/{source_text_id}/alignments/{target_text_id}?limit=500&offset=0
 ```
 
-`GET /v2/alignments/{alignment_id}` response:
-
-```json
-{
-  "id": "ALN123",
-  "aligned_edition_id": "ED_ALIGNED",
-  "aligned_text_id": "TXT_ALIGNED",
-  "target_edition_id": "ED_TARGET",
-  "target_text_id": "TXT_TARGET",
-  "target_segmentation_id": "SGN_TARGET"
-}
-```
-
-`GET /v2/alignments/{alignment_id}/segments` query:
+Query:
 
 | Query | Type | Required | Default |
 |-------|------|----------|---------|
@@ -259,24 +243,22 @@ Segments response:
 {
   "items": [
     {
-      "aligned_segment": {
+      "source_segment": {
         "id": "SEG_SOURCE",
-        "lines": [
-          {"start": 0, "end": 55}
-        ]
+        "segmentation_id": "SGN_SOURCE",
+        "edition_id": "ED_SOURCE",
+        "text_id": "TXT_SOURCE",
+        "lines": [{"start": 0, "end": 55}],
+        "tag_ids": null
       },
-      "target_segments": [
-        {
-          "id": "SEG_TARGET",
-          "segmentation_id": "SGN_TARGET",
-          "edition_id": "ED_TARGET",
-          "text_id": "TXT_TARGET",
-          "lines": [
-            {"start": 0, "end": 60}
-          ],
-          "tag_ids": null
-        }
-      ]
+      "target_segment": {
+        "id": "SEG_TARGET",
+        "segmentation_id": "SGN_TARGET",
+        "edition_id": "ED_TARGET",
+        "text_id": "TXT_TARGET",
+        "lines": [{"start": 0, "end": 60}],
+        "tag_ids": null
+      }
     }
   ],
   "has_more": false,
@@ -285,7 +267,7 @@ Segments response:
 }
 ```
 
-Deleting an alignment deletes the alignment and its associated aligned/target segmentations.
+`DELETE /v2/texts/{source_text_id}/alignments/{target_text_id}` deletes the direct relationships only; it does not delete segmentations or segments.
 
 ### Pagination
 

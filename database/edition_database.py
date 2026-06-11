@@ -4,7 +4,6 @@ from typing import TYPE_CHECKING, LiteralString
 from exceptions import DataNotFoundError
 from models.enums import EditionType
 
-from .annotation.alignment_database import AlignmentDatabase
 from .annotation.bibliographic_database import BibliographicDatabase
 from .annotation.note_database import NoteDatabase
 from .annotation.pagination_database import PaginationDatabase
@@ -71,10 +70,10 @@ class EditionDatabase:
     GET_RELATED_QUERY: LiteralString = f"""
     // Related via segment alignment (bidirectional)
     MATCH (source:Edition {{id: $edition_id}})
-          <-[:SEGMENTATION_OF]-(s1 WHERE s1:Aligned OR s1:Target)
+          <-[:SEGMENTATION_OF]-(:Segmentation)
           <-[:SEGMENT_OF]-(:Segment)
           -[:ALIGNED_TO]-(:Segment)
-          -[:SEGMENT_OF]->(s2 WHERE s2:Aligned OR s2:Target)
+          -[:SEGMENT_OF]->(:Segmentation)
           -[:SEGMENTATION_OF]->(m:Edition)
           -[:EDITION_OF]->(e:Text)
     WHERE m.id <> $edition_id
@@ -184,7 +183,6 @@ class EditionDatabase:
 
     @staticmethod
     async def delete_with_transaction(tx: AsyncManagedTransaction, edition_id: str) -> None:
-        await AlignmentDatabase.delete_all_with_transaction(tx, edition_id)
         await SegmentationDatabase.delete_all_with_transaction(tx, edition_id)
         await PaginationDatabase.delete_all_with_transaction(tx, edition_id)
         await TableOfContentsDatabase.delete_all_with_transaction(tx, edition_id)

@@ -6,8 +6,6 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Path, Query, status
 from content_search import ContentSearchService
 from dependencies import get_api_key, get_content_search, get_db, get_storage
 from models.annotation import (
-    AlignmentInput,
-    AlignmentOutput,
     BibliographicMetadataInput,
     BibliographicMetadataOutput,
     NoteInput,
@@ -98,36 +96,6 @@ async def post_segmentation_annotation(
 ) -> IdResponse:
     """Add a segmentation annotation to an edition."""
     annotation_id = await db.annotation.segmentation.add(edition_id, data)
-    return IdResponse(id=annotation_id)
-
-
-@router.get(
-    "/{edition_id}/alignments",
-    summary="Get alignment annotations",
-    description="Retrieve all alignment annotations for an edition.",
-)
-async def get_alignment_annotations(
-    edition_id: Annotated[str, Path(description="The ID of the edition")],
-    _api_key: Annotated[str, Depends(get_api_key)],
-    db: Annotated[Database, Depends(get_db)],
-) -> list[AlignmentOutput]:
-    return await db.annotation.alignment.get_all(edition_id)
-
-
-@router.post(
-    "/{edition_id}/alignments",
-    status_code=status.HTTP_201_CREATED,
-    summary="Add alignment annotation",
-    description="Add an alignment annotation to an edition.",
-)
-async def post_alignment_annotation(
-    edition_id: Annotated[str, Path(description="The ID of the edition")],
-    data: AlignmentInput,
-    _api_key: Annotated[str, Depends(get_api_key)],
-    db: Annotated[Database, Depends(get_db)],
-) -> IdResponse:
-    """Add an alignment annotation to an edition."""
-    annotation_id = await db.annotation.alignment.add(edition_id, data)
     return IdResponse(id=annotation_id)
 
 

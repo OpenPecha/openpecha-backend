@@ -22,7 +22,7 @@ markers = [
 [tool.coverage.run]
 omit = [
     "tests/*",
-    "app/scripts/*",
+    "scripts/*",
 ]
 
 [tool.ruff]

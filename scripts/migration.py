@@ -546,47 +546,28 @@ def migrate_delete_obsolete_nodes(session: Session) -> dict[str, int]:
     return counts
 
 
-def migrate_segmentation_labels(session: Session) -> dict[str, int]:
-    """Add dual labels to Segmentation nodes and remove SegmentationType enum nodes.
-
-    Segmentation nodes use dual labels instead of HAS_TYPE relationships:
-      :Segmentation:Aligned  — segments have outgoing ALIGNED_TO
-      :Segmentation:Target   — segments have incoming ALIGNED_TO
-      :Segmentation:Display  — all others (user-facing display segmentations)
-    """
-    # 1. Aligned: segmentations whose segments have outgoing ALIGNED_TO
-    result = session.run("""
-        MATCH (sgn:Segmentation)
-        WHERE EXISTS { (sgn)<-[:SEGMENT_OF]-(:Segment)-[:ALIGNED_TO]->(:Segment) }
-          AND NOT sgn:Aligned
-        SET sgn:Aligned
-        RETURN count(sgn) AS count
-    """).single()
+def migrate_remove_segmentation_subtype_labels(session: Session) -> dict[str, int]:
+    """Remove obsolete Segmentation subtype labels and old SegmentationType nodes."""
+    result = session.run("MATCH (sgn:Segmentation:Aligned) RETURN count(sgn) AS count").single()
     aligned_count = result["count"] if result else 0
-    logger.info("Labeled %d segmentations as :Aligned", aligned_count)
-
-    # 2. Target: segmentations whose segments have incoming ALIGNED_TO
-    result = session.run("""
-        MATCH (sgn:Segmentation)
-        WHERE EXISTS { (sgn)<-[:SEGMENT_OF]-(:Segment)<-[:ALIGNED_TO]-(:Segment) }
-          AND NOT sgn:Target
-        SET sgn:Target
-        RETURN count(sgn) AS count
-    """).single()
+    result = session.run("MATCH (sgn:Segmentation:Target) RETURN count(sgn) AS count").single()
     target_count = result["count"] if result else 0
-    logger.info("Labeled %d segmentations as :Target", target_count)
+    result = session.run("MATCH (sgn:Segmentation:Display) RETURN count(sgn) AS count").single()
+    display_count = result["count"] if result else 0
 
-    # 3. Display: everything that isn't Aligned or Target
     result = session.run("""
         MATCH (sgn:Segmentation)
-        WHERE NOT sgn:Aligned AND NOT sgn:Target AND NOT sgn:Display
-        SET sgn:Display
+        WHERE sgn:Aligned OR sgn:Target OR sgn:Display
+        REMOVE sgn:Aligned:Target:Display
         RETURN count(sgn) AS count
     """).single()
-    display_count = result["count"] if result else 0
-    logger.info("Labeled %d segmentations as :Display", display_count)
+    logger.info(
+        "Removed Segmentation subtype labels: %d Aligned, %d Target, %d Display",
+        aligned_count,
+        target_count,
+        display_count,
+    )
 
-    # 4. Clean up old SegmentationType nodes and HAS_TYPE relationships
     result = session.run("""
         MATCH (st:SegmentationType)
         DETACH DELETE st
@@ -619,7 +600,7 @@ def run_all_migrations(session: Session) -> dict[str, int | dict[str, int]]:
         "manifestation_relabeled": migrate_relabel_manifestation_to_edition(session),
         "expression_relabeled": migrate_relabel_expression_to_text(session),
         "obsolete_nodes_deleted": migrate_delete_obsolete_nodes(session),
-        "segmentation_labels": migrate_segmentation_labels(session),
+        "segmentation_subtype_labels_removed": migrate_remove_segmentation_subtype_labels(session),
     }
     logger.info("All migrations complete.")
     return results

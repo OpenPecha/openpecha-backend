@@ -82,8 +82,7 @@ This generic endpoint that returned any annotation type by ID no longer exists.
 | --------------- | ------------------------------------------------------ |
 | Segmentation    | `GET /v2/segmentations/{segmentation_id}`               |
 | Segmentation segments | `GET /v2/segmentations/{segmentation_id}/segments` |
-| Alignment       | `GET /v2/alignments/{alignment_id}`                     |
-| Alignment segments | `GET /v2/alignments/{alignment_id}/segments`        |
+| Text-pair alignment | `GET /v2/texts/{source_text_id}/alignments/{target_text_id}` |
 | Pagination      | `GET /v2/paginations/{pagination_id}`                   |
 | Durchen (Notes) | `GET /v2/durchens/{note_id}`                           |
 | Bibliographic   | `GET /v2/bibliographic/{bibliographic_id}`             |
@@ -130,40 +129,29 @@ Segmentation segments are paginated separately:
 }
 ```
 
-**Alignment Response:**
+**Text-Pair Alignment Response:**
 
 ```json
 {
-    "id": "align_abc123",
-    "aligned_edition_id": "M12345678",
-    "aligned_text_id": "E12345678",
-    "target_edition_id": "M87654321",
-    "target_text_id": "E87654321",
-    "target_segmentation_id": "target_sgn_abc123"
-}
-```
-
-Alignment segment rows are paginated separately:
-
-```json
-// GET /v2/alignments/{alignment_id}/segments?limit=500&offset=0
-{
+    // GET /v2/texts/{source_text_id}/alignments/{target_text_id}?limit=500&offset=0
     "items": [
         {
-            "aligned_segment": {
-                "id": "aligned_seg_001",
-                "lines": [{ "start": 0, "end": 25 }]
+            "source_segment": {
+                "id": "source_seg_001",
+                "segmentation_id": "source_sgn_abc123",
+                "edition_id": "M12345678",
+                "text_id": "E12345678",
+                "lines": [{ "start": 0, "end": 25 }],
+                "tag_ids": null
             },
-            "target_segments": [
-                {
-                    "id": "target_seg_001",
-                    "segmentation_id": "target_sgn_abc123",
-                    "edition_id": "M87654321",
-                    "text_id": "E87654321",
-                    "lines": [{ "start": 0, "end": 30 }],
-                    "tag_ids": null
-                }
-            ]
+            "target_segment": {
+                "id": "target_seg_001",
+                "segmentation_id": "target_sgn_abc123",
+                "edition_id": "M87654321",
+                "text_id": "E87654321",
+                "lines": [{ "start": 0, "end": 30 }],
+                "tag_ids": null
+            }
         }
     ],
     "has_more": false,
@@ -235,7 +223,7 @@ With request body containing a `type` field to specify annotation type.
 | Annotation Type | New Endpoint                                           |
 | --------------- | ------------------------------------------------------ |
 | Segmentation    | `POST /v2/editions/{edition_id}/segmentations`        |
-| Alignment       | `POST /v2/editions/{edition_id}/alignments`           |
+| Text-pair alignment | `PUT /v2/texts/{source_text_id}/alignments/{target_text_id}` |
 | Pagination      | `POST /v2/editions/{edition_id}/pagination`            |
 | Durchen (Notes) | `POST /v2/editions/{edition_id}/durchens`             |
 | Bibliographic   | `POST /v2/editions/{edition_id}/bibliographic`         |
@@ -274,17 +262,16 @@ POST /v2/editions/{edition_id}/segmentations
 }
 ```
 
-_Alignment:_
+_Text-pair alignment:_
 
 ```json
-POST /v2/editions/{edition_id}/alignments
+PUT /v2/texts/{source_text_id}/alignments/{target_text_id}
 {
-    "target_edition_id": "M87654321",
-    "target_segments": [
-        { "lines": [{ "start": 0, "end": 30 }] }
-    ],
-    "aligned_segments": [
-        { "lines": [{ "start": 0, "end": 25 }], "target_indices": [0] }
+    "alignments": [
+        {
+            "source_segment_id": "source_seg_001",
+            "target_segment_id": "target_seg_001"
+        }
     ]
 }
 ```
@@ -342,7 +329,6 @@ POST /v2/editions/{edition_id}/durchens
 | Annotation Type | New Endpoint                                           |
 | --------------- | ------------------------------------------------------ |
 | Segmentation    | `GET /v2/editions/{edition_id}/segmentations`          |
-| Alignment       | `GET /v2/editions/{edition_id}/alignments`             |
 | Pagination      | `GET /v2/editions/{edition_id}/pagination`             |
 | Durchen (Notes) | `GET /v2/editions/{edition_id}/durchens`               |
 | Bibliographic   | `GET /v2/editions/{edition_id}/bibliographic`          |
@@ -358,19 +344,6 @@ POST /v2/editions/{edition_id}/durchens
         "text_id": "E12345678"
     }
 ]
-
-// GET /v2/editions/{edition_id}/alignments
-[
-    {
-        "id": "align_abc123",
-        "aligned_edition_id": "M12345678",
-        "aligned_text_id": "E12345678",
-        "target_edition_id": "M87654321",
-        "target_text_id": "E87654321",
-        "target_segmentation_id": "target_sgn_abc123"
-    }
-]
-
 // GET /v2/editions/{edition_id}/pagination
 {
     "id": "pag_abc123",
@@ -423,7 +396,7 @@ POST /v2/editions/{edition_id}/durchens
 | Annotation Type | DELETE Endpoint                                           |
 | --------------- | --------------------------------------------------------- |
 | Segmentation    | `DELETE /v2/segmentations/{segmentation_id}`               |
-| Alignment       | `DELETE /v2/alignments/{alignment_id}`                     |
+| Text-pair alignment | `DELETE /v2/texts/{source_text_id}/alignments/{target_text_id}` |
 | Pagination      | `DELETE /v2/paginations/{pagination_id}`                   |
 | Durchen (Notes) | `DELETE /v2/durchens/{note_id}`                           |
 | Bibliographic   | `DELETE /v2/bibliographic/{bibliographic_id}`             |
@@ -473,23 +446,21 @@ currently implemented** as individual GET endpoints:
 | -------------------- | ----------------------------------------------- | -------------------------------------------- |
 | Get segmentation     | `GET /v2/annotations/{id}`                      | `GET /v2/segmentations/{id}`                 |
 | Get segmentation segments | N/A                                        | `GET /v2/segmentations/{id}/segments`        |
-| Get alignment        | `GET /v2/annotations/{id}`                      | `GET /v2/alignments/{id}`                    |
-| Get alignment segments | N/A                                          | `GET /v2/alignments/{id}/segments`           |
+| Get text-pair alignments | N/A                                      | `GET /v2/texts/{source_text_id}/alignments/{target_text_id}` |
 | Get pagination       | `GET /v2/annotations/{id}`                      | `GET /v2/paginations/{id}`                   |
 | Get durchen          | `GET /v2/annotations/{id}`                      | `GET /v2/durchens/{id}`                      |
 | Get bibliographic    | `GET /v2/annotations/{id}`                      | `GET /v2/bibliographic/{id}`                 |
 | Delete segmentation  | N/A                                             | `DELETE /v2/segmentations/{id}`               |
-| Delete alignment     | N/A                                             | `DELETE /v2/alignments/{id}`                  |
+| Delete text-pair alignments | N/A                                      | `DELETE /v2/texts/{source_text_id}/alignments/{target_text_id}` |
 | Delete pagination    | N/A                                             | `DELETE /v2/paginations/{id}`                 |
 | Delete durchen       | N/A                                             | `DELETE /v2/durchens/{id}`                    |
 | Delete bibliographic | N/A                                             | `DELETE /v2/bibliographic/{id}`               |
 | Add segmentation     | `POST /v2/annotations/{instance_id}/annotation` | `POST /v2/editions/{edition_id}/segmentations`|
-| Add alignment        | `POST /v2/annotations/{instance_id}/annotation` | `POST /v2/editions/{edition_id}/alignments`   |
+| Replace text-pair alignments | N/A                                      | `PUT /v2/texts/{source_text_id}/alignments/{target_text_id}` |
 | Add pagination       | `POST /v2/annotations/{instance_id}/annotation` | `POST /v2/editions/{edition_id}/pagination`   |
 | Add durchen          | `POST /v2/annotations/{instance_id}/annotation` | `POST /v2/editions/{edition_id}/durchens`     |
 | Add bibliographic    | `POST /v2/annotations/{instance_id}/annotation` | `POST /v2/editions/{edition_id}/bibliographic` |
 | Get all segmentations| N/A                                             | `GET /v2/editions/{edition_id}/segmentations` |
-| Get all alignments   | N/A                                             | `GET /v2/editions/{edition_id}/alignments`    |
 | Get all pagination   | N/A                                             | `GET /v2/editions/{edition_id}/pagination`    |
 | Get all durchen      | N/A                                             | `GET /v2/editions/{edition_id}/durchens`      |
 | Get all bibliographic| N/A                                             | `GET /v2/editions/{edition_id}/bibliographic`  |
@@ -1464,12 +1435,11 @@ fields are now provided at the grouping level in `RelatedSegmentsOutput`.
 
 ---
 
-#### 4. `GET /editions/{id}/segmentations` Filters by Display Segmentations
+#### 4. `GET /editions/{id}/segmentations` Returns Plain Segmentations
 
-This endpoint now only returns **display segmentations** (the ones created
-via `POST /editions/{id}/segmentations`). Internal alignment segmentations
-(created as part of `POST /editions/{id}/alignments`) are no longer included
-in the response.
+Segmentation subtype labels have been removed. This endpoint returns the
+segmentations created for the edition; alignments no longer create internal
+segmentation nodes.
 
 ---
 

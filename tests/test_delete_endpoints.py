@@ -76,6 +76,18 @@ async def _create_diplomatic_edition(client, text_id: str, *, source: str = "Del
     return response.json()["id"]
 
 
+async def _create_segmentation(client, edition_id: str, spans: list[tuple[int, int]]) -> list[str]:
+    response = await client.post(
+        f"/v2/editions/{edition_id}/segmentations",
+        json={"segments": [{"lines": [{"start": start, "end": end}]} for start, end in spans]},
+    )
+    assert response.status_code == 201, response.json()
+    segmentation_id = response.json()["id"]
+    response = await client.get(f"/v2/segmentations/{segmentation_id}/segments")
+    assert response.status_code == 200, response.json()
+    return [segment["id"] for segment in response.json()["items"]]
+
+
 async def _scalar(test_database, query: str, **params):
     async with test_database.get_session() as session:
         result = await session.run(query, **params)
@@ -421,23 +433,22 @@ class TestExistingDeleteCascades:
         target_text_id = await _create_text(client, person_id, title=_unique("Target Text"))
         source_edition_id = await _create_diplomatic_edition(client, source_text_id)
         target_edition_id = await _create_diplomatic_edition(client, target_text_id)
-        alignment_response = await client.post(
-            f"/v2/editions/{source_edition_id}/alignments",
-            json={
-                "target_edition_id": target_edition_id,
-                "target_segments": [{"lines": [{"start": 0, "end": 5}]}],
-                "aligned_segments": [{"lines": [{"start": 0, "end": 5}], "target_indices": [0]}],
-            },
+        source_segment_ids = await _create_segmentation(client, source_edition_id, [(0, 5)])
+        target_segment_ids = await _create_segmentation(client, target_edition_id, [(0, 5)])
+        alignment_response = await client.put(
+            f"/v2/texts/{source_text_id}/alignments/{target_text_id}",
+            json={"alignments": [{
+                "source_segment_id": source_segment_ids[0],
+                "target_segment_id": target_segment_ids[0],
+            }]},
         )
-        assert alignment_response.status_code == 201
-        alignment_id = alignment_response.json()["id"]
+        assert alignment_response.status_code == 204
 
         response = await client.delete(f"/v2/editions/{target_edition_id}")
 
         assert response.status_code == 204
         assert await _scalar(test_database, "RETURN EXISTS { (:Edition {id: $id}) }", id=target_edition_id) is False
         assert await _scalar(test_database, "RETURN EXISTS { (:Edition {id: $id}) }", id=source_edition_id) is True
-        assert await _scalar(test_database, "RETURN EXISTS { (:Segmentation {id: $id}) }", id=alignment_id) is False
         assert (
             await _scalar(
                 test_database,

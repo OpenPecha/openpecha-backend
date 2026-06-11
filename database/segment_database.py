@@ -29,40 +29,31 @@ class SegmentDatabase:
             | t.id] AS tag_ids
     """
 
-    # Discover neighboring editions in both directions via UNION ALL.
-    # Downward: Target segments -> ALIGNED_TO <- Aligned segments on child editions.
-    # Upward: Aligned segments -> ALIGNED_TO -> Target segments on parent editions.
-    QUERY_DISCOVER: LiteralString = """
-    MATCH (:Edition {id: $edition_id})<-[:SEGMENTATION_OF]-(:Segmentation:Target)
-        <-[:SEGMENT_OF]-(local_seg:Segment)<-[:SPAN_OF]-(local_span:Span)
-    WHERE ANY(sp IN $spans WHERE local_span.start < sp[1] AND local_span.end > sp[0])
-    MATCH (remote_seg:Segment)-[:ALIGNED_TO]->(local_seg),
-          (remote_seg)-[:SEGMENT_OF]->(:Segmentation:Aligned)
-              -[:SEGMENTATION_OF]->(remote_ed:Edition)-[:EDITION_OF]->(remote_text:Text),
-          (remote_span:Span)-[:SPAN_OF]->(remote_seg)
-    RETURN remote_ed.id AS edition_id, remote_text.id AS text_id,
-           collect([remote_span.start, remote_span.end]) AS remote_spans
-    UNION ALL
-    MATCH (:Edition {id: $edition_id})<-[:SEGMENTATION_OF]-(:Segmentation:Aligned)
-        <-[:SEGMENT_OF]-(local_seg:Segment)<-[:SPAN_OF]-(local_span:Span)
-    WHERE ANY(sp IN $spans WHERE local_span.start < sp[1] AND local_span.end > sp[0])
-    MATCH (local_seg)-[:ALIGNED_TO]->(remote_seg:Segment),
-          (remote_seg)-[:SEGMENT_OF]->(:Segmentation:Target)
-              -[:SEGMENTATION_OF]->(remote_ed:Edition)-[:EDITION_OF]->(remote_text:Text),
-          (remote_span:Span)-[:SPAN_OF]->(remote_seg)
-    RETURN remote_ed.id AS edition_id, remote_text.id AS text_id,
-           collect([remote_span.start, remote_span.end]) AS remote_spans
-    ORDER BY text_id, edition_id
+    FIND_START_SEGMENTS_QUERY: LiteralString = """
+    MATCH (:Edition {id: $edition_id})
+        <-[:SEGMENTATION_OF]-(:Segmentation)
+        <-[:SEGMENT_OF]-(seg:Segment)
+        <-[:SPAN_OF]-(span:Span)
+    WHERE span.start < span.end
+      AND ANY(sp IN $spans WHERE span.start < sp[1] AND span.end > sp[0])
+    RETURN DISTINCT seg.id AS segment_id
+    ORDER BY segment_id
     """
 
-    RESOLVE_DISPLAY_PAGE_QUERY: LiteralString = """
-    UNWIND $contexts AS context
-    MATCH (edition:Edition {id: context.edition_id})-[:EDITION_OF]->(text:Text)
+    QUERY_DISCOVER: LiteralString = """
+    UNWIND $segment_ids AS segment_id
+    MATCH (:Segment {id: segment_id})-[:ALIGNED_TO]-(remote_seg:Segment)
+    RETURN DISTINCT remote_seg.id AS segment_id
+    ORDER BY segment_id
+    """
+
+    RESOLVE_SEGMENT_PAGE_QUERY: LiteralString = """
+    UNWIND $segment_ids AS segment_id
+    MATCH (seg:Segment {id: segment_id})-[:SEGMENT_OF]->(sgn:Segmentation)
+        -[:SEGMENTATION_OF]->(edition:Edition)-[:EDITION_OF]->(text:Text)
     WHERE ($text_id IS NULL OR text.id = $text_id)
       AND ($filter_edition_id IS NULL OR edition.id = $filter_edition_id)
       AND ($language IS NULL OR (text)-[:HAS_LANGUAGE]->(:Language {code: $language}))
-    MATCH (edition)<-[:SEGMENTATION_OF]-(sgn:Segmentation:Display)
-        <-[:SEGMENT_OF]-(seg:Segment)
     CALL (seg) {
         MATCH (span:Span)-[:SPAN_OF]->(seg)
         WHERE span.start < span.end
@@ -70,10 +61,8 @@ class SegmentDatabase:
         RETURN collect({start: span.start, end: span.end}) AS lines,
                min(span.start) AS min_start
     }
-    WITH context, text, edition, sgn, seg, lines, min_start
+    WITH text, edition, sgn, seg, lines, min_start
     WHERE size(lines) > 0
-      AND ANY(line IN lines WHERE
-          ANY(sp IN context.spans WHERE line.start < sp[1] AND line.end > sp[0]))
     WITH text, edition, sgn, seg, lines, min_start,
         [(seg)-[:HAS_TAG]->(t:Tag)
             WHERE ($application IS NULL
@@ -133,40 +122,46 @@ class SegmentDatabase:
         limit: int = 20,
         filters: RelatedSegmentsFilter | None = None,
     ) -> list[SegmentWithContextOutput]:
-        """Traverse the alignment tree from an edition+spans and return paged display segments."""
+        """Traverse direct segment alignments from an edition+spans and return paged segments."""
         filters = filters or RelatedSegmentsFilter()
 
         async def _read(tx: AsyncManagedTransaction) -> list[SegmentWithContextOutput]:
-            contexts: dict[str, dict] = {}
-            visited: set[str] = {edition_id}
-            frontier = [(edition_id, _merge_spans([list(s) for s in spans]))]
+            start_records = await (
+                await tx.run(
+                    self.FIND_START_SEGMENTS_QUERY,
+                    edition_id=edition_id,
+                    spans=_merge_spans([list(s) for s in spans]),
+                )
+            ).data()
+            start_segment_ids = {record["segment_id"] for record in start_records}
+            if not start_segment_ids:
+                return []
+
+            related_segment_ids: set[str] = set()
+            visited: set[str] = set(start_segment_ids)
+            frontier = sorted(start_segment_ids)
 
             for _ in range(max_depth):
-                next_frontier: list[tuple[str, list[list[int]]]] = []
+                records = await (await tx.run(self.QUERY_DISCOVER, segment_ids=frontier)).data()
+                next_frontier = []
+                for record in records:
+                    segment_id = record["segment_id"]
+                    if segment_id in visited:
+                        continue
+                    visited.add(segment_id)
+                    related_segment_ids.add(segment_id)
+                    next_frontier.append(segment_id)
 
-                for ed_id, ed_spans in frontier:
-                    records = await (await tx.run(self.QUERY_DISCOVER, edition_id=ed_id, spans=ed_spans)).data()
-
-                    for rec in records:
-                        remote_ed = rec["edition_id"]
-                        if remote_ed in visited:
-                            continue
-                        visited.add(remote_ed)
-
-                        remote_spans = _merge_spans(rec["remote_spans"])
-                        contexts[remote_ed] = {"edition_id": remote_ed, "spans": remote_spans}
-                        next_frontier.append((remote_ed, remote_spans))
-
-                frontier = next_frontier
+                frontier = sorted(next_frontier)
                 if not frontier:
                     break
 
-            if not contexts:
+            if not related_segment_ids:
                 return []
 
-            return await self._resolve_display_page(
+            return await self._resolve_segment_page(
                 tx,
-                contexts=list(contexts.values()),
+                segment_ids=sorted(related_segment_ids),
                 application=application,
                 offset=offset,
                 limit=limit,
@@ -176,10 +171,10 @@ class SegmentDatabase:
         async with self._session as session:
             return await session.execute_read(_read)
 
-    async def _resolve_display_page(
+    async def _resolve_segment_page(
         self,
         tx: AsyncManagedTransaction,
-        contexts: list[dict],
+        segment_ids: list[str],
         application: str | None,
         offset: int,
         limit: int,
@@ -187,8 +182,8 @@ class SegmentDatabase:
     ) -> list[SegmentWithContextOutput]:
         records = await (
             await tx.run(
-                self.RESOLVE_DISPLAY_PAGE_QUERY,
-                contexts=contexts,
+                self.RESOLVE_SEGMENT_PAGE_QUERY,
+                segment_ids=segment_ids,
                 application=application,
                 offset=offset,
                 limit=limit,

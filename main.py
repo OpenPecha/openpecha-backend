@@ -12,7 +12,7 @@ from content_search import ContentSearchService
 from database import Database
 from exceptions import OpenPechaError
 from observability import setup_telemetry, shutdown_telemetry
-from routers.annotation.alignments import router as alignments_router
+from routers.alignments import router as alignments_router
 from routers.annotation.bibliographic import router as bibliographic_router
 from routers.annotation.durchens import router as durchens_router
 from routers.annotation.paginations import router as paginations_router

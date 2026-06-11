@@ -4,12 +4,10 @@ Integration tests for v2 annotation endpoints using real Neo4j test instance.
 
 Tests endpoints:
 - GET /v2/segmentations/{segmentation_id}
-- GET /v2/alignments/{alignment_id}
 - GET /v2/paginations/{pagination_id}
 - GET /v2/durchens/{note_id}
 - GET /v2/bibliographic/{bibliographic_id}
 - DELETE /v2/segmentations/{segmentation_id}
-- DELETE /v2/alignments/{alignment_id}
 - DELETE /v2/paginations/{pagination_id}
 - DELETE /v2/durchens/{note_id}
 - DELETE /v2/bibliographic/{bibliographic_id}
@@ -24,8 +22,6 @@ import logging
 import pytest
 from identifier import generate_id
 from models.annotation import (
-    AlignedSegmentInput,
-    AlignmentInput,
     AnnotationMetadata,
     BibliographicMetadataInput,
     NoteInput,
@@ -232,291 +228,52 @@ class TestDeleteSegmentation(TestAnnotationsEndpoints):
         second_delete = await client.delete(f"/v2/segmentations/{segmentation_id}")
         assert second_delete.status_code == 204
 
-    async def test_delete_segmentation_rejects_aligned(self, client, test_database, test_person_data):
-        """Test that deleting a segmentation that is part of an alignment returns 400"""
+    async def test_delete_segmentation_removes_alignment_relationships(self, client, test_database, test_person_data):
+        """Deleting a segmentation should remove direct alignment relationships."""
         person_id = await self._create_test_person(test_database, test_person_data)
-        text_id = await self._create_test_text(test_database, person_id)
+        source_text_id = await self._create_test_text(test_database, person_id)
+        target_text_id = await self._create_test_text(
+            test_database,
+            person_id,
+            title=LocalizedString({"en": "Target", "bo": "དམིགས།"}),
+        )
         source_edition_id = await self._create_test_edition(
-            test_database, text_id, "Source text"
+            test_database, source_text_id, "Source text"
         )
         target_edition_id = await self._create_test_edition(
-            test_database, text_id, "Target text"
+            test_database, target_text_id, "Target text"
         )
 
-        alignment = AlignmentInput(
-            target_edition_id=target_edition_id,
-            target_segments=[SegmentInput(lines=[Span(start=0, end=11)])],
-            aligned_segments=[AlignedSegmentInput(lines=[Span(start=0, end=11)], target_indices=[0])],
+        source_segmentation_id = await test_database.annotation.segmentation.add(
+            source_edition_id,
+            SegmentationInput(segments=[SegmentInput(lines=[Span(start=0, end=11)])]),
         )
-        alignment_id = await test_database.annotation.alignment.add(source_edition_id, alignment)
-
-        response = await client.delete(f"/v2/segmentations/{alignment_id}")
-
-        assert response.status_code == 400
-        assert "alignment" in response.json()["error"].lower()
-
-        verify_response = await client.get(f"/v2/alignments/{alignment_id}")
-        assert verify_response.status_code == 200
-
-
-class TestGetAlignment(TestAnnotationsEndpoints):
-    """Tests for GET /v2/alignments/{alignment_id}"""
-
-    async def test_get_alignment_success(self, client, test_database, test_person_data):
-        """Test successful alignment retrieval"""
-        person_id = await self._create_test_person(test_database, test_person_data)
-        text_id = await self._create_test_text(test_database, person_id)
-        source_edition_id = await self._create_test_edition(
-            test_database, text_id, "Source text content"
+        target_segmentation_id = await test_database.annotation.segmentation.add(
+            target_edition_id,
+            SegmentationInput(segments=[SegmentInput(lines=[Span(start=0, end=11)])]),
         )
-        target_edition_id = await self._create_test_edition(
-            test_database, text_id, "Target text content"
+        source_segment = (await test_database.annotation.segmentation.get_segments(
+            source_segmentation_id, offset=0, limit=1
+        ))[0]
+        target_segment = (await test_database.annotation.segmentation.get_segments(
+            target_segmentation_id, offset=0, limit=1
+        ))[0]
+
+        response = await client.put(
+            f"/v2/texts/{source_text_id}/alignments/{target_text_id}",
+            json={"alignments": [{
+                "source_segment_id": source_segment.id,
+                "target_segment_id": target_segment.id,
+            }]},
         )
-
-        alignment = AlignmentInput(
-            target_edition_id=target_edition_id,
-            target_segments=[
-                SegmentInput(lines=[Span(start=0, end=6)]),
-                SegmentInput(lines=[Span(start=7, end=19)]),
-            ],
-            aligned_segments=[
-                AlignedSegmentInput(lines=[Span(start=0, end=6)], target_indices=[0]),
-                AlignedSegmentInput(lines=[Span(start=7, end=19)], target_indices=[1]),
-            ],
-        )
-        alignment_id = await test_database.annotation.alignment.add(source_edition_id, alignment)
-
-        response = await client.get(f"/v2/alignments/{alignment_id}")
-
-        assert response.status_code == 200
-        body = response.json()
-        assert body["id"] == alignment_id
-        assert body["aligned_edition_id"] == source_edition_id
-        assert body["aligned_text_id"] == text_id
-        assert body["target_edition_id"] == target_edition_id
-        assert body["target_text_id"] == text_id
-
-        segments_response = await client.get(f"/v2/alignments/{alignment_id}/segments")
-        assert segments_response.status_code == 200
-        data = segments_response.json()["items"]
-        assert len(data) == 2
-        assert all("edition_id" not in row["aligned_segment"] for row in data)
-        assert all("text_id" not in row["aligned_segment"] for row in data)
-        assert all("segmentation_id" not in row["aligned_segment"] for row in data)
-        assert [
-            [segment["edition_id"] for segment in row["target_segments"]]
-            for row in data
-        ] == [[target_edition_id], [target_edition_id]]
-
-    async def test_get_alignment_not_found(self, client, test_database):
-        """Test alignment retrieval with non-existent ID"""
-        response = await client.get("/v2/alignments/nonexistent_id")
-
-        assert response.status_code == 404
-        assert "error" in response.json()
-
-    async def test_get_alignment_with_multiple_indices(self, client, test_database, test_person_data):
-        """Test alignment where source segment aligns to multiple target segments"""
-        person_id = await self._create_test_person(test_database, test_person_data)
-        text_id = await self._create_test_text(test_database, person_id)
-        source_edition_id = await self._create_test_edition(
-            test_database, text_id, "Source text"
-        )
-        target_edition_id = await self._create_test_edition(
-            test_database, text_id, "Target text longer"
-        )
-
-        alignment = AlignmentInput(
-            target_edition_id=target_edition_id,
-            target_segments=[
-                SegmentInput(lines=[Span(start=0, end=6)]),
-                SegmentInput(lines=[Span(start=7, end=11)]),
-                SegmentInput(lines=[Span(start=12, end=18)]),
-            ],
-            aligned_segments=[
-                AlignedSegmentInput(lines=[Span(start=0, end=11)], target_indices=[0, 1, 2]),
-            ],
-        )
-        alignment_id = await test_database.annotation.alignment.add(source_edition_id, alignment)
-
-        response = await client.get(f"/v2/alignments/{alignment_id}/segments")
-
-        assert response.status_code == 200
-        data = response.json()["items"]
-        assert len(data) == 1
-        assert len(data[0]["target_segments"]) == 3
-
-    async def test_get_alignment_with_pagination(self, client, test_database, test_person_data):
-        """Test alignment segment rows support limit/offset pagination."""
-        person_id = await self._create_test_person(test_database, test_person_data)
-        text_id = await self._create_test_text(test_database, person_id)
-        source_edition_id = await self._create_test_edition(
-            test_database, text_id, "Source text content"
-        )
-        target_edition_id = await self._create_test_edition(
-            test_database, text_id, "Target text content"
-        )
-
-        alignment = AlignmentInput(
-            target_edition_id=target_edition_id,
-            target_segments=[
-                SegmentInput(lines=[Span(start=0, end=6)]),
-                SegmentInput(lines=[Span(start=7, end=19)]),
-            ],
-            aligned_segments=[
-                AlignedSegmentInput(lines=[Span(start=0, end=6)], target_indices=[0]),
-                AlignedSegmentInput(lines=[Span(start=7, end=19)], target_indices=[1]),
-            ],
-        )
-        alignment_id = await test_database.annotation.alignment.add(source_edition_id, alignment)
-
-        first_page = await client.get(f"/v2/alignments/{alignment_id}/segments?limit=1")
-        assert first_page.status_code == 200
-        first_body = first_page.json()
-        assert len(first_body["items"]) == 1
-        assert first_body["has_more"] is True
-        assert first_body["offset"] == 0
-        assert first_body["limit"] == 1
-
-        second_page = await client.get(f"/v2/alignments/{alignment_id}/segments?limit=1&offset=1")
-        assert second_page.status_code == 200
-        second_body = second_page.json()
-        assert len(second_body["items"]) == 1
-        assert second_body["has_more"] is False
-        assert second_body["offset"] == 1
-        assert second_body["limit"] == 1
-
-
-class TestAddAlignment(TestAnnotationsEndpoints):
-    """Tests for alignment creation error cases"""
-
-    async def test_add_alignment_source_edition_not_found(self, test_database, test_person_data):
-        """Test that adding alignment with non-existent source edition raises DataNotFoundError"""
-        from exceptions import DataNotFoundError
-        from models.annotation import AlignmentInput, AlignedSegmentInput, SegmentInput, Span
-
-        person_id = await self._create_test_person(test_database, test_person_data)
-        text_id = await self._create_test_text(test_database, person_id)
-        target_edition_id = await self._create_test_edition(
-            test_database, text_id, "Target text"
-        )
-
-        alignment = AlignmentInput(
-            target_edition_id=target_edition_id,
-            target_segments=[SegmentInput(lines=[Span(start=0, end=11)])],
-            aligned_segments=[AlignedSegmentInput(lines=[Span(start=0, end=11)], target_indices=[0])],
-        )
-
-        with pytest.raises(DataNotFoundError) as exc_info:
-            await test_database.annotation.alignment.add("nonexistent_edition_id", alignment)
-
-        assert "Edition with ID 'nonexistent_edition_id' not found" in str(exc_info.value)
-
-    async def test_add_alignment_target_edition_not_found(self, test_database, test_person_data):
-        """Test that adding alignment with non-existent target edition raises DataNotFoundError"""
-        from exceptions import DataNotFoundError
-        from models.annotation import AlignmentInput, AlignedSegmentInput, SegmentInput, Span
-
-        person_id = await self._create_test_person(test_database, test_person_data)
-        text_id = await self._create_test_text(test_database, person_id)
-        source_edition_id = await self._create_test_edition(
-            test_database, text_id, "Source text"
-        )
-
-        alignment = AlignmentInput(
-            target_edition_id="nonexistent_target_id",
-            target_segments=[SegmentInput(lines=[Span(start=0, end=11)])],
-            aligned_segments=[AlignedSegmentInput(lines=[Span(start=0, end=11)], target_indices=[0])],
-        )
-
-        with pytest.raises(DataNotFoundError) as exc_info:
-            await test_database.annotation.alignment.add(source_edition_id, alignment)
-
-        assert "not found" in str(exc_info.value).lower()
-
-
-class TestDeleteAlignment(TestAnnotationsEndpoints):
-    """Tests for DELETE /v2/alignments/{alignment_id}"""
-
-    async def test_delete_alignment_success(self, client, test_database, test_person_data):
-        """Test successful alignment deletion"""
-        person_id = await self._create_test_person(test_database, test_person_data)
-        text_id = await self._create_test_text(test_database, person_id)
-        source_edition_id = await self._create_test_edition(
-            test_database, text_id, "Source text"
-        )
-        target_edition_id = await self._create_test_edition(
-            test_database, text_id, "Target text"
-        )
-
-        alignment = AlignmentInput(
-            target_edition_id=target_edition_id,
-            target_segments=[SegmentInput(lines=[Span(start=0, end=11)])],
-            aligned_segments=[AlignedSegmentInput(lines=[Span(start=0, end=11)], target_indices=[0])],
-        )
-        alignment_id = await test_database.annotation.alignment.add(source_edition_id, alignment)
-
-        get_response = await client.get(f"/v2/alignments/{alignment_id}")
-        assert get_response.status_code == 200
-
-        response = await client.delete(f"/v2/alignments/{alignment_id}")
-
         assert response.status_code == 204
 
-        verify_response = await client.get(f"/v2/alignments/{alignment_id}")
-        assert verify_response.status_code == 404
-
-    async def test_delete_alignment_removes_both_segmentations(self, client, test_database, test_person_data):
-        """Test that deleting an alignment also removes both underlying segmentations"""
-        person_id = await self._create_test_person(test_database, test_person_data)
-        text_id = await self._create_test_text(test_database, person_id)
-        source_edition_id = await self._create_test_edition(
-            test_database, text_id, "Source text"
-        )
-        target_edition_id = await self._create_test_edition(
-            test_database, text_id, "Target text"
-        )
-
-        alignment = AlignmentInput(
-            target_edition_id=target_edition_id,
-            target_segments=[SegmentInput(lines=[Span(start=0, end=11)])],
-            aligned_segments=[AlignedSegmentInput(lines=[Span(start=0, end=11)], target_indices=[0])],
-        )
-        alignment_id = await test_database.annotation.alignment.add(source_edition_id, alignment)
-
-        response = await client.delete(f"/v2/alignments/{alignment_id}")
+        response = await client.delete(f"/v2/segmentations/{source_segmentation_id}")
         assert response.status_code == 204
 
-        source_seg_response = await client.get(f"/v2/segmentations/{alignment_id}")
-        assert source_seg_response.status_code == 404
-
-    async def test_delete_alignment_not_found(self, client, test_database):
-        """Test deleting non-existent alignment returns 404"""
-        response = await client.delete("/v2/alignments/nonexistent_id")
-
-        assert response.status_code == 404
-
-    async def test_delete_alignment_rejects_regular_segmentation(self, client, test_database, test_person_data):
-        """Test that deleting a regular segmentation via alignment endpoint returns 400"""
-        person_id = await self._create_test_person(test_database, test_person_data)
-        text_id = await self._create_test_text(test_database, person_id)
-        edition_id = await self._create_test_edition(
-            test_database, text_id, "Source text"
-        )
-
-        segmentation = SegmentationInput(
-            segments=[SegmentInput(lines=[Span(start=0, end=11)])]
-        )
-        segmentation_id = await test_database.annotation.segmentation.add(edition_id, segmentation)
-
-        response = await client.delete(f"/v2/alignments/{segmentation_id}")
-
-        assert response.status_code == 400
-        assert "not an alignment annotation" in response.json()["error"].lower()
-
-        verify_response = await client.get(f"/v2/segmentations/{segmentation_id}")
-        assert verify_response.status_code == 200
-
+        response = await client.get(f"/v2/texts/{source_text_id}/alignments/{target_text_id}")
+        assert response.status_code == 200
+        assert response.json()["items"] == []
 
 class TestGetPagination(TestAnnotationsEndpoints):
     """Tests for GET /v2/paginations/{pagination_id}"""
@@ -880,18 +637,30 @@ class TestDeleteEditionWithAnnotations(TestAnnotationsEndpoints):
         note_item = NoteInput(span=Span(start=5, end=10), text="Test note")
         note_id = await test_database.annotation.note.add_durchen(source_edition_id, note_item)
 
-        alignment = AlignmentInput(
-            target_edition_id=target_edition_id,
-            target_segments=[SegmentInput(lines=[Span(start=0, end=10)])],
-            aligned_segments=[AlignedSegmentInput(lines=[Span(start=0, end=10)], target_indices=[0])],
+        target_segmentation_id = await test_database.annotation.segmentation.add(
+            target_edition_id,
+            SegmentationInput(segments=[SegmentInput(lines=[Span(start=0, end=10)])]),
         )
-        alignment_id = await test_database.annotation.alignment.add(source_edition_id, alignment)
+        source_segment = (await test_database.annotation.segmentation.get_segments(segmentation_id, offset=0, limit=1))[0]
+        target_segment = (await test_database.annotation.segmentation.get_segments(
+            target_segmentation_id, offset=0, limit=1
+        ))[0]
+        alignment_response = await client.put(
+            f"/v2/texts/{text_id}/alignments/{text_id}",
+            json={"alignments": [{
+                "source_segment_id": source_segment.id,
+                "target_segment_id": target_segment.id,
+            }]},
+        )
+        assert alignment_response.status_code == 204
 
         assert (await client.get(f"/v2/segmentations/{segmentation_id}")).status_code == 200
         assert (await client.get(f"/v2/paginations/{pagination_id}")).status_code == 200
         assert (await client.get(f"/v2/bibliographic/{bibliographic_id}")).status_code == 200
         assert (await client.get(f"/v2/durchens/{note_id}")).status_code == 200
-        assert (await client.get(f"/v2/alignments/{alignment_id}")).status_code == 200
+        alignment_get_response = await client.get(f"/v2/texts/{text_id}/alignments/{text_id}")
+        assert alignment_get_response.status_code == 200
+        assert len(alignment_get_response.json()["items"]) == 1
 
         await test_database.edition.delete(source_edition_id)
 
@@ -899,7 +668,9 @@ class TestDeleteEditionWithAnnotations(TestAnnotationsEndpoints):
         assert (await client.get(f"/v2/paginations/{pagination_id}")).status_code == 404
         assert (await client.get(f"/v2/bibliographic/{bibliographic_id}")).status_code == 404
         assert (await client.get(f"/v2/durchens/{note_id}")).status_code == 404
-        assert (await client.get(f"/v2/alignments/{alignment_id}")).status_code == 404
+        alignment_get_response = await client.get(f"/v2/texts/{text_id}/alignments/{text_id}")
+        assert alignment_get_response.status_code == 200
+        assert alignment_get_response.json()["items"] == []
 
 
 class TestAnnotationEdgeCases(TestAnnotationsEndpoints):

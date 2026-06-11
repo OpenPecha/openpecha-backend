@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, LiteralString
 
-from exceptions import DataNotFoundError, InvalidRequestError
+from exceptions import DataNotFoundError
 
 if TYPE_CHECKING:
     from neo4j import AsyncManagedTransaction, Record
@@ -43,7 +43,7 @@ class SegmentationDatabase:
     """
 
     GET_BY_EDITION_ID_QUERY: LiteralString = f"""
-    MATCH (edition:Edition {{id: $edition_id}})<-[:SEGMENTATION_OF]-(segmentation:Segmentation:Display)
+    MATCH (edition:Edition {{id: $edition_id}})<-[:SEGMENTATION_OF]-(segmentation:Segmentation)
     {_GET_PARENT_QUERY_BODY}
     """
 
@@ -54,7 +54,7 @@ class SegmentationDatabase:
 
     CREATE_QUERY: LiteralString = """
     MATCH (m:Edition {id: $edition_id})
-    CREATE (segmentation:Segmentation:Display {id: $segmentation_id})-[:SEGMENTATION_OF]->(m)
+    CREATE (segmentation:Segmentation {id: $segmentation_id})-[:SEGMENTATION_OF]->(m)
     WITH segmentation
     UNWIND $segments AS segment_data
     CREATE (segment:Segment {id: segment_data.id})-[:SEGMENT_OF]->(segmentation)
@@ -70,12 +70,6 @@ class SegmentationDatabase:
     OPTIONAL MATCH (span:Span)-[:SPAN_OF]->(segment)
     DETACH DELETE span, segment, segmentation
     FINISH
-    """
-
-    CHECK_ALIGNMENT_QUERY: LiteralString = """
-    MATCH (seg:Segmentation {id: $segmentation_id})
-    RETURN seg IS NOT NULL AS exists,
-           (seg:Aligned OR seg:Target) AS is_aligned
     """
 
     CHECK_SEGMENTATION_EXISTS_QUERY: LiteralString = """
@@ -191,16 +185,7 @@ class SegmentationDatabase:
         return [SegmentationDatabase._parse_segment_record(record) for record in records]
 
     @staticmethod
-    async def delete_with_transaction(
-        tx: AsyncManagedTransaction, segmentation_id: str, *, include_aligned: bool = False
-    ) -> None:
-        if not include_aligned:
-            result = await tx.run(SegmentationDatabase.CHECK_ALIGNMENT_QUERY, segmentation_id=segmentation_id)
-            record = await result.single()
-            if record and record["exists"] and record["is_aligned"]:
-                raise InvalidRequestError(
-                    f"Segmentation '{segmentation_id}' is part of an alignment. Use alignment delete instead."
-                )
+    async def delete_with_transaction(tx: AsyncManagedTransaction, segmentation_id: str) -> None:
         await tx.run(SegmentationDatabase.DELETE_QUERY, segmentation_id=segmentation_id)
 
     async def delete(self, segmentation_id: str) -> None:

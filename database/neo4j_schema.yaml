@@ -207,13 +207,6 @@ nodes:
         type: string
         required: true
         unique: true
-    subtypes:
-      Display:
-        description: User-facing segmentation displayed in the app
-      Aligned:
-        description: Source side of an alignment (segments have outgoing ALIGNED_TO)
-      Target:
-        description: Target side of an alignment (segments have incoming ALIGNED_TO)
     relationships:
       SEGMENTATION_OF:
         target: Edition

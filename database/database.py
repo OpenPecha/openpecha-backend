@@ -3,7 +3,7 @@ from typing import Self
 
 from neo4j import AsyncDriver, AsyncGraphDatabase, AsyncSession
 
-from .annotation.alignment_database import AlignmentDatabase
+from .alignment_database import AlignmentDatabase
 from .annotation.attribute_database import AttributeDatabase
 from .annotation.bibliographic_database import BibliographicDatabase
 from .annotation.note_database import NoteDatabase
@@ -25,7 +25,6 @@ logger = getLogger(__name__)
 
 
 class AnnotationDatabase:
-    Alignment = AlignmentDatabase
     Segmentation = SegmentationDatabase
     Pagination = PaginationDatabase
     TableOfContents = TableOfContentsDatabase
@@ -35,7 +34,6 @@ class AnnotationDatabase:
 
     def __init__(self, db: Database) -> None:
         self._db = db
-        self.alignment = AlignmentDatabase(db)
         self.segmentation = SegmentationDatabase(db)
         self.pagination = PaginationDatabase(db)
         self.table_of_contents = TableOfContentsDatabase(db)
@@ -52,6 +50,7 @@ class Database:
     text: TextDatabase
     edition: EditionDatabase
     annotation: AnnotationDatabase
+    alignment: AlignmentDatabase
     segment: SegmentDatabase
     person: PersonDatabase
     language: LanguageDatabase
@@ -70,6 +69,7 @@ class Database:
         self.text = TextDatabase(db=self)
         self.edition = EditionDatabase(db=self)
         self.annotation = AnnotationDatabase(db=self)
+        self.alignment = AlignmentDatabase(db=self)
         self.segment = SegmentDatabase(db=self)
         self.person = PersonDatabase(db=self)
         self.language = LanguageDatabase(db=self)

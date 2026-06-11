@@ -5,18 +5,17 @@ from database.neo4j_triggers import audit_triggers
 
 
 @pytest.mark.asyncio(loop_scope="session")
-async def test_audit_detects_multiple_display_segmentations(test_database) -> None:
+async def test_audit_detects_self_aligned_segment(test_database) -> None:
     async with test_database.get_session() as session:
         await session.run("""
-            CREATE (edition:Edition {id: 'edition_with_duplicate_display'})
-            CREATE (:Segmentation:Display {id: 'display_1'})-[:SEGMENTATION_OF]->(edition)
-            CREATE (:Segmentation:Display {id: 'display_2'})-[:SEGMENTATION_OF]->(edition)
+            CREATE (segment:Segment {id: 'self_aligned_segment'})
+            CREATE (segment)-[:ALIGNED_TO]->(segment)
         """)
 
     violations = await audit_triggers(test_database._driver)
 
-    assert "enforce_edition_single_display_segmentation" in violations
+    assert "enforce_no_self_aligned_to" in violations
     assert any(
-        "edition_with_duplicate_display" in item
-        for item in violations["enforce_edition_single_display_segmentation"]
+        "self_aligned_segment" in item
+        for item in violations["enforce_no_self_aligned_to"]
     )

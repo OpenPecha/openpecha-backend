@@ -18,22 +18,23 @@ This document provides comprehensive documentation for all Segments-related endp
 
 ## Overview
 
-Segments are portions of edition content defined by character spans (one or more ranges). They are created as part of segmentation annotations and enable fine-grained text operations, alignment between editions, and targeted content retrieval.
+Segments are portions of edition content defined by character spans (one or more ranges). They are created as part of segmentations and enable fine-grained text operations, alignment between texts, and targeted content retrieval.
 
 ### Key Concepts
 
 - **Segment**: A logical unit of text defined by one or more character spans
 - **Lines**: Character spans that define segment boundaries (can be non-contiguous)
 - **Segmentation**: Collection of segments that divide an edition's content
-- **Alignment**: Relationship between segments in different editions
+- **Alignment**: Direct `ALIGNED_TO` relationship between existing segments
 - **Related Segments**: Segments that are aligned together across editions
 
 ### Segment Creation
 
 Segments are not created directly. They are created as part of:
 1. **Segmentation annotations** via `POST /v2/editions/{edition_id}/segmentations`
-2. **Alignment annotations** via `POST /v2/editions/{edition_id}/alignments`
-3. **Edition creation** with inline annotations via `POST /v2/texts/{text_id}/editions`
+2. **Edition creation** with inline annotations via `POST /v2/texts/{text_id}/editions`
+
+Text-pair alignment endpoints link existing segments; they do not create new segments.
 
 ### Base URL
 
@@ -153,7 +154,7 @@ curl -X GET "https://api-l25bgmwqoa-uc.a.run.app/v2/segments/SEG001/content" \
 
 ### Find Related Segments
 
-Find all segments that are aligned to a specific segment. Returns segments from other editions that have alignment relationships with the query segment.
+Find all segments that are directly or transitively aligned to a specific segment. Returns segments connected through direct `ALIGNED_TO` relationships.
 
 **Endpoint:**
 ```
