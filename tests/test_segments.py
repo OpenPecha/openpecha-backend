@@ -934,19 +934,13 @@ class TestVerseSegments(SegmentTestBase):
         assert plain["type"] == "paragraph"
         assert "verse_index" not in plain
 
-    async def test_explicit_null_type_becomes_paragraph(self, client, test_database):
-        """An explicit `type: null` is normalized to a paragraph segment."""
+    async def test_explicit_null_type_rejected(self, client, test_database):
+        """An explicit `type: null` is rejected; omit `type` to default to paragraph."""
         edition_id = await self._edition(client, test_database)
-        segmentation_id = await self._post_segmentation(
-            client,
-            edition_id,
-            [{"start": 0, "end": 5, "type": None}],
+        resp = await self._post_segmentation_raw(
+            client, edition_id, [{"start": 0, "end": 5, "type": None}]
         )
-
-        items = (await client.get(f"/v2/segmentations/{segmentation_id}/segments")).json()["items"]
-        assert len(items) == 1
-        assert items[0]["type"] == "paragraph"
-        assert "verse_index" not in items[0]
+        assert resp.status_code == 422
 
     async def test_get_single_segment_verse_fields(self, client, test_database):
         """GET /v2/segments/{id} returns the verse index for a verse and omits it for a paragraph."""

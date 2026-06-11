@@ -2,7 +2,7 @@ from collections.abc import Sequence
 from itertools import pairwise
 from typing import Any, Self
 
-from pydantic import ConfigDict, Field, field_validator, model_validator
+from pydantic import ConfigDict, Field, model_validator
 
 from .base import LocalizedString, NonEmptyStr, OpenPechaModel, _validate_range
 from .enums import AttributeType, BibliographyType, SegmentType
@@ -42,31 +42,13 @@ class LinesModel(OpenPechaModel):
 
 
 class SegmentInput(LinesModel):
-    type: SegmentType = Field(default=SegmentType.PARAGRAPH, description="Segment subtype; defaults to 'paragraph'")
-
-    @field_validator("type", mode="before")
-    @classmethod
-    def _default_type(cls, value: object) -> object:
-        # An omitted or explicit-null type means a plain paragraph segment.
-        return SegmentType.PARAGRAPH if value is None else value
-
-
-class VerseSegmentInput(SegmentInput):
+    type: SegmentType = Field(
+        default=SegmentType.PARAGRAPH,
+        description="Segment subtype; defaults to 'paragraph'",
+    )
     verse_index: tuple[int, int] | None = Field(
         default=None, description="(chapter, verse) pair, both >= 1; required when type is 'verse'"
     )
-
-    @model_validator(mode="after")
-    def validate_verse(self) -> Self:
-        if self.type is SegmentType.VERSE:
-            if self.verse_index is None:
-                raise ValueError("verse_index is required when type is 'verse'")
-            chapter, verse = self.verse_index
-            if chapter < 1 or verse < 1:
-                raise ValueError("verse_index chapter and verse must both be >= 1")
-        elif self.verse_index is not None:
-            raise ValueError("verse_index is only allowed when type is 'verse'")
-        return self
 
 
 class SegmentOutput(LinesModel):
@@ -107,13 +89,26 @@ def _is_sorted_by_span_start(segments: Sequence[LinesModel]) -> bool:
 
 
 class SegmentationInput(OpenPechaModel):
-    segments: list[VerseSegmentInput]
+    segments: list[SegmentInput]
     metadata: AnnotationMetadata | None = None
 
     @model_validator(mode="after")
     def validate_segments_sorted(self) -> Self:
         if hasattr(self, "segments") and not _is_sorted_by_span_start(self.segments):
             raise ValueError("segments must be sorted by span start")
+        return self
+
+    @model_validator(mode="after")
+    def validate_verse_segments(self) -> Self:
+        for seg in self.segments:
+            if seg.type is SegmentType.VERSE:
+                if seg.verse_index is None:
+                    raise ValueError("verse_index is required when type is 'verse'")
+                chapter, verse = seg.verse_index
+                if chapter < 1 or verse < 1:
+                    raise ValueError("verse_index chapter and verse must both be >= 1")
+            elif seg.verse_index is not None:
+                raise ValueError("verse_index is only allowed when type is 'verse'")
         return self
 
     @model_validator(mode="after")

@@ -34,7 +34,6 @@ from models.annotation import (
     SegmentationInput,
     SegmentInput,
     Span,
-    VerseSegmentInput,
     Volume,
 )
 from models.base import LocalizedString
@@ -534,7 +533,7 @@ class TestDeleteAlignment(TestAnnotationsEndpoints):
         )
 
         segmentation = SegmentationInput(
-            segments=[VerseSegmentInput(lines=[Span(start=0, end=11)])]
+            segments=[SegmentInput(lines=[Span(start=0, end=11)])]
         )
         segmentation_id = await test_database.annotation.segmentation.add(edition_id, segmentation)
 
@@ -842,7 +841,7 @@ class TestAddAnnotationEditionNotFound(TestAnnotationsEndpoints):
         from exceptions import DataNotFoundError
 
         segmentation = SegmentationInput(
-            segments=[VerseSegmentInput(lines=[Span(start=0, end=10)])]
+            segments=[SegmentInput(lines=[Span(start=0, end=10)])]
         )
 
         with pytest.raises(DataNotFoundError) as exc_info:
@@ -894,7 +893,7 @@ class TestDeleteEditionWithAnnotations(TestAnnotationsEndpoints):
         )
 
         segmentation = SegmentationInput(
-            segments=[VerseSegmentInput(lines=[Span(start=0, end=10)])]
+            segments=[SegmentInput(lines=[Span(start=0, end=10)])]
         )
         segmentation_id = await test_database.annotation.segmentation.add(source_edition_id, segmentation)
 
@@ -959,8 +958,8 @@ class TestAnnotationRoundTrip(TestAnnotationsEndpoints):
 
         segmentation = SegmentationInput(
             segments=[
-                VerseSegmentInput(lines=[Span(start=0, end=10)]),
-                VerseSegmentInput(lines=[Span(start=11, end=23)]),
+                SegmentInput(lines=[Span(start=0, end=10)]),
+                SegmentInput(lines=[Span(start=11, end=23)]),
             ]
         )
         segmentation_id = await test_database.annotation.segmentation.add(edition_id, segmentation)
