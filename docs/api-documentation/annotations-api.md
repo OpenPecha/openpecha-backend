@@ -7,7 +7,9 @@ Annotations attach structured information to edition content using character spa
 - **Span**: A half-open character range where `start` is inclusive and `end` is exclusive.
 - **Lines**: Continuous spans inside a segment or page. Adjacent lines must be sorted and touch each other.
 - **Segmentation**: A set of logical content segments for an edition.
-- **Alignment**: A mapping between segments in an aligned edition and target segments in another edition.
+- **Segment type**: Every segment has a `type`. It defaults to `"paragraph"` when omitted; the only other value is `"verse"`. The `type` is always present in responses.
+- **Verse segment**: A Display-segmentation segment with `"type": "verse"`. A verse must carry a `verse_index`, an integer pair `[chapter, verse]` (e.g. `[1, 1]`, `[1, 10]`, `[2, 1]`) where both parts are ≥ 1, and the pair must be unique within a segmentation. Paragraph segments omit `verse_index`.
+- **Alignment**: A mapping between segments in an aligned edition and target segments in another edition. Alignment (aligned/target) segments cannot be verses.
 - **Pagination**: A mapping from character spans to page or folio references.
 - **Table of contents**: A table-of-contents style hierarchy for an edition. Each section has a character span, localized title, optional localized summary, and optional nested subsections.
 - **Bibliographic metadata**: Span-level metadata such as colophon, title, incipit, or author.
@@ -41,6 +43,8 @@ Annotations are created and listed by type under an edition. Each `POST` returns
 {
   "segments": [
     {
+      "type": "verse",
+      "verse_index": [1, 1],
       "lines": [
         {"start": 0, "end": 50}
       ]
@@ -55,6 +59,8 @@ Annotations are created and listed by type under an edition. Each `POST` returns
 ```
 
 Segments must be sorted by their first line's start offset. Lines inside each segment must be continuous.
+
+Each segment has a `type`. Omitting `type` makes it a `"paragraph"` — the default. A segment is a verse via `"type": "verse"`, in which case `verse_index` is **required** and must be an integer pair `[chapter, verse]` with both parts ≥ 1 (e.g. `[1, 1]`, `[1, 10]`, `[2, 1]`); verse indices must be unique within the segmentation. `verse_index` is rejected unless `type` is `"verse"`. Verse marking applies only to Display segmentations (created here), not to alignment segments.
 
 ### Create Alignment
 
@@ -212,8 +218,17 @@ Segments response:
   "items": [
     {
       "id": "SEG123",
+      "type": "verse",
+      "verse_index": [1, 1],
       "lines": [
         {"start": 0, "end": 50}
+      ]
+    },
+    {
+      "id": "SEG124",
+      "type": "paragraph",
+      "lines": [
+        {"start": 50, "end": 100}
       ]
     }
   ],
@@ -222,6 +237,8 @@ Segments response:
   "limit": 500
 }
 ```
+
+`type` is always present (`"paragraph"` or `"verse"`). `verse_index` (an integer `[chapter, verse]` pair) appears only on verse segments and is omitted for paragraphs.
 
 Deleting a standalone segmentation returns `204 No Content`. If the segmentation belongs to an alignment, deletion is rejected for both aligned and target segmentations; delete the alignment instead using the aligned segmentation ID, which is the alignment `id` returned by the API.
 
@@ -261,6 +278,7 @@ Segments response:
     {
       "aligned_segment": {
         "id": "SEG_SOURCE",
+        "type": "paragraph",
         "lines": [
           {"start": 0, "end": 55}
         ]
@@ -268,6 +286,7 @@ Segments response:
       "target_segments": [
         {
           "id": "SEG_TARGET",
+          "type": "paragraph",
           "segmentation_id": "SGN_TARGET",
           "edition_id": "ED_TARGET",
           "text_id": "TXT_TARGET",
@@ -284,6 +303,8 @@ Segments response:
   "limit": 500
 }
 ```
+
+Aligned and target segments are always `"type": "paragraph"` (they cannot be verses). On this endpoint `tag_ids` is returned as `null` when absent rather than omitted.
 
 Deleting an alignment deletes the alignment and its associated aligned/target segmentations.
 

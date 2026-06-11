@@ -9,6 +9,7 @@ if TYPE_CHECKING:
 from database.database_validator import DatabaseValidator
 from identifier import generate_id
 from models.annotation import SegmentationInput, SegmentationOutput, SegmentOutput, Span
+from models.enums import SegmentType
 
 
 class SegmentationDatabase:
@@ -34,7 +35,7 @@ class SegmentationDatabase:
     ORDER BY min_start, segment.id
     SKIP $offset
     LIMIT $limit
-    RETURN segment.id AS id, lines
+    RETURN segment.id AS id, lines, segment:Verse AS is_verse, segment.verse_index AS verse_index
     """
 
     GET_BY_SEGMENTATION_ID_QUERY: LiteralString = f"""
@@ -58,6 +59,10 @@ class SegmentationDatabase:
     WITH segmentation
     UNWIND $segments AS segment_data
     CREATE (segment:Segment {id: segment_data.id})-[:SEGMENT_OF]->(segmentation)
+    FOREACH (_ IN CASE WHEN segment_data.type = 'verse' THEN [1] ELSE [] END |
+        SET segment:Verse, segment.verse_index = segment_data.verse_index)
+    FOREACH (_ IN CASE WHEN segment_data.type = 'paragraph' THEN [1] ELSE [] END |
+        SET segment:Paragraph)
     WITH segment, segment_data
     UNWIND segment_data.lines AS line
     CREATE (:Span {start: line.start, end: line.end})-[:SPAN_OF]->(segment)
@@ -98,6 +103,8 @@ class SegmentationDatabase:
         return SegmentOutput(
             id=record["id"],
             lines=[Span(start=line["start"], end=line["end"]) for line in record["lines"]],
+            type=SegmentType.VERSE if record["is_verse"] else SegmentType.PARAGRAPH,
+            verse_index=record["verse_index"],
         )
 
     async def get(self, segmentation_id: str) -> SegmentationOutput:
@@ -128,6 +135,8 @@ class SegmentationDatabase:
         segments_data = [
             {
                 "id": generate_id(),
+                "type": seg.type.value,
+                "verse_index": list(seg.verse_index) if seg.verse_index else None,
                 "lines": [{"start": line.start, "end": line.end} for line in seg.lines],
             }
             for seg in segmentation.segments

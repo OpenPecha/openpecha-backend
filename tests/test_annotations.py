@@ -434,6 +434,34 @@ class TestAddAlignment(TestAnnotationsEndpoints):
 
         assert "not found" in str(exc_info.value).lower()
 
+    async def test_alignment_target_segment_cannot_be_verse(self):
+        """A verse-typed target segment is rejected: verses are a Display-segmentation concept."""
+        from pydantic import ValidationError
+
+        from models.enums import SegmentType
+
+        with pytest.raises(ValidationError, match="cannot be verses"):
+            AlignmentInput(
+                target_edition_id="ED_TARGET",
+                target_segments=[SegmentInput(lines=[Span(start=0, end=11)], type=SegmentType.VERSE)],
+                aligned_segments=[AlignedSegmentInput(lines=[Span(start=0, end=11)], target_indices=[0])],
+            )
+
+    async def test_alignment_aligned_segment_cannot_be_verse(self):
+        """A verse-typed aligned segment is rejected as well."""
+        from pydantic import ValidationError
+
+        from models.enums import SegmentType
+
+        with pytest.raises(ValidationError, match="cannot be verses"):
+            AlignmentInput(
+                target_edition_id="ED_TARGET",
+                target_segments=[SegmentInput(lines=[Span(start=0, end=11)])],
+                aligned_segments=[
+                    AlignedSegmentInput(lines=[Span(start=0, end=11)], target_indices=[0], type=SegmentType.VERSE)
+                ],
+            )
+
 
 class TestDeleteAlignment(TestAnnotationsEndpoints):
     """Tests for DELETE /v2/alignments/{alignment_id}"""
