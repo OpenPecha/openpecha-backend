@@ -236,7 +236,7 @@ curl -X GET "https://api-l25bgmwqoa-uc.a.run.app/v2/texts/T12345678" \
 
 ### Create New Text
 
-Create a new text record with metadata and contributions.
+Create a new text record with metadata and optional contributions.
 
 **Endpoint:**
 
@@ -277,33 +277,33 @@ POST /v2/texts
 **Required Fields:**
 
 
-| Field           | Type   | Description                                    |
-| --------------- | ------ | ---------------------------------------------- |
-| `title`         | object | Localized title (language code → text mapping) |
-| `language`      | string | Primary language code (e.g., "bo", "en")       |
-| `category_id`   | string | Category ID this text belongs to               |
-| `contributions` | array  | At least one contribution (person or AI)       |
+| Field         | Type   | Description                                    |
+| ------------- | ------ | ---------------------------------------------- |
+| `title`       | object | Localized title (language code → text mapping) |
+| `language`    | string | Primary language code (e.g., "bo", "en")       |
+| `category_id` | string | Category ID this text belongs to               |
 
 
 **Optional Fields:**
 
 
-| Field            | Type   | Description                                        |
-| ---------------- | ------ | -------------------------------------------------- |
-| `bdrc`           | string | BDRC identifier                                    |
-| `wiki`           | string | Wikidata identifier                                |
-| `date`           | string | Date of composition                                |
-| `alt_titles`     | array  | Alternative localized titles                       |
-| `translation_of` | string | Text ID this is a translation of                   |
-| `commentary_of`  | string | Text ID this is a commentary of                    |
-| `license`        | string | License type (see [License Types](#license-types)) |
-| `tag_ids`        | array  | Tag IDs to attach to the work behind this text |
+| Field            | Type   | Description                                                              |
+| ---------------- | ------ | ------------------------------------------------------------------------ |
+| `bdrc`           | string | BDRC identifier                                                          |
+| `wiki`           | string | Wikidata identifier                                                      |
+| `date`           | string | Date of composition                                                      |
+| `alt_titles`     | array  | Alternative localized titles                                             |
+| `translation_of` | string | Text ID this is a translation of                                         |
+| `commentary_of`  | string | Text ID this is a commentary of                                          |
+| `license`        | string | License type (see [License Types](#license-types))                       |
+| `tag_ids`        | array  | Tag IDs to attach to the work behind this text                           |
+| `contributions`  | array  | Contributor list (person or AI); omit if unknown                         |
 
 **Validation Rules:**
 
 - `title` must contain a localized title for the text language or its base language. For example, language `bo-x-ewts` can use a `bo` title.
 - A text cannot set both `translation_of` and `commentary_of`.
-- `contributions` must include either `person_id`, `person_bdrc_id`, or `ai_id` depending on contribution type.
+- `contributions` is optional; omit the field when there are no contributors. When provided, each entry must include either `person_id`, `person_bdrc_id`, or `ai_id` depending on contribution type, and the referenced person must already exist.
 - Extra fields are rejected.
 
 

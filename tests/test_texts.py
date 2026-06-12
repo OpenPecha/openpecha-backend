@@ -40,7 +40,6 @@ async def test_text_data():
         "title": {"en": "Test text", "bo": "བརྟག་དཔྱད་ཚིག་སྒྲུབ།"},
         "alt_titles": [{"en": "Alternative Title", "bo": "མཚན་བྱང་གཞན།"}],
         "language": "en",
-        "contributions": [],  # Will be populated with actual person IDs
         "date": "2024-01-01",
         "bdrc": "W123456",
         "wiki": "Q789012",
@@ -884,7 +883,7 @@ class TestPostTextV2:
         """Test POST with missing required fields"""
 
         # Missing title field
-        text_data = {"language": "en", "contributions": []}
+        text_data = {"language": "en"}
 
         response = await client.post("/v2/texts", json=text_data)
 
@@ -892,20 +891,43 @@ class TestPostTextV2:
         data = response.json()
         assert "detail" in data
 
+    async def test_create_text_without_contributions_succeeds(self, client, test_database):
+        """Test that a text can be created when the contributions field is omitted"""
+        category_id = 'category'  # Use pre-created category from conftest
+
+        text_data = {
+            "title": {"en": "Text Without Contributors"},
+            "language": "en",
+            "category_id": category_id,
+        }
+
+        response = await client.post("/v2/texts", json=text_data)
+
+        assert response.status_code == 201
+        data = response.json()
+        assert "id" in data
+
+        created_id = data["id"]
+        verify_response = await client.get(f"/v2/texts/{created_id}")
+        assert verify_response.status_code == 200
+        verify_data = verify_response.json()
+        assert verify_data["contributions"] == []
+
     async def test_create_root_text_with_both_relations_fails(self, client):
         """Test that text with both commentary_of and translation_of fails validation"""
         text_data = {
             "title": {"en": "Test"},
             "language": "en",
+            "category_id": "category",  # Use pre-created category from conftest
             "translation_of": "some_target_id",
             "commentary_of": "another_target_id",
-            "contributions": [],
             "license": "cc0",
         }
 
         response = await client.post("/v2/texts", json=text_data)
 
         assert response.status_code == 422
+        assert "Cannot be both a commentary and translation" in response.text
 
     async def test_create_translation_with_valid_root_target_success(self, client, test_database, test_person_data):
         """Test successfully creating a TRANSLATION with a valid root target"""

@@ -41,7 +41,7 @@ class TextBase(OpenPechaModel):
 
 
 class TextInput(TextBase):
-    contributions: list[ContributionInput | AIContribution]
+    contributions: list[ContributionInput | AIContribution] = Field(default_factory=list)
     tag_ids: list[NonEmptyStr] = Field(default_factory=list)
 
 
