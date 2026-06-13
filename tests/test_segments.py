@@ -1036,9 +1036,11 @@ class TestVerseSegments(SegmentTestBase):
             alignment_map=[(0, [0]), (1, [1])],
         )
 
-        resp = await client.get(f"/v2/editions/{src_edition_id}/segments/related?span_start=0&span_end=5")
+        src_seg_ids = await self._get_segment_ids_from_segmentation(client, src_edition_id)
+        assert len(src_seg_ids) >= 1
+        resp = await client.get(f"/v2/segments/{src_seg_ids[0]}/related")
         assert resp.status_code == 200
-        items = self._related_items(resp.json())
+        items = self._collect_all_segments(resp.json())
         verse_items = [i for i in items if i.get("verse_index") == [1, 1]]
         assert verse_items, f"expected a verse segment in related results: {items}"
         assert verse_items[0]["type"] == "verse"
