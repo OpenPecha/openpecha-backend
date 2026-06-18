@@ -93,7 +93,7 @@ GET /v2/texts
       },
       "language": "bo",
       "category_id": "CAT12345678",
-      "contributions": [{"person_id": "P12345678", "role": "author"}],
+      "contributions": [{"type": "person", "id": "P12345678", "role": "author"}],
       "license": "public",
       "commentaries": [],
       "translations": ["DEF87654321"],
@@ -183,7 +183,7 @@ GET /v2/texts/{text_id}
   "category_id": "CAT12345678",
   "contributions": [
     {
-      "person_id": "P12345678",
+      "type": "person", "id": "P12345678",
       "role": "author"
     }
   ],
@@ -208,7 +208,7 @@ GET /v2/texts/{text_id}
   "translation_of": "T12345678",
   "contributions": [
     {
-      "person_id": "P87654321",
+      "type": "person", "id": "P87654321",
       "role": "translator"
     }
   ],
@@ -256,7 +256,7 @@ POST /v2/texts
   "category_id": "CAT12345678",
   "contributions": [
     {
-      "person_id": "P12345678",
+      "type": "person", "id": "P12345678",
       "role": "author"
     }
   ],
@@ -303,7 +303,7 @@ POST /v2/texts
 
 - `title` must contain a localized title for the text language or its base language. For example, language `bo-x-ewts` can use a `bo` title.
 - A text cannot set both `translation_of` and `commentary_of`.
-- `contributions` must include either `person_id`, `person_bdrc_id`, or `ai_id` depending on contribution type.
+- `contributions` must include either `type` with `id` or `bdrc_id` depending on contribution type.
 - Extra fields are rejected.
 
 
@@ -315,7 +315,7 @@ Each contribution must specify a role and either a person or AI identifier:
 
 ```json
 {
-  "person_id": "P12345678",
+  "type": "person", "id": "P12345678",
   "role": "author"
 }
 ```
@@ -324,7 +324,7 @@ or
 
 ```json
 {
-  "person_bdrc_id": "P87654321",
+  "type": "person", "bdrc_id": "P87654321",
   "role": "translator"
 }
 ```
@@ -333,7 +333,7 @@ or
 
 ```json
 {
-  "ai_id": "gpt-4",
+  "type": "ai", "id": "gpt-4",
   "role": "translator"
 }
 ```
@@ -361,7 +361,7 @@ To create a translation, include the `translation_of` field with the source text
   "translation_of": "ABC12345678",
   "contributions": [
     {
-      "person_bdrc_id": "P87654321",
+      "type": "person", "bdrc_id": "P87654321",
       "role": "translator"
     }
   ],
@@ -383,7 +383,7 @@ To create a commentary, include the `commentary_of` field:
   "commentary_of": "ABC12345678",
   "contributions": [
     {
-      "person_id": "P12345678",
+      "type": "person", "id": "P12345678",
       "role": "author"
     }
   ]
@@ -404,7 +404,7 @@ For AI-generated translations:
   "translation_of": "ABC12345678",
   "contributions": [
     {
-      "ai_id": "gpt-4",
+      "type": "ai", "id": "gpt-4",
       "role": "translator"
     }
   ],
@@ -442,7 +442,7 @@ curl -X POST "https://api-l25bgmwqoa-uc.a.run.app/v2/texts" \
     "category_id": "CAT12345678",
     "contributions": [
       {
-        "person_id": "P12345678",
+        "type": "person", "id": "P12345678",
         "role": "author"
       }
     ],
@@ -463,7 +463,7 @@ curl -X POST "https://api-l25bgmwqoa-uc.a.run.app/v2/texts" \
     "translation_of": "T12345678",
     "contributions": [
       {
-        "person_bdrc_id": "P87654321",
+        "type": "person", "bdrc_id": "P87654321",
         "role": "translator"
       }
     ],
@@ -584,7 +584,7 @@ All fields are optional. Only include fields you want to update.
   "category_id": "CAT12345678",
   "contributions": [
     {
-      "person_id": "P12345678",
+      "type": "person", "id": "P12345678",
       "role": "author"
     }
   ],

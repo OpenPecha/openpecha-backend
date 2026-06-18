@@ -3,7 +3,7 @@ from typing import Self
 from pydantic import Field, model_validator
 
 from .base import LocalizedString, NonEmptyStr, OpenPechaModel, PatchModel, _dedupe
-from .contribution import AIContribution, ContributionInput, ContributionOutput
+from .contribution import ContributionInputItem, ContributionOutputItem
 from .enums import LicenseType
 
 
@@ -41,7 +41,7 @@ class TextBase(OpenPechaModel):
 
 
 class TextInput(TextBase):
-    contributions: list[ContributionInput | AIContribution]
+    contributions: list[ContributionInputItem]
     tag_ids: list[NonEmptyStr] = Field(default_factory=list)
 
 
@@ -65,7 +65,7 @@ class TextPatch(PatchModel):
 
 class TextOutput(TextBase):
     id: NonEmptyStr
-    contributions: list[ContributionOutput | AIContribution]
+    contributions: list[ContributionOutputItem]
     commentaries: list[str] = Field(default_factory=list)
     translations: list[str] = Field(default_factory=list)
     editions: list[str] = Field(default_factory=list)

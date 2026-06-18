@@ -3,7 +3,7 @@ import pytest
 
 from identifier import generate_id
 from models.base import LocalizedString
-from models.contribution import ContributionInput
+from models.contribution import PersonContributionInput
 from models.edition import EditionInput, EditionType
 from models.enums import ContributorRole
 from models.person import PersonInput
@@ -24,7 +24,7 @@ async def _create_test_text(db, person_id: str) -> str:
         category_id="category",
         title=LocalizedString({"en": "Table Of Contents Test Text", "bo": "ས་བཅད་ཚོད་ལྟ།"}),
         language="bo",
-        contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
+        contributions=[PersonContributionInput(type="person", id=person_id, role=ContributorRole.AUTHOR)],
     )
     return await db.text.create(text_data)
 
@@ -190,7 +190,7 @@ class TestTableOfContents:
                 "title": {"en": "Table Of Contents Patch Text"},
                 "language": "en",
                 "category_id": "category",
-                "contributions": [{"person_id": person_id, "role": "author"}],
+                "contributions": [{"type": "person", "id": person_id, "role": "author"}],
             },
         )
         assert text_response.status_code == 201, text_response.json()

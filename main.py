@@ -16,7 +16,6 @@ from routers.alignments import router as alignments_router
 from routers.annotation.bibliographic import router as bibliographic_router
 from routers.annotation.durchens import router as durchens_router
 from routers.annotation.paginations import router as paginations_router
-from routers.annotation.segmentations import router as segmentations_router
 from routers.annotation.table_of_contents import router as table_of_contents_router
 from routers.applications import router as applications_router
 from routers.categories import router as categories_router
@@ -146,7 +145,6 @@ def create_app(*, testing: bool = False) -> FastAPI:
     app.include_router(categories_router)
     app.include_router(tags_router)
     app.include_router(languages_router)
-    app.include_router(segmentations_router)
     app.include_router(alignments_router)
     app.include_router(paginations_router)
     app.include_router(table_of_contents_router)

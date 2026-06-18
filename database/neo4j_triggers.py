@@ -283,6 +283,51 @@ TRIGGERS.extend(
         "Text",
     )
 )
+TRIGGERS.append(
+    _rel_target_type_trigger(
+        "enforce_edition_has_segmentation_target",
+        "HAS_SEGMENTATION must point to a Segmentation node",
+        "HAS_SEGMENTATION",
+        "Segmentation",
+    )
+)
+TRIGGERS.append(
+    {
+        "name": "enforce_edition_has_segmentation_max_one",
+        "description": "Edition must have at most one HAS_SEGMENTATION relationship",
+        "phase": "before",
+        "query": """
+        CALL () {
+            UNWIND $createdNodes AS n
+            WITH n WHERE n:Edition
+            RETURN n AS node
+          UNION ALL
+            UNWIND $createdRelationships AS rel
+            WITH rel WHERE type(rel) = 'HAS_SEGMENTATION'
+            WITH startNode(rel) AS n
+            WHERE n:Edition
+            RETURN n AS node
+        }
+        WITH DISTINCT node
+        WITH node, count { (node)-[:HAS_SEGMENTATION]->(:Segmentation) } AS cnt
+        WHERE cnt > 1
+        WITH collect(node.id) AS ids
+        WHERE size(ids) > 0
+        CALL apoc.util.validate(
+            true,
+            'enforce_edition_has_segmentation_max_one: Edition must have at most one segmentation. IDs: %s',
+            [apoc.text.join(ids, ', ')]
+        )
+        RETURN null
+        """,
+        "audit": """
+        MATCH (e:Edition)
+        WITH e, count { (e)-[:HAS_SEGMENTATION]->(:Segmentation) } AS cnt
+        WHERE cnt > 1
+        RETURN e.id AS violating_id
+        """,
+    }
+)
 
 # --- Diplomatic Edition must have exactly one Pagination ------------------
 TRIGGERS.append(
@@ -325,19 +370,6 @@ TRIGGERS.append(
 )
 
 # =========================================================================
-# Segmentation
-# =========================================================================
-TRIGGERS.extend(
-    _required_rel_trigger(
-        "enforce_segmentation_segmentation_of",
-        "Every Segmentation must have SEGMENTATION_OF->Edition",
-        "Segmentation",
-        "SEGMENTATION_OF",
-        "Edition",
-    )
-)
-
-# =========================================================================
 # Segment
 # =========================================================================
 TRIGGERS.extend(
@@ -348,6 +380,45 @@ TRIGGERS.extend(
         "SEGMENT_OF",
         "Segmentation",
     )
+)
+TRIGGERS.append(
+    {
+        "name": "enforce_segment_reference_unique_per_segmentation",
+        "description": "Non-null Segment.reference values must be unique within a segmentation",
+        "phase": "before",
+        "query": """
+        CALL () {
+            UNWIND $createdNodes AS node
+            WITH node WHERE node:Segment
+            RETURN node
+          UNION ALL
+            UNWIND $createdRelationships AS rel
+            WITH rel WHERE type(rel) = 'SEGMENT_OF'
+            WITH startNode(rel) AS node
+            WHERE node:Segment
+            RETURN node
+        }
+        WITH DISTINCT node
+        WHERE node.reference IS NOT NULL
+        MATCH (node)-[:SEGMENT_OF]->(segmentation:Segmentation)<-[:SEGMENT_OF]-(other:Segment)
+        WHERE other <> node AND other.reference = node.reference
+        WITH collect(DISTINCT node.reference) AS refs
+        WHERE size(refs) > 0
+        CALL apoc.util.validate(
+            true,
+            'enforce_segment_reference_unique_per_segmentation: Duplicate segment references: %s',
+            [apoc.text.join(refs, ', ')]
+        )
+        RETURN null
+        """,
+        "audit": """
+        MATCH (segmentation:Segmentation)<-[:SEGMENT_OF]-(segment:Segment)
+        WHERE segment.reference IS NOT NULL
+        WITH segmentation, segment.reference AS reference, count(segment) AS cnt
+        WHERE cnt > 1
+        RETURN segmentation.id + ':' + reference AS violating_id
+        """,
+    }
 )
 
 # =========================================================================

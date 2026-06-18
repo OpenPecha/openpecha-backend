@@ -34,7 +34,7 @@ async def _create_text(
         "title": {language: title or _unique("Text")},
         "language": language,
         "category_id": category_id,
-        "contributions": [{"person_id": person_id, "role": "author"}],
+        "contributions": [{"type": "person", "id": person_id, "role": "author"}],
         "tag_ids": tag_ids or [],
     }
     if translation_of is not None:
@@ -77,15 +77,23 @@ async def _create_diplomatic_edition(client, text_id: str, *, source: str = "Del
 
 
 async def _create_segmentation(client, edition_id: str, spans: list[tuple[int, int]]) -> list[str]:
+    references = [f"{index + 1}" for index in range(len(spans))]
     response = await client.post(
-        f"/v2/editions/{edition_id}/segmentations",
-        json={"segments": [{"lines": [{"start": start, "end": end}]} for start, end in spans]},
+        f"/v2/editions/{edition_id}/segmentation",
+        json={
+            "segments": [
+                {
+                    "reference": references[index],
+                    "lines": [{"start": start, "end": end}],
+                }
+                for index, (start, end) in enumerate(spans)
+            ]
+        },
     )
     assert response.status_code == 201, response.json()
-    segmentation_id = response.json()["id"]
-    response = await client.get(f"/v2/segmentations/{segmentation_id}/segments")
+    response = await client.get(f"/v2/editions/{edition_id}/segmentation/segments")
     assert response.status_code == 200, response.json()
-    return [segment["id"] for segment in response.json()["items"]]
+    return [segment["reference"] for segment in response.json()["items"]]
 
 
 async def _scalar(test_database, query: str, **params):
@@ -433,13 +441,13 @@ class TestExistingDeleteCascades:
         target_text_id = await _create_text(client, person_id, title=_unique("Target Text"))
         source_edition_id = await _create_diplomatic_edition(client, source_text_id)
         target_edition_id = await _create_diplomatic_edition(client, target_text_id)
-        source_segment_ids = await _create_segmentation(client, source_edition_id, [(0, 5)])
-        target_segment_ids = await _create_segmentation(client, target_edition_id, [(0, 5)])
+        source_segment_refs = await _create_segmentation(client, source_edition_id, [(0, 5)])
+        target_segment_refs = await _create_segmentation(client, target_edition_id, [(0, 5)])
         alignment_response = await client.put(
-            f"/v2/texts/{source_text_id}/alignments/{target_text_id}",
+            f"/v2/editions/{source_edition_id}/alignments/{target_edition_id}",
             json={"alignments": [{
-                "source_segment_id": source_segment_ids[0],
-                "target_segment_id": target_segment_ids[0],
+                "source_segment_reference": source_segment_refs[0],
+                "target_segment_reference": target_segment_refs[0],
             }]},
         )
         assert alignment_response.status_code == 204
@@ -454,7 +462,7 @@ class TestExistingDeleteCascades:
                 test_database,
                 """
                 RETURN count {
-                    (:Edition {id: $source_edition_id})<-[:SEGMENTATION_OF]-(:Segmentation)
+                    (:Edition {id: $source_edition_id})-[:HAS_SEGMENTATION]->(:Segmentation)
                     <-[:SEGMENT_OF]-(:Segment)-[:ALIGNED_TO]->(:Segment)
                 }
                 """,

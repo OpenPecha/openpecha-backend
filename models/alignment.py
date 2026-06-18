@@ -7,27 +7,28 @@ from .base import NonEmptyStr, OpenPechaModel
 
 
 class SegmentAlignmentPairInput(OpenPechaModel):
-    source_segment_id: NonEmptyStr
-    target_segment_id: NonEmptyStr
-
-    @model_validator(mode="after")
-    def validate_not_self_aligned(self) -> Self:
-        if self.source_segment_id == self.target_segment_id:
-            raise ValueError("source_segment_id and target_segment_id must be different")
-        return self
+    source_segment_reference: NonEmptyStr
+    target_segment_reference: NonEmptyStr
 
 
-class TextAlignmentInput(OpenPechaModel):
+class EditionAlignmentInput(OpenPechaModel):
     alignments: list[SegmentAlignmentPairInput] = Field(min_length=1)
 
     @model_validator(mode="after")
     def validate_unique_pairs(self) -> Self:
-        pairs = [(item.source_segment_id, item.target_segment_id) for item in self.alignments]
+        pairs = [(item.source_segment_reference, item.target_segment_reference) for item in self.alignments]
         if len(pairs) != len(set(pairs)):
             raise ValueError("alignments must not contain duplicate source-target pairs")
         return self
 
 
-class TextAlignmentPairOutput(OpenPechaModel):
+class EditionAlignmentPairOutput(OpenPechaModel):
     source_segment: SegmentWithContextOutput
     target_segment: SegmentWithContextOutput
+
+
+class EditionAlignmentOutput(OpenPechaModel):
+    aligned_edition_id: NonEmptyStr
+    aligned_text_id: NonEmptyStr
+    target_edition_id: NonEmptyStr
+    target_text_id: NonEmptyStr

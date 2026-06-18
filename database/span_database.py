@@ -104,7 +104,7 @@ class SpanDatabase:
     FIND_CONTINUOUS_SPANS_QUERY: LiteralString = """
     CALL {
         MATCH (m:Edition {id: $edition_id})
-            <-[:SEGMENTATION_OF]-()
+            -[:HAS_SEGMENTATION]->()
             <-[:SEGMENT_OF]-(entity:Segment)
             <-[:SPAN_OF]-(span:Span)
         RETURN entity.id AS entity_id, span.start AS span_start, span.end AS span_end

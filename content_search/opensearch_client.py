@@ -18,6 +18,8 @@ class ContentSearchOpenSearchClient:
         auth_mode: str,
         username: str,
         password: str,
+        request_timeout: int = 120,
+        max_retries: int = 3,
     ) -> None:
         self.endpoint = endpoint.rstrip("/")
         self.index_name = index_name
@@ -25,6 +27,8 @@ class ContentSearchOpenSearchClient:
         self.auth_mode = auth_mode
         self.username = username
         self.password = password
+        self.request_timeout = request_timeout
+        self.max_retries = max_retries
         self._client: AsyncOpenSearch | None = None
 
     async def connect(self) -> None:
@@ -42,8 +46,8 @@ class ContentSearchOpenSearchClient:
             verify_certs=True,
             connection_class=AIOHttpConnection,
             http_auth=http_auth,
-            timeout=120,
-            max_retries=3,
+            timeout=self.request_timeout,
+            max_retries=self.max_retries,
             retry_on_timeout=True,
         )
 

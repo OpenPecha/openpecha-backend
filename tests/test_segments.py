@@ -15,7 +15,7 @@ import logging
 import pytest
 from identifier import generate_id
 from models.base import LocalizedString
-from models.contribution import ContributionInput
+from models.contribution import PersonContributionInput
 from models.edition import EditionInput, EditionType
 from models.enums import ContributorRole
 from models.person import PersonInput
@@ -44,7 +44,7 @@ class SegmentTestBase:
             category_id="category",
             title=title,
             language=language,
-            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
+            contributions=[PersonContributionInput(type="person", id=person_id, role=ContributorRole.AUTHOR)],
             **kwargs,
         )
         return await db.text.create(text_data)
@@ -73,8 +73,16 @@ class SegmentTestBase:
         return response.json()["id"]
 
     async def _post_segmentation(self, client, edition_id, segments):
-        data = {"segments": [{"lines": [{"start": s[0], "end": s[1]}]} for s in segments]}
-        resp = await client.post(f"/v2/editions/{edition_id}/segmentations", json=data)
+        data = {
+            "segments": [
+                {
+                    "reference": f"{index + 1}",
+                    "lines": [{"start": s[0], "end": s[1]}],
+                }
+                for index, s in enumerate(segments)
+            ]
+        }
+        resp = await client.post(f"/v2/editions/{edition_id}/segmentation", json=data)
         assert resp.status_code == 201, f"Failed to create segmentation: {resp.json()}"
         return resp.json()["id"]
 
@@ -86,34 +94,31 @@ class SegmentTestBase:
             target_segments: unused; kept to make existing tests read naturally
             alignment_map: list of (source_idx, [target_indices]) pairs
         """
-        source_edition = (await client.get(f"/v2/editions/{source_edition_id}")).json()
-        target_edition = (await client.get(f"/v2/editions/{target_edition_id}")).json()
-        source_segment_ids = await self._get_segment_ids_from_segmentation(client, source_edition_id)
-        target_segment_ids = await self._get_segment_ids_from_segmentation(client, target_edition_id)
+        source_segment_references = await self._get_segment_references_from_segmentation(client, source_edition_id)
+        target_segment_references = await self._get_segment_references_from_segmentation(client, target_edition_id)
         alignments = []
         for src_idx, target_indices in alignment_map:
             for target_idx in target_indices:
                 alignments.append({
-                    "source_segment_id": source_segment_ids[src_idx],
-                    "target_segment_id": target_segment_ids[target_idx],
+                    "source_segment_reference": source_segment_references[src_idx],
+                    "target_segment_reference": target_segment_references[target_idx],
                 })
 
         resp = await client.put(
-            f"/v2/texts/{source_edition['text_id']}/alignments/{target_edition['text_id']}",
+            f"/v2/editions/{source_edition_id}/alignments/{target_edition_id}",
             json={"alignments": alignments},
         )
         assert resp.status_code == 204, f"Failed to create alignment: {resp.json()}"
 
-    async def _get_segment_ids_from_segmentation(self, client, edition_id, segmentation_index=0):
-        resp = await client.get(f"/v2/editions/{edition_id}/segmentations")
+    async def _get_segment_references_from_segmentation(self, client, edition_id):
+        resp = await client.get(f"/v2/editions/{edition_id}/segmentation/segments")
         assert resp.status_code == 200
-        segmentations = resp.json()
-        if not segmentations:
-            return []
-        selected_segmentation_id = segmentations[segmentation_index]["id"]
-        segments_resp = await client.get(f"/v2/segmentations/{selected_segmentation_id}/segments")
-        assert segments_resp.status_code == 200
-        return [seg["id"] for seg in segments_resp.json()["items"]]
+        return [seg["reference"] for seg in resp.json()["items"]]
+
+    async def _get_segment_ids_from_segmentation(self, client, edition_id):
+        resp = await client.get(f"/v2/editions/{edition_id}/segmentation/segments")
+        assert resp.status_code == 200
+        return [seg["id"] for seg in resp.json()["items"]]
 
     async def _create_translation_text(self, db, person_id, original_text_id, language="en"):
         return await self._create_text(
@@ -213,8 +218,8 @@ class TestSegmentAnnotationLabels(SegmentTestBase):
             assert set(record["ids"]) == {src_sgn_id, tgt_sgn_id}
             assert record["alignment_count"] == 1
 
-    async def test_get_segmentations_returns_plain_segmentations(self, client, test_database):
-        """GET /editions/{id}/segmentations should return user-created segmentations."""
+    async def test_get_segmentation_returns_plain_segmentation(self, client, test_database):
+        """GET /editions/{id}/segmentation should return the user-created segmentation."""
         person_id = await self._create_person(test_database)
         src_text_id = await self._create_text(test_database, person_id, title=LocalizedString({"en": "Src", "bo": "འབྱུང།"}))
         src_edition_id = await self._create_edition(client, src_text_id, "0123456789")
@@ -231,10 +236,10 @@ class TestSegmentAnnotationLabels(SegmentTestBase):
             alignment_map=[(0, [0])],
         )
 
-        resp = await client.get(f"/v2/editions/{src_edition_id}/segmentations")
+        resp = await client.get(f"/v2/editions/{src_edition_id}/segmentation")
         assert resp.status_code == 200
         data = resp.json()
-        assert {segmentation["id"] for segmentation in data} == {sgn_id}
+        assert data["id"] == sgn_id
 
 
 # ---------------------------------------------------------------------------
@@ -482,6 +487,7 @@ class TestGetSegment(SegmentTestBase):
         assert resp.status_code == 200
         assert resp.json() == {
             "id": seg_ids[0],
+            "reference": "1",
             "segmentation_id": segmentation_id,
             "edition_id": edition_id,
             "text_id": text_id,
@@ -607,7 +613,7 @@ class TestSegmentContent(SegmentTestBase):
             alignment_map=[(0, [0, 1])],
         )
 
-        alignments_resp = await client.get(f"/v2/texts/{src_text_id}/alignments/{tgt_text_id}")
+        alignments_resp = await client.get(f"/v2/editions/{src_edition_id}/alignments/{tgt_edition_id}")
         assert alignments_resp.status_code == 200
         alignment_data = alignments_resp.json()["items"]
         assert len(alignment_data) >= 1
@@ -782,7 +788,7 @@ class TestSegmentsRelatedEdgeCases(SegmentTestBase):
             await session.run("""
                 CREATE (text:Text {id: $text_id})
                 CREATE (ed:Edition {id: $ed_id})-[:EDITION_OF]->(text)
-                CREATE (sgn:Segmentation {id: $sgn_id})-[:SEGMENTATION_OF]->(ed)
+                CREATE (ed)-[:HAS_SEGMENTATION]->(sgn:Segmentation {id: $sgn_id})
                 CREATE (seg:Segment {id: $seg_id})-[:SEGMENT_OF]->(sgn)
                 CREATE (span:Span {start: 5, end: 5})-[:SPAN_OF]->(seg)
             """, text_id=f"t_{seg_id}", ed_id=f"e_{seg_id}", sgn_id=f"sgn_{seg_id}", seg_id=seg_id)

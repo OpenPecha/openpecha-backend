@@ -4,12 +4,11 @@ from database.database_validator import DatabaseValidator
 from exceptions import DataNotFoundError
 
 if TYPE_CHECKING:
-    from neo4j import AsyncManagedTransaction, Record
+    from neo4j import AsyncManagedTransaction
 
     from database.database import Database
 from identifier import generate_id
-from models.annotation import BibliographicMetadataInput, BibliographicMetadataOutput, Span
-from models.enums import BibliographyType
+from models.annotation import BibliographicMetadataInput, BibliographicMetadataOutput
 
 
 class BibliographicDatabase:
@@ -22,8 +21,7 @@ class BibliographicDatabase:
            edition.id AS edition_id,
            text.id AS text_id,
            bt.name AS type,
-           span.start AS span_start,
-           span.end AS span_end
+           {start: span.start, end: span.end} AS span
     ORDER BY span.start
     """
 
@@ -37,8 +35,7 @@ class BibliographicDatabase:
            edition.id AS edition_id,
            text.id AS text_id,
            bt.name AS type,
-           span.start AS span_start,
-           span.end AS span_end
+           {start: span.start, end: span.end} AS span
     ORDER BY span.start
     """
 
@@ -67,16 +64,6 @@ class BibliographicDatabase:
     def __init__(self, db: Database) -> None:
         self._db = db
 
-    @staticmethod
-    def _parse_record(record: dict | Record) -> BibliographicMetadataOutput:
-        return BibliographicMetadataOutput(
-            id=record["id"],
-            edition_id=record["edition_id"],
-            text_id=record["text_id"],
-            span=Span(start=record["span_start"], end=record["span_end"]),
-            type=BibliographyType(record["type"]),
-        )
-
     async def get(self, bibliographic_id: str) -> BibliographicMetadataOutput:
         async def read(tx: AsyncManagedTransaction) -> BibliographicMetadataOutput:
             result = await tx.run(
@@ -86,7 +73,7 @@ class BibliographicDatabase:
             record = await result.single()
             if record is None:
                 raise DataNotFoundError(f"Bibliographic metadata with ID '{bibliographic_id}' not found")
-            return self._parse_record(record)
+            return BibliographicMetadataOutput.model_validate(record)
 
         async with self._db.get_session() as session:
             return await session.execute_read(read)
@@ -94,7 +81,7 @@ class BibliographicDatabase:
     async def get_all(self, edition_id: str) -> list[BibliographicMetadataOutput]:
         async def read(tx: AsyncManagedTransaction) -> list[BibliographicMetadataOutput]:
             result = await tx.run(BibliographicDatabase.GET_BY_EDITION_ID_QUERY, edition_id=edition_id)
-            return [self._parse_record(record) for record in await result.data()]
+            return [BibliographicMetadataOutput.model_validate(record) for record in await result.data()]
 
         async with self._db.get_session() as session:
             return await session.execute_read(read)

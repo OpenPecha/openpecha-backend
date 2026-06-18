@@ -231,28 +231,26 @@ Important validation rules:
 ## Edition Annotation Collections
 
 Annotations can be listed and created by type under an edition. Creation returns `{ "id": "..." }`.
-Segmentation and alignment collection `GET` endpoints return parent annotation resources. Large segment collections are paginated from the annotation-specific `/segments` endpoints.
+Each edition has at most one segmentation. Large segment collections are paginated from the edition segmentation `/segments` endpoint.
 
 ### Segmentations
 
 ```http
-GET /v2/editions/{edition_id}/segmentations
-POST /v2/editions/{edition_id}/segmentations
+GET /v2/editions/{edition_id}/segmentation
+POST /v2/editions/{edition_id}/segmentation
 ```
 
 GET response:
 
 ```json
-[
-  {
-    "id": "SGN123",
-    "edition_id": "ED123",
-    "text_id": "TXT123"
-  }
-]
+{
+  "id": "SGN123",
+  "edition_id": "ED123",
+  "text_id": "TXT123"
+}
 ```
 
-Use `GET /v2/segmentations/{segmentation_id}/segments?limit=500&offset=0` to fetch paginated segment rows for a segmentation.
+Use `GET /v2/editions/{edition_id}/segmentation/segments?limit=500&offset=0` to fetch paginated segment rows.
 
 Request:
 
@@ -260,6 +258,7 @@ Request:
 {
   "segments": [
     {
+      "reference": "1.1",
       "lines": [
         {"start": 0, "end": 50}
       ]
@@ -271,12 +270,28 @@ Request:
 ### Alignments
 
 ```http
-PUT /v2/texts/{source_text_id}/alignments/{target_text_id}
-GET /v2/texts/{source_text_id}/alignments/{target_text_id}?limit=500&offset=0
-DELETE /v2/texts/{source_text_id}/alignments/{target_text_id}
+GET /v2/editions/{edition_id}/alignments
+PUT /v2/editions/{source_edition_id}/alignments/{target_edition_id}
+GET /v2/editions/{source_edition_id}/alignments/{target_edition_id}?limit=500&offset=0
+DELETE /v2/editions/{source_edition_id}/alignments/{target_edition_id}
 ```
 
-Alignments are no longer edition-scoped annotations. They are direct `ALIGNED_TO` relationships between existing source and target text segments.
+Alignments are no longer annotation resources. They are direct `ALIGNED_TO` relationships between existing source and target edition segments.
+
+`GET /v2/editions/{edition_id}/alignments` returns directional contexts that include the requested edition:
+
+```json
+[
+  {
+    "aligned_edition_id": "ED_SOURCE",
+    "aligned_text_id": "TXT_SOURCE",
+    "target_edition_id": "ED_TARGET",
+    "target_text_id": "TXT_TARGET"
+  }
+]
+```
+
+The client can infer whether the requested edition is on the source or target side by comparing `edition_id` to `aligned_edition_id` and `target_edition_id`.
 
 PUT request:
 
@@ -284,14 +299,14 @@ PUT request:
 {
   "alignments": [
     {
-      "source_segment_id": "SEG_SOURCE",
-      "target_segment_id": "SEG_TARGET"
+      "source_segment_reference": "1.1",
+      "target_segment_reference": "1.1"
     }
   ]
 }
 ```
 
-`PUT` returns `204 No Content`. `GET` returns paginated source/target `SegmentWithContextOutput` pairs.
+`PUT` validates all references before changing relationships and returns `204 No Content`. Edition-pair `GET` returns paginated source/target `SegmentWithContextOutput` pairs.
 
 ### Pagination
 

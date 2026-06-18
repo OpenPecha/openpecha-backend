@@ -3,11 +3,11 @@
 Integration tests for v2 annotation endpoints using real Neo4j test instance.
 
 Tests endpoints:
-- GET /v2/segmentations/{segmentation_id}
+- GET /v2/editions/{edition_id}/segmentation
 - GET /v2/paginations/{pagination_id}
 - GET /v2/durchens/{note_id}
 - GET /v2/bibliographic/{bibliographic_id}
-- DELETE /v2/segmentations/{segmentation_id}
+- DELETE /v2/editions/{edition_id}/segmentation
 - DELETE /v2/paginations/{pagination_id}
 - DELETE /v2/durchens/{note_id}
 - DELETE /v2/bibliographic/{bibliographic_id}
@@ -33,7 +33,7 @@ from models.annotation import (
     Volume,
 )
 from models.base import LocalizedString
-from models.contribution import ContributionInput
+from models.contribution import PersonContributionInput
 from models.edition import EditionInput, EditionType
 from models.enums import BibliographyType, ContributorRole
 from models.person import PersonInput
@@ -67,7 +67,7 @@ class TestAnnotationsEndpoints:
             category_id="category",
             title=title,
             language="bo",
-            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
+            contributions=[PersonContributionInput(type="person", id=person_id, role=ContributorRole.AUTHOR)],
         )
         return await db.text.create(text_data)
 
@@ -91,7 +91,7 @@ class TestAnnotationsEndpoints:
 
 
 class TestGetSegmentation(TestAnnotationsEndpoints):
-    """Tests for GET /v2/segmentations/{segmentation_id}"""
+    """Tests for GET /v2/editions/{edition_id}/segmentation"""
 
     async def test_get_segmentation_success(self, client, test_database, test_person_data):
         """Test successful segmentation retrieval"""
@@ -107,7 +107,7 @@ class TestGetSegmentation(TestAnnotationsEndpoints):
         )
         segmentation_id = await test_database.annotation.segmentation.add(edition_id, segmentation)
 
-        response = await client.get(f"/v2/segmentations/{segmentation_id}")
+        response = await client.get(f"/v2/editions/{edition_id}/segmentation")
 
         assert response.status_code == 200
         body = response.json()
@@ -115,7 +115,7 @@ class TestGetSegmentation(TestAnnotationsEndpoints):
         assert body["edition_id"] == edition_id
         assert body["text_id"] == text_id
 
-        segments_response = await client.get(f"/v2/segmentations/{segmentation_id}/segments")
+        segments_response = await client.get(f"/v2/editions/{edition_id}/segmentation/segments")
         assert segments_response.status_code == 200
         data = segments_response.json()["items"]
         assert len(data) == 2
@@ -125,7 +125,7 @@ class TestGetSegmentation(TestAnnotationsEndpoints):
 
     async def test_get_segmentation_not_found(self, client, test_database):
         """Test segmentation retrieval with non-existent ID"""
-        response = await client.get("/v2/segmentations/nonexistent_id")
+        response = await client.get("/v2/editions/nonexistent_id/segmentation")
 
         assert response.status_code == 404
         assert "error" in response.json()
@@ -142,9 +142,9 @@ class TestGetSegmentation(TestAnnotationsEndpoints):
                 SegmentInput(lines=[Span(start=8, end=16)]),
             ]
         )
-        segmentation_id = await test_database.annotation.segmentation.add(edition_id, segmentation)
+        await test_database.annotation.segmentation.add(edition_id, segmentation)
 
-        response = await client.get(f"/v2/segmentations/{segmentation_id}/segments")
+        response = await client.get(f"/v2/editions/{edition_id}/segmentation/segments")
 
         assert response.status_code == 200
         data = response.json()["items"]
@@ -163,9 +163,9 @@ class TestGetSegmentation(TestAnnotationsEndpoints):
                 SegmentInput(lines=[Span(start=5, end=10)]),
             ]
         )
-        segmentation_id = await test_database.annotation.segmentation.add(edition_id, segmentation)
+        await test_database.annotation.segmentation.add(edition_id, segmentation)
 
-        first_page = await client.get(f"/v2/segmentations/{segmentation_id}/segments?limit=1")
+        first_page = await client.get(f"/v2/editions/{edition_id}/segmentation/segments?limit=1")
         assert first_page.status_code == 200
         first_body = first_page.json()
         assert len(first_body["items"]) == 1
@@ -173,7 +173,7 @@ class TestGetSegmentation(TestAnnotationsEndpoints):
         assert first_body["offset"] == 0
         assert first_body["limit"] == 1
 
-        second_page = await client.get(f"/v2/segmentations/{segmentation_id}/segments?limit=1&offset=1")
+        second_page = await client.get(f"/v2/editions/{edition_id}/segmentation/segments?limit=1&offset=1")
         assert second_page.status_code == 200
         second_body = second_page.json()
         assert len(second_body["items"]) == 1
@@ -191,25 +191,25 @@ class TestDeleteSegmentation(TestAnnotationsEndpoints):
         edition_id = await self._create_test_edition(test_database, text_id, "0123456789")
 
         segmentation = SegmentationInput(
-            segments=[SegmentInput(lines=[Span(start=0, end=10)])]
+            segments=[SegmentInput(reference="source-1", lines=[Span(start=0, end=10)])]
         )
         segmentation_id = await test_database.annotation.segmentation.add(edition_id, segmentation)
 
-        get_response = await client.get(f"/v2/segmentations/{segmentation_id}")
+        get_response = await client.get(f"/v2/editions/{edition_id}/segmentation")
         assert get_response.status_code == 200
 
-        response = await client.delete(f"/v2/segmentations/{segmentation_id}")
+        response = await client.delete(f"/v2/editions/{edition_id}/segmentation")
 
         assert response.status_code == 204
 
-        verify_response = await client.get(f"/v2/segmentations/{segmentation_id}")
+        verify_response = await client.get(f"/v2/editions/{edition_id}/segmentation")
         assert verify_response.status_code == 404
 
     async def test_delete_segmentation_not_found(self, client, test_database):
         """Test deleting non-existent segmentation (should succeed silently)"""
-        response = await client.delete("/v2/segmentations/nonexistent_id")
+        response = await client.delete("/v2/editions/nonexistent_id/segmentation")
 
-        assert response.status_code == 204
+        assert response.status_code == 404
 
     async def test_delete_segmentation_idempotent(self, client, test_database, test_person_data):
         """Test that deleting the same segmentation twice is idempotent"""
@@ -220,12 +220,12 @@ class TestDeleteSegmentation(TestAnnotationsEndpoints):
         segmentation = SegmentationInput(
             segments=[SegmentInput(lines=[Span(start=0, end=10)])]
         )
-        segmentation_id = await test_database.annotation.segmentation.add(edition_id, segmentation)
+        await test_database.annotation.segmentation.add(edition_id, segmentation)
 
-        first_delete = await client.delete(f"/v2/segmentations/{segmentation_id}")
+        first_delete = await client.delete(f"/v2/editions/{edition_id}/segmentation")
         assert first_delete.status_code == 204
 
-        second_delete = await client.delete(f"/v2/segmentations/{segmentation_id}")
+        second_delete = await client.delete(f"/v2/editions/{edition_id}/segmentation")
         assert second_delete.status_code == 204
 
     async def test_delete_segmentation_removes_alignment_relationships(self, client, test_database, test_person_data):
@@ -244,34 +244,34 @@ class TestDeleteSegmentation(TestAnnotationsEndpoints):
             test_database, target_text_id, "Target text"
         )
 
-        source_segmentation_id = await test_database.annotation.segmentation.add(
+        await test_database.annotation.segmentation.add(
             source_edition_id,
-            SegmentationInput(segments=[SegmentInput(lines=[Span(start=0, end=11)])]),
+            SegmentationInput(segments=[SegmentInput(reference="source-1", lines=[Span(start=0, end=11)])]),
         )
-        target_segmentation_id = await test_database.annotation.segmentation.add(
+        await test_database.annotation.segmentation.add(
             target_edition_id,
-            SegmentationInput(segments=[SegmentInput(lines=[Span(start=0, end=11)])]),
+            SegmentationInput(segments=[SegmentInput(reference="target-1", lines=[Span(start=0, end=11)])]),
         )
-        source_segment = (await test_database.annotation.segmentation.get_segments(
-            source_segmentation_id, offset=0, limit=1
-        ))[0]
-        target_segment = (await test_database.annotation.segmentation.get_segments(
-            target_segmentation_id, offset=0, limit=1
-        ))[0]
+        source_segment = (
+            await test_database.annotation.segmentation.get_segments_by_edition(source_edition_id, offset=0, limit=1)
+        )[0]
+        target_segment = (
+            await test_database.annotation.segmentation.get_segments_by_edition(target_edition_id, offset=0, limit=1)
+        )[0]
 
         response = await client.put(
-            f"/v2/texts/{source_text_id}/alignments/{target_text_id}",
+            f"/v2/editions/{source_edition_id}/alignments/{target_edition_id}",
             json={"alignments": [{
-                "source_segment_id": source_segment.id,
-                "target_segment_id": target_segment.id,
+                "source_segment_reference": source_segment.reference,
+                "target_segment_reference": target_segment.reference,
             }]},
         )
         assert response.status_code == 204
 
-        response = await client.delete(f"/v2/segmentations/{source_segmentation_id}")
+        response = await client.delete(f"/v2/editions/{source_edition_id}/segmentation")
         assert response.status_code == 204
 
-        response = await client.get(f"/v2/texts/{source_text_id}/alignments/{target_text_id}")
+        response = await client.get(f"/v2/editions/{source_edition_id}/alignments/{target_edition_id}")
         assert response.status_code == 200
         assert response.json()["items"] == []
 
@@ -622,9 +622,9 @@ class TestDeleteEditionWithAnnotations(TestAnnotationsEndpoints):
         )
 
         segmentation = SegmentationInput(
-            segments=[SegmentInput(lines=[Span(start=0, end=10)])]
+            segments=[SegmentInput(reference="source-1", lines=[Span(start=0, end=10)])]
         )
-        segmentation_id = await test_database.annotation.segmentation.add(source_edition_id, segmentation)
+        await test_database.annotation.segmentation.add(source_edition_id, segmentation)
 
         pagination = PaginationInput(
             volumes=[Volume(pages=[Page(reference="1a", lines=[Span(start=0, end=10)])])]
@@ -637,40 +637,45 @@ class TestDeleteEditionWithAnnotations(TestAnnotationsEndpoints):
         note_item = NoteInput(span=Span(start=5, end=10), text="Test note")
         note_id = await test_database.annotation.note.add_durchen(source_edition_id, note_item)
 
-        target_segmentation_id = await test_database.annotation.segmentation.add(
+        await test_database.annotation.segmentation.add(
             target_edition_id,
-            SegmentationInput(segments=[SegmentInput(lines=[Span(start=0, end=10)])]),
+            SegmentationInput(segments=[SegmentInput(reference="target-1", lines=[Span(start=0, end=10)])]),
         )
-        source_segment = (await test_database.annotation.segmentation.get_segments(segmentation_id, offset=0, limit=1))[0]
-        target_segment = (await test_database.annotation.segmentation.get_segments(
-            target_segmentation_id, offset=0, limit=1
-        ))[0]
+        source_segment = (
+            await test_database.annotation.segmentation.get_segments_by_edition(source_edition_id, offset=0, limit=1)
+        )[0]
+        target_segment = (
+            await test_database.annotation.segmentation.get_segments_by_edition(target_edition_id, offset=0, limit=1)
+        )[0]
         alignment_response = await client.put(
-            f"/v2/texts/{text_id}/alignments/{text_id}",
+            f"/v2/editions/{source_edition_id}/alignments/{target_edition_id}",
             json={"alignments": [{
-                "source_segment_id": source_segment.id,
-                "target_segment_id": target_segment.id,
+                "source_segment_reference": source_segment.reference,
+                "target_segment_reference": target_segment.reference,
             }]},
         )
         assert alignment_response.status_code == 204
 
-        assert (await client.get(f"/v2/segmentations/{segmentation_id}")).status_code == 200
+        assert (await client.get(f"/v2/editions/{source_edition_id}/segmentation")).status_code == 200
         assert (await client.get(f"/v2/paginations/{pagination_id}")).status_code == 200
         assert (await client.get(f"/v2/bibliographic/{bibliographic_id}")).status_code == 200
         assert (await client.get(f"/v2/durchens/{note_id}")).status_code == 200
-        alignment_get_response = await client.get(f"/v2/texts/{text_id}/alignments/{text_id}")
+        alignment_get_response = await client.get(
+            f"/v2/editions/{source_edition_id}/alignments/{target_edition_id}"
+        )
         assert alignment_get_response.status_code == 200
         assert len(alignment_get_response.json()["items"]) == 1
 
         await test_database.edition.delete(source_edition_id)
 
-        assert (await client.get(f"/v2/segmentations/{segmentation_id}")).status_code == 404
+        assert (await client.get(f"/v2/editions/{source_edition_id}/segmentation")).status_code == 404
         assert (await client.get(f"/v2/paginations/{pagination_id}")).status_code == 404
         assert (await client.get(f"/v2/bibliographic/{bibliographic_id}")).status_code == 404
         assert (await client.get(f"/v2/durchens/{note_id}")).status_code == 404
-        alignment_get_response = await client.get(f"/v2/texts/{text_id}/alignments/{text_id}")
-        assert alignment_get_response.status_code == 200
-        assert alignment_get_response.json()["items"] == []
+        alignment_get_response = await client.get(
+            f"/v2/editions/{source_edition_id}/alignments/{target_edition_id}"
+        )
+        assert alignment_get_response.status_code == 404
 
 
 class TestAnnotationEdgeCases(TestAnnotationsEndpoints):
@@ -678,14 +683,14 @@ class TestAnnotationEdgeCases(TestAnnotationsEndpoints):
 
     async def test_special_characters_in_id(self, client, test_database):
         """Test handling of special characters in annotation IDs"""
-        response = await client.get("/v2/segmentations/id-with-special%20chars")
+        response = await client.get("/v2/editions/id-with-special%20chars/segmentation")
 
         assert response.status_code == 404
 
     async def test_very_long_id(self, client, test_database):
         """Test handling of very long annotation IDs"""
         long_id = "a" * 1000
-        response = await client.get(f"/v2/segmentations/{long_id}")
+        response = await client.get(f"/v2/editions/{long_id}/segmentation")
 
         assert response.status_code == 404
 
@@ -707,19 +712,19 @@ class TestAnnotationRoundTrip(TestAnnotationsEndpoints):
         )
         segmentation_id = await test_database.annotation.segmentation.add(edition_id, segmentation)
 
-        get_response = await client.get(f"/v2/segmentations/{segmentation_id}")
+        get_response = await client.get(f"/v2/editions/{edition_id}/segmentation")
         assert get_response.status_code == 200
         assert get_response.json()["id"] == segmentation_id
 
-        segments_response = await client.get(f"/v2/segmentations/{segmentation_id}/segments")
+        segments_response = await client.get(f"/v2/editions/{edition_id}/segmentation/segments")
         assert segments_response.status_code == 200
         data = segments_response.json()["items"]
         assert len(data) == 2
 
-        delete_response = await client.delete(f"/v2/segmentations/{segmentation_id}")
+        delete_response = await client.delete(f"/v2/editions/{edition_id}/segmentation")
         assert delete_response.status_code == 204
 
-        verify_response = await client.get(f"/v2/segmentations/{segmentation_id}")
+        verify_response = await client.get(f"/v2/editions/{edition_id}/segmentation")
         assert verify_response.status_code == 404
 
     async def test_pagination_round_trip(self, client, test_database, test_person_data):

@@ -145,7 +145,7 @@ Texts can also be created or replaced with tag IDs:
   "title": {"bo": "ཆོས་ཀྱི་གཞུང་།"},
   "language": "bo",
   "category_id": "category",
-  "contributions": [{"person_id": "PERSON123", "role": "author"}],
+  "contributions": [{"type": "person", "id": "PERSON123", "role": "author"}],
   "tag_ids": ["TAG123"]
 }
 ```

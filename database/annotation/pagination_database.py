@@ -3,11 +3,11 @@ from typing import TYPE_CHECKING, LiteralString
 from exceptions import DataConflictError, DataNotFoundError
 
 if TYPE_CHECKING:
-    from neo4j import AsyncManagedTransaction, Record
+    from neo4j import AsyncManagedTransaction
 
     from database.database import Database
 from identifier import generate_id
-from models.annotation import Page, PaginationInput, PaginationOutput, Span, Volume
+from models.annotation import PaginationInput, PaginationOutput
 
 
 class PaginationDatabase:
@@ -17,7 +17,7 @@ class PaginationDatabase:
     WITH pagination, edition, text, volume, page, collect({start: span.start, end: span.end}) AS lines
     WITH pagination, edition, text, volume, collect({reference: page.reference, lines: lines}) AS pages
     WITH pagination, edition, text, collect({index: volume.index, pages: pages}) AS volumes
-    RETURN pagination.id AS pagination_id, edition.id AS edition_id, text.id AS text_id, volumes
+    RETURN pagination.id AS id, edition.id AS edition_id, text.id AS text_id, volumes
     """
 
     GET_BY_ID_QUERY: LiteralString = f"""
@@ -72,32 +72,13 @@ class PaginationDatabase:
     def __init__(self, db: Database) -> None:
         self._db = db
 
-    @staticmethod
-    def _parse_record(record: dict | Record) -> PaginationOutput:
-        volumes = []
-        for volume_data in record["volumes"]:
-            pages = [
-                Page(
-                    reference=page_data["reference"],
-                    lines=[Span(start=line["start"], end=line["end"]) for line in page_data["lines"]],
-                )
-                for page_data in volume_data["pages"]
-            ]
-            volumes.append(Volume(index=volume_data["index"], pages=pages))
-        return PaginationOutput(
-            id=record["pagination_id"],
-            edition_id=record["edition_id"],
-            text_id=record["text_id"],
-            volumes=volumes,
-        )
-
     async def get(self, pagination_id: str) -> PaginationOutput:
         async def read(tx: AsyncManagedTransaction) -> PaginationOutput:
             result = await tx.run(PaginationDatabase.GET_BY_ID_QUERY, pagination_id=pagination_id)
             record = await result.single()
             if record is None:
                 raise DataNotFoundError(f"Pagination with ID '{pagination_id}' not found")
-            return self._parse_record(record)
+            return PaginationOutput.model_validate(record)
 
         async with self._db.get_session() as session:
             return await session.execute_read(read)
@@ -106,7 +87,7 @@ class PaginationDatabase:
         async def read(tx: AsyncManagedTransaction) -> PaginationOutput | None:
             result = await tx.run(PaginationDatabase.GET_BY_EDITION_ID_QUERY, edition_id=edition_id)
             record = await result.single()
-            return self._parse_record(record) if record else None
+            return PaginationOutput.model_validate(record) if record else None
 
         async with self._db.get_session() as session:
             return await session.execute_read(read)

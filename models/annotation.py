@@ -42,11 +42,12 @@ class LinesModel(OpenPechaModel):
 
 
 class SegmentInput(LinesModel):
-    pass
+    reference: NonEmptyStr | None = None
 
 
 class SegmentOutput(LinesModel):
     id: NonEmptyStr
+    reference: NonEmptyStr | None = None
 
 
 class SegmentWithContextOutput(SegmentOutput):
@@ -72,13 +73,20 @@ def _is_sorted_by_span_start(segments: Sequence[LinesModel]) -> bool:
 
 
 class SegmentationInput(OpenPechaModel):
-    segments: list[SegmentInput]
+    segments: list[SegmentInput] = Field(min_length=1)
     metadata: AnnotationMetadata | None = None
 
     @model_validator(mode="after")
     def validate_segments_sorted(self) -> Self:
         if hasattr(self, "segments") and not _is_sorted_by_span_start(self.segments):
             raise ValueError("segments must be sorted by span start")
+        return self
+
+    @model_validator(mode="after")
+    def validate_segment_references_unique(self) -> Self:
+        references = [segment.reference for segment in self.segments if segment.reference is not None]
+        if len(references) != len(set(references)):
+            raise ValueError("segment references must be unique within a segmentation")
         return self
 
 

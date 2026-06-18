@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Annotated
 from fastapi import APIRouter, Depends, Path, Query, status
 
 from dependencies import OptionalAppHeader, get_api_key, get_db
-from models.alignment import TextAlignmentInput, TextAlignmentPairOutput
+from models.alignment import EditionAlignmentInput, EditionAlignmentPairOutput
 from models.requests import AlignmentPaginationParams
 from models.responses import PaginatedResponse
 
@@ -13,42 +13,42 @@ if TYPE_CHECKING:
 
 logger = logging.getLogger(__name__)
 
-router = APIRouter(prefix="/v2/texts", tags=["Alignments"])
+router = APIRouter(prefix="/v2/editions", tags=["Alignments"])
 
 
 @router.put(
-    "/{source_text_id}/alignments/{target_text_id}",
+    "/{source_edition_id}/alignments/{target_edition_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Replace text-pair alignments",
-    description="Replace direct segment alignment relationships between two texts.",
+    summary="Replace edition-pair alignments",
+    description="Replace direct segment alignment relationships between two editions.",
 )
-async def replace_text_pair_alignments(
-    source_text_id: Annotated[str, Path(description="The source text ID")],
-    target_text_id: Annotated[str, Path(description="The target text ID")],
-    data: TextAlignmentInput,
+async def replace_edition_pair_alignments(
+    source_edition_id: Annotated[str, Path(description="The source edition ID")],
+    target_edition_id: Annotated[str, Path(description="The target edition ID")],
+    data: EditionAlignmentInput,
     _api_key: Annotated[str, Depends(get_api_key)],
     db: Annotated[Database, Depends(get_db)],
 ) -> None:
-    await db.alignment.replace(source_text_id, target_text_id, data)
+    await db.alignment.replace(source_edition_id, target_edition_id, data)
 
 
 @router.get(
-    "/{source_text_id}/alignments/{target_text_id}",
-    summary="Get text-pair alignments",
-    description="Retrieve paginated direct segment alignment relationships between two texts.",
+    "/{source_edition_id}/alignments/{target_edition_id}",
+    summary="Get edition-pair alignments",
+    description="Retrieve paginated direct segment alignment relationships between two editions.",
     response_model_exclude_none=True,
 )
-async def get_text_pair_alignments(
-    source_text_id: Annotated[str, Path(description="The source text ID")],
-    target_text_id: Annotated[str, Path(description="The target text ID")],
+async def get_edition_pair_alignments(
+    source_edition_id: Annotated[str, Path(description="The source edition ID")],
+    target_edition_id: Annotated[str, Path(description="The target edition ID")],
     params: Annotated[AlignmentPaginationParams, Query()],
     _api_key: Annotated[str, Depends(get_api_key)],
     db: Annotated[Database, Depends(get_db)],
     x_application: OptionalAppHeader = None,
-) -> PaginatedResponse[TextAlignmentPairOutput]:
+) -> PaginatedResponse[EditionAlignmentPairOutput]:
     alignments = await db.alignment.get(
-        source_text_id,
-        target_text_id,
+        source_edition_id,
+        target_edition_id,
         offset=params.offset,
         limit=params.limit + 1,
         application=x_application,
@@ -57,15 +57,15 @@ async def get_text_pair_alignments(
 
 
 @router.delete(
-    "/{source_text_id}/alignments/{target_text_id}",
+    "/{source_edition_id}/alignments/{target_edition_id}",
     status_code=status.HTTP_204_NO_CONTENT,
-    summary="Delete text-pair alignments",
-    description="Delete direct segment alignment relationships between two texts.",
+    summary="Delete edition-pair alignments",
+    description="Delete direct segment alignment relationships between two editions.",
 )
-async def delete_text_pair_alignments(
-    source_text_id: Annotated[str, Path(description="The source text ID")],
-    target_text_id: Annotated[str, Path(description="The target text ID")],
+async def delete_edition_pair_alignments(
+    source_edition_id: Annotated[str, Path(description="The source edition ID")],
+    target_edition_id: Annotated[str, Path(description="The target edition ID")],
     _api_key: Annotated[str, Depends(get_api_key)],
     db: Annotated[Database, Depends(get_db)],
 ) -> None:
-    await db.alignment.delete(source_text_id, target_text_id)
+    await db.alignment.delete(source_edition_id, target_edition_id)

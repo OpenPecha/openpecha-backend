@@ -61,7 +61,7 @@ async def _create_text(client, tag_ids=None):
         "language": "bo",
         "category_id": "category",
         "license": "public",
-        "contributions": [{"person_id": "test_person", "role": "author"}],
+        "contributions": [{"type": "person", "id": "test_person", "role": "author"}],
     }
     if tag_ids is not None:
         text_data["tag_ids"] = tag_ids

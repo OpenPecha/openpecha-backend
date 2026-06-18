@@ -4,11 +4,11 @@ from database.database_validator import DatabaseValidator
 from exceptions import DataNotFoundError
 
 if TYPE_CHECKING:
-    from neo4j import AsyncManagedTransaction, Record
+    from neo4j import AsyncManagedTransaction
 
     from database.database import Database
 from identifier import generate_id
-from models.annotation import NoteInput, NoteOutput, Span
+from models.annotation import NoteInput, NoteOutput
 
 
 class NoteDatabase:
@@ -16,12 +16,11 @@ class NoteDatabase:
     MATCH (span:Span)-[:SPAN_OF]->(n:Note {id: $note_id})
         -[:NOTE_OF]->(edition:Edition)-[:EDITION_OF]->(text:Text)
     WHERE span.start < span.end
-    RETURN n.id AS note_id,
+    RETURN n.id AS id,
            edition.id AS edition_id,
            text.id AS text_id,
            n.text AS text,
-           span.start AS span_start,
-           span.end AS span_end
+           {start: span.start, end: span.end} AS span
     ORDER BY span.start
     """
 
@@ -31,12 +30,11 @@ class NoteDatabase:
         (edition)-[:EDITION_OF]->(text:Text)
     MATCH (span:Span)-[:SPAN_OF]->(n)
     WHERE span.start < span.end
-    RETURN n.id AS note_id,
+    RETURN n.id AS id,
            edition.id AS edition_id,
            text.id AS text_id,
            n.text AS text,
-           span.start AS span_start,
-           span.end AS span_end
+           {start: span.start, end: span.end} AS span
     ORDER BY span.start
     """
 
@@ -66,23 +64,13 @@ class NoteDatabase:
     def __init__(self, db: Database) -> None:
         self._db = db
 
-    @staticmethod
-    def _parse_record(record: dict | Record) -> NoteOutput:
-        return NoteOutput(
-            id=record["note_id"],
-            edition_id=record["edition_id"],
-            text_id=record["text_id"],
-            span=Span(start=record["span_start"], end=record["span_end"]),
-            text=record["text"],
-        )
-
     async def get(self, note_id: str) -> NoteOutput:
         async def read(tx: AsyncManagedTransaction) -> NoteOutput:
             result = await tx.run(NoteDatabase.GET_BY_ID_QUERY, note_id=note_id)
             record = await result.single()
             if record is None:
                 raise DataNotFoundError(f"Note with ID '{note_id}' not found")
-            return self._parse_record(record)
+            return NoteOutput.model_validate(record)
 
         async with self._db.get_session() as session:
             return await session.execute_read(read)
@@ -94,7 +82,7 @@ class NoteDatabase:
                 edition_id=edition_id,
                 note_type=note_type,
             )
-            return [self._parse_record(record) for record in await result.data()]
+            return [NoteOutput.model_validate(record) for record in await result.data()]
 
         async with self._db.get_session() as session:
             return await session.execute_read(read)

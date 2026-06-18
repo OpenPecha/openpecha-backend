@@ -27,7 +27,7 @@ Annotations are created and listed by type under an edition. Each `POST` returns
 
 | Type | List | Create |
 |------|------|--------|
-| Segmentation | `GET /v2/editions/{edition_id}/segmentations` | `POST /v2/editions/{edition_id}/segmentations` |
+| Segmentation | `GET /v2/editions/{edition_id}/segmentation` | `POST /v2/editions/{edition_id}/segmentation` |
 | Pagination | `GET /v2/editions/{edition_id}/pagination` | `POST /v2/editions/{edition_id}/pagination` |
 | Table of contents | `GET /v2/editions/{edition_id}/table-of-contents` | `POST /v2/editions/{edition_id}/table-of-contents` |
 | Bibliographic metadata | `GET /v2/editions/{edition_id}/bibliographic` | `POST /v2/editions/{edition_id}/bibliographic` |
@@ -40,11 +40,13 @@ Annotations are created and listed by type under an edition. Each `POST` returns
 {
   "segments": [
     {
+      "reference": "1.1",
       "lines": [
         {"start": 0, "end": 50}
       ]
     },
     {
+      "reference": "1.2",
       "lines": [
         {"start": 50, "end": 100}
       ]
@@ -54,31 +56,35 @@ Annotations are created and listed by type under an edition. Each `POST` returns
 ```
 
 Segments must be sorted by their first line's start offset. Lines inside each segment must be continuous.
+`reference` is optional for general segmentation use, but required for segments that will be aligned by reference.
 
-### Text Pair Alignment
+### Edition Pair Alignment
 
-Alignment is no longer an annotation type. Use the text-pair alignment endpoints to create direct `ALIGNED_TO` relationships between existing segments:
+Alignment is no longer an annotation type. Use the edition-pair alignment endpoints to create direct `ALIGNED_TO` relationships between existing segments:
 
 ```http
-PUT /v2/texts/{source_text_id}/alignments/{target_text_id}
-GET /v2/texts/{source_text_id}/alignments/{target_text_id}?limit=500&offset=0
-DELETE /v2/texts/{source_text_id}/alignments/{target_text_id}
+GET /v2/editions/{edition_id}/alignments
+PUT /v2/editions/{source_edition_id}/alignments/{target_edition_id}
+GET /v2/editions/{source_edition_id}/alignments/{target_edition_id}?limit=500&offset=0
+DELETE /v2/editions/{source_edition_id}/alignments/{target_edition_id}
 ```
 
-`PUT` replaces all alignments from source text segments to target text segments and returns `204 No Content`.
+`PUT` validates every submitted reference first, then replaces all alignments from source edition segments to target edition segments and returns `204 No Content`. If any reference is missing, the whole request fails and existing alignments are unchanged.
 
 ```json
 {
   "alignments": [
     {
-      "source_segment_id": "SEG_SOURCE",
-      "target_segment_id": "SEG_TARGET"
+      "source_segment_reference": "1.1",
+      "target_segment_reference": "1.1"
     }
   ]
 }
 ```
 
-If one source segment aligns to multiple target segments, repeat the `source_segment_id` in multiple rows.
+If one source segment aligns to multiple target segments, repeat the `source_segment_reference` in multiple rows.
+
+`GET /v2/editions/{edition_id}/alignments` returns directional aligned/target edition and text IDs for every direct alignment involving the edition.
 
 ### Create Pagination
 
@@ -182,12 +188,12 @@ Supported types:
 ### Segmentation
 
 ```http
-GET /v2/segmentations/{segmentation_id}
-GET /v2/segmentations/{segmentation_id}/segments?limit=500&offset=0
-DELETE /v2/segmentations/{segmentation_id}
+GET /v2/editions/{edition_id}/segmentation
+GET /v2/editions/{edition_id}/segmentation/segments?limit=500&offset=0
+DELETE /v2/editions/{edition_id}/segmentation
 ```
 
-`GET /v2/segmentations/{segmentation_id}` response:
+`GET /v2/editions/{edition_id}/segmentation` response:
 
 ```json
 {
@@ -197,7 +203,7 @@ DELETE /v2/segmentations/{segmentation_id}
 }
 ```
 
-`GET /v2/segmentations/{segmentation_id}/segments` query:
+`GET /v2/editions/{edition_id}/segmentation/segments` query:
 
 | Query | Type | Required | Default |
 |-------|------|----------|---------|
@@ -211,6 +217,7 @@ Segments response:
   "items": [
     {
       "id": "SEG123",
+      "reference": "1.1",
       "lines": [
         {"start": 0, "end": 50}
       ]
@@ -227,7 +234,7 @@ Deleting a segmentation returns `204 No Content`. Any `ALIGNED_TO` relationships
 ### Alignment
 
 ```http
-GET /v2/texts/{source_text_id}/alignments/{target_text_id}?limit=500&offset=0
+GET /v2/editions/{source_edition_id}/alignments/{target_edition_id}?limit=500&offset=0
 ```
 
 Query:
@@ -245,6 +252,7 @@ Segments response:
     {
       "source_segment": {
         "id": "SEG_SOURCE",
+        "reference": "1.1",
         "segmentation_id": "SGN_SOURCE",
         "edition_id": "ED_SOURCE",
         "text_id": "TXT_SOURCE",
@@ -253,6 +261,7 @@ Segments response:
       },
       "target_segment": {
         "id": "SEG_TARGET",
+        "reference": "1.1",
         "segmentation_id": "SGN_TARGET",
         "edition_id": "ED_TARGET",
         "text_id": "TXT_TARGET",
@@ -267,7 +276,7 @@ Segments response:
 }
 ```
 
-`DELETE /v2/texts/{source_text_id}/alignments/{target_text_id}` deletes the direct relationships only; it does not delete segmentations or segments.
+`DELETE /v2/editions/{source_edition_id}/alignments/{target_edition_id}` deletes the direct relationships only; it does not delete segmentations or segments.
 
 ### Pagination
 

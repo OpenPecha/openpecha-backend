@@ -80,9 +80,9 @@ This generic endpoint that returned any annotation type by ID no longer exists.
 
 | Annotation Type | New Endpoint                                           |
 | --------------- | ------------------------------------------------------ |
-| Segmentation    | `GET /v2/segmentations/{segmentation_id}`               |
-| Segmentation segments | `GET /v2/segmentations/{segmentation_id}/segments` |
-| Text-pair alignment | `GET /v2/texts/{source_text_id}/alignments/{target_text_id}` |
+| Segmentation    | `GET /v2/editions/{edition_id}/segmentation`            |
+| Segmentation segments | `GET /v2/editions/{edition_id}/segmentation/segments` |
+| Edition-pair alignment | `GET /v2/editions/{source_edition_id}/alignments/{target_edition_id}` |
 | Pagination      | `GET /v2/paginations/{pagination_id}`                   |
 | Durchen (Notes) | `GET /v2/durchens/{note_id}`                           |
 | Bibliographic   | `GET /v2/bibliographic/{bibliographic_id}`             |
@@ -113,7 +113,7 @@ models:
 Segmentation segments are paginated separately:
 
 ```json
-// GET /v2/segmentations/{segmentation_id}/segments?limit=500&offset=0
+// GET /v2/editions/{edition_id}/segmentation/segments?limit=500&offset=0
 {
     "items": [
         {
@@ -133,7 +133,7 @@ Segmentation segments are paginated separately:
 
 ```json
 {
-    // GET /v2/texts/{source_text_id}/alignments/{target_text_id}?limit=500&offset=0
+    // GET /v2/editions/{source_edition_id}/alignments/{target_edition_id}?limit=500&offset=0
     "items": [
         {
             "source_segment": {
@@ -222,8 +222,8 @@ With request body containing a `type` field to specify annotation type.
 
 | Annotation Type | New Endpoint                                           |
 | --------------- | ------------------------------------------------------ |
-| Segmentation    | `POST /v2/editions/{edition_id}/segmentations`        |
-| Text-pair alignment | `PUT /v2/texts/{source_text_id}/alignments/{target_text_id}` |
+| Segmentation    | `POST /v2/editions/{edition_id}/segmentation`         |
+| Edition-pair alignment | `PUT /v2/editions/{source_edition_id}/alignments/{target_edition_id}` |
 | Pagination      | `POST /v2/editions/{edition_id}/pagination`            |
 | Durchen (Notes) | `POST /v2/editions/{edition_id}/durchens`             |
 | Bibliographic   | `POST /v2/editions/{edition_id}/bibliographic`         |
@@ -253,7 +253,7 @@ With request body containing a `type` field to specify annotation type.
 _Segmentation:_
 
 ```json
-POST /v2/editions/{edition_id}/segmentations
+POST /v2/editions/{edition_id}/segmentation
 {
     "segments": [
         { "lines": [{ "start": 0, "end": 50 }] },
@@ -265,12 +265,12 @@ POST /v2/editions/{edition_id}/segmentations
 _Text-pair alignment:_
 
 ```json
-PUT /v2/texts/{source_text_id}/alignments/{target_text_id}
+PUT /v2/editions/{source_edition_id}/alignments/{target_edition_id}
 {
     "alignments": [
         {
-            "source_segment_id": "source_seg_001",
-            "target_segment_id": "target_seg_001"
+            "source_segment_reference": "1.1",
+            "target_segment_reference": "1.1"
         }
     ]
 }
@@ -328,7 +328,8 @@ POST /v2/editions/{edition_id}/durchens
 
 | Annotation Type | New Endpoint                                           |
 | --------------- | ------------------------------------------------------ |
-| Segmentation    | `GET /v2/editions/{edition_id}/segmentations`          |
+| Segmentation    | `GET /v2/editions/{edition_id}/segmentation`           |
+| Alignment summary | `GET /v2/editions/{edition_id}/alignments`           |
 | Pagination      | `GET /v2/editions/{edition_id}/pagination`             |
 | Durchen (Notes) | `GET /v2/editions/{edition_id}/durchens`               |
 | Bibliographic   | `GET /v2/editions/{edition_id}/bibliographic`          |
@@ -336,14 +337,24 @@ POST /v2/editions/{edition_id}/durchens
 **Response:** Each endpoint returns an array of that annotation type:
 
 ```json
-// GET /v2/editions/{edition_id}/segmentations
+// GET /v2/editions/{edition_id}/segmentation
+{
+    "id": "seg_abc123",
+    "edition_id": "M12345678",
+    "text_id": "E12345678"
+}
+// GET /v2/editions/{edition_id}/alignments
 [
     {
-        "id": "seg_abc123",
-        "edition_id": "M12345678",
-        "text_id": "E12345678"
+        "aligned_edition_id": "M12345678",
+        "aligned_text_id": "E12345678",
+        "aligned_segmentation_id": "source_sgn_abc123",
+        "target_edition_id": "M87654321",
+        "target_text_id": "E87654321",
+        "target_segmentation_id": "target_sgn_abc123"
     }
 ]
+
 // GET /v2/editions/{edition_id}/pagination
 {
     "id": "pag_abc123",
@@ -395,8 +406,8 @@ POST /v2/editions/{edition_id}/durchens
 
 | Annotation Type | DELETE Endpoint                                           |
 | --------------- | --------------------------------------------------------- |
-| Segmentation    | `DELETE /v2/segmentations/{segmentation_id}`               |
-| Text-pair alignment | `DELETE /v2/texts/{source_text_id}/alignments/{target_text_id}` |
+| Segmentation    | `DELETE /v2/editions/{edition_id}/segmentation`            |
+| Edition-pair alignment | `DELETE /v2/editions/{source_edition_id}/alignments/{target_edition_id}` |
 | Pagination      | `DELETE /v2/paginations/{pagination_id}`                   |
 | Durchen (Notes) | `DELETE /v2/durchens/{note_id}`                           |
 | Bibliographic   | `DELETE /v2/bibliographic/{bibliographic_id}`             |
@@ -445,22 +456,22 @@ currently implemented** as individual GET endpoints:
 | Action               | Old Endpoint                                    | New Endpoint                                 |
 | -------------------- | ----------------------------------------------- | -------------------------------------------- |
 | Get segmentation     | `GET /v2/annotations/{id}`                      | `GET /v2/segmentations/{id}`                 |
-| Get segmentation segments | N/A                                        | `GET /v2/segmentations/{id}/segments`        |
-| Get text-pair alignments | N/A                                      | `GET /v2/texts/{source_text_id}/alignments/{target_text_id}` |
+| Get segmentation segments | N/A                                        | `GET /v2/editions/{edition_id}/segmentation/segments` |
+| Get edition-pair alignments | N/A                                   | `GET /v2/editions/{source_edition_id}/alignments/{target_edition_id}` |
 | Get pagination       | `GET /v2/annotations/{id}`                      | `GET /v2/paginations/{id}`                   |
 | Get durchen          | `GET /v2/annotations/{id}`                      | `GET /v2/durchens/{id}`                      |
 | Get bibliographic    | `GET /v2/annotations/{id}`                      | `GET /v2/bibliographic/{id}`                 |
-| Delete segmentation  | N/A                                             | `DELETE /v2/segmentations/{id}`               |
-| Delete text-pair alignments | N/A                                      | `DELETE /v2/texts/{source_text_id}/alignments/{target_text_id}` |
+| Delete segmentation  | N/A                                             | `DELETE /v2/editions/{edition_id}/segmentation` |
+| Delete edition-pair alignments | N/A                                   | `DELETE /v2/editions/{source_edition_id}/alignments/{target_edition_id}` |
 | Delete pagination    | N/A                                             | `DELETE /v2/paginations/{id}`                 |
 | Delete durchen       | N/A                                             | `DELETE /v2/durchens/{id}`                    |
 | Delete bibliographic | N/A                                             | `DELETE /v2/bibliographic/{id}`               |
-| Add segmentation     | `POST /v2/annotations/{instance_id}/annotation` | `POST /v2/editions/{edition_id}/segmentations`|
-| Replace text-pair alignments | N/A                                      | `PUT /v2/texts/{source_text_id}/alignments/{target_text_id}` |
+| Add segmentation     | `POST /v2/annotations/{instance_id}/annotation` | `POST /v2/editions/{edition_id}/segmentation` |
+| Replace edition-pair alignments | N/A                                   | `PUT /v2/editions/{source_edition_id}/alignments/{target_edition_id}` |
 | Add pagination       | `POST /v2/annotations/{instance_id}/annotation` | `POST /v2/editions/{edition_id}/pagination`   |
 | Add durchen          | `POST /v2/annotations/{instance_id}/annotation` | `POST /v2/editions/{edition_id}/durchens`     |
 | Add bibliographic    | `POST /v2/annotations/{instance_id}/annotation` | `POST /v2/editions/{edition_id}/bibliographic` |
-| Get all segmentations| N/A                                             | `GET /v2/editions/{edition_id}/segmentations` |
+| Get segmentation     | N/A                                             | `GET /v2/editions/{edition_id}/segmentation`  |
 | Get all pagination   | N/A                                             | `GET /v2/editions/{edition_id}/pagination`    |
 | Get all durchen      | N/A                                             | `GET /v2/editions/{edition_id}/durchens`      |
 | Get all bibliographic| N/A                                             | `GET /v2/editions/{edition_id}/bibliographic`  |
@@ -666,7 +677,7 @@ models.
     "title": { "en": "English Translation" },
     "language": "en",
     "target": "T12345678",
-    "contributions": [{ "person_id": "P123", "role": "translator" }],
+    "contributions": [{ "type": "person", "id": "P123", "role": "translator" }],
     "category_id": "CAT123",
     "copyright": "Public domain",
     "license": "CC0"
@@ -680,7 +691,7 @@ models.
     "title": { "en": "English Translation" },
     "language": "en",
     "translation_of": "T12345678",
-    "contributions": [{ "person_id": "P123", "role": "translator" }],
+    "contributions": [{ "type": "person", "id": "P123", "role": "translator" }],
     "category_id": "CAT123",
     "license": "cc0"
 }
@@ -908,7 +919,7 @@ POST /v2/instances/{instance_id}/translation
     "copyright": "Public domain",
     "license": "CC0",
     "segmentation": [...],
-    "author": { "person_id": "P123" }
+    "author": { "type": "person", "id": "P123" }
 }
 ```
 
@@ -921,7 +932,7 @@ POST /v2/texts
     "title": { "en": "English Translation" },
     "language": "en",
     "translation_of": "T12345678",
-    "contributions": [{ "person_id": "P123", "role": "translator" }],
+    "contributions": [{ "type": "person", "id": "P123", "role": "translator" }],
     "category_id": "CAT123",
     "license": "cc0"
 }

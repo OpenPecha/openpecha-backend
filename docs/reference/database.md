@@ -69,7 +69,7 @@ Method-level detail for each module is left to the source; this doc describes ro
 | **db.annotation.bibliographic** | [bibliographic_database.py](../../functions/database/annotation/bibliographic_database.py) | Bibliographic metadata annotations. |
 | **db.annotation.attributes** | [attribute_database.py](../../functions/database/annotation/attribute_database.py) | Attribute annotations (e.g. OCR confidence). |
 
-`db.alignment` is a top-level service for direct text-pair segment alignment relationships.
+`db.alignment` is a top-level service for direct edition-pair segment alignment relationships.
 
 ---
 
@@ -80,7 +80,6 @@ These modules are not exposed as `db.<name>` but are used internally by the faca
 | Module | Responsibility |
 |--------|----------------|
 | [database_validator.py](../../functions/database/database_validator.py) | **DatabaseValidator** – Static methods for validation inside write transactions: e.g. original expression uniqueness per work, person/person_bdrc reference checks, expression creation rules, edition alignment uniqueness. Used by expression and edition (and related) code. |
-| [data_adapter.py](../../functions/database/data_adapter.py) | **DataAdapter** – Static helpers to convert Neo4j result shapes into Pydantic models: localized text, contributions, edition, expression, person, category, etc. Used by the various database modules when building responses. |
 | [nomen_database.py](../../functions/database/nomen_database.py) | **NomenDatabase** – Nomenclature/name handling: creating Nomen nodes with localized text and optional alternative-of links. Used by person_database and expression_database (and similar) for name/title storage. |
 
 For method-level detail and Cypher usage, see the source files in [functions/database](../../functions/database).

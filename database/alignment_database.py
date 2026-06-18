@@ -1,62 +1,62 @@
 from typing import TYPE_CHECKING, LiteralString
 
+from database.database_validator import DatabaseValidator
 from exceptions import DataNotFoundError, InvalidRequestError
-from models.alignment import TextAlignmentInput, TextAlignmentPairOutput
-from models.annotation import SegmentWithContextOutput, Span
+from models.alignment import EditionAlignmentInput, EditionAlignmentOutput, EditionAlignmentPairOutput
 
 if TYPE_CHECKING:
-    from neo4j import AsyncManagedTransaction, Record
+    from neo4j import AsyncManagedTransaction
 
     from .database import Database
 
 
 class AlignmentDatabase:
-    VALIDATE_TEXT_PAIR_QUERY: LiteralString = """
-    RETURN EXISTS { (:Text {id: $source_text_id}) } AS source_text_exists,
-           EXISTS { (:Text {id: $target_text_id}) } AS target_text_exists
+    VALIDATE_EDITION_PAIR_QUERY: LiteralString = """
+    RETURN EXISTS { (:Edition {id: $source_edition_id}) } AS source_edition_exists,
+           EXISTS { (:Edition {id: $target_edition_id}) } AS target_edition_exists
     """
 
-    VALIDATE_SEGMENTS_QUERY: LiteralString = """
+    VALIDATE_SEGMENT_REFERENCES_QUERY: LiteralString = """
     RETURN
-      [segment_id IN $source_segment_ids WHERE NOT EXISTS {
-        (:Text {id: $source_text_id})<-[:EDITION_OF]-(:Edition)
-          <-[:SEGMENTATION_OF]-(:Segmentation)<-[:SEGMENT_OF]-(:Segment {id: segment_id})
-      }] AS invalid_source_segment_ids,
-      [segment_id IN $target_segment_ids WHERE NOT EXISTS {
-        (:Text {id: $target_text_id})<-[:EDITION_OF]-(:Edition)
-          <-[:SEGMENTATION_OF]-(:Segmentation)<-[:SEGMENT_OF]-(:Segment {id: segment_id})
-      }] AS invalid_target_segment_ids
+      [reference IN $source_segment_references WHERE count {
+        (:Edition {id: $source_edition_id})-[:HAS_SEGMENTATION]->(:Segmentation)
+          <-[:SEGMENT_OF]-(:Segment {reference: reference})
+      } <> 1] AS invalid_source_segment_references,
+      [reference IN $target_segment_references WHERE count {
+        (:Edition {id: $target_edition_id})-[:HAS_SEGMENTATION]->(:Segmentation)
+          <-[:SEGMENT_OF]-(:Segment {reference: reference})
+      } <> 1] AS invalid_target_segment_references
     """
 
-    DELETE_TEXT_PAIR_QUERY: LiteralString = """
-    MATCH (:Text {id: $source_text_id})<-[:EDITION_OF]-(:Edition)
-      <-[:SEGMENTATION_OF]-(:Segmentation)<-[:SEGMENT_OF]-(source_segment:Segment)
+    DELETE_EDITION_PAIR_QUERY: LiteralString = """
+    MATCH (:Edition {id: $source_edition_id})-[:HAS_SEGMENTATION]->(:Segmentation)
+      <-[:SEGMENT_OF]-(source_segment:Segment)
       -[relationship:ALIGNED_TO]->(target_segment:Segment)-[:SEGMENT_OF]->(:Segmentation)
-      -[:SEGMENTATION_OF]->(:Edition)-[:EDITION_OF]->(:Text {id: $target_text_id})
+      <-[:HAS_SEGMENTATION]-(:Edition {id: $target_edition_id})
     DELETE relationship
     RETURN count(relationship) AS count
     """
 
-    CREATE_TEXT_PAIR_QUERY: LiteralString = """
+    CREATE_EDITION_PAIR_QUERY: LiteralString = """
     UNWIND $alignments AS alignment
-    MATCH (:Text {id: $source_text_id})<-[:EDITION_OF]-(:Edition)
-      <-[:SEGMENTATION_OF]-(:Segmentation)<-[:SEGMENT_OF]-(source_segment:Segment {
-        id: alignment.source_segment_id
+    MATCH (:Edition {id: $source_edition_id})-[:HAS_SEGMENTATION]->(:Segmentation)
+      <-[:SEGMENT_OF]-(source_segment:Segment {
+        reference: alignment.source_segment_reference
       })
-    MATCH (:Text {id: $target_text_id})<-[:EDITION_OF]-(:Edition)
-      <-[:SEGMENTATION_OF]-(:Segmentation)<-[:SEGMENT_OF]-(target_segment:Segment {
-        id: alignment.target_segment_id
+    MATCH (:Edition {id: $target_edition_id})-[:HAS_SEGMENTATION]->(:Segmentation)
+      <-[:SEGMENT_OF]-(target_segment:Segment {
+        reference: alignment.target_segment_reference
       })
     MERGE (source_segment)-[:ALIGNED_TO]->(target_segment)
     RETURN count(*) AS count
     """
 
-    GET_TEXT_PAIR_QUERY: LiteralString = """
-    MATCH (:Text {id: $source_text_id})<-[:EDITION_OF]-(source_edition:Edition)
-      <-[:SEGMENTATION_OF]-(source_segmentation:Segmentation)
+    GET_EDITION_PAIR_QUERY: LiteralString = """
+    MATCH (source_edition:Edition {id: $source_edition_id})-[:EDITION_OF]->(source_text:Text)
+    MATCH (target_edition:Edition {id: $target_edition_id})-[:EDITION_OF]->(target_text:Text)
+    MATCH (source_edition)-[:HAS_SEGMENTATION]->(source_segmentation:Segmentation)
       <-[:SEGMENT_OF]-(source_segment:Segment)-[:ALIGNED_TO]->(target_segment:Segment)
-      -[:SEGMENT_OF]->(target_segmentation:Segmentation)-[:SEGMENTATION_OF]->(target_edition:Edition)
-      -[:EDITION_OF]->(:Text {id: $target_text_id})
+      -[:SEGMENT_OF]->(target_segmentation:Segmentation)<-[:HAS_SEGMENTATION]-(target_edition)
     CALL (source_segment) {
       MATCH (source_span:Span)-[:SPAN_OF]->(source_segment)
       WHERE source_span.start < source_span.end
@@ -71,11 +71,11 @@ class AlignmentDatabase:
       RETURN collect({start: target_span.start, end: target_span.end}) AS target_lines,
              min(target_span.start) AS target_min_start
     }
-    WITH source_edition, source_segmentation, source_segment, source_lines, source_min_start,
-         target_edition, target_segmentation, target_segment, target_lines, target_min_start
+    WITH source_edition, source_text, source_segmentation, source_segment, source_lines, source_min_start,
+         target_edition, target_text, target_segmentation, target_segment, target_lines, target_min_start
     WHERE size(source_lines) > 0 AND size(target_lines) > 0
-    WITH source_edition, source_segmentation, source_segment, source_lines, source_min_start,
-         target_edition, target_segmentation, target_segment, target_lines, target_min_start,
+    WITH source_edition, source_text, source_segmentation, source_segment, source_lines, source_min_start,
+         target_edition, target_text, target_segmentation, target_segment, target_lines, target_min_start,
          [(source_segment)-[:HAS_TAG]->(source_tag:Tag)
             WHERE ($application IS NULL
               OR (source_tag)-[:BELONGS_TO]->(:Application {id: $application}))
@@ -90,168 +90,214 @@ class AlignmentDatabase:
     LIMIT $limit
     RETURN {
       id: source_segment.id,
+      reference: source_segment.reference,
       segmentation_id: source_segmentation.id,
       edition_id: source_edition.id,
-      text_id: $source_text_id,
+      text_id: source_text.id,
       lines: source_lines,
-      tag_ids: source_tag_ids
+      tag_ids: CASE WHEN size(source_tag_ids) = 0 THEN null ELSE source_tag_ids END
     } AS source_segment,
     {
       id: target_segment.id,
+      reference: target_segment.reference,
       segmentation_id: target_segmentation.id,
       edition_id: target_edition.id,
-      text_id: $target_text_id,
+      text_id: target_text.id,
       lines: target_lines,
-      tag_ids: target_tag_ids
+      tag_ids: CASE WHEN size(target_tag_ids) = 0 THEN null ELSE target_tag_ids END
     } AS target_segment
+    """
+
+    GET_BY_EDITION_QUERY: LiteralString = """
+    MATCH (aligned_edition:Edition)-[:HAS_SEGMENTATION]->(:Segmentation)
+      <-[:SEGMENT_OF]-(:Segment)-[:ALIGNED_TO]->(:Segment)
+      -[:SEGMENT_OF]->(:Segmentation)<-[:HAS_SEGMENTATION]-(target_edition:Edition)
+    MATCH (aligned_edition)-[:EDITION_OF]->(aligned_text:Text)
+    MATCH (target_edition)-[:EDITION_OF]->(target_text:Text)
+    WHERE aligned_edition.id = $edition_id OR target_edition.id = $edition_id
+    RETURN DISTINCT aligned_edition.id AS aligned_edition_id,
+           aligned_text.id AS aligned_text_id,
+           target_edition.id AS target_edition_id,
+           target_text.id AS target_text_id
+    ORDER BY aligned_text_id, aligned_edition_id, target_text_id, target_edition_id
     """
 
     def __init__(self, db: Database) -> None:
         self._db = db
 
-    async def replace(self, source_text_id: str, target_text_id: str, alignment: TextAlignmentInput) -> None:
+    async def replace(
+        self,
+        source_edition_id: str,
+        target_edition_id: str,
+        alignment: EditionAlignmentInput,
+    ) -> None:
         async with self._db.get_session() as session:
             await session.execute_write(
                 lambda tx: AlignmentDatabase.replace_with_transaction(
                     tx,
-                    source_text_id,
-                    target_text_id,
+                    source_edition_id,
+                    target_edition_id,
                     alignment,
                 )
             )
 
     async def get(
         self,
-        source_text_id: str,
-        target_text_id: str,
+        source_edition_id: str,
+        target_edition_id: str,
         *,
         offset: int,
         limit: int,
         application: str | None = None,
-    ) -> list[TextAlignmentPairOutput]:
+    ) -> list[EditionAlignmentPairOutput]:
         async with self._db.get_session() as session:
             return await session.execute_read(
                 lambda tx: AlignmentDatabase.get_with_transaction(
                     tx,
-                    source_text_id,
-                    target_text_id,
+                    source_edition_id,
+                    target_edition_id,
                     offset=offset,
                     limit=limit,
                     application=application,
                 )
             )
 
-    async def delete(self, source_text_id: str, target_text_id: str) -> None:
+    async def get_all_for_edition(self, edition_id: str) -> list[EditionAlignmentOutput]:
+        async with self._db.get_session() as session:
+            return await session.execute_read(
+                lambda tx: AlignmentDatabase.get_all_for_edition_with_transaction(tx, edition_id)
+            )
+
+    async def delete(self, source_edition_id: str, target_edition_id: str) -> None:
         async with self._db.get_session() as session:
             await session.execute_write(
-                lambda tx: AlignmentDatabase.delete_with_transaction(tx, source_text_id, target_text_id)
+                lambda tx: AlignmentDatabase.delete_with_transaction(tx, source_edition_id, target_edition_id)
             )
 
     @staticmethod
     async def replace_with_transaction(
         tx: AsyncManagedTransaction,
-        source_text_id: str,
-        target_text_id: str,
-        alignment: TextAlignmentInput,
+        source_edition_id: str,
+        target_edition_id: str,
+        alignment: EditionAlignmentInput,
     ) -> None:
-        await AlignmentDatabase._validate_text_pair(tx, source_text_id, target_text_id)
-        await AlignmentDatabase._validate_segments(tx, source_text_id, target_text_id, alignment)
+        await AlignmentDatabase._validate_edition_pair(tx, source_edition_id, target_edition_id)
+        await AlignmentDatabase._validate_segment_references(tx, source_edition_id, target_edition_id, alignment)
         await tx.run(
-            AlignmentDatabase.DELETE_TEXT_PAIR_QUERY,
-            source_text_id=source_text_id,
-            target_text_id=target_text_id,
+            AlignmentDatabase.DELETE_EDITION_PAIR_QUERY,
+            source_edition_id=source_edition_id,
+            target_edition_id=target_edition_id,
         )
         await tx.run(
-            AlignmentDatabase.CREATE_TEXT_PAIR_QUERY,
-            source_text_id=source_text_id,
-            target_text_id=target_text_id,
+            AlignmentDatabase.CREATE_EDITION_PAIR_QUERY,
+            source_edition_id=source_edition_id,
+            target_edition_id=target_edition_id,
             alignments=[item.model_dump() for item in alignment.alignments],
         )
 
     @staticmethod
     async def get_with_transaction(
         tx: AsyncManagedTransaction,
-        source_text_id: str,
-        target_text_id: str,
+        source_edition_id: str,
+        target_edition_id: str,
         *,
         offset: int,
         limit: int,
         application: str | None,
-    ) -> list[TextAlignmentPairOutput]:
-        await AlignmentDatabase._validate_text_pair(tx, source_text_id, target_text_id)
+    ) -> list[EditionAlignmentPairOutput]:
+        await AlignmentDatabase._validate_edition_pair(tx, source_edition_id, target_edition_id)
         result = await tx.run(
-            AlignmentDatabase.GET_TEXT_PAIR_QUERY,
-            source_text_id=source_text_id,
-            target_text_id=target_text_id,
+            AlignmentDatabase.GET_EDITION_PAIR_QUERY,
+            source_edition_id=source_edition_id,
+            target_edition_id=target_edition_id,
             offset=offset,
             limit=limit,
             application=application,
         )
-        return [AlignmentDatabase._parse_record(record) for record in await result.data()]
+        return [EditionAlignmentPairOutput.model_validate(record) for record in await result.data()]
 
     @staticmethod
-    async def delete_with_transaction(tx: AsyncManagedTransaction, source_text_id: str, target_text_id: str) -> None:
-        await AlignmentDatabase._validate_text_pair(tx, source_text_id, target_text_id)
-        await tx.run(
-            AlignmentDatabase.DELETE_TEXT_PAIR_QUERY,
-            source_text_id=source_text_id,
-            target_text_id=target_text_id,
-        )
-
-    @staticmethod
-    def _parse_segment(data: dict) -> SegmentWithContextOutput:
-        return SegmentWithContextOutput(
-            id=data["id"],
-            segmentation_id=data["segmentation_id"],
-            edition_id=data["edition_id"],
-            text_id=data["text_id"],
-            lines=[Span(start=line["start"], end=line["end"]) for line in data["lines"]],
-            tag_ids=data.get("tag_ids") or None,
-        )
-
-    @staticmethod
-    def _parse_record(record: dict | Record) -> TextAlignmentPairOutput:
-        return TextAlignmentPairOutput(
-            source_segment=AlignmentDatabase._parse_segment(record["source_segment"]),
-            target_segment=AlignmentDatabase._parse_segment(record["target_segment"]),
-        )
-
-    @staticmethod
-    async def _validate_text_pair(tx: AsyncManagedTransaction, source_text_id: str, target_text_id: str) -> None:
-        result = await tx.run(
-            AlignmentDatabase.VALIDATE_TEXT_PAIR_QUERY,
-            source_text_id=source_text_id,
-            target_text_id=target_text_id,
-        )
-        record = await result.single()
-        if not record or not record["source_text_exists"]:
-            raise DataNotFoundError(f"Source text '{source_text_id}' not found")
-        if not record["target_text_exists"]:
-            raise DataNotFoundError(f"Target text '{target_text_id}' not found")
-
-    @staticmethod
-    async def _validate_segments(
+    async def get_all_for_edition_with_transaction(
         tx: AsyncManagedTransaction,
-        source_text_id: str,
-        target_text_id: str,
-        alignment: TextAlignmentInput,
+        edition_id: str,
+    ) -> list[EditionAlignmentOutput]:
+        await DatabaseValidator.validate_edition_exists(tx, edition_id)
+        result = await tx.run(AlignmentDatabase.GET_BY_EDITION_QUERY, edition_id=edition_id)
+        return [EditionAlignmentOutput.model_validate(record) for record in await result.data()]
+
+    @staticmethod
+    async def delete_with_transaction(
+        tx: AsyncManagedTransaction,
+        source_edition_id: str,
+        target_edition_id: str,
     ) -> None:
-        source_segment_ids = sorted({item.source_segment_id for item in alignment.alignments})
-        target_segment_ids = sorted({item.target_segment_id for item in alignment.alignments})
+        await AlignmentDatabase._validate_edition_pair(tx, source_edition_id, target_edition_id)
+        await tx.run(
+            AlignmentDatabase.DELETE_EDITION_PAIR_QUERY,
+            source_edition_id=source_edition_id,
+            target_edition_id=target_edition_id,
+        )
+
+    @staticmethod
+    async def _validate_edition_pair(
+        tx: AsyncManagedTransaction,
+        source_edition_id: str,
+        target_edition_id: str,
+    ) -> None:
         result = await tx.run(
-            AlignmentDatabase.VALIDATE_SEGMENTS_QUERY,
-            source_text_id=source_text_id,
-            target_text_id=target_text_id,
-            source_segment_ids=source_segment_ids,
-            target_segment_ids=target_segment_ids,
+            AlignmentDatabase.VALIDATE_EDITION_PAIR_QUERY,
+            source_edition_id=source_edition_id,
+            target_edition_id=target_edition_id,
         )
         record = await result.single()
-        invalid_source_ids = record["invalid_source_segment_ids"] if record else source_segment_ids
-        invalid_target_ids = record["invalid_target_segment_ids"] if record else target_segment_ids
+        if not record or not record["source_edition_exists"]:
+            raise DataNotFoundError(f"Source edition '{source_edition_id}' not found")
+        if not record["target_edition_exists"]:
+            raise DataNotFoundError(f"Target edition '{target_edition_id}' not found")
+
+    @staticmethod
+    async def _validate_segment_references(
+        tx: AsyncManagedTransaction,
+        source_edition_id: str,
+        target_edition_id: str,
+        alignment: EditionAlignmentInput,
+    ) -> None:
+        if source_edition_id == target_edition_id:
+            self_aligned_references = sorted(
+                {
+                    item.source_segment_reference
+                    for item in alignment.alignments
+                    if item.source_segment_reference == item.target_segment_reference
+                }
+            )
+            if self_aligned_references:
+                raise InvalidRequestError(
+                    "source_segment_reference and target_segment_reference must be different "
+                    f"when aligning an edition to itself: {', '.join(self_aligned_references)}"
+                )
+
+        source_segment_references = sorted({item.source_segment_reference for item in alignment.alignments})
+        target_segment_references = sorted({item.target_segment_reference for item in alignment.alignments})
+        result = await tx.run(
+            AlignmentDatabase.VALIDATE_SEGMENT_REFERENCES_QUERY,
+            source_edition_id=source_edition_id,
+            target_edition_id=target_edition_id,
+            source_segment_references=source_segment_references,
+            target_segment_references=target_segment_references,
+        )
+        record = await result.single()
+        invalid_source_references = record["invalid_source_segment_references"] if record else source_segment_references
+        invalid_target_references = record["invalid_target_segment_references"] if record else target_segment_references
         errors = []
-        if invalid_source_ids:
-            errors.append(f"source segments not in text '{source_text_id}': {', '.join(invalid_source_ids)}")
-        if invalid_target_ids:
-            errors.append(f"target segments not in text '{target_text_id}': {', '.join(invalid_target_ids)}")
+        if invalid_source_references:
+            errors.append(
+                f"source segment references not found in edition '{source_edition_id}': "
+                f"{', '.join(invalid_source_references)}"
+            )
+        if invalid_target_references:
+            errors.append(
+                f"target segment references not found in edition '{target_edition_id}': "
+                f"{', '.join(invalid_target_references)}"
+            )
         if errors:
             raise InvalidRequestError("; ".join(errors))

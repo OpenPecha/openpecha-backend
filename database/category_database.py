@@ -2,14 +2,14 @@ from typing import TYPE_CHECKING, LiteralString
 
 from exceptions import DataNotFoundError, DataValidationError
 from identifier import generate_id
+from models.category import CategoryOutput
 
-from .data_adapter import DataAdapter
 from .nomen_database import NomenDatabase
 
 if TYPE_CHECKING:
     from neo4j import AsyncManagedTransaction, AsyncSession
 
-    from models.category import CategoryInput, CategoryOutput
+    from models.category import CategoryInput
 
     from .database import Database
 
@@ -23,8 +23,10 @@ class CategoryDatabase:
         id: c.id,
         title: apoc.map.fromPairs([(c)-[:HAS_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
             -[:HAS_LANGUAGE]->(l:Language) | [l.code, lt.text]]),
-        description: apoc.map.fromPairs([(c)-[:HAS_DESCRIPTION]->(dn:Nomen)-[:HAS_LOCALIZATION]->(dlt:LocalizedText)
-            -[:HAS_LANGUAGE]->(dl:Language) | [dl.code, dlt.text]]),
+        description: CASE WHEN EXISTS {
+            (c)-[:HAS_DESCRIPTION]->(:Nomen)-[:HAS_LOCALIZATION]->(:LocalizedText)
+        } THEN apoc.map.fromPairs([(c)-[:HAS_DESCRIPTION]->(dn:Nomen)-[:HAS_LOCALIZATION]->(dlt:LocalizedText)
+            -[:HAS_LANGUAGE]->(dl:Language) | [dl.code, dlt.text]]) ELSE null END,
         parent_id: [(c)-[:HAS_PARENT]->(parent:Category) | parent.id][0],
         children: [(child:Category)-[:HAS_PARENT]->(c) | child.id]
     } AS category
@@ -51,8 +53,10 @@ class CategoryDatabase:
         id: c.id,
         title: apoc.map.fromPairs([(c)-[:HAS_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
             -[:HAS_LANGUAGE]->(l:Language) | [l.code, lt.text]]),
-        description: apoc.map.fromPairs([(c)-[:HAS_DESCRIPTION]->(dn:Nomen)-[:HAS_LOCALIZATION]->(dlt:LocalizedText)
-            -[:HAS_LANGUAGE]->(dl:Language) | [dl.code, dlt.text]]),
+        description: CASE WHEN EXISTS {
+            (c)-[:HAS_DESCRIPTION]->(:Nomen)-[:HAS_LOCALIZATION]->(:LocalizedText)
+        } THEN apoc.map.fromPairs([(c)-[:HAS_DESCRIPTION]->(dn:Nomen)-[:HAS_LOCALIZATION]->(dlt:LocalizedText)
+            -[:HAS_LANGUAGE]->(dl:Language) | [dl.code, dlt.text]]) ELSE null END,
         parent_id: [(c)-[:HAS_PARENT]->(parent:Category) | parent.id][0],
         children: [(child:Category)-[:HAS_PARENT]->(c) | child.id]
     } AS category
@@ -110,7 +114,7 @@ class CategoryDatabase:
             record = await result.single()
             if record is None:
                 return None
-            return DataAdapter.category(record["category"])
+            return CategoryOutput.model_validate(record["category"])
 
         async with self.session as session:
             return await session.execute_read(read)
@@ -118,7 +122,7 @@ class CategoryDatabase:
     async def get_all(self, application: str, parent_id: str | None = None) -> list[CategoryOutput]:
         async def read(tx: AsyncManagedTransaction) -> list[CategoryOutput]:
             result = await tx.run(CategoryDatabase.GET_ALL_QUERY, application=application, parent_id=parent_id)
-            return [DataAdapter.category(record["category"]) for record in await result.data()]
+            return [CategoryOutput.model_validate(record["category"]) for record in await result.data()]
 
         async with self.session as session:
             return await session.execute_read(read)

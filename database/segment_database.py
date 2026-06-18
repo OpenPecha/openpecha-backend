@@ -3,7 +3,6 @@ from typing import TYPE_CHECKING, LiteralString
 from exceptions import DataNotFoundError
 from models.annotation import (
     SegmentWithContextOutput,
-    Span,
 )
 from models.requests import RelatedSegmentsFilter
 
@@ -16,22 +15,26 @@ if TYPE_CHECKING:
 class SegmentDatabase:
     GET_QUERY: LiteralString = """
     MATCH (seg:Segment {id: $segment_id})-[:SEGMENT_OF]->(segmentation:Segmentation)
-        -[:SEGMENTATION_OF]->(edition:Edition)-[:EDITION_OF]->(text:Text)
+        <-[:HAS_SEGMENTATION]-(edition:Edition)-[:EDITION_OF]->(text:Text)
     MATCH (span:Span)-[:SPAN_OF]->(seg)
     WHERE span.start < span.end
     WITH seg, segmentation, edition, text, span ORDER BY span.start
-    RETURN seg.id AS segment_id, segmentation.id AS segmentation_id,
-        edition.id AS edition_id, text.id AS text_id,
+    WITH seg, segmentation, edition, text,
         collect({start: span.start, end: span.end}) AS lines,
         [(seg)-[:HAS_TAG]->(t:Tag)
             WHERE ($application IS NULL
                 OR (t)-[:BELONGS_TO]->(:Application {id: $application}))
             | t.id] AS tag_ids
+    RETURN seg.id AS id, segmentation.id AS segmentation_id,
+        edition.id AS edition_id, text.id AS text_id,
+        seg.reference AS reference,
+        lines,
+        CASE WHEN size(tag_ids) = 0 THEN null ELSE tag_ids END AS tag_ids
     """
 
     FIND_START_SEGMENTS_QUERY: LiteralString = """
     MATCH (:Edition {id: $edition_id})
-        <-[:SEGMENTATION_OF]-(:Segmentation)
+        -[:HAS_SEGMENTATION]->(:Segmentation)
         <-[:SEGMENT_OF]-(seg:Segment)
         <-[:SPAN_OF]-(span:Span)
     WHERE span.start < span.end
@@ -50,7 +53,7 @@ class SegmentDatabase:
     RESOLVE_SEGMENT_PAGE_QUERY: LiteralString = """
     UNWIND $segment_ids AS segment_id
     MATCH (seg:Segment {id: segment_id})-[:SEGMENT_OF]->(sgn:Segmentation)
-        -[:SEGMENTATION_OF]->(edition:Edition)-[:EDITION_OF]->(text:Text)
+        <-[:HAS_SEGMENTATION]-(edition:Edition)-[:EDITION_OF]->(text:Text)
     WHERE ($text_id IS NULL OR text.id = $text_id)
       AND ($filter_edition_id IS NULL OR edition.id = $filter_edition_id)
       AND ($language IS NULL OR (text)-[:HAS_LANGUAGE]->(:Language {code: $language}))
@@ -68,17 +71,19 @@ class SegmentDatabase:
             WHERE ($application IS NULL
                 OR (t)-[:BELONGS_TO]->(:Application {id: $application}))
             | t.id] AS tag_ids
-    RETURN seg.id AS segment_id, sgn.id AS segmentation_id,
-           edition.id AS edition_id, text.id AS text_id,
-           lines, tag_ids, min_start
-    ORDER BY text_id, edition_id, segmentation_id, min_start, segment_id
+    WITH text, edition, sgn, seg, lines, min_start,
+         CASE WHEN size(tag_ids) = 0 THEN null ELSE tag_ids END AS tag_ids
+    ORDER BY text.id, edition.id, sgn.id, min_start, seg.id
     SKIP $offset
     LIMIT $limit
+    RETURN seg.id AS id, sgn.id AS segmentation_id,
+           edition.id AS edition_id, text.id AS text_id,
+           seg.reference AS reference, lines, tag_ids
     """
 
     FIND_BY_SPAN_QUERY: LiteralString = """
     MATCH (:Edition {id: $edition_id})
-        <-[:SEGMENTATION_OF]-(:Segmentation)
+        -[:HAS_SEGMENTATION]->(:Segmentation)
         <-[:SEGMENT_OF]-(seg:Segment)
         <-[:SPAN_OF]-(span:Span)
     WHERE span.start < $span_end AND span.end > $span_start
@@ -99,15 +104,7 @@ class SegmentDatabase:
             records = await result.data()
             if not records:
                 raise DataNotFoundError(f"Segment '{segment_id}' not found")
-            r = records[0]
-            return SegmentWithContextOutput(
-                id=r["segment_id"],
-                segmentation_id=r["segmentation_id"],
-                edition_id=r["edition_id"],
-                text_id=r["text_id"],
-                lines=[Span(start=ln["start"], end=ln["end"]) for ln in r["lines"]],
-                tag_ids=r.get("tag_ids") or None,
-            )
+            return SegmentWithContextOutput.model_validate(records[0])
 
         async with self._session as session:
             return await session.execute_read(_read)
@@ -192,18 +189,7 @@ class SegmentDatabase:
                 language=filters.language,
             )
         ).data()
-        return [
-            SegmentWithContextOutput(
-                id=rec["segment_id"],
-                segmentation_id=rec["segmentation_id"],
-                edition_id=rec["edition_id"],
-                text_id=rec["text_id"],
-                lines=[Span(start=ln["start"], end=ln["end"]) for ln in rec["lines"]],
-                tag_ids=rec.get("tag_ids") or None,
-            )
-            for rec in records
-            if rec["lines"]
-        ]
+        return [SegmentWithContextOutput.model_validate(record) for record in records if record["lines"]]
 
     async def find_by_span(self, edition_id: str, start: int, end: int) -> list[str]:
         async def _read(tx: AsyncManagedTransaction) -> list[str]:

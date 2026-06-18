@@ -2,14 +2,14 @@ from typing import TYPE_CHECKING, LiteralString
 
 from exceptions import DataNotFoundError, DataValidationError
 from identifier import generate_id
+from models.tag import TagOutput
 
-from .data_adapter import DataAdapter
 from .nomen_database import NomenDatabase
 
 if TYPE_CHECKING:
     from neo4j import AsyncManagedTransaction, AsyncSession
 
-    from models.tag import TagInput, TagOutput
+    from models.tag import TagInput
 
     from .database import Database
 
@@ -21,8 +21,10 @@ class TagDatabase:
         id: t.id,
         title: apoc.map.fromPairs([(t)-[:HAS_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
             -[:HAS_LANGUAGE]->(l:Language) | [l.code, lt.text]]),
-        description: apoc.map.fromPairs([(t)-[:HAS_DESCRIPTION]->(dn:Nomen)-[:HAS_LOCALIZATION]->(dlt:LocalizedText)
-            -[:HAS_LANGUAGE]->(dl:Language) | [dl.code, dlt.text]])
+        description: CASE WHEN EXISTS {
+            (t)-[:HAS_DESCRIPTION]->(:Nomen)-[:HAS_LOCALIZATION]->(:LocalizedText)
+        } THEN apoc.map.fromPairs([(t)-[:HAS_DESCRIPTION]->(dn:Nomen)-[:HAS_LOCALIZATION]->(dlt:LocalizedText)
+            -[:HAS_LANGUAGE]->(dl:Language) | [dl.code, dlt.text]]) ELSE null END
     } AS tag
     """
 
@@ -97,7 +99,7 @@ class TagDatabase:
     async def get_all(self, application: str) -> list[TagOutput]:
         async def read(tx: AsyncManagedTransaction) -> list[TagOutput]:
             result = await tx.run(TagDatabase.GET_ALL_QUERY, application=application)
-            return [DataAdapter.tag(record["tag"]) for record in await result.data()]
+            return [TagOutput.model_validate(record["tag"]) for record in await result.data()]
 
         async with self.session as session:
             return await session.execute_read(read)

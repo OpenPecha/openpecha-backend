@@ -6,11 +6,11 @@ Tests endpoints:
 - GET /v2/editions/{edition_id}/content
 - GET /v2/editions/{edition_id}
 - POST /v2/texts/{text_id}/editions
-- POST /v2/editions/{edition_id}/segmentations
+- POST /v2/editions/{edition_id}/segmentation
 - POST /v2/editions/{edition_id}/pagination
 - POST /v2/editions/{edition_id}/bibliographic
 - POST /v2/editions/{edition_id}/durchen
-- GET /v2/editions/{edition_id}/segmentations
+- GET /v2/editions/{edition_id}/segmentation
 - GET /v2/editions/{edition_id}/pagination
 - GET /v2/editions/{edition_id}/bibliographic
 - GET /v2/editions/{edition_id}/durchen
@@ -26,7 +26,7 @@ import logging
 import pytest
 from identifier import generate_id
 from models.base import LocalizedString
-from models.contribution import ContributionInput
+from models.contribution import PersonContributionInput
 from models.edition import EditionInput, EditionType
 from models.enums import ContributorRole
 from models.text import TextInput
@@ -59,7 +59,7 @@ class TestEditionsEndpoints:
             category_id="category",
             title=title,
             language="bo",
-            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
+            contributions=[PersonContributionInput(type="person", id=person_id, role=ContributorRole.AUTHOR)],
         )
         return await db.text.create(text_data)
 
@@ -329,7 +329,7 @@ class TestCreateEdition(TestEditionsEndpoints):
 
         edition_data = {
             "content": "Test content",
-            "author": {"person_id": "some-id"},
+            "author": {"type": "person", "id": "some-id"},
             "metadata": {
                 "type": "diplomatic",
                 "bdrc": "W12345",
@@ -444,7 +444,7 @@ class TestCreateEdition(TestEditionsEndpoints):
 
 @pytest.mark.asyncio(loop_scope="session")
 class TestEditionAnnotations(TestEditionsEndpoints):
-    """Tests for POST/GET /v2/editions/{edition_id}/segmentations"""
+    """Tests for POST/GET /v2/editions/{edition_id}/segmentation"""
 
     async def test_post_segmentation_annotation(self, client, test_database, test_person_data):
         """Test adding segmentation annotation and retrieving it"""
@@ -459,19 +459,18 @@ class TestEditionAnnotations(TestEditionsEndpoints):
             ]
         }
 
-        post_response = await client.post(f"/v2/editions/{edition_id}/segmentations", json=annotation_data)
+        post_response = await client.post(f"/v2/editions/{edition_id}/segmentation", json=annotation_data)
         assert post_response.status_code == 201
         segmentation_id = post_response.json()["id"]
 
-        get_response = await client.get(f"/v2/editions/{edition_id}/segmentations")
+        get_response = await client.get(f"/v2/editions/{edition_id}/segmentation")
         assert get_response.status_code == 200
         data = get_response.json()
-        assert len(data) == 1
-        assert data[0]["id"] == segmentation_id
-        assert data[0]["edition_id"] == edition_id
-        assert data[0]["text_id"] == text_id
+        assert data["id"] == segmentation_id
+        assert data["edition_id"] == edition_id
+        assert data["text_id"] == text_id
 
-        segments_response = await client.get(f"/v2/segmentations/{segmentation_id}/segments")
+        segments_response = await client.get(f"/v2/editions/{edition_id}/segmentation/segments")
         assert segments_response.status_code == 200
         assert len(segments_response.json()["items"]) == 2
 
@@ -487,11 +486,10 @@ class TestEditionAnnotations(TestEditionsEndpoints):
                 {"lines": [{"start": 5, "end": 10}]},
             ]
         }
-        post_response = await client.post(f"/v2/editions/{edition_id}/segmentations", json=annotation_data)
+        post_response = await client.post(f"/v2/editions/{edition_id}/segmentation", json=annotation_data)
         assert post_response.status_code == 201
-        segmentation_id = post_response.json()["id"]
 
-        first_page = await client.get(f"/v2/segmentations/{segmentation_id}/segments?limit=1")
+        first_page = await client.get(f"/v2/editions/{edition_id}/segmentation/segments?limit=1")
         assert first_page.status_code == 200
         first_body = first_page.json()
         assert len(first_body["items"]) == 1
@@ -499,7 +497,7 @@ class TestEditionAnnotations(TestEditionsEndpoints):
         assert first_body["offset"] == 0
         assert first_body["limit"] == 1
 
-        second_page = await client.get(f"/v2/segmentations/{segmentation_id}/segments?limit=1&offset=1")
+        second_page = await client.get(f"/v2/editions/{edition_id}/segmentation/segments?limit=1&offset=1")
         assert second_page.status_code == 200
         second_body = second_page.json()
         assert len(second_body["items"]) == 1
@@ -519,11 +517,11 @@ class TestEditionAnnotations(TestEditionsEndpoints):
             ]
         }
 
-        post_response = await client.post(f"/v2/editions/{edition_id}/segmentations", json=annotation_data)
+        post_response = await client.post(f"/v2/editions/{edition_id}/segmentation", json=annotation_data)
         assert post_response.status_code == 201
         segmentation_id = post_response.json()["id"]
 
-        get_response = await client.get(f"/v2/segmentations/{segmentation_id}/segments")
+        get_response = await client.get(f"/v2/editions/{edition_id}/segmentation/segments")
         assert get_response.status_code == 200
         segment = get_response.json()["items"][0]
         assert segment["lines"] == [{"start": 0, "end": 5}, {"start": 5, "end": 10}]
@@ -596,7 +594,7 @@ class TestEditionAnnotations(TestEditionsEndpoints):
         text_id = await self._create_test_text(test_database, person_id)
         edition_id = await self._create_test_edition(client, text_id)
 
-        response = await client.post(f"/v2/editions/{edition_id}/segmentations")
+        response = await client.post(f"/v2/editions/{edition_id}/segmentation")
 
         assert response.status_code == 422
 
@@ -677,7 +675,7 @@ class TestRelatedEditions(TestEditionsEndpoints):
             title=LocalizedString({"en": "English Translation"}),
             language="en",
             translation_of=original_text_id,
-            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.TRANSLATOR)],
+            contributions=[PersonContributionInput(type="person", id=person_id, role=ContributorRole.TRANSLATOR)],
         )
         translation_text_id = await test_database.text.create(translation_data)
         translation_edition_id = await self._create_test_edition(client, translation_text_id, "Translated content"
@@ -705,7 +703,7 @@ class TestRelatedEditions(TestEditionsEndpoints):
             title=LocalizedString({"bo": "འགྲེལ་པ།", "en": "Commentary"}),
             language="bo",
             commentary_of=root_text_id,
-            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
+            contributions=[PersonContributionInput(type="person", id=person_id, role=ContributorRole.AUTHOR)],
         )
         commentary_text_id = await test_database.text.create(commentary_data)
         commentary_edition_id = await self._create_test_edition(client, commentary_text_id, "Commentary content"
@@ -733,7 +731,7 @@ class TestRelatedEditions(TestEditionsEndpoints):
             title=LocalizedString({"en": "English Translation"}),
             language="en",
             translation_of=original_text_id,
-            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.TRANSLATOR)],
+            contributions=[PersonContributionInput(type="person", id=person_id, role=ContributorRole.TRANSLATOR)],
         )
         translation_text_id = await test_database.text.create(translation_data)
         translation_edition_id = await self._create_test_edition(client, translation_text_id, "Translated content"
@@ -761,7 +759,7 @@ class TestRelatedEditions(TestEditionsEndpoints):
             title=LocalizedString({"en": "English Translation"}),
             language="en",
             translation_of=original_text_id,
-            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.TRANSLATOR)],
+            contributions=[PersonContributionInput(type="person", id=person_id, role=ContributorRole.TRANSLATOR)],
         )
         translation_text_id = await test_database.text.create(translation_data)
         translation_edition_id = await self._create_test_edition(client, translation_text_id, "Translated content"
@@ -772,7 +770,7 @@ class TestRelatedEditions(TestEditionsEndpoints):
             title=LocalizedString({"bo": "འགྲེལ་པ།", "en": "Commentary"}),
             language="bo",
             commentary_of=original_text_id,
-            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
+            contributions=[PersonContributionInput(type="person", id=person_id, role=ContributorRole.AUTHOR)],
         )
         commentary_text_id = await test_database.text.create(commentary_data)
         commentary_edition_id = await self._create_test_edition(client, commentary_text_id, "Commentary content"
@@ -828,16 +826,15 @@ class TestDeleteEdition(TestEditionsEndpoints):
         segmentation_data = {
             "segments": [{"lines": [{"start": 0, "end": 10}]}]
         }
-        post_response = await client.post(f"/v2/editions/{edition_id}/segmentations", json=segmentation_data)
+        post_response = await client.post(f"/v2/editions/{edition_id}/segmentation", json=segmentation_data)
         assert post_response.status_code == 201
 
-        annotations_response = await client.get(f"/v2/editions/{edition_id}/segmentations")
+        annotations_response = await client.get(f"/v2/editions/{edition_id}/segmentation")
         assert annotations_response.status_code == 200
         annotations_data = annotations_response.json()
-        assert len(annotations_data) == 1
-        segmentation_id = annotations_data[0]["id"]
+        segmentation_id = annotations_data["id"]
 
-        segmentation_response = await client.get(f"/v2/segmentations/{segmentation_id}")
+        segmentation_response = await client.get(f"/v2/editions/{edition_id}/segmentation")
         assert segmentation_response.status_code == 200
 
         response = await client.delete(f"/v2/editions/{edition_id}")
@@ -850,10 +847,10 @@ class TestDeleteEdition(TestEditionsEndpoints):
         content_response = await client.get(f"/v2/editions/{edition_id}/content")
         assert content_response.status_code == 404
 
-        annotations_after = await client.get(f"/v2/editions/{edition_id}/segmentations")
+        annotations_after = await client.get(f"/v2/editions/{edition_id}/segmentation")
         assert annotations_after.status_code == 404
 
-        segmentation_after = await client.get(f"/v2/segmentations/{segmentation_id}")
+        segmentation_after = await client.get(f"/v2/editions/{edition_id}/segmentation")
         assert segmentation_after.status_code == 404
 
 
@@ -1155,19 +1152,16 @@ class TestPatchContentWithSegmentation(TestEditionsEndpoints):
         segmentation_data = {
             "segments": [{"lines": [{"start": s[0], "end": s[1]}]} for s in segments]
         }
-        post_response = await client.post(f"/v2/editions/{edition_id}/segmentations", json=segmentation_data)
+        post_response = await client.post(f"/v2/editions/{edition_id}/segmentation", json=segmentation_data)
         assert post_response.status_code == 201
 
         return edition_id, text_id
 
     async def _get_segmentation_spans(self, client, edition_id):
         """Helper to get segmentation spans."""
-        response = await client.get(f"/v2/editions/{edition_id}/segmentations")
+        response = await client.get(f"/v2/editions/{edition_id}/segmentation")
         assert response.status_code == 200
-        segmentations = response.json()
-        if len(segmentations) == 0:
-            return []
-        segments_response = await client.get(f"/v2/segmentations/{segmentations[0]['id']}/segments")
+        segments_response = await client.get(f"/v2/editions/{edition_id}/segmentation/segments")
         assert segments_response.status_code == 200
         data = segments_response.json()["items"]
         return [(s["lines"][0]["start"], s["lines"][0]["end"]) for s in data]
@@ -1364,143 +1358,6 @@ class TestPatchContentWithSegmentation(TestEditionsEndpoints):
 
         spans = await self._get_segmentation_spans(client, edition_id)
         assert (0, 13) in spans
-
-
-@pytest.mark.asyncio(loop_scope="session")
-class TestPatchContentWithMultipleSegmentations(TestEditionsEndpoints):
-    """Integration tests for PATCH /content with multiple segmentations."""
-
-    async def _create_edition_with_multiple_segmentations(
-        self, client, test_database, person_id, content, segmentations
-    ):
-        """Helper to create edition with multiple segmentations.
-
-        Args:
-            segmentations: List of segment lists, e.g. [[(0,5), (5,10)], [(0,3), (3,7), (7,10)]]
-        """
-        text_id = await self._create_test_text(test_database, person_id)
-        edition_id = await self._create_test_edition(client, text_id, content)
-
-        for segments in segmentations:
-            segmentation_data = {
-                "segments": [{"lines": [{"start": s[0], "end": s[1]}]} for s in segments]
-            }
-            post_response = await client.post(f"/v2/editions/{edition_id}/segmentations", json=segmentation_data)
-            assert post_response.status_code == 201
-
-        return edition_id, text_id
-
-    async def _get_all_segmentation_spans(self, client, edition_id):
-        """Helper to get all segmentations with their spans."""
-        response = await client.get(f"/v2/editions/{edition_id}/segmentations")
-        assert response.status_code == 200, f"Expected 200, got {response.status_code}: {response.json()}"
-        segmentations = response.json()
-        if not segmentations:
-            return []
-        all_spans = []
-        for segmentation in segmentations:
-            segments_response = await client.get(f"/v2/segmentations/{segmentation['id']}/segments")
-            assert segments_response.status_code == 200
-            all_spans.append(
-                [
-                    (segment["lines"][0]["start"], segment["lines"][0]["end"])
-                    for segment in segments_response.json()["items"]
-                ]
-            )
-        return all_spans
-
-    async def test_insert_affects_multiple_segmentations(self, client, test_database, test_person_data):
-        """Insert should adjust spans in all segmentations."""
-        person_id = await self._create_test_person(test_database, test_person_data)
-        edition_id, _ = await self._create_edition_with_multiple_segmentations(
-            client, test_database, person_id,
-            content="0123456789",
-            segmentations=[
-                [(0, 5), (5, 10)],
-                [(0, 3), (3, 7), (7, 10)]
-            ]
-        )
-
-        response = await client.patch(
-            f"/v2/editions/{edition_id}/content",
-            json={"type": "insert", "position": 4, "text": "XX"}
-        )
-        assert response.status_code == 204
-
-        all_spans = await self._get_all_segmentation_spans(client, edition_id)
-        assert len(all_spans) == 2
-
-        # Segmentation 1: [(0,5), (5,10)] after insert at 4 → [(0,7), (7,12)]
-        # Segmentation 2: [(0,3), (3,7), (7,10)] after insert at 4 → [(0,3), (3,9), (9,12)]
-        assert [(0, 7), (7, 12)] in all_spans
-        assert [(0, 3), (3, 9), (9, 12)] in all_spans
-
-    async def test_delete_affects_multiple_segmentations(self, client, test_database, test_person_data):
-        """Delete should adjust spans in all segmentations."""
-        person_id = await self._create_test_person(test_database, test_person_data)
-        edition_id, _ = await self._create_edition_with_multiple_segmentations(
-            client, test_database, person_id,
-            content="0123456789",
-            segmentations=[
-                [(0, 5), (5, 10)],
-                [(0, 3), (3, 7), (7, 10)]
-            ]
-        )
-
-        response = await client.patch(
-            f"/v2/editions/{edition_id}/content",
-            json={"type": "delete", "start": 2, "end": 6}
-        )
-        assert response.status_code == 204
-
-        all_spans = await self._get_all_segmentation_spans(client, edition_id)
-        assert len(all_spans) == 2
-
-        # Segmentation 1: [(0,5), (5,10)] after delete [2,6) → [(0,2), (2,6)]
-        # Segmentation 2: [(0,3), (3,7), (7,10)] after delete [2,6) → [(0,2), (2,3), (3,6)]
-        assert [(0, 2), (2, 6)] in all_spans
-        assert [(0, 2), (2, 3), (3, 6)] in all_spans
-
-    async def test_replace_affects_multiple_segmentations_differently(self, client, test_database, test_person_data):
-        """Replace crossing different segment boundaries in different segmentations."""
-        person_id = await self._create_test_person(test_database, test_person_data)
-        edition_id, _ = await self._create_edition_with_multiple_segmentations(
-            client, test_database, person_id,
-            content="0123456789ABCDEF",
-            segmentations=[
-                [(0, 8), (8, 16)],
-                [(0, 4), (4, 8), (8, 12), (12, 16)]
-            ]
-        )
-
-        response = await client.patch(
-            f"/v2/editions/{edition_id}/content",
-            json={"type": "replace", "start": 3, "end": 10, "text": "XXX"}
-        )
-        assert response.status_code == 204
-
-        all_spans = await self._get_all_segmentation_spans(client, edition_id)
-        assert len(all_spans) == 2
-
-        # Find which segmentation is which by checking span count
-        seg_2_spans = all_spans[0] if len(all_spans[0]) == 2 else all_spans[1]
-        seg_4_spans = all_spans[1] if len(all_spans[0]) == 2 else all_spans[0]
-
-        # Segmentation 1 (originally 2 segments): [(0,8), (8,16)] after replace [3,10) with "XXX"
-        # (0,8): partial overlap end → (0, 6)
-        # (8,16): partial overlap start → (6, 12)
-        assert (0, 6) in seg_2_spans
-        assert (6, 12) in seg_2_spans
-
-        # Segmentation 2 (originally 4 segments): [(0,4), (4,8), (8,12), (12,16)]
-        # (0,4): partial overlap end → (0, 6)
-        # (4,8): first encompassed → (3, 6)
-        # (8,12): partial overlap start → (6, 8)
-        # (12,16): after replace → shifted by delta (-4) → (8, 12)
-        assert (0, 6) in seg_4_spans
-        assert (3, 6) in seg_4_spans
-        assert (6, 8) in seg_4_spans
-        assert (8, 12) in seg_4_spans
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -1846,7 +1703,7 @@ class TestPatchContentWithSegmentationAndAnnotations(TestEditionsEndpoints):
         segmentation_data = {
             "segments": [{"lines": [{"start": s[0], "end": s[1]}]} for s in segments]
         }
-        post_response = await client.post(f"/v2/editions/{edition_id}/segmentations", json=segmentation_data)
+        post_response = await client.post(f"/v2/editions/{edition_id}/segmentation", json=segmentation_data)
         assert post_response.status_code == 201
 
         note_inputs = [NoteInput(span=Span(start=n[0], end=n[1]), text=n[2]) for n in notes]
@@ -1859,12 +1716,9 @@ class TestPatchContentWithSegmentationAndAnnotations(TestEditionsEndpoints):
 
     async def _get_segmentation_spans(self, client, edition_id):
         """Helper to get segmentation spans."""
-        response = await client.get(f"/v2/editions/{edition_id}/segmentations")
+        response = await client.get(f"/v2/editions/{edition_id}/segmentation")
         assert response.status_code == 200
-        segmentations = response.json()
-        if len(segmentations) == 0:
-            return []
-        segments_response = await client.get(f"/v2/segmentations/{segmentations[0]['id']}/segments")
+        segments_response = await client.get(f"/v2/editions/{edition_id}/segmentation/segments")
         assert segments_response.status_code == 200
         data = segments_response.json()["items"]
         return [(s["lines"][0]["start"], s["lines"][0]["end"]) for s in data]

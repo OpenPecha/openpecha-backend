@@ -4,18 +4,17 @@ from neo4j.exceptions import ConstraintError
 
 from exceptions import DataConflictError, DataNotFoundError, DataValidationError
 from identifier import generate_id
-from models.contribution import AIContribution, ContributionBase
+from models.contribution import AIContribution, PersonContributionBase
 from models.requests import TextFilter
 from models.text import TextInput, TextOutput, TextPatch
 
-from .data_adapter import DataAdapter
 from .database_validator import DatabaseValidator
 from .nomen_database import NomenDatabase
 from .search_text import build_substring_search_value
 from .tag_database import TagDatabase
 
 if TYPE_CHECKING:
-    from neo4j import AsyncManagedTransaction, AsyncSession, Record
+    from neo4j import AsyncManagedTransaction, AsyncSession
 
     from .database import Database
 
@@ -37,19 +36,24 @@ class TextDatabase:
         translation_of: [(e)-[:TRANSLATION_OF]->(t_target:Text) | t_target.id][0],
         commentaries: [(e)<-[:COMMENTARY_OF]-(c_child:Text) | c_child.id],
         translations: [(e)<-[:TRANSLATION_OF]-(t_child:Text) | t_child.id],
-        contributors: (
+        contributions: (
             [(e)-[:HAS_CONTRIBUTION]->(contrib:Contribution)-[:BY]->(person:Person) | {
-                person_id: person.id,
-                person_bdrc_id: person.bdrc,
+                type: "person",
+                id: person.id,
+                bdrc_id: person.bdrc,
                 role: [(contrib)-[:WITH_ROLE]->(role:RoleType) | role.name][0],
-                person_name: apoc.map.fromPairs([(person)-[:HAS_NAME]->(n:Nomen)-[:HAS_LOCALIZATION]->
+                name: CASE WHEN EXISTS {
+                    (person)-[:HAS_NAME]->(person_name:Nomen)-[:HAS_LOCALIZATION]->(:LocalizedText)
+                    WHERE NOT EXISTS { (person_name)-[:ALTERNATIVE_OF]->(:Nomen) }
+                } THEN apoc.map.fromPairs([(person)-[:HAS_NAME]->(n:Nomen)-[:HAS_LOCALIZATION]->
                     (lt:LocalizedText)-[r:HAS_LANGUAGE]->(lang:Language)
                     WHERE NOT EXISTS { (n)-[:ALTERNATIVE_OF]->(:Nomen) } |
-                    [coalesce(r.bcp47, lang.code), lt.text]])
+                    [coalesce(r.bcp47, lang.code), lt.text]]) ELSE null END
             }]
             +
             [(e)-[:HAS_CONTRIBUTION]->(contrib:Contribution)-[:BY]->(ai:AI) | {
-                ai_id: ai.id,
+                type: "ai",
+                id: ai.id,
                 role: [(contrib)-[:WITH_ROLE]->(role:RoleType) | role.name][0]
             }]
         ),
@@ -63,7 +67,7 @@ class TextDatabase:
                 [coalesce(r.bcp47, lang.code), lt.text]])],
         language: [(e)-[r:HAS_LANGUAGE]->(lang:Language) | coalesce(r.bcp47, lang.code)][0],
         category_id: [(e)-[:TEXT_OF]->(work:Work)-[:HAS_CATEGORY]->(cat:Category) | cat.id][0],
-        license: [(e)-[:HAS_LICENSE]->(license:LicenseType) | license.name][0],
+        license: coalesce([(e)-[:HAS_LICENSE]->(license:LicenseType) | license.name][0], "public"),
         editions: [(e)<-[:EDITION_OF]-(m:Edition) | m.id],
         tag_ids: [(e)-[:TEXT_OF]->(w:Work)-[:HAS_TAG]->(t:Tag)
             WHERE ($application IS NULL OR (t)-[:BELONGS_TO]->(:Application {id: $application})) | t.id]
@@ -270,18 +274,13 @@ class TextDatabase:
     RETURN work_text_count = 1 AS work_deleted
     """
 
-    @staticmethod
-    def _parse_record(record: dict | Record) -> TextOutput:
-        data = record.get("text", record) if isinstance(record, dict) else record.data()["text"]
-        return DataAdapter.text(data)
-
     async def get(self, text_id: str, application: str | None = None) -> TextOutput:
         async def read(tx: AsyncManagedTransaction) -> TextOutput:
             result = await tx.run(TextDatabase.GET_QUERY, id=text_id, application=application)
             record = await result.single()
             if record is None:
                 raise DataNotFoundError(f"Text with ID '{text_id}' not found")
-            return self._parse_record(record.data())
+            return TextOutput.model_validate(record["text"])
 
         async with self.session as session:
             return await session.execute_read(read)
@@ -318,7 +317,7 @@ class TextDatabase:
                 wiki=filters.wiki,
                 application=application,
             )
-            return [self._parse_record(r) for r in await result.data()]
+            return [TextOutput.model_validate(record["text"]) for record in await result.data()]
 
         async with self.session as session:
             return await session.execute_read(read)
@@ -412,33 +411,33 @@ class TextDatabase:
 
     @staticmethod
     async def _create_contribution(
-        tx: AsyncManagedTransaction, text_id: str, contribution: ContributionBase | AIContribution
+        tx: AsyncManagedTransaction, text_id: str, contribution: PersonContributionBase | AIContribution
     ) -> None:
-        if isinstance(contribution, ContributionBase):
+        if isinstance(contribution, PersonContributionBase):
             result = await tx.run(
                 TextDatabase.CREATE_CONTRIBUTION_QUERY,
                 text_id=text_id,
-                person_id=contribution.person_id,
-                person_bdrc_id=contribution.person_bdrc_id,
+                person_id=contribution.id,
+                person_bdrc_id=contribution.bdrc_id,
                 role_name=contribution.role.value,
             )
             record = await result.single()
             if not record:
                 raise DataNotFoundError(
-                    f"Person or Role not found. Person: id={contribution.person_id}, "
-                    f"bdrc_id={contribution.person_bdrc_id}; Role: {contribution.role.value}"
+                    f"Person or Role not found. Person: id={contribution.id}, "
+                    f"bdrc_id={contribution.bdrc_id}; Role: {contribution.role.value}"
                 )
         elif isinstance(contribution, AIContribution):
             result = await tx.run(
                 TextDatabase.CREATE_AI_CONTRIBUTION_QUERY,
                 text_id=text_id,
-                ai_id=contribution.ai_id,
+                ai_id=contribution.id,
                 role_name=contribution.role.value,
             )
             record = await result.single()
             if not record:
                 raise DataNotFoundError(
-                    f"AI contribution creation failed. AI: {contribution.ai_id}; Role: {contribution.role.value}"
+                    f"AI contribution creation failed. AI: {contribution.id}; Role: {contribution.role.value}"
                 )
 
     async def update(self, text_id: str, patch: TextPatch, application: str | None = None) -> TextOutput:

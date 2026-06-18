@@ -5,6 +5,7 @@ from fastapi import APIRouter, BackgroundTasks, Depends, Path, Query, status
 
 from content_search import ContentSearchService
 from dependencies import get_api_key, get_content_search, get_db, get_storage
+from models.alignment import EditionAlignmentOutput
 from models.annotation import (
     BibliographicMetadataInput,
     BibliographicMetadataOutput,
@@ -14,12 +15,14 @@ from models.annotation import (
     PaginationOutput,
     SegmentationInput,
     SegmentationOutput,
+    SegmentOutput,
     TableOfContentsInput,
     TableOfContentsOutput,
 )
 from models.content_operation import ContentOperation, DeleteOperation, InsertOperation, ReplaceOperation
 from models.edition import EditionOutput
-from models.responses import IdResponse
+from models.requests import AnnotationSegmentsPaginationParams
+from models.responses import IdResponse, PaginatedResponse
 
 if TYPE_CHECKING:
     from database import Database
@@ -69,24 +72,24 @@ async def get_content(
 
 
 @router.get(
-    "/{edition_id}/segmentations",
-    summary="Get segmentation annotations",
-    description="Retrieve all segmentation annotations for an edition.",
+    "/{edition_id}/segmentation",
+    summary="Get edition segmentation",
+    description="Retrieve the edition's segmentation.",
     response_model_exclude_none=True,
 )
-async def get_segmentation_annotations(
+async def get_segmentation_annotation(
     edition_id: Annotated[str, Path(description="The ID of the edition")],
     _api_key: Annotated[str, Depends(get_api_key)],
     db: Annotated[Database, Depends(get_db)],
-) -> list[SegmentationOutput]:
-    return await db.annotation.segmentation.get_all(edition_id)
+) -> SegmentationOutput:
+    return await db.annotation.segmentation.get_by_edition(edition_id)
 
 
 @router.post(
-    "/{edition_id}/segmentations",
+    "/{edition_id}/segmentation",
     status_code=status.HTTP_201_CREATED,
-    summary="Add segmentation annotation",
-    description="Add a segmentation annotation to an edition.",
+    summary="Add edition segmentation",
+    description="Add the edition's segmentation.",
 )
 async def post_segmentation_annotation(
     edition_id: Annotated[str, Path(description="The ID of the edition")],
@@ -97,6 +100,53 @@ async def post_segmentation_annotation(
     """Add a segmentation annotation to an edition."""
     annotation_id = await db.annotation.segmentation.add(edition_id, data)
     return IdResponse(id=annotation_id)
+
+
+@router.get(
+    "/{edition_id}/segmentation/segments",
+    summary="Get edition segmentation segments",
+    description="Retrieve paginated segments for the edition's segmentation.",
+    response_model_exclude_none=True,
+)
+async def get_segmentation_segments(
+    edition_id: Annotated[str, Path(description="The ID of the edition")],
+    params: Annotated[AnnotationSegmentsPaginationParams, Query()],
+    _api_key: Annotated[str, Depends(get_api_key)],
+    db: Annotated[Database, Depends(get_db)],
+) -> PaginatedResponse[SegmentOutput]:
+    segments = await db.annotation.segmentation.get_segments_by_edition(
+        edition_id,
+        offset=params.offset,
+        limit=params.limit + 1,
+    )
+    return PaginatedResponse.from_items(segments, offset=params.offset, limit=params.limit)
+
+
+@router.delete(
+    "/{edition_id}/segmentation",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Delete edition segmentation",
+    description="Delete the edition's segmentation.",
+)
+async def delete_segmentation_annotation(
+    edition_id: Annotated[str, Path(description="The ID of the edition")],
+    _api_key: Annotated[str, Depends(get_api_key)],
+    db: Annotated[Database, Depends(get_db)],
+) -> None:
+    await db.annotation.segmentation.delete_by_edition(edition_id)
+
+
+@router.get(
+    "/{edition_id}/alignments",
+    summary="Get edition alignments",
+    description="Retrieve directional alignment contexts that include this edition.",
+)
+async def get_alignment_annotations(
+    edition_id: Annotated[str, Path(description="The ID of the edition")],
+    _api_key: Annotated[str, Depends(get_api_key)],
+    db: Annotated[Database, Depends(get_db)],
+) -> list[EditionAlignmentOutput]:
+    return await db.alignment.get_all_for_edition(edition_id)
 
 
 @router.get(

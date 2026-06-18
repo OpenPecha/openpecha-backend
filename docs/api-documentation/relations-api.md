@@ -20,7 +20,7 @@ Create a translation:
   "category_id": "CAT123",
   "translation_of": "TXT_SOURCE",
   "contributions": [
-    {"person_id": "PERSON123", "role": "translator"}
+    {"type": "person", "id": "PERSON123", "role": "translator"}
   ]
 }
 ```
@@ -34,7 +34,7 @@ Create a commentary:
   "category_id": "CAT123",
   "commentary_of": "TXT_SOURCE",
   "contributions": [
-    {"person_id": "PERSON123", "role": "author"}
+    {"type": "person", "id": "PERSON123", "role": "author"}
   ]
 }
 ```

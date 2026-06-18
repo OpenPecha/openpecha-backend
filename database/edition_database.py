@@ -2,6 +2,7 @@ import logging
 from typing import TYPE_CHECKING, LiteralString
 
 from exceptions import DataNotFoundError
+from models.edition import EditionOutput
 from models.enums import EditionType
 
 from .annotation.bibliographic_database import BibliographicDatabase
@@ -9,7 +10,6 @@ from .annotation.note_database import NoteDatabase
 from .annotation.pagination_database import PaginationDatabase
 from .annotation.segmentation_database import SegmentationDatabase
 from .annotation.table_of_contents_database import TableOfContentsDatabase
-from .data_adapter import DataAdapter
 from .database_validator import DatabaseValidator, DataValidationError
 from .nomen_database import NomenDatabase
 from .text_database import TextDatabase
@@ -18,7 +18,7 @@ if TYPE_CHECKING:
     from neo4j import AsyncManagedTransaction, AsyncSession
 
     from models.annotation import PaginationInput, SegmentationInput
-    from models.edition import EditionInput, EditionOutput
+    from models.edition import EditionInput
     from models.text import TextInput
 
     from .database import Database
@@ -40,12 +40,16 @@ class EditionDatabase:
         id: m.id, bdrc: m.bdrc, wiki: m.wiki, colophon: m.colophon,
         source: [(m)-[:HAS_SOURCE]->(s:Source) | s.name][0],
         type: [(m)-[:HAS_TYPE]->(mt:EditionType) | mt.name][0],
-        incipit_title: apoc.map.fromPairs([(m)-[:HAS_INCIPIT_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->
+        incipit_title: CASE WHEN EXISTS {
+            (m)-[:HAS_INCIPIT_TITLE]->(:Nomen)-[:HAS_LOCALIZATION]->(:LocalizedText)
+        } THEN apoc.map.fromPairs([(m)-[:HAS_INCIPIT_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->
             (lt:LocalizedText)-[r:HAS_LANGUAGE]->(l:Language) |
-            [coalesce(r.bcp47, l.code), lt.text]]),
-        alt_incipit_titles: [(m)-[:HAS_INCIPIT_TITLE]->(:Nomen)<-[:ALTERNATIVE_OF]-(an:Nomen) |
+            [coalesce(r.bcp47, l.code), lt.text]]) ELSE null END,
+        alt_incipit_titles: CASE WHEN EXISTS {
+            (m)-[:HAS_INCIPIT_TITLE]->(:Nomen)<-[:ALTERNATIVE_OF]-(:Nomen)
+        } THEN [(m)-[:HAS_INCIPIT_TITLE]->(:Nomen)<-[:ALTERNATIVE_OF]-(an:Nomen) |
             apoc.map.fromPairs([(an)-[:HAS_LOCALIZATION]->(lt:LocalizedText)-[r:HAS_LANGUAGE]->(l:Language) |
-                [coalesce(r.bcp47, l.code), lt.text]])],
+                [coalesce(r.bcp47, l.code), lt.text]])] ELSE null END,
         text_id: e.id
     } as edition
     """
@@ -70,11 +74,11 @@ class EditionDatabase:
     GET_RELATED_QUERY: LiteralString = f"""
     // Related via segment alignment (bidirectional)
     MATCH (source:Edition {{id: $edition_id}})
-          <-[:SEGMENTATION_OF]-(:Segmentation)
+          -[:HAS_SEGMENTATION]->(:Segmentation)
           <-[:SEGMENT_OF]-(:Segment)
           -[:ALIGNED_TO]-(:Segment)
           -[:SEGMENT_OF]->(:Segmentation)
-          -[:SEGMENTATION_OF]->(m:Edition)
+          <-[:HAS_SEGMENTATION]-(m:Edition)
           -[:EDITION_OF]->(e:Text)
     WHERE m.id <> $edition_id
     WITH DISTINCT m, e
@@ -119,7 +123,7 @@ class EditionDatabase:
             record = await result.single()
             if record is None:
                 raise DataNotFoundError(f"Edition '{edition_id}' not found")
-            return self._parse_record(record.data())
+            return EditionOutput.model_validate(record["edition"])
 
         async with self.session as session:
             return await session.execute_read(read)
@@ -140,14 +144,14 @@ class EditionDatabase:
             edition_type=edition_type.value if edition_type else None,
         )
         records = await result.data()
-        return [EditionDatabase._parse_record(r) for r in records]
+        return [EditionOutput.model_validate(record["edition"]) for record in records]
 
     async def get_related(self, edition_id: str) -> list[EditionOutput]:
         """Find all editions related through alignment or text relationships."""
 
         async def read(tx: AsyncManagedTransaction) -> list[EditionOutput]:
             result = await tx.run(EditionDatabase.GET_RELATED_QUERY, edition_id=edition_id)
-            return [self._parse_record(r) for r in await result.data()]
+            return [EditionOutput.model_validate(record["edition"]) for record in await result.data()]
 
         async with self.session as session:
             return await session.execute_read(read)
@@ -183,7 +187,7 @@ class EditionDatabase:
 
     @staticmethod
     async def delete_with_transaction(tx: AsyncManagedTransaction, edition_id: str) -> None:
-        await SegmentationDatabase.delete_all_with_transaction(tx, edition_id)
+        await SegmentationDatabase.delete_by_edition_with_transaction(tx, edition_id)
         await PaginationDatabase.delete_all_with_transaction(tx, edition_id)
         await TableOfContentsDatabase.delete_all_with_transaction(tx, edition_id)
         await BibliographicDatabase.delete_all_with_transaction(tx, edition_id)
@@ -246,7 +250,3 @@ class EditionDatabase:
         editions = await EditionDatabase.get_all_with_transaction(tx, text_id, EditionType.CRITICAL)
         if editions:
             raise DataValidationError("Critical edition already present for this text")
-
-    @staticmethod
-    def _parse_record(data: dict, key: str = "edition") -> EditionOutput:
-        return DataAdapter.edition(data[key])

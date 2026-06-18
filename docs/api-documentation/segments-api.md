@@ -31,7 +31,7 @@ Segments are portions of edition content defined by character spans (one or more
 ### Segment Creation
 
 Segments are not created directly. They are created as part of:
-1. **Segmentation annotations** via `POST /v2/editions/{edition_id}/segmentations`
+1. **Edition segmentation** via `POST /v2/editions/{edition_id}/segmentation`
 2. **Edition creation** with inline annotations via `POST /v2/texts/{text_id}/editions`
 
 Text-pair alignment endpoints link existing segments; they do not create new segments.

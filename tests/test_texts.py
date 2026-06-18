@@ -80,7 +80,7 @@ class TestGetAllTextsV2:
                 "title": {"en": f"Test text {i+1}", "bo": f"བརྟག་དཔྱད་ཚིག་སྒྲུབ་{i+1}།"},
                 "language": "en",
                 "category_id": category_id,
-                "contributions": [{"person_id": person_id, "role": "author"}],
+                "contributions": [{"type": "person", "id": person_id, "role": "author"}],
                 "bdrc": f"W123456{i+1}",
                 "wiki": f"Q789012{i+1}",
                 "date": f"2024-01-01{i+1}",
@@ -118,7 +118,7 @@ class TestGetAllTextsV2:
                 "title": {"en": f"text {i + 1}", "bo": f"ཚིག་སྒྲུབ་{i + 1}།"},
                 "language": "en",
                 "category_id": category_id,
-                "contributions": [{"person_id": person_id, "role": "author"}],
+                "contributions": [{"type": "person", "id": person_id, "role": "author"}],
             }
             text = TextInput.model_validate(expr_data)
             expr_id = await test_database.text.create(text)
@@ -155,7 +155,7 @@ class TestGetAllTextsV2:
         expr_data_1 = {
             "title": {"en": "text in Category 1", "bo": "རྩ་བའི་ཚིག་སྒྲུབ།"},
             "language": "en",
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
             "category_id": category_id_1,
         }
         text_1 = TextInput.model_validate(expr_data_1)
@@ -165,7 +165,7 @@ class TestGetAllTextsV2:
         expr_data_2 = {
             "title": {"en": "text in Category 2", "bo": "སྒྱུར་བའི་ཚིག་སྒྲུབ།"},
             "language": "bo",
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
             "category_id": category_id_2,
         }
         text_2 = TextInput.model_validate(expr_data_2)
@@ -202,7 +202,7 @@ class TestGetAllTextsV2:
             "title": {"en": "English text"},
             "language": "en",
             "category_id": category_id,
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
         }
         en_text = TextInput.model_validate(en_data)
         en_id = await test_database.text.create(en_text)
@@ -212,7 +212,7 @@ class TestGetAllTextsV2:
             "title": {"bo": "བོད་ཡིག་ཚིག་སྒྲུབ།"},
             "category_id": category_id,
             "language": "bo",
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
         }
         bo_text = TextInput.model_validate(bo_data)
         bo_id = await test_database.text.create(bo_text)
@@ -263,7 +263,7 @@ class TestGetAllTextsV2:
                 "title": title,
                 "language": "en",
                 "category_id": category_id,
-                "contributions": [{"person_id": person_id, "role": "author"}],
+                "contributions": [{"type": "person", "id": person_id, "role": "author"}],
             }
             text = TextInput.model_validate(expr_data)
             text_id = await test_database.text.create(text)
@@ -311,7 +311,7 @@ class TestGetAllTextsV2:
                     "title": {"bo": "བོད་ཀྱི་ཆོས་དཔེ།", "en": "Tibetan Dharma Text"},
                     "language": "bo",
                     "category_id": category_id,
-                    "contributions": [{"person_id": person_id, "role": "author"}],
+                    "contributions": [{"type": "person", "id": person_id, "role": "author"}],
                 }
             )
         )
@@ -322,7 +322,7 @@ class TestGetAllTextsV2:
                     "alt_titles": [{"bo": "གསང་སྔགས་ཆོས་དཔེ།"}],
                     "language": "bo",
                     "category_id": category_id,
-                    "contributions": [{"person_id": person_id, "role": "author"}],
+                    "contributions": [{"type": "person", "id": person_id, "role": "author"}],
                 }
             )
         )
@@ -332,7 +332,7 @@ class TestGetAllTextsV2:
                     "title": {"sa": "प्रज्ञापारमिता सूत्र", "en": "Prajnaparamita Sutra"},
                     "language": "sa",
                     "category_id": category_id,
-                    "contributions": [{"person_id": person_id, "role": "author"}],
+                    "contributions": [{"type": "person", "id": person_id, "role": "author"}],
                 }
             )
         )
@@ -343,7 +343,7 @@ class TestGetAllTextsV2:
                     "alt_titles": [{"sa": "बोधिसत्त्वचर्या"}],
                     "language": "sa",
                     "category_id": category_id,
-                    "contributions": [{"person_id": person_id, "role": "author"}],
+                    "contributions": [{"type": "person", "id": person_id, "role": "author"}],
                 }
             )
         )
@@ -377,7 +377,7 @@ class TestGetAllTextsV2:
                     "alt_titles": [{"en": "Hidden PRAJNA Guide"}],
                     "language": "en",
                     "category_id": "category",
-                    "contributions": [{"person_id": person_id, "role": "author"}],
+                    "contributions": [{"type": "person", "id": person_id, "role": "author"}],
                 }
             )
         )
@@ -430,7 +430,7 @@ class TestGetAllTextsV2:
                 "title": title,
                 "language": "en",
                 "category_id": category_id,
-                "contributions": [{"person_id": person_id, "role": "author"}],
+                "contributions": [{"type": "person", "id": person_id, "role": "author"}],
             }
             text = TextInput.model_validate(expr_data)
             text_id = await test_database.text.create(text)
@@ -462,7 +462,7 @@ class TestGetAllTextsV2:
             "title": {"en": "text by Author 1", "bo": "རྩོམ་པ་པོ་དང་པོའི་ཚིག་སྒྲུབ།"},
             "language": "en",
             "category_id": category_id,
-            "contributions": [{"person_id": person1_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person1_id, "role": "author"}],
         }
         text1 = TextInput.model_validate(expr1_data)
         expr1_id = await test_database.text.create(text1)
@@ -472,7 +472,7 @@ class TestGetAllTextsV2:
             "title": {"en": "text by Author 2", "bo": "རྩོམ་པ་པོ་གཉིས་པའི་ཚིག་སྒྲུབ།"},
             "language": "en",
             "category_id": category_id,
-            "contributions": [{"person_id": person2_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person2_id, "role": "author"}],
         }
         text2 = TextInput.model_validate(expr2_data)
         expr2_id = await test_database.text.create(text2)
@@ -483,8 +483,8 @@ class TestGetAllTextsV2:
             "language": "bo",
             "category_id": category_id,
             "contributions": [
-                {"person_id": person1_id, "role": "author"},
-                {"person_id": person2_id, "role": "translator"}
+                {"type": "person", "id": person1_id, "role": "author"},
+                {"type": "person", "id": person2_id, "role": "translator"}
             ],
         }
         text3 = TextInput.model_validate(expr3_data)
@@ -526,7 +526,7 @@ class TestGetAllTextsV2:
             "title": {"en": "English Root text"},
             "language": "en",
             "category_id": category_id,
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
         }
         en_text = TextInput.model_validate(en_expr_data)
         en_id = await test_database.text.create(en_text)
@@ -536,7 +536,7 @@ class TestGetAllTextsV2:
             "title": {"bo": "རྩ་བའི་ཚིག་སྒྲུབ།", "en": "Tibetan Root text"},
             "language": "bo",
             "category_id": category_id,
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
         }
         bo_text = TextInput.model_validate(bo_expr_data)
         bo_id = await test_database.text.create(bo_text)
@@ -546,7 +546,7 @@ class TestGetAllTextsV2:
             "title": {"en": "English Other text"},
             "language": "en",
             "category_id": category_id,
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
         }
         en_other_text = TextInput.model_validate(en_other_data)
         await test_database.text.create(en_other_text)
@@ -581,7 +581,7 @@ class TestGetAllTextsV2:
             "title": {"en": "English text by Author 1"},
             "language": "en",
             "category_id": category_id,
-            "contributions": [{"person_id": person1_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person1_id, "role": "author"}],
         }
         text1 = TextInput.model_validate(expr1_data)
         expr1_id = await test_database.text.create(text1)
@@ -591,7 +591,7 @@ class TestGetAllTextsV2:
             "title": {"bo": "རྩོམ་པ་པོ་དང་པོའི་བོད་ཡིག"},
             "language": "bo",
             "category_id": category_id,
-            "contributions": [{"person_id": person1_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person1_id, "role": "author"}],
         }
         text2 = TextInput.model_validate(expr2_data)
         expr2_id = await test_database.text.create(text2)
@@ -601,7 +601,7 @@ class TestGetAllTextsV2:
             "title": {"en": "English text by Author 2"},
             "language": "en",
             "category_id": category_id,
-            "contributions": [{"person_id": person2_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person2_id, "role": "author"}],
         }
         text3 = TextInput.model_validate(expr3_data)
         expr3_id = await test_database.text.create(text3)
@@ -668,7 +668,7 @@ class TestGetAllTextsV2:
             "title": {"en": "Single text"},
             "language": "en",
             "category_id": category_id,
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
         }
         text = TextInput.model_validate(expr_data)
         await test_database.text.create(text)
@@ -704,7 +704,7 @@ class TestGetSingleTextV2:
         person_id = await test_database.person.create(person)
         category_id = 'category'  # Use pre-created category from conftest
         # Create test text
-        test_text_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        test_text_data["contributions"] = [{"type": "person", "id": person_id, "role": "author"}]
         test_text_data["category_id"] = category_id
         text = TextInput.model_validate(test_text_data)
         text_id = await test_database.text.create(text)
@@ -734,7 +734,7 @@ class TestGetSingleTextV2:
         person_id = await test_database.person.create(person)
         category_id = 'category'
         # Create test text
-        test_text_data["contributions"] = [{"person_id": person_id, "role": "author"}]
+        test_text_data["contributions"] = [{"type": "person", "id": person_id, "role": "author"}]
         test_text_data["category_id"] = category_id
         text = TextInput.model_validate(test_text_data)
         text_id = await test_database.text.create(text)
@@ -758,7 +758,7 @@ class TestGetSingleTextV2:
             "title": {"en": "Primary Title"},
             "language": "en",
             "category_id": category_id,
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
             "alt_titles": [{"en": "Unique Alternative Name"}, {"bo": "གཞན་མིང་།"}],
         }
         text = TextInput.model_validate(expr_data)
@@ -791,7 +791,7 @@ class TestGetSingleTextV2:
             "title": {"en": "Target Root text"},
             "language": "en",
             "category_id": category_id,
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
         }
         root_text = TextInput.model_validate(root_data)
         target_id = await test_database.text.create(root_text)
@@ -802,7 +802,7 @@ class TestGetSingleTextV2:
             "language": "bo",
             "category_id": category_id,
             "translation_of": target_id,
-            "contributions": [{"person_id": person_id, "role": "translator"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "translator"}],
         }
         translation_text = TextInput.model_validate(translation_data)
         translation_id = await test_database.text.create(translation_text)
@@ -842,7 +842,7 @@ class TestPostTextV2:
         text_data = {
             "title": {"en": "New Root text", "bo": "རྩ་བའི་ཚིག་སྒྲུབ་གསར་པ།"},
             "language": "en",
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
             "category_id": category_id,
             "license": "cc0"
         }
@@ -918,7 +918,7 @@ class TestPostTextV2:
         root_data = {
             "title": {"en": "Root text", "bo": "རྩ་བའི་ཚིག་སྒྲུབ་གསར་པ།"},
             "language": "en",
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
             "category_id": category_id,
         }
         root_text = TextInput.model_validate(root_data)
@@ -929,7 +929,7 @@ class TestPostTextV2:
             "title": {"en": "Translation text", "bo": "སྒྱུར་བའི་ཚིག་སྒྲུབ་གསར་པ།"},
             "language": "bo",
             "translation_of": root_id,
-            "contributions": [{"person_id": person_id, "role": "translator"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "translator"}],
             "category_id": category_id
         }
         response = await client.post("/v2/texts", json=translation_data)
@@ -949,7 +949,7 @@ class TestPostTextV2:
         root_data = {
             "title": {"en": "Root text", "bo": "རྩ་བའི་ཚིག་སྒྲུབ་གསར་པ།"},
             "language": "en",
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
             "category_id": category_id,
         }
         root_text = TextInput.model_validate(root_data)
@@ -960,7 +960,7 @@ class TestPostTextV2:
             "title": {"en": "Commentary text", "bo": "འགྲེལ་པ།"},
             "language": "bo",
             "commentary_of": root_id,
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
             "category_id": category_id
         }
         response = await client.post("/v2/texts", json=commentary_data)
@@ -981,7 +981,7 @@ class TestPostTextV2:
             "title": {"en": "Translation text", "bo": "སྒྱུར་བའི་ཚིག་སྒྲུབ་གསར་པ།"},
             "language": "bo",
             "translation_of": "invalid_target",
-            "contributions": [{"person_id": person_id, "role": "translator"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "translator"}],
             "category_id": category_id
         }
         response = await client.post("/v2/texts", json=translation_data)
@@ -1000,7 +1000,7 @@ class TestPostTextV2:
             "title": {"en": "Commentary text", "bo": "འགྲེལ་པ།"},
             "language": "bo",
             "commentary_of": "invalid_target",
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
             "category_id": category_id
         }
         response = await client.post("/v2/texts", json=commentary_data)
@@ -1015,7 +1015,7 @@ class TestPostTextV2:
         root_data = {
             "title": {"en": "Root text", "bo": "རྩ་བའི་ཚིག་སྒྲུབ་གསར་པ།"},
             "language": "en",
-            "contributions": [{"person_id": person_id, "role": "author"}]
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}]
         }
 
         response = await client.post("/v2/texts", json=root_data)
@@ -1033,15 +1033,17 @@ class TestPostTextV2:
         root_data = {
             "title": {"en": "Root text", "bo": "རྩ་བའི་ཚིག་སྒྲུབ་གསར་པ།"},
             "language": "en",
-            "contributions": [{"person_id": person_id, "role": "invalid_role"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "invalid_role"}],
             "category_id": category_id
         }
         response = await client.post("/v2/texts", json=root_data)
 
         assert response.status_code == 422
     
-    async def test_create_text_with_contributionmodel_both_bdrc_and_person_id(self, client, test_database, test_person_data):
-        """Test creating a text with a ContributionModel containing both person_id and person_bdrc_id"""
+    async def test_create_text_with_person_contribution_both_id_and_bdrc_id(
+        self, client, test_database, test_person_data
+    ):
+        """Test creating a text with a person contribution containing both id and bdrc_id."""
         person = PersonInput.model_validate(test_person_data)
         person_id = await test_database.person.create(person)
 
@@ -1050,8 +1052,21 @@ class TestPostTextV2:
         root_data = {
             "title": {"en": "Root text", "bo": "རྩ་བའི་ཚིག་སྒྲུབ་གསར་པ།"},
             "language": "en",
-            "contributions": [{"person_id": person_id, "person_bdrc_id": "P123456", "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "bdrc_id": "P123456", "role": "author"}],
             "category_id": category_id
+        }
+
+        response = await client.post("/v2/texts", json=root_data)
+
+        assert response.status_code == 422
+
+    async def test_create_text_with_ai_contribution_rejects_bdrc_id(self, client):
+        """AI contributions use id only and cannot include bdrc_id."""
+        root_data = {
+            "title": {"en": "AI translated text"},
+            "language": "en",
+            "contributions": [{"type": "ai", "id": "gpt-4", "bdrc_id": "P123456", "role": "translator"}],
+            "category_id": "category",
         }
 
         response = await client.post("/v2/texts", json=root_data)
@@ -1071,7 +1086,7 @@ class TestPostTextV2:
             "bdrc": "T1234567",
             "title": {"en": "New Root text", "bo": "རྩ་བའི་ཚིག་སྒྲུབ་གསར་པ།"},
             "language": "en",
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
             "category_id": category_id,
             "license": "cc0"
         }
@@ -1083,7 +1098,7 @@ class TestPostTextV2:
             "bdrc": "T1234567",
             "title": {"en": "Duplicate Root text", "bo": "རྩ་བའི་ཚིག་སྒྲུབ་གསར་པ།"},
             "language": "en",
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
             "category_id": category_id,
             "license": "cc0"
         }
@@ -1102,7 +1117,7 @@ class TestPostTextV2:
         text_data = {
             "title": {"en": "Orphan Text"},
             "language": "en",
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
             "category_id": "nonexistent_category_id",
         }
 
@@ -1127,7 +1142,7 @@ class TestPatchTextV2:
             "title": {"en": "Original Title"},
             "language": "en",
             "category_id": category_id,
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
             "bdrc": "W111111",
         }
         text = TextInput.model_validate(expr_data)
@@ -1161,7 +1176,7 @@ class TestPatchTextV2:
             "title": {"en": "Wiki Text"},
             "language": "en",
             "category_id": category_id,
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
             "wiki": "Q111111",
         }
         text = TextInput.model_validate(expr_data)
@@ -1192,7 +1207,7 @@ class TestPatchTextV2:
             "title": {"en": "Date Text"},
             "language": "en",
             "category_id": category_id,
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
             "date": "2024-01-01",
         }
         text = TextInput.model_validate(expr_data)
@@ -1223,7 +1238,7 @@ class TestPatchTextV2:
             "title": {"en": "Original Title", "bo": "བོད་མཚན་བྱང་།"},
             "language": "en",
             "category_id": category_id,
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
         }
         text = TextInput.model_validate(expr_data)
         text_id = await test_database.text.create(text)
@@ -1255,7 +1270,7 @@ class TestPatchTextV2:
             "title": {"en": "Primary Title"},
             "language": "en",
             "category_id": category_id,
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
             "alt_titles": [{"en": "Old Alt Title"}],
         }
         text = TextInput.model_validate(expr_data)
@@ -1290,7 +1305,7 @@ class TestPatchTextV2:
             "title": {"en": "License Text"},
             "language": "en",
             "category_id": category_id,
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
             "license": "public",
         }
         text = TextInput.model_validate(expr_data)
@@ -1321,7 +1336,7 @@ class TestPatchTextV2:
             "title": {"en": "Original"},
             "language": "en",
             "category_id": category_id,
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
             "bdrc": "W333333",
             "wiki": "Q333333",
             "license": "public",
@@ -1378,7 +1393,7 @@ class TestPatchTextV2:
             "title": {"en": "Test Text"},
             "language": "en",
             "category_id": category_id,
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
         }
         text = TextInput.model_validate(expr_data)
         text_id = await test_database.text.create(text)
@@ -1403,7 +1418,7 @@ class TestPatchTextV2:
             "title": {"en": "Test Text"},
             "language": "en",
             "category_id": category_id,
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
             "bdrc": "W_NULL_PATCH",
         }
         text = TextInput.model_validate(expr_data)
@@ -1429,7 +1444,7 @@ class TestPatchTextV2:
             "title": {"en": "Test Text"},
             "language": "en",
             "category_id": category_id,
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
         }
         text = TextInput.model_validate(expr_data)
         text_id = await test_database.text.create(text)
@@ -1454,7 +1469,7 @@ class TestPatchTextV2:
             "title": {"en": "Original Title", "bo": "བོད་མཚན་བྱང་།"},
             "language": "en",
             "category_id": category_id,
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
             "alt_titles": [{"en": "Alt Title"}],
             "bdrc": "W101010",
             "wiki": "Q101010",
@@ -1499,7 +1514,7 @@ class TestPatchTextV2:
             "title": {"en": "English Title"},
             "language": "en",
             "category_id": category_id,
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
         }
         text = TextInput.model_validate(expr_data)
         text_id = await test_database.text.create(text)
@@ -1531,7 +1546,7 @@ class TestPatchTextV2:
             "title": {"en": "English Title"},
             "language": "en",
             "category_id": category_id,
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
         }
         text = TextInput.model_validate(expr_data)
         text_id = await test_database.text.create(text)
@@ -1570,7 +1585,7 @@ class TestPatchTextV2:
             "title": {"en": "Primary Title"},
             "language": "en",
             "category_id": category_id,
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
             "alt_titles": [{"en": "Alt Title 1"}, {"en": "Alt Title 2"}],
         }
         text = TextInput.model_validate(expr_data)
@@ -1601,7 +1616,7 @@ class TestPatchTextV2:
             "title": {"en": "English Title", "bo": "བོད་སྐད་མཚན་བྱང་།"},
             "language": "en",
             "category_id": category_id,
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
         }
         text = TextInput.model_validate(expr_data)
         text_id = await test_database.text.create(text)
@@ -1631,7 +1646,7 @@ class TestPatchTextV2:
             "title": {"en": "Test Text"},
             "language": "en",
             "category_id": category_id,
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
         }
         text = TextInput.model_validate(expr_data)
         text_id = await test_database.text.create(text)
@@ -1656,7 +1671,7 @@ class TestPatchTextV2:
             "title": {"en": "Test Text"},
             "language": "en",
             "category_id": category_id,
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
         }
         text = TextInput.model_validate(expr_data)
         text_id = await test_database.text.create(text)
@@ -1686,7 +1701,7 @@ class TestPatchTextV2:
             "title": {"en": "Test Text"},
             "language": "en",
             "category_id": category_id,
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
         }
         text = TextInput.model_validate(expr_data)
         text_id = await test_database.text.create(text)
@@ -1716,7 +1731,7 @@ class TestPatchTextV2:
             "title": {"en": "Test Text"},
             "language": "en",
             "category_id": category_id,
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
         }
         text = TextInput.model_validate(expr_data)
         text_id = await test_database.text.create(text)
@@ -1746,7 +1761,7 @@ class TestPatchTextV2:
             "title": {"en": "Primary Title"},
             "language": "en",
             "category_id": category_id,
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
         }
         text = TextInput.model_validate(expr_data)
         text_id = await test_database.text.create(text)
@@ -1784,7 +1799,7 @@ class TestPatchTextV2:
             "title": {"en": "Test Text"},
             "language": "en",
             "category_id": category_id,
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
         }
         text = TextInput.model_validate(expr_data)
         text_id = await test_database.text.create(text)
@@ -1814,7 +1829,7 @@ class TestPatchTextV2:
             "title": {"en": "Original English Title", "bo": "བོད་ཡིག་མཚན་བྱང་།"},
             "language": "en",
             "category_id": category_id,
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
         }
         text = TextInput.model_validate(expr_data)
         text_id = await test_database.text.create(text)
@@ -1852,7 +1867,7 @@ class TestPatchTextV2:
             "title": {"en": "English Title"},
             "language": "en",
             "category_id": category_id,
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
         }
         text = TextInput.model_validate(expr_data)
         text_id = await test_database.text.create(text)
@@ -1884,7 +1899,7 @@ class TestPatchTextV2:
             "title": {"en": "License Test"},
             "language": "en",
             "category_id": category_id,
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
             "license": "public",
         }
         text = TextInput.model_validate(expr_data)
@@ -1917,7 +1932,7 @@ class TestPatchTextV2:
             "title": {"en": "Test Text"},
             "language": "en",
             "category_id": category_id,
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
         }
         text = TextInput.model_validate(expr_data)
         text_id = await test_database.text.create(text)
@@ -1941,7 +1956,7 @@ class TestPatchTextV2:
             "title": {"en": "First BDRC Text"},
             "language": "en",
             "category_id": category_id,
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
             "bdrc": "W_DUP_PATCH_1",
         }
         text1 = TextInput.model_validate(text1_data)
@@ -1951,7 +1966,7 @@ class TestPatchTextV2:
             "title": {"en": "Second BDRC Text"},
             "language": "en",
             "category_id": category_id,
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
             "bdrc": "W_DUP_PATCH_2",
         }
         text2 = TextInput.model_validate(text2_data)
@@ -1985,7 +2000,7 @@ class TestGetEditionsV2:
             "title": title,
             "language": "en",
             "category_id": "category",
-            "contributions": [{"person_id": person_id, "role": "author"}],
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
         }
         text = TextInput.model_validate(expr_data)
         return await db.text.create(text)

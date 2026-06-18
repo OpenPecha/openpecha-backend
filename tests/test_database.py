@@ -18,7 +18,7 @@ import pytest_asyncio
 from exceptions import DataNotFoundError, DataValidationError
 from identifier import generate_id
 from models.base import LocalizedString
-from models.contribution import ContributionInput
+from models.contribution import PersonContributionInput
 from models.edition import EditionInput, EditionType
 from models.enums import ContributorRole
 from models.text import TextInput
@@ -188,7 +188,7 @@ class TestDatabase:
             title=LocalizedString({"bo": "དམ་པའི་ཆོས་པདྨ་དཀར་པོ།", "en": "The Sacred White Lotus Dharma"}),
             alt_titles=[LocalizedString({"bo": "པདྨ་དཀར་པོའི་མདོ།", "en": "White Lotus Sutra"})],
             language="bo",
-            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
+            contributions=[PersonContributionInput(type="person", id=person_id, role=ContributorRole.AUTHOR)],
         )
 
         # Create the text
@@ -220,7 +220,8 @@ class TestDatabase:
         # Verify contributions
         assert len(retrieved_text.contributions) == 1
         contribution = retrieved_text.contributions[0]
-        assert contribution.person_id == person_id
+        assert contribution.type == "person"
+        assert contribution.id == person_id
         assert contribution.role == ContributorRole.AUTHOR
 
 
@@ -231,7 +232,7 @@ class TestDatabase:
             category_id="category",
             title=LocalizedString({"en": "Test text"}),
             language="en",
-            contributions=[ContributionInput(person_id="non-existent-person-id", role=ContributorRole.AUTHOR)],
+            contributions=[PersonContributionInput(type="person", id="non-existent-person-id", role=ContributorRole.AUTHOR)],
         )
 
         # Should raise DataValidationError for missing person
@@ -263,7 +264,7 @@ class TestDatabase:
                 category_id="category",
                 title=LocalizedString(title_dict),
                 language=input_lang,
-                contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
+                contributions=[PersonContributionInput(type="person", id=person_id, role=ContributorRole.AUTHOR)],
             )
 
             # Should create successfully
@@ -293,8 +294,8 @@ class TestDatabase:
             title=LocalizedString({"en": "Multi-Contributor Work"}),
             language="en",
             contributions=[
-                ContributionInput(person_id=author_id, role=ContributorRole.AUTHOR),
-                ContributionInput(person_id=reviser_id, role=ContributorRole.REVISER),
+                PersonContributionInput(type="person", id=author_id, role=ContributorRole.AUTHOR),
+                PersonContributionInput(type="person", id=reviser_id, role=ContributorRole.REVISER),
             ],
         )
 
@@ -310,7 +311,7 @@ class TestDatabase:
         assert ContributorRole.REVISER in roles
 
         # Check that we have both persons
-        person_ids = {contrib.person_id for contrib in retrieved.contributions}
+        person_ids = {contrib.id for contrib in retrieved.contributions}
         assert author_id in person_ids
         assert reviser_id in person_ids
 
@@ -328,7 +329,7 @@ class TestDatabase:
             category_id="category",
             title=LocalizedString({"en": "Minimal text"}),
             language="en",
-            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
+            contributions=[PersonContributionInput(type="person", id=person_id, role=ContributorRole.AUTHOR)],
         )
 
         text_id = await test_database.text.create(text)
@@ -344,7 +345,7 @@ class TestDatabase:
 
 
     async def test_create_root_text_with_bdrc_id(self, test_database):
-        """Test creating text with contribution using person_bdrc_id instead of person_id"""
+        """Test creating text with a person contribution using bdrc_id instead of id."""
         # Create a person with BDRC ID
         person = PersonInput(
             name=LocalizedString({"en": "BDRC Person", "bo": "བདྲ་ཅ་མི་སྣ།"}),
@@ -352,14 +353,15 @@ class TestDatabase:
         )
         person_id = await test_database.person.create(person)
 
-        # Create text using person_bdrc_id instead of person_id
+        # Create text using bdrc_id instead of id
         text = TextInput(
             category_id="category",
             title=LocalizedString({"en": "text with BDRC Contributor"}),
             language="en",
             contributions=[
-                ContributionInput(
-                    person_bdrc_id="P123456",
+                PersonContributionInput(
+                    type="person",
+                    bdrc_id="P123456",
                     role=ContributorRole.AUTHOR,
                 )
             ],
@@ -376,19 +378,20 @@ class TestDatabase:
 
         # Verify the contribution is linked to the correct person
         contribution = retrieved.contributions[0]
-        assert contribution.person_id == person_id  # Should resolve to the actual person_id
-        assert contribution.person_bdrc_id == "P123456"  # Should also include the BDRC ID
+        assert contribution.type == "person"
+        assert contribution.id == person_id  # Should resolve to the actual person id
+        assert contribution.bdrc_id == "P123456"  # Should also include the BDRC ID
         assert contribution.role == ContributorRole.AUTHOR
 
 
     async def test_create_root_text_missing_person_bdrc_id(self, test_database):
-        """Test that creating text with non-existent person_bdrc_id fails"""
+        """Test that creating text with non-existent person bdrc_id fails."""
         text = TextInput(
             category_id="category",
             title=LocalizedString({"en": "Test text"}),
             language="en",
             contributions=[
-                ContributionInput(person_bdrc_id="P999999", role=ContributorRole.AUTHOR)
+                PersonContributionInput(type="person", bdrc_id="P999999", role=ContributorRole.AUTHOR)
             ],
         )
 
@@ -411,7 +414,7 @@ class TestDatabase:
             category_id="category",
             title=LocalizedString({"en": "Original Text"}),
             language="en",
-            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
+            contributions=[PersonContributionInput(type="person", id=person_id, role=ContributorRole.AUTHOR)],
         )
         root_text_id = await test_database.text.create(root_text)
 
@@ -427,7 +430,7 @@ class TestDatabase:
             title=LocalizedString({"bo": "བསྒྱུར་བ།"}),
             language="bo",
             translation_of=root_text_id,
-            contributions=[ContributionInput(person_id=translator_id, role=ContributorRole.TRANSLATOR)],
+            contributions=[PersonContributionInput(type="person", id=translator_id, role=ContributorRole.TRANSLATOR)],
         )
 
         translation_id = await test_database.text.create(translation_text)
@@ -455,7 +458,7 @@ class TestDatabase:
             category_id="category",
             title=LocalizedString({"en": "Root Text"}),
             language="en",
-            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
+            contributions=[PersonContributionInput(type="person", id=person_id, role=ContributorRole.AUTHOR)],
         )
         root_id = await test_database.text.create(root_text)
 
@@ -467,7 +470,7 @@ class TestDatabase:
                 language="bo",
                 commentary_of=root_id,
                 translation_of=root_id,
-                contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
+                contributions=[PersonContributionInput(type="person", id=person_id, role=ContributorRole.AUTHOR)],
             )
 
 
@@ -485,7 +488,7 @@ class TestDatabase:
             title=LocalizedString({"bo": "བསྒྱུར་བ།"}),
             language="bo",
             translation_of="nonexistent-target-id",
-            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.TRANSLATOR)],
+            contributions=[PersonContributionInput(type="person", id=person_id, role=ContributorRole.TRANSLATOR)],
         )
 
         # Should fail when trying to create in database
@@ -505,7 +508,7 @@ class TestDatabase:
             category_id="category",
             title=LocalizedString({"en": "Original Text"}),
             language="en",
-            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
+            contributions=[PersonContributionInput(type="person", id=person_id, role=ContributorRole.AUTHOR)],
         )
         root_text_id = await test_database.text.create(root_text)
 
@@ -521,7 +524,7 @@ class TestDatabase:
             title=LocalizedString({"bo": "འགྲེལ་པ།"}),
             language="bo",
             commentary_of=root_text_id,
-            contributions=[ContributionInput(person_id=commentator_id, role=ContributorRole.AUTHOR)],
+            contributions=[PersonContributionInput(type="person", id=commentator_id, role=ContributorRole.AUTHOR)],
         )
 
         commentary_id = await test_database.text.create(commentary_text)
@@ -536,7 +539,8 @@ class TestDatabase:
         assert retrieved.title.root["bo"] == "འགྲེལ་པ།"
         assert retrieved.language == "bo"
         assert len(retrieved.contributions) == 1
-        assert retrieved.contributions[0].person_id == commentator_id
+        assert retrieved.contributions[0].type == "person"
+        assert retrieved.contributions[0].id == commentator_id
         assert retrieved.contributions[0].role == ContributorRole.AUTHOR
 
 
@@ -554,7 +558,7 @@ class TestDatabase:
             title=LocalizedString({"bo": "འགྲེལ་པ།"}),
             language="bo",
             commentary_of="nonexistent-target-id",
-            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
+            contributions=[PersonContributionInput(type="person", id=person_id, role=ContributorRole.AUTHOR)],
         )
 
         # Should fail when trying to create in database
@@ -574,7 +578,7 @@ class TestDatabase:
             category_id="category",
             title=LocalizedString({"en": "Original Text"}),
             language="en",
-            contributions=[ContributionInput(person_id=author_id, role=ContributorRole.AUTHOR)],
+            contributions=[PersonContributionInput(type="person", id=author_id, role=ContributorRole.AUTHOR)],
         )
         root_text_id = await test_database.text.create(root_text)
 
@@ -596,8 +600,8 @@ class TestDatabase:
             language="bo",
             commentary_of=root_text_id,
             contributions=[
-                ContributionInput(person_id=commentator_id, role=ContributorRole.AUTHOR),
-                ContributionInput(person_id=reviser_id, role=ContributorRole.REVISER),
+                PersonContributionInput(type="person", id=commentator_id, role=ContributorRole.AUTHOR),
+                PersonContributionInput(type="person", id=reviser_id, role=ContributorRole.REVISER),
             ],
         )
 
@@ -624,7 +628,7 @@ class TestDatabase:
             category_id="category",
             title=LocalizedString({"en": "Test text"}),
             language="en",
-            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
+            contributions=[PersonContributionInput(type="person", id=person_id, role=ContributorRole.AUTHOR)],
         )
         text_id = await test_database.text.create(text)
 
@@ -646,7 +650,7 @@ class TestDatabase:
             category_id="category",
             title=LocalizedString({"en": "Root text"}),
             language="en",
-            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
+            contributions=[PersonContributionInput(type="person", id=person_id, role=ContributorRole.AUTHOR)],
         )
         root_id = await test_database.text.create(root_text)
         root_editions = await test_database.edition.get_all(root_id)
@@ -658,7 +662,7 @@ class TestDatabase:
             title=LocalizedString({"bo": "འགྱུར་བ།"}),
             language="bo",
             translation_of=root_id,
-            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.TRANSLATOR)],
+            contributions=[PersonContributionInput(type="person", id=person_id, role=ContributorRole.TRANSLATOR)],
         )
         translation_id = await test_database.text.create(translation_text)
         translation_editions = await test_database.edition.get_all(translation_id)
@@ -670,7 +674,7 @@ class TestDatabase:
             title=LocalizedString({"bo": "འགྲེལ་པ།"}),
             language="bo",
             commentary_of=root_id,
-            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
+            contributions=[PersonContributionInput(type="person", id=person_id, role=ContributorRole.AUTHOR)],
         )
         commentary_id = await test_database.text.create(commentary_text)
         commentary_editions = await test_database.edition.get_all(commentary_id)
@@ -689,7 +693,7 @@ class TestDatabase:
             category_id="category",
             title=LocalizedString({"en": "Test text"}),
             language="en",
-            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
+            contributions=[PersonContributionInput(type="person", id=person_id, role=ContributorRole.AUTHOR)],
         )
         text_id = await test_database.text.create(text)
 
@@ -722,7 +726,7 @@ class TestDatabase:
             category_id="category",
             title=LocalizedString({"en": "Test text"}),
             language="en",
-            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
+            contributions=[PersonContributionInput(type="person", id=person_id, role=ContributorRole.AUTHOR)],
         )
         text_id = await test_database.text.create(text)
 
@@ -784,7 +788,7 @@ class TestDatabase:
             category_id="category",
             title=LocalizedString({"en": "Test text"}),
             language="en",
-            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
+            contributions=[PersonContributionInput(type="person", id=person_id, role=ContributorRole.AUTHOR)],
         )
         text_id = await test_database.text.create(text)
 
@@ -817,7 +821,7 @@ class TestDatabase:
             category_id="category",
             title=LocalizedString({"en": "Test text"}),
             language="en",
-            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
+            contributions=[PersonContributionInput(type="person", id=person_id, role=ContributorRole.AUTHOR)],
         )
         text_id = await test_database.text.create(text)
 
@@ -848,7 +852,7 @@ class TestDatabase:
             category_id="category",
             title=LocalizedString({"en": "New text Created With Edition"}),
             language="en",
-            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
+            contributions=[PersonContributionInput(type="person", id=person_id, role=ContributorRole.AUTHOR)],
         )
 
         # Create edition input
@@ -890,7 +894,7 @@ class TestDatabase:
             category_id="category",
             title=LocalizedString({"en": "text With Invalid Person"}),
             language="en",
-            contributions=[ContributionInput(person_id="nonexistent-person-id", role=ContributorRole.AUTHOR)],
+            contributions=[PersonContributionInput(type="person", id="nonexistent-person-id", role=ContributorRole.AUTHOR)],
         )
 
         edition = EditionInput(
@@ -928,7 +932,7 @@ class TestDatabase:
             category_id="category",
             title=LocalizedString({"en": "Root Text"}),
             language="en",
-            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
+            contributions=[PersonContributionInput(type="person", id=person_id, role=ContributorRole.AUTHOR)],
         )
         root_text_id = await test_database.text.create(root_text)
 
@@ -938,7 +942,7 @@ class TestDatabase:
             title=LocalizedString({"bo": "བསྒྱུར་བ།"}),
             language="bo",
             translation_of=root_text_id,
-            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.TRANSLATOR)],
+            contributions=[PersonContributionInput(type="person", id=person_id, role=ContributorRole.TRANSLATOR)],
         )
 
         edition = EditionInput(
@@ -978,7 +982,7 @@ class TestSpanDatabase:
             category_id="category",
             title=LocalizedString({"en": "Test text"}),
             language="en",
-            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
+            contributions=[PersonContributionInput(type="person", id=person_id, role=ContributorRole.AUTHOR)],
         )
         text_id = await test_database.text.create(text)
 
@@ -992,7 +996,7 @@ class TestSpanDatabase:
             await session.run(
                 """
                 MATCH (m:Edition {id: $edition_id})
-                CREATE (segmentation:Segmentation {id: $segmentation_id})-[:SEGMENTATION_OF]->(m)
+                CREATE (m)-[:HAS_SEGMENTATION]->(segmentation:Segmentation {id: $segmentation_id})
                 CREATE (seg:Segment {id: $segment_id})-[:SEGMENT_OF]->(segmentation)
                 CREATE (span:Span {start: $start, end: $end})-[:SPAN_OF]->(seg)
                 """,
@@ -1034,7 +1038,7 @@ class TestSpanDatabase:
         async with test_database.get_session() as session:
             await session.run(
                 """
-                MATCH (m:Edition {id: $edition_id})<-[:SEGMENTATION_OF]-(segmentation:Segmentation)
+                MATCH (m:Edition {id: $edition_id})-[:HAS_SEGMENTATION]->(segmentation:Segmentation)
                 CREATE (seg:Segment {id: $segment_id})-[:SEGMENT_OF]->(segmentation)
                 CREATE (span:Span {start: $start, end: $end})-[:SPAN_OF]->(seg)
                 """,

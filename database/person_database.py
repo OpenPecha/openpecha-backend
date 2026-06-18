@@ -4,15 +4,15 @@ from neo4j.exceptions import ConstraintError
 
 from exceptions import DataConflictError, DataNotFoundError
 from identifier import generate_id
+from models.person import PersonOutput
 
-from .data_adapter import DataAdapter
 from .nomen_database import NomenDatabase
 from .search_text import build_substring_search_value
 
 if TYPE_CHECKING:
     from neo4j import AsyncManagedTransaction, AsyncSession
 
-    from models.person import PersonInput, PersonOutput, PersonPatch
+    from models.person import PersonInput, PersonPatch
     from models.requests import PersonFilter
 
     from .database import Database
@@ -26,9 +26,11 @@ class PersonDatabase:
         wiki: p.wiki,
         name: apoc.map.fromPairs([(p)-[:HAS_NAME]->(n:Nomen)-[:HAS_LOCALIZATION]->
                (lt:LocalizedText)-[:HAS_LANGUAGE]->(l:Language) | [l.code, lt.text]]),
-        alt_names: [(p)-[:HAS_NAME]->(:Nomen)<-[:ALTERNATIVE_OF]-(an:Nomen) |
+        alt_names: CASE WHEN EXISTS {
+            (p)-[:HAS_NAME]->(:Nomen)<-[:ALTERNATIVE_OF]-(:Nomen)
+        } THEN [(p)-[:HAS_NAME]->(:Nomen)<-[:ALTERNATIVE_OF]-(an:Nomen) |
                        apoc.map.fromPairs([(an)-[:HAS_LOCALIZATION]->(at:LocalizedText)
-                           -[:HAS_LANGUAGE]->(al:Language) | [al.code, at.text]])]
+                           -[:HAS_LANGUAGE]->(al:Language) | [al.code, at.text]])] ELSE null END
     }
     """
 
@@ -122,7 +124,7 @@ class PersonDatabase:
             record = await result.single()
             if not record:
                 raise DataNotFoundError(f"Person with ID '{person_id}' not found")
-            return DataAdapter.person(record.data()["person"])
+            return PersonOutput.model_validate(record["person"])
 
         async with self.session as session:
             return await session.execute_read(read)
@@ -143,9 +145,7 @@ class PersonDatabase:
                 wiki=filters.wiki if filters else None,
             )
             records = await result.data()
-            return [
-                person_model for record in records if (person_model := DataAdapter.person(record["person"])) is not None
-            ]
+            return [PersonOutput.model_validate(record["person"]) for record in records]
 
         async with self.session as session:
             return await session.execute_read(read)

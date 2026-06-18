@@ -4,6 +4,7 @@ import logging
 from typing import TYPE_CHECKING
 
 from content_search.opensearch_client import ContentSearchOpenSearchClient
+from exceptions import DataNotFoundError
 from models.annotation import SegmentWithContextOutput
 from models.content_search import (
     ContentSearchResult,
@@ -18,7 +19,6 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_CHUNK_CHARS = 4000
 DEFAULT_CHUNK_OVERLAP_CHARS = 500
-SEGMENT_PAGE_SIZE = 1000
 SIMILAR_PHRASE_SLOP = 12
 CONTEXT_CHARS = 200
 
@@ -35,6 +35,8 @@ class ContentSearchService:
         password: str = "",
         chunk_chars: int = DEFAULT_CHUNK_CHARS,
         chunk_overlap_chars: int = DEFAULT_CHUNK_OVERLAP_CHARS,
+        request_timeout: int = 120,
+        max_retries: int = 3,
     ) -> None:
         if chunk_overlap_chars >= chunk_chars:
             raise ValueError("chunk_overlap_chars must be smaller than chunk_chars")
@@ -45,6 +47,8 @@ class ContentSearchService:
             auth_mode=auth_mode,
             username=username,
             password=password,
+            request_timeout=request_timeout,
+            max_retries=max_retries,
         )
         self.chunk_chars = chunk_chars
         self.chunk_overlap_chars = chunk_overlap_chars
@@ -130,30 +134,23 @@ async def _get_display_segments_for_edition(
     edition_id: str,
     text_id: str,
 ) -> list[SegmentWithContextOutput]:
-    display_segmentations = await db.annotation.segmentation.get_all(edition_id)
-    segments: list[SegmentWithContextOutput] = []
-    for segmentation in display_segmentations:
-        offset = 0
-        while True:
-            page = await db.annotation.segmentation.get_segments(
-                segmentation.id,
-                offset=offset,
-                limit=SEGMENT_PAGE_SIZE,
-            )
-            segments.extend(
-                SegmentWithContextOutput(
-                    id=segment.id,
-                    segmentation_id=segmentation.id,
-                    edition_id=edition_id,
-                    text_id=text_id,
-                    lines=segment.lines,
-                )
-                for segment in page
-            )
-            if len(page) < SEGMENT_PAGE_SIZE:
-                break
-            offset += SEGMENT_PAGE_SIZE
-    return segments
+    try:
+        segmentation = await db.annotation.segmentation.get_by_edition(edition_id)
+    except DataNotFoundError:
+        return []
+
+    segments = await db.annotation.segmentation.get_all_segments_by_edition(edition_id)
+    return [
+        SegmentWithContextOutput(
+            id=segment.id,
+            reference=segment.reference,
+            segmentation_id=segmentation.id,
+            edition_id=edition_id,
+            text_id=text_id,
+            lines=segment.lines,
+        )
+        for segment in segments
+    ]
 
 
 def _index_body() -> dict:

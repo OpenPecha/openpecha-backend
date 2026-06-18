@@ -3,7 +3,7 @@ import logging
 from neo4j import AsyncManagedTransaction
 
 from exceptions import DataNotFoundError, DataValidationError, InvalidRequestError
-from models.contribution import ContributionInput
+from models.contribution import PersonContributionInput
 from models.text import TextInput
 
 logger = logging.getLogger(__name__)
@@ -56,14 +56,14 @@ class DatabaseValidator:
 
         if text.contributions:
             person_ids = [
-                contrib.person_id
+                contrib.id
                 for contrib in text.contributions
-                if isinstance(contrib, ContributionInput) and contrib.person_id
+                if isinstance(contrib, PersonContributionInput) and contrib.id
             ]
             person_bdrc_ids = [
-                contrib.person_bdrc_id
+                contrib.bdrc_id
                 for contrib in text.contributions
-                if isinstance(contrib, ContributionInput) and contrib.person_bdrc_id
+                if isinstance(contrib, PersonContributionInput) and contrib.bdrc_id
             ]
 
             await DatabaseValidator.validate_person_references(tx, person_ids)

@@ -27,10 +27,13 @@ logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 
 OPENSEARCH_IMAGE = "opensearchproject/opensearch:2.15.0"
+OPENSEARCH_JAVA_OPTS = "-Xms256m -Xmx256m"
 OPENSEARCH_WITH_ICU_COMMAND = (
-    "bash -c '/usr/share/opensearch/bin/opensearch-plugin install --batch analysis-icu "
-    "&& ./opensearch-docker-entrypoint.sh opensearch'"
+    f"""bash -c "export OPENSEARCH_JAVA_OPTS='{OPENSEARCH_JAVA_OPTS}' """
+    "&& /usr/share/opensearch/bin/opensearch-plugin install --batch analysis-icu "
+    """&& ./opensearch-docker-entrypoint.sh opensearch" """
 )
+OPENSEARCH_STARTUP_TIMEOUT_SECONDS = 240
 
 
 def load_constraints_file() -> list[str]:
@@ -147,35 +150,45 @@ def _neo4j_container():
     container.stop()
 
 
-@pytest.fixture(scope="session")
+@pytest.fixture(scope="module")
 def _opensearch_endpoint() -> Generator[str]:
-    """Session-scoped OpenSearch container for content search tests."""
+    """Module-scoped OpenSearch container for content search tests."""
     container = (
         DockerContainer(OPENSEARCH_IMAGE, command=OPENSEARCH_WITH_ICU_COMMAND)
         .with_env("discovery.type", "single-node")
         .with_env("DISABLE_SECURITY_PLUGIN", "true")
-        .with_env("OPENSEARCH_JAVA_OPTS", "-Xms512m -Xmx512m")
+        .with_env("OPENSEARCH_JAVA_OPTS", OPENSEARCH_JAVA_OPTS)
         .with_exposed_ports(9200)
     )
     container.start()
-    endpoint = f"http://{container.get_container_host_ip()}:{container.get_exposed_port(9200)}"
+    host = container.get_container_host_ip()
+    if host in {"localhost", "0.0.0.0", "::"}:
+        host = "127.0.0.1"
+    endpoint = f"http://{host}:{container.get_exposed_port(9200)}"
 
     last_error: httpx.HTTPError | None = None
-    for _ in range(120):
+    for _ in range(OPENSEARCH_STARTUP_TIMEOUT_SECONDS):
         try:
-            response = httpx.get(endpoint, timeout=2)
+            response = httpx.get(endpoint, timeout=2, trust_env=False)
             if response.status_code < 500:
                 break
         except httpx.HTTPError as exc:
             last_error = exc
         time.sleep(1)
     else:
-        container.stop()
-        raise RuntimeError(f"OpenSearch container did not become ready: {last_error}")
+        logs = ""
+        with suppress(Exception):
+            assert container._container is not None
+            logs = container._container.logs(tail=120).decode(errors="replace")
+        with suppress(Exception):
+            container.stop()
+        raise RuntimeError(f"OpenSearch container did not become ready: {last_error}\n{logs}")
 
-    yield endpoint
-
-    container.stop()
+    try:
+        yield endpoint
+    finally:
+        with suppress(Exception):
+            container.stop()
 
 
 @pytest_asyncio.fixture(scope="session", loop_scope="session")
@@ -249,6 +262,8 @@ async def content_search(_opensearch_endpoint: str) -> AsyncGenerator[ContentSea
         index_name=f"openpecha-content-search-test-{uuid.uuid4().hex}",
         region="ap-southeast-1",
         auth_mode="none",
+        request_timeout=5,
+        max_retries=0,
     )
     try:
         await service.connect()
@@ -303,9 +318,41 @@ class MockS3Storage:
         pass  # No-op for mock
 
 
+class NoOpContentSearch:
+    async def index_edition(self, *args, **kwargs) -> None:
+        pass
+
+    async def delete_edition(self, *args, **kwargs) -> None:
+        pass
+
+    async def search(self, *args, **kwargs) -> list:
+        return []
+
+
+@pytest.fixture(scope="function")
+def noop_content_search():
+    return NoOpContentSearch()
+
+
 @pytest_asyncio.fixture(loop_scope="session")
-async def client(test_database, mock_storage, content_search):
+async def client(test_database, mock_storage, noop_content_search):
     """Create async HTTP client with app.state configured for testing."""
+    import httpx
+
+    from main import create_app
+
+    fastapi_app = create_app(testing=True)
+    fastapi_app.state.db = test_database
+    fastapi_app.state.storage = mock_storage
+    fastapi_app.state.content_search = noop_content_search
+    transport = httpx.ASGITransport(app=fastapi_app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test", follow_redirects=True) as ac:
+        yield ac
+
+
+@pytest_asyncio.fixture(loop_scope="session")
+async def search_client(test_database, mock_storage, content_search):
+    """Create async HTTP client backed by real OpenSearch for search tests."""
     import httpx
 
     from main import create_app
@@ -320,7 +367,7 @@ async def client(test_database, mock_storage, content_search):
 
 
 @pytest_asyncio.fixture(loop_scope="session")
-async def auth_client(test_database, mock_storage, content_search):
+async def auth_client(test_database, mock_storage, noop_content_search):
     """Create async HTTP client with real API key authentication (testing=False)."""
     import httpx
 
@@ -330,7 +377,7 @@ async def auth_client(test_database, mock_storage, content_search):
     fastapi_app = create_app(testing=False)
     fastapi_app.state.db = test_database
     fastapi_app.state.storage = mock_storage
-    fastapi_app.state.content_search = content_search
+    fastapi_app.state.content_search = noop_content_search
     
     settings.environment = "test"
     

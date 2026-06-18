@@ -6,14 +6,11 @@ from database.nomen_database import NomenDatabase
 from exceptions import DataNotFoundError
 from identifier import generate_id
 from models.annotation import (
-    AnnotationMetadata,
-    Span,
     TableOfContentsInput,
     TableOfContentsOutput,
     TableOfContentsSectionInput,
     TableOfContentsSectionOutput,
 )
-from models.base import LocalizedString
 
 if TYPE_CHECKING:
     from neo4j import AsyncManagedTransaction, Record
@@ -65,20 +62,24 @@ class TableOfContentsDatabase:
     GET_BY_ID_QUERY: LiteralString = """
     MATCH (toc:TableOfContents {id: $toc_id})-[:TOC_OF]->(edition:Edition)-[:EDITION_OF]->(text:Text)
     OPTIONAL MATCH (toc)-[:HAS_METADATA]->(metadata:AnnotationMetadata)
-    RETURN toc.id AS id,
-           edition.id AS edition_id,
-           text.id AS text_id,
-           metadata.name AS metadata_name
+    RETURN {
+        id: toc.id,
+        edition_id: edition.id,
+        text_id: text.id,
+        metadata: CASE WHEN metadata IS NULL THEN null ELSE {name: metadata.name} END
+    } AS toc
     """
 
     GET_BY_EDITION_ID_QUERY: LiteralString = """
     MATCH (edition:Edition {id: $edition_id})-[:EDITION_OF]->(text:Text)
     MATCH (toc:TableOfContents)-[:TOC_OF]->(edition)
     OPTIONAL MATCH (toc)-[:HAS_METADATA]->(metadata:AnnotationMetadata)
-    RETURN toc.id AS id,
-           edition.id AS edition_id,
-           text.id AS text_id,
-           metadata.name AS metadata_name
+    RETURN {
+        id: toc.id,
+        edition_id: edition.id,
+        text_id: text.id,
+        metadata: CASE WHEN metadata IS NULL THEN null ELSE {name: metadata.name} END
+    } AS toc
     ORDER BY toc.id
     """
 
@@ -86,10 +87,7 @@ class TableOfContentsDatabase:
     MATCH (section:TableOfContentsSection)-[:SECTION_OF]->(:TableOfContents {id: $toc_id})
     MATCH (span:Span)-[:SPAN_OF]->(section)
     OPTIONAL MATCH (section)-[:SUBSECTION_OF]->(parent:TableOfContentsSection)
-    RETURN section.id AS id,
-           parent.id AS parent_id,
-           span.start AS span_start,
-           span.end AS span_end,
+    WITH section, parent, span,
            apoc.map.fromPairs([
                (section)-[:HAS_TITLE]->(:Nomen)-[:HAS_LOCALIZATION]->(title:LocalizedText)
                    -[title_rel:HAS_LANGUAGE]->(title_lang:Language) |
@@ -100,7 +98,14 @@ class TableOfContentsDatabase:
                    -[summary_rel:HAS_LANGUAGE]->(summary_lang:Language) |
                [coalesce(summary_rel.bcp47, summary_lang.code), summary.text]
            ]) AS summary
-    ORDER BY parent_id, span.start, span.end, section.id
+    RETURN {
+        id: section.id,
+        title: title,
+        summary: CASE WHEN size(keys(summary)) = 0 THEN null ELSE summary END,
+        span: {start: span.start, end: span.end}
+    } AS section,
+    parent.id AS parent_id
+    ORDER BY parent_id, section.span.start, section.span.end, section.id
     """
 
     DELETE_QUERY: LiteralString = """
@@ -160,33 +165,16 @@ class TableOfContentsDatabase:
         return flattened
 
     @staticmethod
-    def _parse_metadata(record: dict[str, Any] | Record) -> AnnotationMetadata | None:
-        if record["metadata_name"] is None:
-            return None
-        return AnnotationMetadata(name=record["metadata_name"])
-
-    @staticmethod
-    def _parse_section_record(record: dict[str, Any] | Record) -> TableOfContentsSectionOutput:
-        summary = dict(record["summary"] or {})
-        return TableOfContentsSectionOutput(
-            id=record["id"],
-            title=LocalizedString(dict(record["title"] or {})),
-            summary=LocalizedString(summary) if summary else None,
-            span=Span(start=record["span_start"], end=record["span_end"]),
-            subsections=[],
-        )
-
-    @staticmethod
     def _build_sections(records: Sequence[dict[str, Any] | Record]) -> list[TableOfContentsSectionOutput]:
         nodes: dict[str, TableOfContentsSectionOutput] = {}
         parent_ids: dict[str, str | None] = {}
         spans: dict[str, tuple[int, int]] = {}
 
         for record in records:
-            node = TableOfContentsDatabase._parse_section_record(record)
+            node = TableOfContentsSectionOutput.model_validate(record["section"])
             nodes[node.id] = node
             parent_ids[node.id] = record["parent_id"]
-            spans[node.id] = (record["span_start"], record["span_end"])
+            spans[node.id] = (node.span.start, node.span.end)
 
         roots: list[TableOfContentsSectionOutput] = []
         for node_id, node in nodes.items():
@@ -202,16 +190,11 @@ class TableOfContentsDatabase:
         return roots
 
     @staticmethod
-    async def _parse_toc(tx: AsyncManagedTransaction, record: dict[str, Any] | Record) -> TableOfContentsOutput:
-        result = await tx.run(TableOfContentsDatabase.GET_SECTIONS_QUERY, toc_id=record["id"])
+    async def _build_toc_output(tx: AsyncManagedTransaction, record: dict[str, Any] | Record) -> TableOfContentsOutput:
+        toc_data = dict(record["toc"])
+        result = await tx.run(TableOfContentsDatabase.GET_SECTIONS_QUERY, toc_id=toc_data["id"])
         sections = TableOfContentsDatabase._build_sections(await result.data())
-        return TableOfContentsOutput(
-            id=record["id"],
-            edition_id=record["edition_id"],
-            text_id=record["text_id"],
-            metadata=TableOfContentsDatabase._parse_metadata(record),
-            sections=sections,
-        )
+        return TableOfContentsOutput.model_validate(toc_data | {"sections": sections})
 
     async def get(self, toc_id: str) -> TableOfContentsOutput:
         async with self._db.get_session() as session:
@@ -239,13 +222,13 @@ class TableOfContentsDatabase:
         record = await result.single()
         if record is None:
             raise DataNotFoundError(f"Table of contents with ID '{toc_id}' not found")
-        return await TableOfContentsDatabase._parse_toc(tx, record)
+        return await TableOfContentsDatabase._build_toc_output(tx, record)
 
     @staticmethod
     async def get_all_with_transaction(tx: AsyncManagedTransaction, edition_id: str) -> list[TableOfContentsOutput]:
         await DatabaseValidator.validate_edition_exists(tx, edition_id)
         result = await tx.run(TableOfContentsDatabase.GET_BY_EDITION_ID_QUERY, edition_id=edition_id)
-        return [await TableOfContentsDatabase._parse_toc(tx, record) for record in await result.data()]
+        return [await TableOfContentsDatabase._build_toc_output(tx, record) for record in await result.data()]
 
     @staticmethod
     async def add_with_transaction(

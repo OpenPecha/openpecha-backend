@@ -194,6 +194,10 @@ nodes:
         target: Source
         cardinality: one
         required: false
+      HAS_SEGMENTATION:
+        target: Segmentation
+        cardinality: one
+        required: false
 
   Source:
     properties:
@@ -208,10 +212,6 @@ nodes:
         required: true
         unique: true
     relationships:
-      SEGMENTATION_OF:
-        target: Edition
-        cardinality: one
-        required: true
       HAS_METADATA:
         target: AnnotationMetadata
         cardinality: one
@@ -223,6 +223,9 @@ nodes:
         type: string
         required: true
         unique: true
+      reference:
+        type: string
+        required: false
     relationships:
       SEGMENT_OF:
         target: Segmentation

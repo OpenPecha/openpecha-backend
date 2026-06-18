@@ -7,7 +7,7 @@ from identifier import generate_id
 from main import create_app
 from models.annotation import SegmentWithContextOutput, Span
 from models.base import LocalizedString
-from models.contribution import ContributionInput
+from models.contribution import PersonContributionInput
 from models.enums import ContributorRole, EditionType
 from models.person import PersonInput
 from models.text import TextInput
@@ -33,13 +33,13 @@ async def _create_text(db, person_id: str, title: str = "Search Text", language:
             category_id="category",
             title=LocalizedString({language: title}),
             language=language,
-            contributions=[ContributionInput(person_id=person_id, role=ContributorRole.AUTHOR)],
+            contributions=[PersonContributionInput(type="person", id=person_id, role=ContributorRole.AUTHOR)],
         )
     )
 
 
-async def _create_critical_edition(client, text_id: str, content: str, segments: list[tuple[int, int]]) -> str:
-    response = await client.post(
+async def _create_critical_edition(search_client, text_id: str, content: str, segments: list[tuple[int, int]]) -> str:
+    response = await search_client.post(
         f"/v2/texts/{text_id}/editions",
         json={
             "content": content,
@@ -85,20 +85,20 @@ def test_overlapping_chunks_cover_boundary_matches():
 class TestContentSearch:
     async def test_exact_search_returns_match_span_and_all_overlapping_segments(
         self,
-        client,
+        search_client,
         test_database,
     ):
         person_id = await _create_person(test_database)
         text_id = await _create_text(test_database, person_id)
         content = "ab cd ef gh"
         edition_id = await _create_critical_edition(
-            client,
+            search_client,
             text_id,
             content=content,
             segments=[(0, 5), (5, 11)],
         )
 
-        response = await client.get("/v2/content-search", params={"query": "cd ef", "search_type": "exact"})
+        response = await search_client.get("/v2/content-search", params={"query": "cd ef", "search_type": "exact"})
 
         assert response.status_code == 200, response.json()
         results = response.json()
@@ -110,7 +110,7 @@ class TestContentSearch:
         assert result["context"] == content[result["context_span"]["start"] : result["context_span"]["end"]]
         assert len(result["segment_ids"]) == 2
 
-    async def test_tibetan_exact_search_returns_unicode_match_span(self, client, test_database):
+    async def test_tibetan_exact_search_returns_unicode_match_span(self, search_client, test_database):
         person_id = await _create_person(test_database)
         text_id = await _create_text(test_database, person_id, title="བོད་ཡིག་ཚོལ་བ།")
         first_segment = "བཀྲ་ཤིས་"
@@ -120,13 +120,13 @@ class TestContentSearch:
         expected_start = content.index(query)
         expected_end = expected_start + len(query)
         edition_id = await _create_critical_edition(
-            client,
+            search_client,
             text_id,
             content=content,
             segments=[(0, len(first_segment)), (len(first_segment), len(content))],
         )
 
-        response = await client.get("/v2/content-search", params={"query": query, "search_type": "exact"})
+        response = await search_client.get("/v2/content-search", params={"query": query, "search_type": "exact"})
 
         assert response.status_code == 200, response.json()
         results = response.json()
@@ -138,18 +138,18 @@ class TestContentSearch:
         assert result["context"] == content[result["context_span"]["start"] : result["context_span"]["end"]]
         assert len(result["segment_ids"]) == 2
 
-    async def test_tibetan_similar_search_uses_icu_analyzer(self, client, test_database):
+    async def test_tibetan_similar_search_uses_icu_analyzer(self, search_client, test_database):
         person_id = await _create_person(test_database)
         text_id = await _create_text(test_database, person_id, title="བོད་ཡིག་འདྲ་མཚུངས།")
         content = "འདི་ནི་བོད་ཡིག་གི་བདེ་ལེགས་ཞེས་པའི་ཚིག་ཡིན།"
         await _create_critical_edition(
-            client,
+            search_client,
             text_id,
             content=content,
             segments=[(0, len(content))],
         )
 
-        response = await client.get("/v2/content-search", params={"query": "བདེ་ལེགས", "search_type": "similar"})
+        response = await search_client.get("/v2/content-search", params={"query": "བདེ་ལེགས", "search_type": "similar"})
 
         assert response.status_code == 200, response.json()
         results = response.json()
@@ -161,18 +161,18 @@ class TestContentSearch:
         assert result["context"] == content
         assert result["segment_ids"]
 
-    async def test_similar_search_returns_context_without_match_span(self, client, test_database):
+    async def test_similar_search_returns_context_without_match_span(self, search_client, test_database):
         person_id = await _create_person(test_database)
         text_id = await _create_text(test_database, person_id)
         content = "བཀྲ་ཤིས་ search བདེ་ལེགས།"
         await _create_critical_edition(
-            client,
+            search_client,
             text_id,
             content=content,
             segments=[(0, len(content))],
         )
 
-        response = await client.get("/v2/content-search", params={"query": "SEARCH", "search_type": "similar"})
+        response = await search_client.get("/v2/content-search", params={"query": "SEARCH", "search_type": "similar"})
 
         assert response.status_code == 200, response.json()
         result = response.json()[0]
@@ -182,14 +182,14 @@ class TestContentSearch:
         assert result["context"] == content[result["context_span"]["start"] : result["context_span"]["end"]]
         assert "<em>" not in result["context"]
 
-    async def test_similar_search_requires_meaningful_overlap_for_long_queries(self, client, test_database):
+    async def test_similar_search_requires_meaningful_overlap_for_long_queries(self, search_client, test_database):
         person_id = await _create_person(test_database)
         weak_text_id = await _create_text(test_database, person_id, "Weak Match", language="en")
         strong_text_id = await _create_text(test_database, person_id, "Strong Match", language="en")
-        await _create_critical_edition(client, weak_text_id, "alpha unrelated filler", [(0, 22)])
-        await _create_critical_edition(client, strong_text_id, "alpha beta gamma delta epsilon", [(0, 30)])
+        await _create_critical_edition(search_client, weak_text_id, "alpha unrelated filler", [(0, 22)])
+        await _create_critical_edition(search_client, strong_text_id, "alpha beta gamma delta epsilon", [(0, 30)])
 
-        response = await client.get(
+        response = await search_client.get(
             "/v2/content-search",
             params={"query": "alpha beta gamma delta epsilon", "search_type": "similar", "limit": 10},
         )
@@ -197,18 +197,18 @@ class TestContentSearch:
         assert response.status_code == 200, response.json()
         assert {result["text_id"] for result in response.json()} == {strong_text_id}
 
-    async def test_search_filters_by_text_and_edition(self, client, test_database):
+    async def test_search_filters_by_text_and_edition(self, search_client, test_database):
         person_id = await _create_person(test_database)
         first_text_id = await _create_text(test_database, person_id, "First")
         second_text_id = await _create_text(test_database, person_id, "Second")
-        first_edition_id = await _create_critical_edition(client, first_text_id, "shared phrase one", [(0, 17)])
-        await _create_critical_edition(client, second_text_id, "shared phrase two", [(0, 17)])
+        first_edition_id = await _create_critical_edition(search_client, first_text_id, "shared phrase one", [(0, 17)])
+        await _create_critical_edition(search_client, second_text_id, "shared phrase two", [(0, 17)])
 
-        text_response = await client.get(
+        text_response = await search_client.get(
             "/v2/content-search",
             params={"query": "shared", "search_type": "exact", "text_id": first_text_id},
         )
-        edition_response = await client.get(
+        edition_response = await search_client.get(
             "/v2/content-search",
             params={"query": "shared", "search_type": "exact", "edition_id": first_edition_id},
         )
@@ -218,32 +218,32 @@ class TestContentSearch:
         assert edition_response.status_code == 200, edition_response.json()
         assert {result["edition_id"] for result in edition_response.json()} == {first_edition_id}
 
-    async def test_patch_reindexes_content(self, client, test_database):
+    async def test_patch_reindexes_content(self, search_client, test_database):
         person_id = await _create_person(test_database)
         text_id = await _create_text(test_database, person_id)
-        edition_id = await _create_critical_edition(client, text_id, "hello world", [(0, 11)])
+        edition_id = await _create_critical_edition(search_client, text_id, "hello world", [(0, 11)])
 
-        response_before = await client.get("/v2/content-search", params={"query": "planet", "search_type": "exact"})
+        response_before = await search_client.get("/v2/content-search", params={"query": "planet", "search_type": "exact"})
         assert response_before.json() == []
 
-        patch_response = await client.patch(
+        patch_response = await search_client.patch(
             f"/v2/editions/{edition_id}/content",
             json={"type": "replace", "start": 6, "end": 11, "text": "planet"},
         )
         assert patch_response.status_code == 204
 
-        response_after = await client.get("/v2/content-search", params={"query": "planet", "search_type": "exact"})
+        response_after = await search_client.get("/v2/content-search", params={"query": "planet", "search_type": "exact"})
         assert response_after.status_code == 200
         assert len(response_after.json()) == 1
 
-    async def test_delete_removes_indexed_documents(self, client, test_database):
+    async def test_delete_removes_indexed_documents(self, search_client, test_database):
         person_id = await _create_person(test_database)
         text_id = await _create_text(test_database, person_id)
-        edition_id = await _create_critical_edition(client, text_id, "delete me", [(0, 9)])
+        edition_id = await _create_critical_edition(search_client, text_id, "delete me", [(0, 9)])
 
-        assert len((await client.get("/v2/content-search", params={"query": "delete", "search_type": "exact"})).json()) == 1
+        assert len((await search_client.get("/v2/content-search", params={"query": "delete", "search_type": "exact"})).json()) == 1
 
-        delete_response = await client.delete(f"/v2/editions/{edition_id}")
+        delete_response = await search_client.delete(f"/v2/editions/{edition_id}")
         assert delete_response.status_code == 204
 
-        assert (await client.get("/v2/content-search", params={"query": "delete", "search_type": "exact"})).json() == []
+        assert (await search_client.get("/v2/content-search", params={"query": "delete", "search_type": "exact"})).json() == []
