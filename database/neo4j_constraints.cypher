@@ -14,9 +14,6 @@ CREATE CONSTRAINT work_id_unique IF NOT EXISTS FOR (w:Work) REQUIRE w.id IS UNIQ
 // Edition nodes - each edition must have a unique ID
 CREATE CONSTRAINT edition_id_unique IF NOT EXISTS FOR (m:Edition) REQUIRE m.id IS UNIQUE;
 
-// Annotation nodes - each annotation must have a unique ID
-CREATE CONSTRAINT annotation_id_unique IF NOT EXISTS FOR (a:Annotation) REQUIRE a.id IS UNIQUE;
-
 // Segment nodes - each segment must have a unique ID
 CREATE CONSTRAINT segment_id_unique IF NOT EXISTS FOR (s:Segment) REQUIRE s.id IS UNIQUE;
 
@@ -102,9 +99,6 @@ CREATE CONSTRAINT category_id_unique IF NOT EXISTS FOR (c:Category) REQUIRE c.id
 CREATE TEXT INDEX localized_text_search_text_index IF NOT EXISTS
 FOR (lt:LocalizedText) ON (lt.search_text);
 
-// Index on Volume index for ordering queries
-CREATE INDEX volume_index_index IF NOT EXISTS FOR (v:Volume) ON (v.index);
-
 // Tag nodes - each tag must have a unique ID
 CREATE CONSTRAINT tag_id_unique IF NOT EXISTS FOR (t:Tag) REQUIRE t.id IS UNIQUE;
 
@@ -114,10 +108,6 @@ FOR (a:Application) REQUIRE a.id IS UNIQUE;
 
 // Index on Source name for MERGE lookups during edition creation
 CREATE INDEX source_name_index IF NOT EXISTS FOR (s:Source) ON (s.name);
-
-// Index on Span start/end for range queries (find_by_span)
-CREATE INDEX span_start_index IF NOT EXISTS FOR (s:Span) ON (s.start);
-CREATE INDEX span_end_index IF NOT EXISTS FOR (s:Span) ON (s.end);
 
 // Index on ApiKey id for faster lookups
 CREATE CONSTRAINT api_key_id_unique IF NOT EXISTS FOR (ak:ApiKey) REQUIRE ak.id IS UNIQUE;

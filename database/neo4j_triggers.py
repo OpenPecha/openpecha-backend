@@ -985,11 +985,6 @@ async def install_triggers(driver: AsyncDriver) -> None:
 
     logger.info("All %d triggers installed.", len(TRIGGERS))
 
-    async with driver.session(database=DATABASE_NAME) as session:
-        await session.execute_write(write)
-
-    logger.info("All %d triggers removed.", len(TRIGGERS))
-
 
 async def audit_triggers(driver: AsyncDriver) -> dict[str, list[str]]:
     """Run all audit queries against the full database. Returns a dict of trigger name -> list of violating IDs.
