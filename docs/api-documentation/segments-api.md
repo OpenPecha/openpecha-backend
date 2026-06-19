@@ -23,6 +23,7 @@ Segments are portions of edition content defined by character spans (one or more
 ### Key Concepts
 
 - **Segment**: A logical unit of text defined by one or more character spans
+- **Segment Type**: A constrained string describing the segment's role: `paragraph`, `verse`, `title`, `back_matter`, `front_matter`, or `top_segment`
 - **Lines**: Character spans that define segment boundaries (can be non-contiguous)
 - **Segmentation**: Collection of segments that divide an edition's content
 - **Alignment**: Direct `ALIGNED_TO` relationship between existing segments
@@ -85,6 +86,7 @@ GET /v2/segments/{segment_id}
   "segmentation_id": "SGN12345678",
   "edition_id": "ED12345678",
   "text_id": "TXT12345678",
+  "type": "paragraph",
   "lines": [
     {"start": 0, "end": 100}
   ],
@@ -92,7 +94,7 @@ GET /v2/segments/{segment_id}
 }
 ```
 
-`tag_ids` is omitted when the segment has no tags. If `X-Application` is supplied, returned tag IDs are filtered to tags belonging to that application.
+`type` is always present and defaults to `"paragraph"` for segments created without an explicit type. `tag_ids` is omitted when the segment has no tags. If `X-Application` is supplied, returned tag IDs are filtered to tags belonging to that application.
 
 **Error Responses:**
 - `401 Unauthorized`: Missing or invalid API key in deployed environments
@@ -182,6 +184,7 @@ GET /v2/segments/{segment_id}/related
       "segmentation_id": "SGN12345678",
       "edition_id": "M12345678",
       "text_id": "E12345678",
+      "type": "paragraph",
       "lines": [{"start": 0, "end": 100}],
       "tag_ids": ["TAG123"]
     }
@@ -194,7 +197,7 @@ GET /v2/segments/{segment_id}/related
 
 **Response Structure:**
 - Returns a paginated object with flat segment objects in `items`
-- Each segment includes `segmentation_id`, `edition_id`, and `text_id`
+- Each segment includes `segmentation_id`, `edition_id`, `text_id`, and `type`
 - Optional filters are applied to related display results before pagination; combined filters are conjunctive
 - Empty result uses `"items": []`
 

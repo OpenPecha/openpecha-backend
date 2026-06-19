@@ -27,6 +27,7 @@ class SegmentDatabase:
             | t.id] AS tag_ids
     RETURN seg.id AS id, segmentation.id AS segmentation_id,
         edition.id AS edition_id, text.id AS text_id,
+        seg.type AS type,
         seg.reference AS reference,
         lines,
         CASE WHEN size(tag_ids) = 0 THEN null ELSE tag_ids END AS tag_ids
@@ -78,6 +79,7 @@ class SegmentDatabase:
     LIMIT $limit
     RETURN seg.id AS id, sgn.id AS segmentation_id,
            edition.id AS edition_id, text.id AS text_id,
+           seg.type AS type,
            seg.reference AS reference, lines, tag_ids
     """
 

@@ -7,6 +7,7 @@ Annotations attach structured information to edition content using character spa
 - **Span**: A half-open character range where `start` is inclusive and `end` is exclusive.
 - **Lines**: Continuous spans inside a segment or page. Adjacent lines must be sorted and touch each other.
 - **Segmentation**: A set of logical content segments for an edition.
+- **Segment type**: Every segment has a `type`. It defaults to `"paragraph"` when omitted. Allowed values are `"paragraph"`, `"verse"`, `"title"`, `"back_matter"`, `"front_matter"`, and `"top_segment"`.
 - **Alignment**: A mapping between segments in an aligned edition and target segments in another edition.
 - **Pagination**: A mapping from character spans to page or folio references.
 - **Table of contents**: A table-of-contents style hierarchy for an edition. Each section has a character span, localized title, optional localized summary, and optional nested subsections.
@@ -40,6 +41,7 @@ Annotations are created and listed by type under an edition. Each `POST` returns
 {
   "segments": [
     {
+      "type": "verse",
       "reference": "1.1",
       "lines": [
         {"start": 0, "end": 50}
@@ -56,6 +58,7 @@ Annotations are created and listed by type under an edition. Each `POST` returns
 ```
 
 Segments must be sorted by their first line's start offset. Lines inside each segment must be continuous.
+`type` is optional and defaults to `"paragraph"`.
 `reference` is optional for general segmentation use, but required for segments that will be aligned by reference.
 
 ### Edition Pair Alignment

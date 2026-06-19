@@ -223,6 +223,16 @@ nodes:
         type: string
         required: true
         unique: true
+      type:
+        type: string
+        required: true
+        allowed_values:
+          - paragraph
+          - verse
+          - title
+          - back_matter
+          - front_matter
+          - top_segment
       reference:
         type: string
         required: false

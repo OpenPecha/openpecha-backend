@@ -32,7 +32,7 @@ class SegmentationDatabase:
     WITH segment, lines, min_start
     WHERE size(lines) > 0
     ORDER BY min_start, segment.id
-    RETURN segment.id AS id, segment.reference AS reference, lines
+    RETURN segment.id AS id, segment.type AS type, segment.reference AS reference, lines
     """
 
     GET_BY_EDITION_ID_QUERY: LiteralString = f"""
@@ -64,7 +64,8 @@ class SegmentationDatabase:
     WITH segmentation
     UNWIND $segments AS segment_data
     CREATE (segment:Segment {id: segment_data.id})-[:SEGMENT_OF]->(segmentation)
-    SET segment.reference = segment_data.reference
+    SET segment.reference = segment_data.reference,
+        segment.type = segment_data.type
     WITH segment, segment_data
     UNWIND segment_data.lines AS line
     CREATE (:Span {start: line.start, end: line.end})-[:SPAN_OF]->(segment)
@@ -121,6 +122,7 @@ class SegmentationDatabase:
         segments_data = [
             {
                 "id": generate_id(),
+                "type": seg.type.value,
                 "reference": seg.reference,
                 "lines": [{"start": line.start, "end": line.end} for line in seg.lines],
             }

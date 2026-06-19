@@ -72,19 +72,38 @@ class SegmentTestBase:
         assert response.status_code == 201, f"Failed to create edition: {response.json()}"
         return response.json()["id"]
 
-    async def _post_segmentation(self, client, edition_id, segments):
-        data = {
-            "segments": [
-                {
-                    "reference": f"{index + 1}",
-                    "lines": [{"start": s[0], "end": s[1]}],
-                }
-                for index, s in enumerate(segments)
-            ]
+    @staticmethod
+    def _segment_payload(segment, index):
+        if isinstance(segment, dict):
+            if "lines" in segment:
+                lines = [
+                    line if isinstance(line, dict) else {"start": line[0], "end": line[1]}
+                    for line in segment["lines"]
+                ]
+            else:
+                lines = [{"start": segment["start"], "end": segment["end"]}]
+            payload = {
+                "reference": segment.get("reference", f"{index + 1}"),
+                "lines": lines,
+            }
+            if "type" in segment:
+                payload["type"] = segment["type"]
+            return payload
+
+        return {
+            "reference": f"{index + 1}",
+            "lines": [{"start": segment[0], "end": segment[1]}],
         }
+
+    async def _post_segmentation(self, client, edition_id, segments):
+        data = {"segments": [self._segment_payload(segment, index) for index, segment in enumerate(segments)]}
         resp = await client.post(f"/v2/editions/{edition_id}/segmentation", json=data)
         assert resp.status_code == 201, f"Failed to create segmentation: {resp.json()}"
         return resp.json()["id"]
+
+    async def _post_segmentation_raw(self, client, edition_id, segments):
+        data = {"segments": [self._segment_payload(segment, index) for index, segment in enumerate(segments)]}
+        return await client.post(f"/v2/editions/{edition_id}/segmentation", json=data)
 
     async def _post_alignment(self, client, source_edition_id, target_edition_id, source_segments, target_segments, alignment_map):
         """Create direct alignments between existing source and target display segments.
@@ -240,6 +259,76 @@ class TestSegmentAnnotationLabels(SegmentTestBase):
         assert resp.status_code == 200
         data = resp.json()
         assert data["id"] == sgn_id
+
+
+# ---------------------------------------------------------------------------
+# Segment types
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio(loop_scope="session")
+class TestSegmentTypes(SegmentTestBase):
+    """Tests for the segment type property."""
+
+    async def test_segment_types_round_trip_as_property(self, client, test_database):
+        person_id = await self._create_person(test_database)
+        text_id = await self._create_text(test_database, person_id)
+        edition_id = await self._create_edition(client, text_id, "0123456789AB")
+        segmentation_id = await self._post_segmentation(
+            client,
+            edition_id,
+            [
+                {"start": 0, "end": 2, "type": "front_matter"},
+                {"start": 2, "end": 4, "type": "title"},
+                {"start": 4, "end": 6, "type": "verse"},
+                {"start": 6, "end": 8},
+                {"start": 8, "end": 10, "type": "back_matter"},
+                {"start": 10, "end": 12, "type": "top_segment"},
+            ],
+        )
+
+        resp = await client.get(f"/v2/editions/{edition_id}/segmentation/segments")
+        assert resp.status_code == 200
+        items = resp.json()["items"]
+        assert [item["type"] for item in items] == [
+            "front_matter",
+            "title",
+            "verse",
+            "paragraph",
+            "back_matter",
+            "top_segment",
+        ]
+
+        single = await client.get(f"/v2/segments/{items[2]['id']}")
+        assert single.status_code == 200
+        assert single.json()["type"] == "verse"
+
+        async with test_database.get_session() as session:
+            result = await session.run("""
+                MATCH (segment:Segment)-[:SEGMENT_OF]->(:Segmentation {id: $segmentation_id})
+                WITH segment ORDER BY segment.reference
+                WITH collect(segment.type) AS types, collect(labels(segment)) AS label_sets
+                RETURN types,
+                       any(label_set IN label_sets
+                           WHERE any(label IN label_set
+                              WHERE label IN ['Paragraph', 'Verse', 'Title', 'BackMatter', 'FrontMatter', 'TopSegment'])) AS has_type_label
+            """, segmentation_id=segmentation_id)
+            record = await result.single()
+            assert record["types"] == ["front_matter", "title", "verse", "paragraph", "back_matter", "top_segment"]
+            assert record["has_type_label"] is False
+
+    async def test_invalid_segment_type_rejected(self, client, test_database):
+        person_id = await self._create_person(test_database)
+        text_id = await self._create_text(test_database, person_id)
+        edition_id = await self._create_edition(client, text_id, "0123456789")
+
+        resp = await self._post_segmentation_raw(
+            client,
+            edition_id,
+            [{"start": 0, "end": 5, "type": "chapter"}],
+        )
+
+        assert resp.status_code == 422
 
 
 # ---------------------------------------------------------------------------
@@ -487,6 +576,7 @@ class TestGetSegment(SegmentTestBase):
         assert resp.status_code == 200
         assert resp.json() == {
             "id": seg_ids[0],
+            "type": "paragraph",
             "reference": "1",
             "segmentation_id": segmentation_id,
             "edition_id": edition_id,

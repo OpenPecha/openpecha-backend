@@ -5,7 +5,7 @@ from typing import Any, Self
 from pydantic import ConfigDict, Field, model_validator
 
 from .base import LocalizedString, NonEmptyStr, OpenPechaModel, _validate_range
-from .enums import AttributeType, BibliographyType
+from .enums import AttributeType, BibliographyType, SegmentType
 
 
 class Span(OpenPechaModel):
@@ -42,11 +42,16 @@ class LinesModel(OpenPechaModel):
 
 
 class SegmentInput(LinesModel):
+    type: SegmentType = Field(
+        default=SegmentType.PARAGRAPH,
+        description="Segment type; defaults to 'paragraph'",
+    )
     reference: NonEmptyStr | None = None
 
 
 class SegmentOutput(LinesModel):
     id: NonEmptyStr
+    type: SegmentType = SegmentType.PARAGRAPH
     reference: NonEmptyStr | None = None
 
 
