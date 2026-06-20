@@ -17,6 +17,7 @@ Tests endpoints:
 import logging
 
 import pytest
+from identifier import generate_id
 from models.tag import TagInput
 
 logger = logging.getLogger(__name__)
@@ -57,7 +58,7 @@ async def _create_tag(client, tag_data):
 async def _create_text(client, tag_ids=None):
     """Helper to create an text and return its ID."""
     text_data = {
-        "title": {"bo": "ཚོད་ལྟའི་གཞུང་།"},
+        "title": {"bo": f"ཚོད་ལྟའི་གཞུང་། {generate_id()}"},
         "language": "bo",
         "category_id": "category",
         "license": "public",

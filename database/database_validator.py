@@ -51,6 +51,8 @@ class DatabaseValidator:
 
     @staticmethod
     async def validate_text_creation(tx: AsyncManagedTransaction, text: TextInput, work_id: str) -> None:
+        await DatabaseValidator.validate_text_title_unique(tx, dict(text.title.root))
+
         if not text.commentary_of and not text.translation_of:
             await DatabaseValidator.validate_original_text_uniqueness(tx, work_id)
 
@@ -213,16 +215,18 @@ class DatabaseValidator:
 
         query = """
         UNWIND $titles AS item
-        RETURN EXISTS {
-            (e:Text)-[:HAS_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText {text: item.text})
-                  -[:HAS_LANGUAGE]->(lang:Language {code: item.lang})
-        } AS exists
+        MATCH (:Text)-[:HAS_TITLE]->(:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText {text: item.text})
+            -[rel:HAS_LANGUAGE]->(lang:Language)
+        WHERE toLower(coalesce(rel.bcp47, lang.code)) = toLower(item.lang)
+        RETURN item.text AS text, item.lang AS lang
+        LIMIT 1
         """
 
         titles_list = [{"text": text, "lang": lang} for lang, text in title.items()]
         result = await tx.run(query, titles=titles_list)
-        records = await result.data()
+        record = await result.single()
 
-        for record in records:
-            if record["exists"]:
-                raise DataValidationError("Text with the same title and language already exists")
+        if record:
+            raise DataValidationError(
+                f"Text with title '{record['text']}' in language '{record['lang']}' already exists"
+            )

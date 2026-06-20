@@ -253,7 +253,7 @@ class TestDatabase:
 
         # Test various language inputs - BCP47 tags should be preserved
         test_cases = [
-            ("bo-Latn", {"bo-Latn": "བོད་སྐད།", "en": "Tibetan Text"}),
+            ("bo-Latn", {"bo-Latn": "བོད་སྐད།", "en": "Tibetan Text Latin"}),
             ("zh-Hans-CN", {"zh-Hans-CN": "中文", "en": "Chinese Text"}),
             ("en-US", {"en-US": "American English"}),
             ("bo", {"bo": "བོད་སྐད།", "en": "Tibetan Text"}),

@@ -862,6 +862,33 @@ class TestPostTextV2:
         assert verify_data["translation_of"] is None
         assert verify_data["commentary_of"] is None
 
+    async def test_create_text_with_duplicate_title_rejected(self, client, test_database, test_person_data):
+        """Test creating a text with a title already used by another text is rejected."""
+        person = PersonInput.model_validate(test_person_data)
+        person_id = await test_database.person.create(person)
+
+        text_data = {
+            "title": {"en-US": "Duplicate BCP47 Title"},
+            "language": "en-US",
+            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
+            "category_id": "category",
+            "license": "cc0",
+        }
+
+        response_1 = await client.post("/v2/texts", json=text_data)
+        assert response_1.status_code == 201
+
+        duplicate_text_data = {
+            **text_data,
+            "bdrc": "T_DUPLICATE_TITLE",
+        }
+
+        response_2 = await client.post("/v2/texts", json=duplicate_text_data)
+
+        assert response_2.status_code == 422
+        assert "error" in response_2.json()
+        assert "already exists" in response_2.json()["error"].lower()
+
     async def test_create_text_missing_json(self, client):
         """Test POST with no JSON data"""
 
@@ -1096,7 +1123,7 @@ class TestPostTextV2:
 
         duplicate_text_data = {
             "bdrc": "T1234567",
-            "title": {"en": "Duplicate Root text", "bo": "རྩ་བའི་ཚིག་སྒྲུབ་གསར་པ།"},
+            "title": {"en": "Duplicate Root text", "bo": "རྩ་བའི་ཚིག་སྒྲུབ་གཞན་པ།"},
             "language": "en",
             "contributions": [{"type": "person", "id": person_id, "role": "author"}],
             "category_id": category_id,

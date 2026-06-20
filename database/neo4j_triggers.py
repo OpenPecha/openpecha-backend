@@ -5,6 +5,7 @@ from neo4j import AsyncDriver, AsyncManagedTransaction
 logger = logging.getLogger(__name__)
 
 DATABASE_NAME = "neo4j"
+SYSTEM_DATABASE_NAME = "system"
 
 # Each trigger is a dict with:
 #   name: unique trigger name
@@ -941,12 +942,15 @@ TRIGGERS.append(
         UNWIND $createdNodes AS node
         WITH node
         WHERE node:LocalizedText
-        MATCH (node)<-[:HAS_LOCALIZATION]-(n:Nomen)<-[:HAS_TITLE]-(text_node:Text)-[:HAS_LANGUAGE]->(lang:Language)
-        MATCH (other:LocalizedText {text: node.text})<-[:HAS_LOCALIZATION]-(:Nomen)<-[:HAS_TITLE]-(other_text:Text)
-              -[:HAS_LANGUAGE]->(:Language {code: lang.code})
-        WITH node.text AS text, lang.code AS code, count(DISTINCT other_text) AS text_count
+        MATCH (node)-[rel:HAS_LANGUAGE]->(lang:Language)
+        WITH node, toLower(coalesce(rel.bcp47, lang.code)) AS title_lang
+        MATCH (node)<-[:HAS_LOCALIZATION]-(:Nomen)<-[:HAS_TITLE]-(text_node:Text)
+        MATCH (other:LocalizedText {text: node.text})-[other_rel:HAS_LANGUAGE]->(other_lang:Language)
+        MATCH (other)<-[:HAS_LOCALIZATION]-(:Nomen)<-[:HAS_TITLE]-(other_text:Text)
+        WHERE toLower(coalesce(other_rel.bcp47, other_lang.code)) = title_lang
+        WITH node.text AS text, title_lang AS lang, count(DISTINCT other_text) AS text_count
         WHERE text_count > 1
-        WITH collect(DISTINCT text + ':' + code) AS combos
+        WITH collect(DISTINCT text + ':' + lang) AS combos
         WHERE size(combos) > 0
         CALL apoc.util.validate(
             true,
@@ -957,10 +961,10 @@ TRIGGERS.append(
         """,
         "audit": """
         MATCH (t:Text)-[:HAS_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
-              -[:HAS_LANGUAGE]->(l:Language)
-        WITH lt.text AS text, l.code AS code, count(*) AS cnt
+              -[rel:HAS_LANGUAGE]->(l:Language)
+        WITH lt.text AS text, toLower(coalesce(rel.bcp47, l.code)) AS lang, count(DISTINCT t) AS cnt
         WHERE cnt > 1
-        RETURN text + ':' + code AS violating_id
+        RETURN text + ':' + lang AS violating_id
         """,
     }
 )
@@ -980,7 +984,7 @@ async def install_triggers(driver: AsyncDriver) -> None:
             )
             logger.info("Installed trigger: %s — %s", trigger["name"], trigger["description"])
 
-    async with driver.session(database=DATABASE_NAME) as session:
+    async with driver.session(database=SYSTEM_DATABASE_NAME) as session:
         await session.execute_write(write)
 
     logger.info("All %d triggers installed.", len(TRIGGERS))

@@ -23,6 +23,7 @@ markers = [
 omit = [
     "tests/*",
     "scripts/*",
+    "observability.py",
 ]
 
 [tool.ruff]

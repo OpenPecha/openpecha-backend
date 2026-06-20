@@ -80,7 +80,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 def create_app(*, testing: bool = False) -> FastAPI:
     app = FastAPI(
         title="OpenPecha API v2",
-        version="2.7.0",
+        version="2.8.0",
         lifespan=lifespan,
         docs_url="/docs",
         redoc_url="/redoc",
