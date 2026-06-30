@@ -429,7 +429,8 @@ TRIGGERS.append(
     {
         "name": "enforce_span_span_of",
         "description": (
-            "Every Span must have SPAN_OF to one of: Segment, BibliographicMetadata, Note, Attribute, Page"
+            "Every Span must have SPAN_OF to one of: Segment, BibliographicMetadata, Note, Attribute, Page, "
+            "TableOfContentsSection"
         ),
         "phase": "before",
         "query": """
@@ -445,7 +446,9 @@ TRIGGERS.append(
             RETURN n AS node
         }
         WITH DISTINCT node
-        WHERE NOT (node)-[:SPAN_OF]->(:Segment|BibliographicMetadata|Note|Attribute|Page)
+        WHERE NOT (node)-[:SPAN_OF]->(
+            :Segment|BibliographicMetadata|Note|Attribute|Page|TableOfContentsSection
+        )
         WITH collect(coalesce(toString(node.start), 'unknown')) AS ids
         WHERE size(ids) > 0
         CALL apoc.util.validate(
@@ -457,7 +460,9 @@ TRIGGERS.append(
     """,
         "audit": """
         MATCH (s:Span)
-        WHERE NOT (s)-[:SPAN_OF]->(:Segment|BibliographicMetadata|Note|Attribute|Page)
+        WHERE NOT (s)-[:SPAN_OF]->(
+            :Segment|BibliographicMetadata|Note|Attribute|Page|TableOfContentsSection
+        )
         RETURN toString(s.start) + '-' + toString(s.end) AS violating_id
     """,
     }
