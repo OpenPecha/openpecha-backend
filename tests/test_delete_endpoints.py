@@ -219,7 +219,7 @@ class TestPersonAndCategoryDeletes:
         assert "contribution" in response.json()["error"].lower()
         assert await _scalar(test_database, "RETURN EXISTS { (:Person {id: $person_id}) }", person_id=person_id) is True
 
-    async def test_delete_category_recursively_removes_children_and_work_relationships(self, client, test_database):
+    async def test_delete_category_conflicts_when_work_depends_on_descendant(self, client, test_database):
         person_id = await _create_person(client)
         parent_response = await client.post(
             "/v2/categories",
@@ -247,17 +247,18 @@ class TestPersonAndCategoryDeletes:
 
         response = await client.delete(f"/v2/categories/{parent_id}", headers=APPLICATION_HEADER)
 
-        assert response.status_code == 204
-        assert await _scalar(test_database, "RETURN EXISTS { (:Category {id: $id}) }", id=parent_id) is False
-        assert await _scalar(test_database, "RETURN EXISTS { (:Category {id: $id}) }", id=child_id) is False
-        assert await _scalar(test_database, "RETURN EXISTS { (:Category {id: $id}) }", id=grandchild_id) is False
+        assert response.status_code == 409
+        assert "work" in response.json()["error"].lower()
+        assert await _scalar(test_database, "RETURN EXISTS { (:Category {id: $id}) }", id=parent_id) is True
+        assert await _scalar(test_database, "RETURN EXISTS { (:Category {id: $id}) }", id=child_id) is True
+        assert await _scalar(test_database, "RETURN EXISTS { (:Category {id: $id}) }", id=grandchild_id) is True
         assert (
             await _scalar(
                 test_database,
                 "MATCH (:Work {id: $work_id})-[r:HAS_CATEGORY]->() RETURN count(r)",
                 work_id=work_id,
             )
-            == 0
+            == 1
         )
 
     async def test_delete_category_wrong_application_returns_404_and_preserves_category(self, client, test_database):
@@ -372,7 +373,14 @@ class TestExistingDeleteCascades:
         await client.post(f"/v2/texts/{text_id}/tags/{tag_id}")
         segment_id = _unique("seg")
         async with test_database.get_session() as session:
-            await session.run("CREATE (:Segment {id: $segment_id})", segment_id=segment_id)
+            await session.run(
+                """
+                CREATE (sgn:Segmentation {id: $segmentation_id})
+                CREATE (:Segment {id: $segment_id})-[:SEGMENT_OF]->(sgn)
+                """,
+                segmentation_id=f"{segment_id}_segmentation",
+                segment_id=segment_id,
+            )
         assert (await client.post(f"/v2/segments/{segment_id}/tags/{tag_id}")).status_code == 204
 
         response = await client.delete(f"/v2/tags/{tag_id}", headers=APPLICATION_HEADER)

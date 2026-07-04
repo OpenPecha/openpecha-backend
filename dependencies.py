@@ -4,6 +4,7 @@ from typing import Annotated
 from fastapi import Header, Request, Security
 from fastapi.security import APIKeyHeader
 
+from catalog_search import CatalogSearchService
 from config import settings
 from content_search import ContentSearchService
 from database import Database
@@ -34,6 +35,11 @@ def get_storage(request: Request) -> Storage:
 def get_content_search(request: Request) -> ContentSearchService:
     """Dependency that provides the content search service from app.state."""
     return request.app.state.content_search
+
+
+def get_catalog_search(request: Request) -> CatalogSearchService:
+    """Dependency that provides the catalog search service from app.state."""
+    return request.app.state.catalog_search
 
 
 async def get_api_key(

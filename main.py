@@ -1,12 +1,15 @@
 import logging
+import re
 from collections.abc import AsyncGenerator, Awaitable, Callable
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
+from neo4j.exceptions import ClientError as Neo4jClientError
 from pydantic import ValidationError
 
+from catalog_search import CatalogSearchService
 from config import settings
 from content_search import ContentSearchService
 from database import Database
@@ -29,6 +32,30 @@ from routers.texts import router as texts_router
 from storage import Storage
 
 logger = logging.getLogger(__name__)
+
+
+def _map_neo4j_client_error(exc: Neo4jClientError) -> tuple[int, str]:
+    """Map Neo4j client errors to concise API responses."""
+    code = getattr(exc, "code", "")
+    message = str(exc)
+
+    if code == "Neo.ClientError.Transaction.TransactionHookFailed" or "Error executing triggers" in message:
+        detail = message
+        marker = "java.lang.RuntimeException:"
+        if marker in message:
+            detail = message.split(marker, 1)[1].strip().split(", enforce_", 1)[0].strip(" }")
+        else:
+            fallback = re.search(r"Error executing triggers \{([^=]+)=([^}]+?)\s*(?:,\s*[A-Za-z0-9_]+=|\})", message)
+            if fallback:
+                detail = f"{fallback.group(1).strip()}: {fallback.group(2).strip()}"
+            else:
+                detail = "Database validation failed due to trigger constraints."
+        return 422, detail
+
+    if "Constraint" in code:
+        return 409, "Database constraint violation."
+
+    return 400, message
 
 
 @asynccontextmanager
@@ -63,8 +90,19 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         )
         await content_search.connect()
         app.state.content_search = content_search
+        catalog_search = CatalogSearchService(
+            endpoint=settings.opensearch_endpoint,
+            index_name=settings.opensearch_catalog_index,
+            region=settings.aws_region,
+            auth_mode=settings.opensearch_auth_mode,
+            username=settings.opensearch_username,
+            password=settings.opensearch_password,
+        )
+        await catalog_search.connect()
+        app.state.catalog_search = catalog_search
         logger.info("Database, storage, and content search initialized")
         yield
+        await catalog_search.close()
         await content_search.close()
         await storage.close()
         await db.close()
@@ -80,7 +118,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 def create_app(*, testing: bool = False) -> FastAPI:
     app = FastAPI(
         title="OpenPecha API v2",
-        version="2.8.0",
+        version="2.9.0",
         lifespan=lifespan,
         docs_url="/docs",
         redoc_url="/redoc",
@@ -112,6 +150,13 @@ def create_app(*, testing: bool = False) -> FastAPI:
     async def not_implemented_handler(_request: Request, exc: NotImplementedError) -> JSONResponse:
         """Handle not implemented errors."""
         return JSONResponse(status_code=501, content={"error": str(exc)})
+
+    @app.exception_handler(Neo4jClientError)
+    async def neo4j_client_error_handler(_request: Request, exc: Neo4jClientError) -> JSONResponse:
+        """Handle Neo4j client errors with concise messages."""
+        status_code, message = _map_neo4j_client_error(exc)
+        logger.warning("Neo4j client error (%s): %s", getattr(exc, "code", "unknown"), message)
+        return JSONResponse(status_code=status_code, content={"error": message})
 
     @app.exception_handler(Exception)
     async def general_exception_handler(_request: Request, exc: Exception) -> JSONResponse:

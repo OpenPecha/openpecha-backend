@@ -137,6 +137,11 @@ sudo systemctl restart openpecha-api
 - **AWS S3**: Configured via `AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`,
   `AWS_S3_BUCKET` in `.env`
 - **OpenSearch content search**: Configured via `OPENSEARCH_ENDPOINT`
+- **OpenSearch catalog search** (person/text name and title search): Configured via
+  `OPENSEARCH_ENDPOINT` and `OPENSEARCH_CATALOG_INDEX`. Requires the
+  `analysis-tibetan` and `analysis-bdrc` OpenSearch plugins on the cluster; for
+  local tests set `OPENSEARCH_TIBETAN_PLUGIN_ZIP` and `OPENSEARCH_BDRC_PLUGIN_ZIP`.
+  See `docs/api-documentation/catalog-search-api.md`.
 
 ## Documentation
 

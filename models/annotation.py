@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 from collections.abc import Sequence
 from itertools import pairwise
 from typing import Any, Self

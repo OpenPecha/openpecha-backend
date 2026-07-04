@@ -1,4 +1,5 @@
 # pylint: disable=redefined-outer-name
+import asyncio
 import logging
 import os
 import time
@@ -9,14 +10,16 @@ from pathlib import Path
 from typing import LiteralString, cast
 
 import httpx
-from neo4j import GraphDatabase
+from neo4j import AsyncGraphDatabase, GraphDatabase
 import pytest
 import pytest_asyncio
 from testcontainers.core.container import DockerContainer
 from testcontainers.neo4j import Neo4jContainer
 
+from catalog_search import CatalogSearchService
 from content_search import ContentSearchService
 from database.database import Database
+from database.neo4j_triggers import install_triggers
 
 # Suppress verbose Neo4j driver logging
 logging.getLogger("neo4j").setLevel(logging.WARNING)
@@ -26,14 +29,41 @@ logging.getLogger("neo4j.notifications").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 
-OPENSEARCH_IMAGE = "opensearchproject/opensearch:2.15.0"
-OPENSEARCH_JAVA_OPTS = "-Xms256m -Xmx256m"
-OPENSEARCH_WITH_ICU_COMMAND = (
-    f"""bash -c "export OPENSEARCH_JAVA_OPTS='{OPENSEARCH_JAVA_OPTS}' """
-    "&& /usr/share/opensearch/bin/opensearch-plugin install --batch analysis-icu "
-    """&& ./opensearch-docker-entrypoint.sh opensearch" """
-)
+OPENSEARCH_IMAGE = "opensearchproject/opensearch:2.16.0"
+OPENSEARCH_JAVA_OPTS = "-Xms512m -Xmx512m"
 OPENSEARCH_STARTUP_TIMEOUT_SECONDS = 240
+OPENSEARCH_TIBETAN_PLUGIN_ENV = "OPENSEARCH_TIBETAN_PLUGIN_ZIP"
+OPENSEARCH_BDRC_PLUGIN_ENV = "OPENSEARCH_BDRC_PLUGIN_ZIP"
+NEO4J_TRIGGER_REFRESH_SECONDS = 2
+
+
+def _opensearch_command(*, install_catalog_plugins: bool) -> str:
+    # The bundled distribution ships ~20 heavyweight plugins (ml-commons,
+    # security-analytics, k-NN, neural-search, ...) that the test suite never
+    # uses but that dominate startup time. Removing them before boot cuts
+    # readiness from ~60s to ~10s.
+    install_commands = [
+        "rm -rf /usr/share/opensearch/plugins/*",
+        "/usr/share/opensearch/bin/opensearch-plugin install --batch analysis-icu",
+    ]
+    if install_catalog_plugins:
+        install_commands.extend(
+            [
+                "/usr/share/opensearch/bin/opensearch-plugin install --batch "
+                "file:///tmp/opensearch-plugins/analysis-tibetan.zip",
+                "/usr/share/opensearch/bin/opensearch-plugin install --batch "
+                "file:///tmp/opensearch-plugins/analysis-bdrc.zip",
+            ]
+        )
+
+    command = " && ".join(
+        [
+            f"export OPENSEARCH_JAVA_OPTS='{OPENSEARCH_JAVA_OPTS}'",
+            *install_commands,
+            "./opensearch-docker-entrypoint.sh opensearch",
+        ]
+    )
+    return f"""bash -c "{command}" """
 
 
 def load_constraints_file() -> list[str]:
@@ -120,7 +150,14 @@ def _neo4j_container():
     if os.environ.get("DOCKER_HOST") and not os.environ.get("TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE"):
         os.environ["TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE"] = "/var/run/docker.sock"
 
-    container = Neo4jContainer("neo4j:2026.03.1").with_env("NEO4J_PLUGINS", '["apoc"]')
+    container = (
+        Neo4jContainer("neo4j:2026.03.1")
+        .with_env("NEO4J_PLUGINS", '["apoc"]')
+        .with_env("NEO4J_apoc_trigger_enabled", "true")
+        .with_env("NEO4J_apoc_trigger_refresh", "1000")
+        .with_env("NEO4J_dbms_security_procedures_unrestricted", "apoc.*")
+        .with_env("NEO4J_dbms_security_procedures_allowlist", "apoc.*")
+    )
     container.start()
 
     test_uri = container.get_connection_url()
@@ -143,6 +180,16 @@ def _neo4j_container():
                 session.run(cast(LiteralString, statement)).consume()
             except Exception:
                 pass  # Constraint already exists
+
+    async def do_install_triggers() -> None:
+        async_driver = AsyncGraphDatabase.driver(test_uri, auth=("neo4j", test_password))
+        try:
+            await install_triggers(async_driver)
+        finally:
+            await async_driver.close()
+
+    asyncio.run(do_install_triggers())
+    time.sleep(NEO4J_TRIGGER_REFRESH_SECONDS)
     _driver.close()
 
     yield {"uri": test_uri, "password": test_password}
@@ -153,13 +200,36 @@ def _neo4j_container():
 @pytest.fixture(scope="module")
 def _opensearch_endpoint() -> Generator[str]:
     """Module-scoped OpenSearch container for content search tests."""
+    tibetan_plugin_zip = os.environ.get(OPENSEARCH_TIBETAN_PLUGIN_ENV)
+    bdrc_plugin_zip = os.environ.get(OPENSEARCH_BDRC_PLUGIN_ENV)
+    install_catalog_plugins = bool(tibetan_plugin_zip or bdrc_plugin_zip)
+    if install_catalog_plugins:
+        if not tibetan_plugin_zip or not Path(tibetan_plugin_zip).exists():
+            pytest.fail(f"{OPENSEARCH_TIBETAN_PLUGIN_ENV} must point to a built analysis-tibetan plugin ZIP")
+        if not bdrc_plugin_zip or not Path(bdrc_plugin_zip).exists():
+            pytest.fail(f"{OPENSEARCH_BDRC_PLUGIN_ENV} must point to a built analysis-bdrc plugin ZIP")
+        assert tibetan_plugin_zip is not None
+        assert bdrc_plugin_zip is not None
+
     container = (
-        DockerContainer(OPENSEARCH_IMAGE, command=OPENSEARCH_WITH_ICU_COMMAND)
+        DockerContainer(OPENSEARCH_IMAGE, command=_opensearch_command(install_catalog_plugins=install_catalog_plugins))
         .with_env("discovery.type", "single-node")
         .with_env("DISABLE_SECURITY_PLUGIN", "true")
         .with_env("OPENSEARCH_JAVA_OPTS", OPENSEARCH_JAVA_OPTS)
         .with_exposed_ports(9200)
     )
+    if install_catalog_plugins:
+        tibetan_plugin_zip = cast(str, tibetan_plugin_zip)
+        bdrc_plugin_zip = cast(str, bdrc_plugin_zip)
+        container = container.with_volume_mapping(
+            str(Path(tibetan_plugin_zip).resolve()),
+            "/tmp/opensearch-plugins/analysis-tibetan.zip",
+            mode="ro",
+        ).with_volume_mapping(
+            str(Path(bdrc_plugin_zip).resolve()),
+            "/tmp/opensearch-plugins/analysis-bdrc.zip",
+            mode="ro",
+        )
     container.start()
     host = container.get_container_host_ip()
     if host in {"localhost", "0.0.0.0", "::"}:
@@ -274,6 +344,45 @@ async def content_search(_opensearch_endpoint: str) -> AsyncGenerator[ContentSea
         await service.close()
 
 
+@pytest_asyncio.fixture(scope="function", loop_scope="session")
+async def catalog_search(request) -> AsyncGenerator[CatalogSearchService]:
+    """Real OpenSearch catalog search service for tests that provide BDRC plugin ZIPs."""
+    if not os.environ.get(OPENSEARCH_TIBETAN_PLUGIN_ENV) or not os.environ.get(OPENSEARCH_BDRC_PLUGIN_ENV):
+        pytest.skip(
+            f"Catalog search tests require {OPENSEARCH_TIBETAN_PLUGIN_ENV} and {OPENSEARCH_BDRC_PLUGIN_ENV}"
+        )
+
+    _opensearch_endpoint = request.getfixturevalue("_opensearch_endpoint")
+    service = CatalogSearchService(
+        endpoint=_opensearch_endpoint,
+        index_name=f"openpecha-catalog-search-test-{uuid.uuid4().hex}",
+        region="ap-southeast-1",
+        auth_mode="none",
+        request_timeout=5,
+        max_retries=0,
+    )
+    try:
+        await service.connect()
+        await _assert_catalog_analyzers(_opensearch_endpoint, service)
+        yield service
+    finally:
+        with suppress(Exception):
+            await service.delete_index()
+        await service.close()
+
+
+async def _assert_catalog_analyzers(endpoint: str, service: CatalogSearchService) -> None:
+    async with httpx.AsyncClient(base_url=endpoint, timeout=5, trust_env=False) as client:
+        plugins = await client.get("/_cat/plugins")
+        plugins.raise_for_status()
+        plugin_text = plugins.text
+        assert "analysis-tibetan" in plugin_text
+        assert "analysis-bdrc" in plugin_text
+
+    await service.analyze({"analyzer": "catalog_tibetan", "text": "ཞི་བ་ལྷ་"})
+    await service.analyze({"analyzer": "catalog_sanskrit_roman", "text": "Śāntideva"})
+
+
 
 class MockS3Storage:
     """In-memory S3 storage mock for tests."""
@@ -329,13 +438,22 @@ class NoOpContentSearch:
         return []
 
 
+class NoOpCatalogSearch:
+    available = False
+
+
 @pytest.fixture(scope="function")
 def noop_content_search():
     return NoOpContentSearch()
 
 
+@pytest.fixture(scope="function")
+def noop_catalog_search():
+    return NoOpCatalogSearch()
+
+
 @pytest_asyncio.fixture(loop_scope="session")
-async def client(test_database, mock_storage, noop_content_search):
+async def client(test_database, mock_storage, noop_content_search, noop_catalog_search):
     """Create async HTTP client with app.state configured for testing."""
     import httpx
 
@@ -345,13 +463,14 @@ async def client(test_database, mock_storage, noop_content_search):
     fastapi_app.state.db = test_database
     fastapi_app.state.storage = mock_storage
     fastapi_app.state.content_search = noop_content_search
+    fastapi_app.state.catalog_search = noop_catalog_search
     transport = httpx.ASGITransport(app=fastapi_app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test", follow_redirects=True) as ac:
         yield ac
 
 
 @pytest_asyncio.fixture(loop_scope="session")
-async def search_client(test_database, mock_storage, content_search):
+async def search_client(test_database, mock_storage, content_search, noop_catalog_search):
     """Create async HTTP client backed by real OpenSearch for search tests."""
     import httpx
 
@@ -361,13 +480,31 @@ async def search_client(test_database, mock_storage, content_search):
     fastapi_app.state.db = test_database
     fastapi_app.state.storage = mock_storage
     fastapi_app.state.content_search = content_search
+    fastapi_app.state.catalog_search = noop_catalog_search
     transport = httpx.ASGITransport(app=fastapi_app)
     async with httpx.AsyncClient(transport=transport, base_url="http://test", follow_redirects=True) as ac:
         yield ac
 
 
 @pytest_asyncio.fixture(loop_scope="session")
-async def auth_client(test_database, mock_storage, noop_content_search):
+async def catalog_client(test_database, mock_storage, noop_content_search, catalog_search):
+    """Create async HTTP client backed by real OpenSearch catalog search."""
+    import httpx
+
+    from main import create_app
+
+    fastapi_app = create_app(testing=True)
+    fastapi_app.state.db = test_database
+    fastapi_app.state.storage = mock_storage
+    fastapi_app.state.content_search = noop_content_search
+    fastapi_app.state.catalog_search = catalog_search
+    transport = httpx.ASGITransport(app=fastapi_app)
+    async with httpx.AsyncClient(transport=transport, base_url="http://test", follow_redirects=True) as ac:
+        yield ac
+
+
+@pytest_asyncio.fixture(loop_scope="session")
+async def auth_client(test_database, mock_storage, noop_content_search, noop_catalog_search):
     """Create async HTTP client with real API key authentication (testing=False)."""
     import httpx
 
@@ -378,6 +515,7 @@ async def auth_client(test_database, mock_storage, noop_content_search):
     fastapi_app.state.db = test_database
     fastapi_app.state.storage = mock_storage
     fastapi_app.state.content_search = noop_content_search
+    fastapi_app.state.catalog_search = noop_catalog_search
     
     settings.environment = "test"
     

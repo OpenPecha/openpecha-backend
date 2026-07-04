@@ -235,146 +235,16 @@ class TestGetAllTextsV2:
         assert data[0]["id"] == bo_id
         assert data[0]["language"] == "bo"
 
-    async def test_get_all_metadata_filter_by_title(self, client, test_database, test_person_data):
-        """Test filtering by title"""
-        person = PersonInput.model_validate(test_person_data)
-        person_id = await test_database.person.create(person)
-
-        category_id = 'category'  # Use pre-created category from conftest
-
-        titles = [
-            {
-                "en": "Human being",
-                "bo": "དཔེ་གཞི།"
-            },
-            {
-                "en": "Buddha",
-                "bo": "བོད་ཡིག།"
-            },
-            {
-                "en": "Buddha dharma",
-                "bo": "བོད་ཡིག། དཔེ་གཞི།"
-            }
-        ]
-
-        text_ids = []
-        for title in titles:
-            expr_data = {
-                "title": title,
-                "language": "en",
-                "category_id": category_id,
-                "contributions": [{"type": "person", "id": person_id, "role": "author"}],
-            }
-            text = TextInput.model_validate(expr_data)
-            text_id = await test_database.text.create(text)
-            text_ids.append(text_id)
-
-        en_title_search_response = await client.get("/v2/texts?title=Buddha")
-        assert en_title_search_response.status_code == 200
-        data = _items(en_title_search_response.json())
-        assert len(data) == 2
-        # Verify results contain Buddha in title (order not guaranteed)
-        returned_ids = {item["id"] for item in data}
-        assert returned_ids.issubset({text_ids[1], text_ids[2]})
-        for item in data:
-            assert "Buddha" in item["title"]["en"]
-
-        bo_title_search_response = await client.get("/v2/texts?title=དཔེ་གཞི།")
-        assert bo_title_search_response.status_code == 200
-        data = _items(bo_title_search_response.json())
-        assert len(data) == 2
-        returned_ids = {item["id"] for item in data}
-        assert returned_ids.issubset({text_ids[0], text_ids[2]})
-        for item in data:
-            assert "དཔེ་གཞི།" in item["title"]["bo"]
-
-        bo_title_search_response = await client.get("/v2/texts?title=བོད")
-        assert bo_title_search_response.status_code == 200
-        data = _items(bo_title_search_response.json())
-        assert len(data) == 2
-        returned_ids = {item["id"] for item in data}
-        assert returned_ids.issubset({text_ids[1], text_ids[2]})
-        for item in data:
-            assert "བོད" in item["title"]["bo"]
-
-    async def test_get_all_metadata_filter_by_tibetan_and_sanskrit_titles(
+    async def test_get_all_metadata_filter_by_title_requires_catalog_search(
         self, client, test_database, test_person_data
     ):
-        """Title search covers Tibetan and Sanskrit primary and alternative titles."""
+        """Title search is backed by catalog OpenSearch, not Neo4j substring filtering."""
         person = PersonInput.model_validate(test_person_data)
         person_id = await test_database.person.create(person)
-        category_id = "category"
-
-        tibetan_primary_id = await test_database.text.create(
+        await test_database.text.create(
             TextInput.model_validate(
                 {
-                    "title": {"bo": "བོད་ཀྱི་ཆོས་དཔེ།", "en": "Tibetan Dharma Text"},
-                    "language": "bo",
-                    "category_id": category_id,
-                    "contributions": [{"type": "person", "id": person_id, "role": "author"}],
-                }
-            )
-        )
-        tibetan_alt_id = await test_database.text.create(
-            TextInput.model_validate(
-                {
-                    "title": {"bo": "གཙོ་མཚན་བྱང་།", "en": "Primary Tibetan Alternate Text"},
-                    "alt_titles": [{"bo": "གསང་སྔགས་ཆོས་དཔེ།"}],
-                    "language": "bo",
-                    "category_id": category_id,
-                    "contributions": [{"type": "person", "id": person_id, "role": "author"}],
-                }
-            )
-        )
-        sanskrit_primary_id = await test_database.text.create(
-            TextInput.model_validate(
-                {
-                    "title": {"sa": "प्रज्ञापारमिता सूत्र", "en": "Prajnaparamita Sutra"},
-                    "language": "sa",
-                    "category_id": category_id,
-                    "contributions": [{"type": "person", "id": person_id, "role": "author"}],
-                }
-            )
-        )
-        sanskrit_alt_id = await test_database.text.create(
-            TextInput.model_validate(
-                {
-                    "title": {"sa": "मुख्य संस्कृत शीर्षक", "en": "Primary Sanskrit Alternate Text"},
-                    "alt_titles": [{"sa": "बोधिसत्त्वचर्या"}],
-                    "language": "sa",
-                    "category_id": category_id,
-                    "contributions": [{"type": "person", "id": person_id, "role": "author"}],
-                }
-            )
-        )
-
-        response = await client.get("/v2/texts?title=ཀྱི")
-        assert response.status_code == 200
-        assert {item["id"] for item in _items(response.json())} == {tibetan_primary_id}
-
-        response = await client.get("/v2/texts?title=སྔགས")
-        assert response.status_code == 200
-        assert {item["id"] for item in _items(response.json())} == {tibetan_alt_id}
-
-        response = await client.get("/v2/texts?title=पारमि")
-        assert response.status_code == 200
-        assert {item["id"] for item in _items(response.json())} == {sanskrit_primary_id}
-
-        response = await client.get("/v2/texts?title=सत्त्व")
-        assert response.status_code == 200
-        assert {item["id"] for item in _items(response.json())} == {sanskrit_alt_id}
-
-    async def test_get_all_metadata_filter_by_title_is_case_insensitive(
-        self, client, test_database, test_person_data
-    ):
-        """Title search uses normalized search_text for case-insensitive matching."""
-        person = PersonInput.model_validate(test_person_data)
-        person_id = await test_database.person.create(person)
-        text_id = await test_database.text.create(
-            TextInput.model_validate(
-                {
-                    "title": {"en": "Straße DHARMA Manual"},
-                    "alt_titles": [{"en": "Hidden PRAJNA Guide"}],
+                    "title": {"en": "Buddha dharma"},
                     "language": "en",
                     "category_id": "category",
                     "contributions": [{"type": "person", "id": person_id, "role": "author"}],
@@ -382,64 +252,16 @@ class TestGetAllTextsV2:
             )
         )
 
-        response = await client.get("/v2/texts?title=strasse")
-        assert response.status_code == 200
-        assert {item["id"] for item in _items(response.json())} == {text_id}
+        response = await client.get("/v2/texts?title=Buddha")
 
-        response = await client.get("/v2/texts?title=STRASSE")
-        assert response.status_code == 200
-        assert {item["id"] for item in _items(response.json())} == {text_id}
-
-        response = await client.get("/v2/texts?title=dharma")
-        assert response.status_code == 200
-        assert {item["id"] for item in _items(response.json())} == {text_id}
-
-        response = await client.get("/v2/texts?title=prajna")
-        assert response.status_code == 200
-        assert {item["id"] for item in _items(response.json())} == {text_id}
+        assert response.status_code == 503
+        assert response.json()["error"] == "Catalog search is required for text title search"
 
     async def test_get_all_metadata_filter_by_title_rejects_short_search(self, client):
         """Title search requires at least 2 characters to avoid broad substring scans."""
         response = await client.get("/v2/texts?title=a")
 
         assert response.status_code == 422
-
-    async def test_get_all_metadata_filter_by_title_with_no_title_present_in_db(self, client, test_database, test_person_data):
-        """Test filtering by title with empty title"""
-        person = PersonInput.model_validate(test_person_data)
-        person_id = await test_database.person.create(person)
-        category_id = 'category'  # Use pre-created category from conftest
-        titles = [
-            {
-                "en": "Human being",
-                "bo": "དཔེ་གཞི།"
-            },
-            {
-                "en": "Buddha",
-                "bo": "བོད་ཡིག།"
-            },
-            {
-                "en": "Buddha dharma",
-                "bo": "བོད་ཡིག། དཔེ་གཞི།"
-            }
-        ]
-
-        text_ids = []
-        for title in titles:
-            expr_data = {
-                "title": title,
-                "language": "en",
-                "category_id": category_id,
-                "contributions": [{"type": "person", "id": person_id, "role": "author"}],
-            }
-            text = TextInput.model_validate(expr_data)
-            text_id = await test_database.text.create(text)
-            text_ids.append(text_id)
-
-        response = await client.get("/v2/texts?title=invalid_title")
-        assert response.status_code == 200
-        data = _items(response.json())
-        assert len(data) == 0
 
     async def test_get_all_metadata_filter_by_author(self, client, test_database, test_person_data):
         """Test filtering by author_id"""
@@ -513,52 +335,14 @@ class TestGetAllTextsV2:
         assert len(data) == 0
 
 
-    async def test_get_all_metadata_multiple_filters(self, client, test_database, test_person_data):
-        """Test combining multiple filters (language + title)"""
-
-        # Create test person
-        person = PersonInput.model_validate(test_person_data)
-        person_id = await test_database.person.create(person)
-
-        category_id = 'category'  # Use pre-created category from conftest
-        # Create English text
-        en_expr_data = {
-            "title": {"en": "English Root text"},
-            "language": "en",
-            "category_id": category_id,
-            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
-        }
-        en_text = TextInput.model_validate(en_expr_data)
-        en_id = await test_database.text.create(en_text)
-
-        # Create Tibetan text with "Root" in title
-        bo_expr_data = {
-            "title": {"bo": "རྩ་བའི་ཚིག་སྒྲུབ།", "en": "Tibetan Root text"},
-            "language": "bo",
-            "category_id": category_id,
-            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
-        }
-        bo_text = TextInput.model_validate(bo_expr_data)
-        bo_id = await test_database.text.create(bo_text)
-
-        # Create another English text without "Root" in title
-        en_other_data = {
-            "title": {"en": "English Other text"},
-            "language": "en",
-            "category_id": category_id,
-            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
-        }
-        en_other_text = TextInput.model_validate(en_other_data)
-        await test_database.text.create(en_other_text)
-
-        # Filter by language=en AND title=Root
+    async def test_get_all_metadata_multiple_filters_with_title_requires_catalog_search(
+        self, client
+    ):
+        """Combining exact filters with title search requires catalog OpenSearch."""
         response = await client.get("/v2/texts?language=en&title=Root")
 
-        assert response.status_code == 200
-        data = _items(response.json())
-        assert len(data) == 1
-        assert data[0]["id"] == en_id
-        assert data[0]["language"] == "en"
+        assert response.status_code == 503
+        assert response.json()["error"] == "Catalog search is required for text title search"
 
     async def test_get_all_metadata_filter_by_author_and_language(self, client, test_database, test_person_data):
         """Test combining author_id and language filters"""
@@ -748,36 +532,12 @@ class TestGetSingleTextV2:
         assert data[0]["title"]["en"] == "Test text"
         assert data[0]["id"] == text_id
 
-    async def test_get_texts_filter_by_alternative_title(self, client, test_database, test_person_data):
-        """Test filtering texts by alternative title"""
-        person = PersonInput.model_validate(test_person_data)
-        person_id = await test_database.person.create(person)
-
-        category_id = 'category'
-        expr_data = {
-            "title": {"en": "Primary Title"},
-            "language": "en",
-            "category_id": category_id,
-            "contributions": [{"type": "person", "id": person_id, "role": "author"}],
-            "alt_titles": [{"en": "Unique Alternative Name"}, {"bo": "གཞན་མིང་།"}],
-        }
-        text = TextInput.model_validate(expr_data)
-        text_id = await test_database.text.create(text)
-
+    async def test_get_texts_filter_by_alternative_title_requires_catalog_search(self, client):
+        """Alternative title search is also backed by catalog OpenSearch."""
         response = await client.get("/v2/texts?title=Unique Alternative")
 
-        assert response.status_code == 200
-        data = _items(response.json())
-        assert len(data) == 1
-        assert data[0]["id"] == text_id
-        assert data[0]["title"]["en"] == "Primary Title"
-
-        response_bo = await client.get("/v2/texts?title=གཞན་མིང")
-
-        assert response_bo.status_code == 200
-        data_bo = _items(response_bo.json())
-        assert len(data_bo) == 1
-        assert data_bo[0]["id"] == text_id
+        assert response.status_code == 503
+        assert response.json()["error"] == "Catalog search is required for text title search"
 
     async def test_get_single_translation_metadata_success(self, client, test_database, test_person_data):
         """Test successfully retrieving a translation text"""

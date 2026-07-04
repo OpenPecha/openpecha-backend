@@ -862,7 +862,8 @@ class TestSegmentsRelatedEdgeCases(SegmentTestBase):
 
         async with test_database.get_session() as session:
             await session.run("""
-                CREATE (seg:Segment {id: 'orphan_segment'})
+                CREATE (sgn:Segmentation {id: 'orphan_segmentation'})
+                CREATE (seg:Segment {id: 'orphan_segment'})-[:SEGMENT_OF]->(sgn)
                 CREATE (span:Span {start: 0, end: 10})-[:SPAN_OF]->(seg)
             """)
 
@@ -870,21 +871,16 @@ class TestSegmentsRelatedEdgeCases(SegmentTestBase):
             await test_database.segment.get("orphan_segment")
 
     async def test_segment_get_with_zero_length_spans_excluded(self, client, test_database):
-        """Spans where start == end should be excluded by the WHERE clause."""
-        from exceptions import DataNotFoundError
-
+        """Zero-length spans are rejected by installed Neo4j triggers."""
         seg_id = f"seg_zero_span_{generate_id()[:6]}"
         async with test_database.get_session() as session:
-            await session.run("""
-                CREATE (text:Text {id: $text_id})
-                CREATE (ed:Edition {id: $ed_id})-[:EDITION_OF]->(text)
-                CREATE (ed)-[:HAS_SEGMENTATION]->(sgn:Segmentation {id: $sgn_id})
-                CREATE (seg:Segment {id: $seg_id})-[:SEGMENT_OF]->(sgn)
-                CREATE (span:Span {start: 5, end: 5})-[:SPAN_OF]->(seg)
-            """, text_id=f"t_{seg_id}", ed_id=f"e_{seg_id}", sgn_id=f"sgn_{seg_id}", seg_id=seg_id)
-
-        with pytest.raises(DataNotFoundError):
-            await test_database.segment.get(seg_id)
+            with pytest.raises(Exception, match="enforce_span_start_lt_end"):
+                result = await session.run("""
+                    CREATE (sgn:Segmentation {id: $sgn_id})
+                    CREATE (seg:Segment {id: $seg_id})-[:SEGMENT_OF]->(sgn)
+                    CREATE (span:Span {start: 5, end: 5})-[:SPAN_OF]->(seg)
+                """, sgn_id=f"sgn_{seg_id}", seg_id=seg_id)
+                await result.consume()
 
 
 # ---------------------------------------------------------------------------

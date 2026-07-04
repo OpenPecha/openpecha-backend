@@ -4,7 +4,6 @@ from exceptions import DataValidationError
 from identifier import generate_id
 
 from .database_validator import DatabaseValidator
-from .search_text import normalize_search_text
 
 if TYPE_CHECKING:
     from neo4j import AsyncManagedTransaction
@@ -24,7 +23,7 @@ class NomenDatabase:
     CALL (n) {
         UNWIND $localized_texts AS lt
         MERGE (l:Language {code: lt.base_lang_code})
-        CREATE (n)-[:HAS_LOCALIZATION]->(locText:LocalizedText {text: lt.text, search_text: lt.search_text})
+        CREATE (n)-[:HAS_LOCALIZATION]->(locText:LocalizedText {text: lt.text})
             -[:HAS_LANGUAGE {bcp47: lt.bcp47_tag}]->(l)
         RETURN count(*) AS _
     }
@@ -48,7 +47,6 @@ class NomenDatabase:
                 "base_lang_code": bcp47_tag.split("-")[0].lower(),
                 "bcp47_tag": bcp47_tag,
                 "text": text,
-                "search_text": normalize_search_text(text),
             }
             for bcp47_tag, text in primary_text.items()
         ]
@@ -70,7 +68,6 @@ class NomenDatabase:
                     "base_lang_code": bcp47_tag.split("-")[0].lower(),
                     "bcp47_tag": bcp47_tag,
                     "text": text,
-                    "search_text": normalize_search_text(text),
                 }
                 for bcp47_tag, text in alt_text.items()
             ]

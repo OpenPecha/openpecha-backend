@@ -1,6 +1,6 @@
 from typing import TYPE_CHECKING, LiteralString
 
-from exceptions import DataNotFoundError, DataValidationError
+from exceptions import DataConflictError, DataNotFoundError, DataValidationError
 from identifier import generate_id
 from models.category import CategoryOutput
 
@@ -81,6 +81,14 @@ class CategoryDatabase:
         } AS exists
     """
 
+    DELETE_CHECK_QUERY: LiteralString = """
+    MATCH (root:Category {id: $category_id})-[:BELONGS_TO]->(app:Application {id: $application})
+    OPTIONAL MATCH (c:Category)-[:BELONGS_TO]->(app)
+    WHERE c = root OR (c)-[:HAS_PARENT*1..]->(root)
+    OPTIONAL MATCH (w:Work)-[:HAS_CATEGORY]->(c)
+    RETURN count(DISTINCT w) AS work_count
+    """
+
     DELETE_QUERY: LiteralString = """
     MATCH (root:Category {id: $category_id})-[:BELONGS_TO]->(app:Application {id: $application})
     WITH root, app
@@ -89,9 +97,6 @@ class CategoryDatabase:
     WITH collect(DISTINCT c) AS categories
     WITH categories, size(categories) AS deleted_count
     UNWIND categories AS c
-    OPTIONAL MATCH (:Work)-[category_rel:HAS_CATEGORY]->(c)
-    DELETE category_rel
-    WITH DISTINCT c, deleted_count
     OPTIONAL MATCH (c)-[:HAS_TITLE]->(title_nomen:Nomen)
     OPTIONAL MATCH (title_nomen)-[:HAS_LOCALIZATION]->(title_lt:LocalizedText)
     OPTIONAL MATCH (c)-[:HAS_DESCRIPTION]->(desc_nomen:Nomen)
@@ -181,6 +186,16 @@ class CategoryDatabase:
 
     async def delete(self, category_id: str, application: str) -> None:
         async def write(tx: AsyncManagedTransaction) -> None:
+            check = await tx.run(CategoryDatabase.DELETE_CHECK_QUERY, category_id=category_id, application=application)
+            check_record = await check.single()
+            if check_record is None:
+                raise DataNotFoundError(f"Category '{category_id}' not found in application '{application}'")
+            if check_record["work_count"]:
+                raise DataConflictError(
+                    f"Category '{category_id}' cannot be deleted because it or its subcategories "
+                    f"are referenced by {check_record['work_count']} work(s)"
+                )
+
             result = await tx.run(CategoryDatabase.DELETE_QUERY, category_id=category_id, application=application)
             record = await result.single()
             if record is None:

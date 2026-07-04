@@ -10,7 +10,6 @@ from models.text import TextInput, TextOutput, TextPatch
 
 from .database_validator import DatabaseValidator
 from .nomen_database import NomenDatabase
-from .search_text import build_substring_search_value
 from .tag_database import TagDatabase
 
 if TYPE_CHECKING:
@@ -79,28 +78,15 @@ class TextDatabase:
     RETURN {_TEXT_RETURN}
     """
 
+    GET_BY_IDS_QUERY: LiteralString = f"""
+    UNWIND $ids AS text_id
+    MATCH (e:Text {{id: text_id}})
+    ORDER BY apoc.coll.indexOf($ids, e.id)
+    RETURN {_TEXT_RETURN}
+    """
+
     GET_ALL_QUERY: LiteralString = f"""
-    CALL {{
-        WITH $title_search AS title_search
-        WITH title_search WHERE title_search IS NULL
-        MATCH (e:Text)
-        RETURN e
-        UNION
-        WITH $title_search AS title_search
-        WITH title_search WHERE title_search IS NOT NULL
-        MATCH (lt:LocalizedText)
-        WHERE lt.search_text CONTAINS title_search
-        MATCH (lt)<-[:HAS_LOCALIZATION]-(n:Nomen)
-        CALL (n) {{
-            MATCH (n)<-[:HAS_TITLE]-(e:Text)
-            RETURN e
-          UNION
-            MATCH (n)-[:ALTERNATIVE_OF]->(:Nomen)<-[:HAS_TITLE]-(e:Text)
-            RETURN e
-        }}
-        RETURN DISTINCT e
-    }}
-    WITH e
+    MATCH (e:Text)
     WHERE ($language IS NULL OR (e)-[:HAS_LANGUAGE]->(:Language {{code: $language}}))
     AND ($category_id IS NULL OR (e)-[:TEXT_OF]->(:Work)-[:HAS_CATEGORY]->(:Category {{id: $category_id}}))
     AND ($author_id IS NULL OR EXISTS {{
@@ -285,6 +271,17 @@ class TextDatabase:
         async with self.session as session:
             return await session.execute_read(read)
 
+    async def get_by_ids(self, text_ids: list[str], application: str | None = None) -> list[TextOutput]:
+        if not text_ids:
+            return []
+
+        async def read(tx: AsyncManagedTransaction) -> list[TextOutput]:
+            result = await tx.run(TextDatabase.GET_BY_IDS_QUERY, ids=text_ids, application=application)
+            return [TextOutput.model_validate(record["text"]) for record in await result.data()]
+
+        async with self.session as session:
+            return await session.execute_read(read)
+
     async def get_work_id(self, text_id: str) -> str:
         async def read(tx: AsyncManagedTransaction) -> str:
             result = await tx.run(TextDatabase.GET_WORK_ID_QUERY, text_id=text_id)
@@ -309,7 +306,6 @@ class TextDatabase:
                 offset=offset,
                 limit=limit,
                 language=filters.language,
-                title_search=build_substring_search_value(filters.title),
                 category_id=filters.category_id,
                 author_id=filters.author_id,
                 tag_id=filters.tag_id,

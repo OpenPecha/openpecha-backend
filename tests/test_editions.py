@@ -25,6 +25,7 @@ import logging
 
 import pytest
 from identifier import generate_id
+from models.annotation import Page, PaginationInput, Span, Volume
 from models.base import LocalizedString
 from models.contribution import PersonContributionInput
 from models.edition import EditionInput, EditionType
@@ -178,7 +179,10 @@ class TestGetEditionMetadata(TestEditionsEndpoints):
             alt_incipit_titles=[LocalizedString({"en": "Alt incipit", "bo": "མཚན་བྱང་གཞན།"})],
         )
         edition_id = generate_id()
-        await test_database.edition.create(edition_data, edition_id, text_id)
+        pagination = PaginationInput(
+            volumes=[Volume(pages=[Page(reference="1a", lines=[Span(start=0, end=1)])])]
+        )
+        await test_database.edition.create(edition_data, edition_id, text_id, pagination=pagination)
 
         response = await client.get(f"/v2/editions/{edition_id}")
 
@@ -543,8 +547,7 @@ class TestEditionAnnotations(TestEditionsEndpoints):
         person_id = await self._create_test_person(test_database, test_person_data)
         text_id = await self._create_test_text(test_database, person_id)
         edition_data = EditionInput(
-            type=EditionType.DIPLOMATIC,
-            bdrc=f"W{generate_id()[:8]}",
+            type=EditionType.CRITICAL,
             source="Test Source",
         )
         edition_id = generate_id()

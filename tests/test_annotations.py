@@ -79,14 +79,25 @@ class TestAnnotationsEndpoints:
         edition_type: EditionType = EditionType.DIPLOMATIC,
         bdrc: str | None = None,
     ) -> str:
-        """Helper to create a edition for testing (no base text storage needed for annotation tests)"""
+        """Helper to create a edition for testing (no base text storage needed for annotation tests).
+
+        Diplomatic editions must have exactly one pagination (enforced by a Neo4j trigger), so one is
+        created in the same transaction. Critical editions have no such requirement and are created
+        without a pagination, allowing callers to attach their own.
+        """
         edition_id = generate_id()
+        is_diplomatic = edition_type == EditionType.DIPLOMATIC
         edition_data = EditionInput(
             type=edition_type,
-            bdrc=bdrc or f"W{edition_id[:8]}",
+            bdrc=(bdrc or f"W{edition_id[:8]}") if is_diplomatic else None,
             source="Test Source",
         )
-        await db.edition.create(edition_data, edition_id, text_id)
+        pagination = None
+        if is_diplomatic:
+            pagination = PaginationInput(
+                volumes=[Volume(pages=[Page(reference="1a", lines=[Span(start=0, end=max(len(content), 1))])])]
+            )
+        await db.edition.create(edition_data, edition_id, text_id, pagination=pagination)
         return edition_id
 
 
@@ -282,7 +293,9 @@ class TestGetPagination(TestAnnotationsEndpoints):
         """Test successful pagination retrieval"""
         person_id = await self._create_test_person(test_database, test_person_data)
         text_id = await self._create_test_text(test_database, person_id)
-        edition_id = await self._create_test_edition(test_database, text_id, "0123456789ABCDEF")
+        edition_id = await self._create_test_edition(
+            test_database, text_id, "0123456789ABCDEF", edition_type=EditionType.CRITICAL
+        )
 
         pagination = PaginationInput(
             volumes=[
@@ -319,7 +332,9 @@ class TestGetPagination(TestAnnotationsEndpoints):
         """Test pagination with pages containing multiple line spans"""
         person_id = await self._create_test_person(test_database, test_person_data)
         text_id = await self._create_test_text(test_database, person_id)
-        edition_id = await self._create_test_edition(test_database, text_id, "0123456789ABCDEF")
+        edition_id = await self._create_test_edition(
+            test_database, text_id, "0123456789ABCDEF", edition_type=EditionType.CRITICAL
+        )
 
         pagination = PaginationInput(
             volumes=[
@@ -349,7 +364,9 @@ class TestDeletePagination(TestAnnotationsEndpoints):
         """Test successful pagination deletion"""
         person_id = await self._create_test_person(test_database, test_person_data)
         text_id = await self._create_test_text(test_database, person_id)
-        edition_id = await self._create_test_edition(test_database, text_id, "0123456789")
+        edition_id = await self._create_test_edition(
+            test_database, text_id, "0123456789", edition_type=EditionType.CRITICAL
+        )
 
         pagination = PaginationInput(
             volumes=[
@@ -615,7 +632,7 @@ class TestDeleteEditionWithAnnotations(TestAnnotationsEndpoints):
         text_id = await self._create_test_text(test_database, person_id)
 
         source_edition_id = await self._create_test_edition(
-            test_database, text_id, "0123456789ABCDEFGHIJ"
+            test_database, text_id, "0123456789ABCDEFGHIJ", edition_type=EditionType.CRITICAL
         )
         target_edition_id = await self._create_test_edition(
             test_database, text_id, "KLMNOPQRSTUVWXYZ0123"
@@ -731,7 +748,9 @@ class TestAnnotationRoundTrip(TestAnnotationsEndpoints):
         """Test full lifecycle of a pagination annotation"""
         person_id = await self._create_test_person(test_database, test_person_data)
         text_id = await self._create_test_text(test_database, person_id)
-        edition_id = await self._create_test_edition(test_database, text_id, "Pagination test content")
+        edition_id = await self._create_test_edition(
+            test_database, text_id, "Pagination test content", edition_type=EditionType.CRITICAL
+        )
 
         pagination = PaginationInput(
             volumes=[
@@ -766,7 +785,9 @@ class TestAddPagination(TestAnnotationsEndpoints):
         """Test successful pagination creation with multiple volumes"""
         person_id = await self._create_test_person(test_database, test_person_data)
         text_id = await self._create_test_text(test_database, person_id)
-        edition_id = await self._create_test_edition(test_database, text_id, "0123456789ABCDEF")
+        edition_id = await self._create_test_edition(
+            test_database, text_id, "0123456789ABCDEF", edition_type=EditionType.CRITICAL
+        )
 
         pagination_data = {
             "volumes": [
@@ -815,7 +836,9 @@ class TestAddPagination(TestAnnotationsEndpoints):
         """Test that pagination creation fails when multiple volumes don't specify indexes"""
         person_id = await self._create_test_person(test_database, test_person_data)
         text_id = await self._create_test_text(test_database, person_id)
-        edition_id = await self._create_test_edition(test_database, text_id, "0123456789ABCDEF")
+        edition_id = await self._create_test_edition(
+            test_database, text_id, "0123456789ABCDEF", edition_type=EditionType.CRITICAL
+        )
 
         pagination_data = {
             "volumes": [
@@ -843,7 +866,9 @@ class TestAddPagination(TestAnnotationsEndpoints):
         """Test that pagination creation fails when multiple volumes have the same index"""
         person_id = await self._create_test_person(test_database, test_person_data)
         text_id = await self._create_test_text(test_database, person_id)
-        edition_id = await self._create_test_edition(test_database, text_id, "0123456789ABCDEF")
+        edition_id = await self._create_test_edition(
+            test_database, text_id, "0123456789ABCDEF", edition_type=EditionType.CRITICAL
+        )
 
         pagination_data = {
             "volumes": [
@@ -873,7 +898,9 @@ class TestAddPagination(TestAnnotationsEndpoints):
         """Test that pagination creation fails when volume indexes don't form continuous sequence"""
         person_id = await self._create_test_person(test_database, test_person_data)
         text_id = await self._create_test_text(test_database, person_id)
-        edition_id = await self._create_test_edition(test_database, text_id, "0123456789ABCDEF")
+        edition_id = await self._create_test_edition(
+            test_database, text_id, "0123456789ABCDEF", edition_type=EditionType.CRITICAL
+        )
 
         pagination_data = {
             "volumes": [
@@ -903,7 +930,9 @@ class TestAddPagination(TestAnnotationsEndpoints):
         """Test that single volume without index succeeds (defaults to 0)"""
         person_id = await self._create_test_person(test_database, test_person_data)
         text_id = await self._create_test_text(test_database, person_id)
-        edition_id = await self._create_test_edition(test_database, text_id, "0123456789ABCDEF")
+        edition_id = await self._create_test_edition(
+            test_database, text_id, "0123456789ABCDEF", edition_type=EditionType.CRITICAL
+        )
 
         pagination_data = {
             "volumes": [

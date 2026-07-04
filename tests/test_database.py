@@ -17,6 +17,7 @@ import pytest
 import pytest_asyncio
 from exceptions import DataNotFoundError, DataValidationError
 from identifier import generate_id
+from models.annotation import Page, PaginationInput, Span, Volume
 from models.base import LocalizedString
 from models.contribution import PersonContributionInput
 from models.edition import EditionInput, EditionType
@@ -27,20 +28,6 @@ from models.person import PersonInput
 
 @pytest.mark.asyncio(loop_scope="session")
 class TestDatabase:
-    async def test_env_loading(self):
-        """Test that .env file is loaded correctly"""
-        test_uri = os.environ.get("NEO4J_TEST_URI")
-        test_password = os.environ.get("NEO4J_TEST_PASSWORD")
-
-        # This test will pass if .env is loaded, skip if not
-        if not test_uri or not test_password:
-            pytest.skip("Neo4j test credentials not found in environment")
-
-        # Basic validation that the values look correct
-        assert test_uri.startswith(("neo4j://", "neo4j+s://", "bolt://")), f"Invalid Neo4j URI format: {test_uri}"
-        assert len(test_password) > 0, "Neo4j password is empty"
-
-
     async def test_create_and_retrieve_person(self, test_database):
         """Test full person creation and retrieval cycle"""
         db = test_database
@@ -747,7 +734,12 @@ class TestDatabase:
             colophon="Second edition",
         )
         edition2_id = generate_id()
-        await test_database.edition.create(edition2, edition2_id, text_id)
+        edition2_pagination = PaginationInput(
+            volumes=[Volume(pages=[Page(reference="1a", lines=[Span(start=0, end=1)])])]
+        )
+        await test_database.edition.create(
+            edition2, edition2_id, text_id, pagination=edition2_pagination
+        )
 
         # Retrieve all editions
         retrieved_editions = await test_database.edition.get_all(text_id)
@@ -953,8 +945,11 @@ class TestDatabase:
         # Create both in same transaction
         edition_id = generate_id()
         translation_id = generate_id()
+        pagination = PaginationInput(
+            volumes=[Volume(pages=[Page(reference="1a", lines=[Span(start=0, end=1)])])]
+        )
         await test_database.edition.create(
-            edition, edition_id, translation_id, text=translation_text
+            edition, edition_id, translation_id, text=translation_text, pagination=pagination
         )
 
         # Verify translation text was created with parent link

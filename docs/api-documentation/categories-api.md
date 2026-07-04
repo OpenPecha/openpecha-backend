@@ -315,6 +315,7 @@ No response body is returned.
 
 **Error Responses:**
 - `404 Not Found`: Application or category does not exist in the requested application
+- `409 Conflict`: The category or one of its subcategories is still referenced by one or more works
 - `401 Unauthorized`: Missing or invalid API key in deployed environments
 - `422 Validation Error`: Missing `X-Application` header
 
@@ -329,7 +330,7 @@ curl -X DELETE "https://api-l25bgmwqoa-uc.a.run.app/v2/categories/CAT12345678" \
 **Delete Behavior:**
 - Recursively deletes the target category and its child categories in the same application.
 - Deletes each removed category's title/description `Nomen` and `LocalizedText` subgraphs.
-- Removes `HAS_CATEGORY` relationships from works that used the removed categories.
+- Blocked with `409 Conflict` if the target category or any of its subcategories is still referenced by a work (every work must keep a category); reassign or delete those works first.
 - Does not delete works, texts, editions, tags, or applications.
 
 ---

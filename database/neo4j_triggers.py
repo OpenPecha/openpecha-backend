@@ -51,7 +51,8 @@ def _required_rel_trigger(
                     RETURN n AS node
                 }}
                 WITH DISTINCT node
-                WHERE NOT (node)-[:{rel_type}]->(:{target_label})
+                WHERE NOT (node IN $deletedNodes)
+                  AND NOT (node)-[:{rel_type}]->(:{target_label})
                 WITH collect(node.id) AS ids
                 WHERE size(ids) > 0
                 CALL apoc.util.validate(
@@ -349,7 +350,8 @@ TRIGGERS.append(
             RETURN n AS node
         }
         WITH DISTINCT node
-        WHERE (node)-[:HAS_TYPE]->(:EditionType {name: 'diplomatic'})
+        WHERE NOT (node IN $deletedNodes)
+          AND (node)-[:HAS_TYPE]->(:EditionType {name: 'diplomatic'})
         WITH node, count { (node)<-[:PAGINATION_OF]-(:Pagination) } AS cnt
         WHERE cnt <> 1
         WITH collect(node.id) AS ids
@@ -446,7 +448,8 @@ TRIGGERS.append(
             RETURN n AS node
         }
         WITH DISTINCT node
-        WHERE NOT (node)-[:SPAN_OF]->(
+        WHERE NOT (node IN $deletedNodes)
+          AND NOT (node)-[:SPAN_OF]->(
             :Segment|BibliographicMetadata|Note|Attribute|Page|TableOfContentsSection
         )
         WITH collect(coalesce(toString(node.start), 'unknown')) AS ids
@@ -631,7 +634,8 @@ TRIGGERS.append(
             RETURN n AS node
         }
         WITH DISTINCT node
-        WHERE NOT (node)-[:BY]->(:Person|AI)
+        WHERE NOT (node IN $deletedNodes)
+          AND NOT (node)-[:BY]->(:Person|AI)
         WITH collect(elementId(node)) AS ids
         WHERE size(ids) > 0
         CALL apoc.util.validate(

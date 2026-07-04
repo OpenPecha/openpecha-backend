@@ -72,7 +72,7 @@ GET /v2/texts
 | `limit`       | integer | query    | No       | 20      | Number of results per page (1-100)                                                                     |
 | `offset`      | integer | query    | No       | 0       | Number of results to skip                                                                              |
 | `language`    | string  | query    | No       | -       | Filter by language code                                                                                |
-| `title`       | string  | query    | No       | -       | Filter by title (case-insensitive substring match, searches both primary title and alternative titles; minimum 2 characters) |
+| `title`       | string  | query    | No       | -       | Search by title via catalog search: lenient, script-aware matching (diacritic-insensitive, Sanskrit and Tibetan phonetic) across both primary and alternative titles; minimum 2 characters. See [Catalog Search API](./catalog-search-api.md). |
 | `category_id` | string  | query    | No       | -       | Filter by category ID                                                                                  |
 | `tag_id`      | string  | query    | No       | -       | Filter by application tag ID                                                                           |
 | `author_id`   | string  | query    | No       | -       | Filter by contributing author person ID                                                                |
@@ -111,6 +111,7 @@ GET /v2/texts
 
 - `401 Unauthorized`: Missing or invalid API key in deployed environments
 - `422 Validation Error`: Invalid `limit` or `offset`, or `title` shorter than 2 characters
+- `503 Service Unavailable`: `title` search was requested but catalog search is not configured
 - `500 Server Error`: Internal server error
 
 **Example Usage:**
@@ -128,7 +129,7 @@ curl -X GET "https://api-l25bgmwqoa-uc.a.run.app/v2/texts?limit=50&offset=100" \
 curl -X GET "https://api-l25bgmwqoa-uc.a.run.app/v2/texts?language=bo" \
   -H "X-API-Key: your_api_key"
 
-# Filter by title (case-insensitive substring match; minimum 2 characters)
+# Search by title (lenient, script-aware match; minimum 2 characters)
 curl -X GET "https://api-l25bgmwqoa-uc.a.run.app/v2/texts?title=Heart%20Sutra" \
   -H "X-API-Key: your_api_key"
 

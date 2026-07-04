@@ -7,7 +7,6 @@ from identifier import generate_id
 from models.person import PersonOutput
 
 from .nomen_database import NomenDatabase
-from .search_text import build_substring_search_value
 
 if TYPE_CHECKING:
     from neo4j import AsyncManagedTransaction, AsyncSession
@@ -25,12 +24,12 @@ class PersonDatabase:
         bdrc: p.bdrc,
         wiki: p.wiki,
         name: apoc.map.fromPairs([(p)-[:HAS_NAME]->(n:Nomen)-[:HAS_LOCALIZATION]->
-               (lt:LocalizedText)-[:HAS_LANGUAGE]->(l:Language) | [l.code, lt.text]]),
+               (lt:LocalizedText)-[r:HAS_LANGUAGE]->(l:Language) | [coalesce(r.bcp47, l.code), lt.text]]),
         alt_names: CASE WHEN EXISTS {
             (p)-[:HAS_NAME]->(:Nomen)<-[:ALTERNATIVE_OF]-(:Nomen)
         } THEN [(p)-[:HAS_NAME]->(:Nomen)<-[:ALTERNATIVE_OF]-(an:Nomen) |
                        apoc.map.fromPairs([(an)-[:HAS_LOCALIZATION]->(at:LocalizedText)
-                           -[:HAS_LANGUAGE]->(al:Language) | [al.code, at.text]])] ELSE null END
+                           -[ar:HAS_LANGUAGE]->(al:Language) | [coalesce(ar.bcp47, al.code), at.text]])] ELSE null END
     }
     """
 
@@ -39,31 +38,17 @@ class PersonDatabase:
     RETURN {_PERSON_RETURN} AS person
     """
 
+    GET_BY_IDS_QUERY: LiteralString = f"""
+    UNWIND $ids AS person_id
+    MATCH (p:Person {{id: person_id}})
+    ORDER BY apoc.coll.indexOf($ids, p.id)
+    RETURN {_PERSON_RETURN} AS person
+    """
+
     GET_ALL_QUERY: LiteralString = f"""
-    CALL {{
-        WITH $name_search AS name_search
-        WITH name_search WHERE name_search IS NULL
-        MATCH (p:Person)
-        RETURN p
-        UNION
-        WITH $name_search AS name_search
-        WITH name_search WHERE name_search IS NOT NULL
-        MATCH (lt:LocalizedText)
-        WHERE lt.search_text CONTAINS name_search
-        MATCH (lt)<-[:HAS_LOCALIZATION]-(n:Nomen)
-        CALL (n) {{
-            MATCH (n)<-[:HAS_NAME]-(p:Person)
-            RETURN p
-          UNION
-            MATCH (n)-[:ALTERNATIVE_OF]->(:Nomen)<-[:HAS_NAME]-(p:Person)
-            RETURN p
-        }}
-        RETURN DISTINCT p
-    }}
-    WITH p
+    MATCH (p:Person)
     WHERE ($bdrc IS NULL OR p.bdrc = $bdrc)
     AND ($wiki IS NULL OR p.wiki = $wiki)
-    WITH p
     ORDER BY p.id
     SKIP $offset LIMIT $limit
     RETURN {_PERSON_RETURN} AS person
@@ -129,6 +114,18 @@ class PersonDatabase:
         async with self.session as session:
             return await session.execute_read(read)
 
+    async def get_by_ids(self, person_ids: list[str]) -> list[PersonOutput]:
+        if not person_ids:
+            return []
+
+        async def read(tx: AsyncManagedTransaction) -> list[PersonOutput]:
+            result = await tx.run(PersonDatabase.GET_BY_IDS_QUERY, ids=person_ids)
+            records = await result.data()
+            return [PersonOutput.model_validate(record["person"]) for record in records]
+
+        async with self.session as session:
+            return await session.execute_read(read)
+
     async def get_all(
         self,
         offset: int = 0,
@@ -140,7 +137,6 @@ class PersonDatabase:
                 PersonDatabase.GET_ALL_QUERY,
                 offset=offset,
                 limit=limit,
-                name_search=build_substring_search_value(filters.name if filters else None),
                 bdrc=filters.bdrc if filters else None,
                 wiki=filters.wiki if filters else None,
             )

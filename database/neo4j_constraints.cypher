@@ -91,14 +91,6 @@ CREATE CONSTRAINT nomen_id_unique IF NOT EXISTS FOR (n:Nomen) REQUIRE n.id IS UN
 // Category nodes - each category must have a unique ID
 CREATE CONSTRAINT category_id_unique IF NOT EXISTS FOR (c:Category) REQUIRE c.id IS UNIQUE;
 
-// =============================================================================
-// INDEXING
-// =============================================================================
-
-// Text index for arbitrary substring searches over normalized LocalizedText
-CREATE TEXT INDEX localized_text_search_text_index IF NOT EXISTS
-FOR (lt:LocalizedText) ON (lt.search_text);
-
 // Tag nodes - each tag must have a unique ID
 CREATE CONSTRAINT tag_id_unique IF NOT EXISTS FOR (t:Tag) REQUIRE t.id IS UNIQUE;
 

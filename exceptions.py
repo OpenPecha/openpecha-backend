@@ -25,5 +25,9 @@ class DataValidationError(OpenPechaError):
     status_code = 422
 
 
+class ServiceUnavailableError(OpenPechaError):
+    status_code = 503
+
+
 class UnauthorizedError(OpenPechaError):
     status_code = 401

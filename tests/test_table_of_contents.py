@@ -2,6 +2,7 @@
 import pytest
 
 from identifier import generate_id
+from models.annotation import Page, PaginationInput, Span, Volume
 from models.base import LocalizedString
 from models.contribution import PersonContributionInput
 from models.edition import EditionInput, EditionType
@@ -34,7 +35,10 @@ async def _create_test_edition(db, text_id: str) -> str:
     edition_data = EditionInput(
         type=EditionType.DIPLOMATIC, bdrc=f"W{edition_id[:8]}", source="Table Of Contents Test Source"
     )
-    await db.edition.create(edition_data, edition_id, text_id)
+    pagination = PaginationInput(
+        volumes=[Volume(pages=[Page(reference="1a", lines=[Span(start=0, end=1)])])]
+    )
+    await db.edition.create(edition_data, edition_id, text_id, pagination=pagination)
     return edition_id
 
 
@@ -80,6 +84,35 @@ async def _scalar(test_database, query: str, **params):
         result = await session.run(query, **params)
         record = await result.single()
         return None if record is None else record[0]
+
+
+def _count_sections(sections: list[dict]) -> int:
+    total = len(sections)
+    for section in sections:
+        total += _count_sections(section.get("subsections", []))
+    return total
+
+
+def _nested_sanskrit_table_of_contents_payload() -> dict:
+    subsections = [
+        {
+            "title": {"sa": f"Section {index}"},
+            "span": {"start": start, "end": end},
+        }
+        for index, (start, end) in enumerate(
+            [(23, 38), (79, 100), (120, 150), (180, 210), (240, 270), (300, 330), (360, 390), (420, 450), (480, 510), (540, 570), (600, 630)],
+            start=1,
+        )
+    ]
+    return {
+        "sections": [
+            {
+                "title": {"sa": "बोधिचर्यावतारः।"},
+                "span": {"start": 15, "end": 700},
+                "subsections": subsections,
+            }
+        ]
+    }
 
 
 @pytest.mark.asyncio(loop_scope="session")
@@ -144,6 +177,76 @@ class TestTableOfContents:
 
         assert response.status_code == 404
         assert "error" in response.json()
+
+    async def test_table_of_contents_creates_span_of_for_every_section(
+        self, client, test_database, test_person_data
+    ):
+        _, edition_id = await _create_test_graph(test_database, test_person_data)
+        payload = _table_of_contents_payload()
+
+        post_response = await client.post(f"/v2/editions/{edition_id}/table-of-contents", json=payload)
+        assert post_response.status_code == 201, post_response.json()
+        toc_id = post_response.json()["id"]
+
+        section_count = _count_sections(payload["sections"])
+        assert section_count == 4
+
+        span_count = await _scalar(
+            test_database,
+            """
+            MATCH (section:TableOfContentsSection)-[:SECTION_OF]->(:TableOfContents {id: $toc_id})
+            MATCH (:Span)-[:SPAN_OF]->(section)
+            RETURN count(section)
+            """,
+            toc_id=toc_id,
+        )
+        assert span_count == section_count
+
+        sections_without_span = await _scalar(
+            test_database,
+            """
+            MATCH (section:TableOfContentsSection)-[:SECTION_OF]->(:TableOfContents {id: $toc_id})
+            WHERE NOT EXISTS { (:Span)-[:SPAN_OF]->(section) }
+            RETURN count(section)
+            """,
+            toc_id=toc_id,
+        )
+        assert sections_without_span == 0
+
+    async def test_table_of_contents_creates_span_of_for_deeply_nested_sections(
+        self, client, test_database, test_person_data
+    ):
+        _, edition_id = await _create_test_graph(test_database, test_person_data)
+        payload = _nested_sanskrit_table_of_contents_payload()
+
+        post_response = await client.post(f"/v2/editions/{edition_id}/table-of-contents", json=payload)
+        assert post_response.status_code == 201, post_response.json()
+        toc_id = post_response.json()["id"]
+
+        section_count = _count_sections(payload["sections"])
+        assert section_count == 12
+
+        span_count = await _scalar(
+            test_database,
+            """
+            MATCH (section:TableOfContentsSection)-[:SECTION_OF]->(:TableOfContents {id: $toc_id})
+            MATCH (:Span)-[:SPAN_OF]->(section)
+            RETURN count(section)
+            """,
+            toc_id=toc_id,
+        )
+        assert span_count == section_count
+
+        sections_without_span = await _scalar(
+            test_database,
+            """
+            MATCH (section:TableOfContentsSection)-[:SECTION_OF]->(:TableOfContents {id: $toc_id})
+            WHERE NOT EXISTS { (:Span)-[:SPAN_OF]->(section) }
+            RETURN count(section)
+            """,
+            toc_id=toc_id,
+        )
+        assert sections_without_span == 0
 
     async def test_add_table_of_contents_rejects_subsection_outside_parent_span(
         self, client, test_database, test_person_data
