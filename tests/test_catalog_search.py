@@ -205,7 +205,7 @@ class TestCatalogSearch:
         assert [item["id"] for item in body["items"]] == [sanskrit_text_id]
         assert body["has_more"] is False
 
-    async def test_person_search_excludes_syllable_neighbors(
+    async def test_person_search_excludes_syllable_neighbors_and_anagrams(
         self,
         catalog_client,
         catalog_search,
@@ -213,9 +213,11 @@ class TestCatalogSearch:
     ):
         target_id = await _create_person(test_database, name={"sa-x-iast": "Śāntideva"})
         neighbor_id = await _create_person(test_database, name={"sa-x-iast": "Śāntigarbha"})
+        anagram_id = await _create_person(test_database, name={"sa-x-iast": "Devaśānti"})
         unrelated_id = await _create_person(test_database, name={"sa-x-iast": "Nāgārjuna"})
         await catalog_search.index_person(target_id, test_database)
         await catalog_search.index_person(neighbor_id, test_database)
+        await catalog_search.index_person(anagram_id, test_database)
         await catalog_search.index_person(unrelated_id, test_database)
 
         response = await catalog_client.get("/v2/persons", params={"name": "Shantideva"})
@@ -224,6 +226,7 @@ class TestCatalogSearch:
         returned_ids = [item["id"] for item in response.json()["items"]]
         assert returned_ids == [target_id]
         assert neighbor_id not in returned_ids
+        assert anagram_id not in returned_ids
         assert unrelated_id not in returned_ids
 
     async def test_text_exact_title_ranks_above_superset_title(

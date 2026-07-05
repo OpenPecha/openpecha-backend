@@ -18,15 +18,13 @@ logger = logging.getLogger(__name__)
 PERSON_DOCUMENT_TYPE = "person"
 TEXT_DOCUMENT_TYPE = "text"
 
-# How many analyzed query tokens must match. The sanskrit/tibetan analyzers emit
-# per-syllable tokens, so names like "Śāntideva" and "Śāntigarbha" share several
-# syllables. Person lookups therefore require every query token to match, which
-# keeps syllable-neighbors out. Titles are free-form multi-word phrases, so they
-# allow ~25% of tokens to differ once past a 3-token query.
-_MINIMUM_SHOULD_MATCH = {
-    PERSON_DOCUMENT_TYPE: "100%",
-    TEXT_DOCUMENT_TYPE: "3<75%",
-}
+# The sanskrit/tibetan analyzers emit per-syllable tokens, so distinct names can
+# share (or even reorder) the same syllables: "Śāntideva" -> [sa, nti, de, ba] and
+# "Devaśānti" -> [de, ba, sa, nti] are anagrams. Person lookups therefore match the
+# query as an ordered phrase, which keeps both syllable-neighbors and anagrams out.
+# Titles are free-form multi-word phrases, so they instead allow ~25% of tokens to
+# differ once past a 3-token query.
+_TEXT_MINIMUM_SHOULD_MATCH = "3<75%"
 
 
 class CatalogSearchService:
@@ -366,17 +364,7 @@ def _search_body(*, query: str, document_type: str, offset: int, limit: int, fil
                 "must": [
                     {
                         "bool": {
-                            "should": [
-                                {"multi_match": {"query": query, "type": "phrase", "fields": fields, "boost": 4}},
-                                {
-                                    "multi_match": {
-                                        "query": query,
-                                        "type": "best_fields",
-                                        "fields": fields,
-                                        "minimum_should_match": _MINIMUM_SHOULD_MATCH[document_type],
-                                    }
-                                },
-                            ],
+                            "should": _match_clauses(query=query, document_type=document_type, fields=fields),
                             "minimum_should_match": 1,
                         }
                     }
@@ -384,6 +372,23 @@ def _search_body(*, query: str, document_type: str, offset: int, limit: int, fil
             }
         },
     }
+
+
+def _match_clauses(*, query: str, document_type: str, fields: list[str]) -> list[dict]:
+    phrase = {"multi_match": {"query": query, "type": "phrase", "fields": fields, "boost": 4}}
+    if document_type == PERSON_DOCUMENT_TYPE:
+        return [phrase]
+    return [
+        phrase,
+        {
+            "multi_match": {
+                "query": query,
+                "type": "best_fields",
+                "fields": fields,
+                "minimum_should_match": _TEXT_MINIMUM_SHOULD_MATCH,
+            }
+        },
+    ]
 
 
 def _search_fields() -> list[str]:
