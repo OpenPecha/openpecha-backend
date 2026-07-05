@@ -29,7 +29,7 @@ logging.getLogger("neo4j.notifications").setLevel(logging.WARNING)
 logging.getLogger("urllib3").setLevel(logging.WARNING)
 
 
-OPENSEARCH_IMAGE = "opensearchproject/opensearch:2.16.0"
+OPENSEARCH_IMAGE = "opensearchproject/opensearch:3.5.0"
 OPENSEARCH_JAVA_OPTS = "-Xms512m -Xmx512m"
 OPENSEARCH_STARTUP_TIMEOUT_SECONDS = 240
 OPENSEARCH_TIBETAN_PLUGIN_ENV = "OPENSEARCH_TIBETAN_PLUGIN_ZIP"

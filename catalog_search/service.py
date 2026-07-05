@@ -18,6 +18,16 @@ logger = logging.getLogger(__name__)
 PERSON_DOCUMENT_TYPE = "person"
 TEXT_DOCUMENT_TYPE = "text"
 
+# How many analyzed query tokens must match. The sanskrit/tibetan analyzers emit
+# per-syllable tokens, so names like "Śāntideva" and "Śāntigarbha" share several
+# syllables. Person lookups therefore require every query token to match, which
+# keeps syllable-neighbors out. Titles are free-form multi-word phrases, so they
+# allow ~25% of tokens to differ once past a 3-token query.
+_MINIMUM_SHOULD_MATCH = {
+    PERSON_DOCUMENT_TYPE: "100%",
+    TEXT_DOCUMENT_TYPE: "3<75%",
+}
+
 
 class CatalogSearchService:
     def __init__(
@@ -362,16 +372,8 @@ def _search_body(*, query: str, document_type: str, offset: int, limit: int, fil
                                     "multi_match": {
                                         "query": query,
                                         "type": "best_fields",
-                                        "operator": "and",
                                         "fields": fields,
-                                    }
-                                },
-                                {
-                                    "multi_match": {
-                                        "query": query,
-                                        "type": "bool_prefix",
-                                        "fields": fields,
-                                        "boost": 0.5,
+                                        "minimum_should_match": _MINIMUM_SHOULD_MATCH[document_type],
                                     }
                                 },
                             ],

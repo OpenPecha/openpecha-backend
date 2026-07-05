@@ -130,6 +130,35 @@ class TestCatalogSearch:
         assert response.json()["items"][0]["id"] == text_id
         assert response.json()["items"][0]["alt_titles"][0]["sa-x-iast"] == "Nāgārjuna"
 
+    @pytest.mark.parametrize(
+        "query",
+        [
+            "How to see yourself as you really are",
+            "How to see yourself as you truly are",
+            "How to see you as you really are",
+        ],
+    )
+    async def test_text_english_title_tolerates_word_variations(
+        self,
+        catalog_client,
+        catalog_search,
+        test_database,
+        query,
+    ):
+        person_id = await _create_person(test_database, name={"en": "Search Author"})
+        text_id = await _create_text(
+            test_database,
+            person_id=person_id,
+            title={"en": "How to See Yourself as You Really Are"},
+            language="en",
+        )
+        await catalog_search.index_text(text_id, test_database)
+
+        response = await catalog_client.get("/v2/texts", params={"title": query})
+
+        assert response.status_code == 200, response.json()
+        assert response.json()["items"][0]["id"] == text_id
+
     async def test_person_tibetan_phonetic_search_returns_tibetan_record(
         self,
         catalog_client,
@@ -175,3 +204,138 @@ class TestCatalogSearch:
         body = response.json()
         assert [item["id"] for item in body["items"]] == [sanskrit_text_id]
         assert body["has_more"] is False
+
+    async def test_person_search_excludes_syllable_neighbors(
+        self,
+        catalog_client,
+        catalog_search,
+        test_database,
+    ):
+        target_id = await _create_person(test_database, name={"sa-x-iast": "Śāntideva"})
+        neighbor_id = await _create_person(test_database, name={"sa-x-iast": "Śāntigarbha"})
+        unrelated_id = await _create_person(test_database, name={"sa-x-iast": "Nāgārjuna"})
+        await catalog_search.index_person(target_id, test_database)
+        await catalog_search.index_person(neighbor_id, test_database)
+        await catalog_search.index_person(unrelated_id, test_database)
+
+        response = await catalog_client.get("/v2/persons", params={"name": "Shantideva"})
+
+        assert response.status_code == 200, response.json()
+        returned_ids = [item["id"] for item in response.json()["items"]]
+        assert returned_ids == [target_id]
+        assert neighbor_id not in returned_ids
+        assert unrelated_id not in returned_ids
+
+    async def test_text_exact_title_ranks_above_superset_title(
+        self,
+        catalog_client,
+        catalog_search,
+        test_database,
+    ):
+        person_id = await _create_person(test_database, name={"en": "Search Author"})
+        exact_id = await _create_text(
+            test_database,
+            person_id=person_id,
+            title={"en": "Emptiness"},
+            language="en",
+        )
+        superset_id = await _create_text(
+            test_database,
+            person_id=person_id,
+            title={"en": "Emptiness Meditation"},
+            language="en",
+        )
+        await catalog_search.index_text(exact_id, test_database)
+        await catalog_search.index_text(superset_id, test_database)
+
+        response = await catalog_client.get("/v2/texts", params={"title": "Emptiness"})
+
+        assert response.status_code == 200, response.json()
+        returned_ids = [item["id"] for item in response.json()["items"]]
+        assert returned_ids[0] == exact_id
+        assert set(returned_ids) == {exact_id, superset_id}
+
+    async def test_text_author_filter_narrows_results(
+        self,
+        catalog_client,
+        catalog_search,
+        test_database,
+    ):
+        author_a = await _create_person(test_database, name={"en": "Author Alpha"})
+        author_b = await _create_person(test_database, name={"en": "Author Beta"})
+        text_a = await _create_text(
+            test_database,
+            person_id=author_a,
+            title={"en": "Collected Works Alpha"},
+            language="en",
+        )
+        text_b = await _create_text(
+            test_database,
+            person_id=author_b,
+            title={"en": "Collected Works Beta"},
+            language="en",
+        )
+        await catalog_search.index_text(text_a, test_database)
+        await catalog_search.index_text(text_b, test_database)
+
+        response = await catalog_client.get(
+            "/v2/texts",
+            params={"title": "Collected Works", "author_id": author_a},
+        )
+
+        assert response.status_code == 200, response.json()
+        returned_ids = [item["id"] for item in response.json()["items"]]
+        assert returned_ids == [text_a]
+        assert text_b not in returned_ids
+
+    async def test_text_sanskrit_devanagari_search_returns_record(
+        self,
+        catalog_client,
+        catalog_search,
+        test_database,
+    ):
+        person_id = await _create_person(test_database, name={"en": "Search Author"})
+        text_id = await _create_text(
+            test_database,
+            person_id=person_id,
+            title={"sa-Deva": "नागार्जुन"},
+            language="sa",
+        )
+        await catalog_search.index_text(text_id, test_database)
+
+        response = await catalog_client.get("/v2/texts", params={"title": "नागार्जुन"})
+
+        assert response.status_code == 200, response.json()
+        assert response.json()["items"][0]["id"] == text_id
+
+    async def test_deleting_person_removes_it_from_search(
+        self,
+        catalog_client,
+        catalog_search,
+        test_database,
+    ):
+        person_id = await _create_person(test_database, name={"sa-x-iast": "Śāntideva"})
+        await catalog_search.index_person(person_id, test_database)
+
+        found = await catalog_client.get("/v2/persons", params={"name": "Shantideva"})
+        assert [item["id"] for item in found.json()["items"]] == [person_id]
+
+        await catalog_search.delete_person(person_id)
+
+        after_delete = await catalog_client.get("/v2/persons", params={"name": "Shantideva"})
+        assert after_delete.status_code == 200, after_delete.json()
+        assert after_delete.json()["items"] == []
+
+    async def test_search_with_no_matches_returns_empty_results(
+        self,
+        catalog_client,
+        catalog_search,
+        test_database,
+    ):
+        person_id = await _create_person(test_database, name={"sa-x-iast": "Śāntideva"})
+        await catalog_search.index_person(person_id, test_database)
+
+        response = await catalog_client.get("/v2/persons", params={"name": "Zzzq Nonexistent"})
+
+        assert response.status_code == 200, response.json()
+        assert response.json()["items"] == []
