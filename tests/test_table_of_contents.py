@@ -60,10 +60,6 @@ def _table_of_contents_payload(name: str = "Main sa bcad") -> dict:
                 "span": {"start": 0, "end": 10},
                 "subsections": [
                     {
-                        "title": {"en": "Section 1.2"},
-                        "span": {"start": 5, "end": 10},
-                    },
-                    {
                         "title": {"en": "Section 1.1"},
                         "summary": {"en": "Introductory topic"},
                         "span": {"start": 0, "end": 5},
@@ -73,6 +69,10 @@ def _table_of_contents_payload(name: str = "Main sa bcad") -> dict:
                                 "span": {"start": 0, "end": 2},
                             }
                         ],
+                    },
+                    {
+                        "title": {"en": "Section 1.2"},
+                        "span": {"start": 5, "end": 10},
                     },
                 ],
             }
@@ -260,6 +260,72 @@ class TestTableOfContents:
 
         assert response.status_code == 422
         assert "contained" in str(response.json()).lower()
+
+    async def test_add_table_of_contents_accepts_heading_without_content(
+        self, client, test_database, test_person_data
+    ):
+        """A heading that carries no text of its own is an empty span anchored at its position."""
+        _, edition_id = await _create_test_graph(test_database, test_person_data)
+        toc = {
+            "sections": [
+                {"title": {"sa": "Dukaniddeso"}, "span": {"start": 40, "end": 40}},
+                {
+                    "title": {"sa": "Upādābhājanīyaṃ"},
+                    "span": {"start": 40, "end": 80},
+                    "subsections": [{"title": {"sa": "Empty subheading"}, "span": {"start": 80, "end": 80}}],
+                },
+            ]
+        }
+
+        post_response = await client.post(f"/v2/editions/{edition_id}/table-of-contents", json=toc)
+        assert post_response.status_code == 201, post_response.json()
+
+        sections = (await client.get(f"/v2/table-of-contents/{post_response.json()['id']}")).json()["sections"]
+        # The empty heading sorts ahead of the sibling that starts where it sits
+        assert [section["title"]["sa"] for section in sections] == ["Dukaniddeso", "Upādābhājanīyaṃ"]
+        assert sections[0]["span"] == {"start": 40, "end": 40}
+        assert sections[1]["subsections"][0]["span"] == {"start": 80, "end": 80}
+
+    async def test_add_table_of_contents_rejects_overlapping_sibling_sections(
+        self, client, test_database, test_person_data
+    ):
+        _, edition_id = await _create_test_graph(test_database, test_person_data)
+        toc = {
+            "sections": [
+                {"title": {"en": "First"}, "span": {"start": 0, "end": 60}},
+                {"title": {"en": "Second"}, "span": {"start": 40, "end": 80}},
+            ]
+        }
+
+        response = await client.post(f"/v2/editions/{edition_id}/table-of-contents", json=toc)
+
+        assert response.status_code == 422
+        assert "overlap" in str(response.json()).lower()
+
+    async def test_add_table_of_contents_rejects_unsorted_sibling_sections(
+        self, client, test_database, test_person_data
+    ):
+        _, edition_id = await _create_test_graph(test_database, test_person_data)
+        toc = {
+            "sections": [
+                {"title": {"en": "Second"}, "span": {"start": 40, "end": 80}},
+                {"title": {"en": "First"}, "span": {"start": 0, "end": 40}},
+            ]
+        }
+
+        response = await client.post(f"/v2/editions/{edition_id}/table-of-contents", json=toc)
+
+        assert response.status_code == 422
+        assert "sorted" in str(response.json()).lower()
+
+    async def test_add_table_of_contents_rejects_inverted_span(self, client, test_database, test_person_data):
+        _, edition_id = await _create_test_graph(test_database, test_person_data)
+        toc = {"sections": [{"title": {"en": "Backwards"}, "span": {"start": 80, "end": 40}}]}
+
+        response = await client.post(f"/v2/editions/{edition_id}/table-of-contents", json=toc)
+
+        assert response.status_code == 422
+        assert "greater" in str(response.json()).lower()
 
     async def test_delete_edition_cascades_tables_of_contents(self, client, test_database, test_person_data):
         _, edition_id = await _create_test_graph(test_database, test_person_data)

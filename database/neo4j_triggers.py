@@ -7,6 +7,8 @@ logger = logging.getLogger(__name__)
 DATABASE_NAME = "neo4j"
 SYSTEM_DATABASE_NAME = "system"
 
+RETIRED_TRIGGERS = ("enforce_span_start_lt_end",)
+
 # Each trigger is a dict with:
 #   name: unique trigger name
 #   query: Cypher to execute on each transaction
@@ -844,30 +846,30 @@ TRIGGERS.append(
     )
 )
 
-# --- Span: start must be strictly less than end ----------------------------
+# --- Span: start must not be greater than end ------------------------------
 TRIGGERS.append(
     {
-        "name": "enforce_span_start_lt_end",
-        "description": "Span.start must be strictly less than Span.end",
+        "name": "enforce_span_start_lte_end",
+        "description": "Span.start must not be greater than Span.end",
         "phase": "before",
         "query": """
         UNWIND $createdNodes AS node
         WITH node
         WHERE node:Span
         WITH node
-        WHERE node.start >= node.end
+        WHERE node.start > node.end
         WITH collect(toString(node.start) + '-' + toString(node.end)) AS ids
         WHERE size(ids) > 0
         CALL apoc.util.validate(
             true,
-            'enforce_span_start_lt_end: Span.start must be < Span.end. Spans: %s',
+            'enforce_span_start_lte_end: Span.start must be <= Span.end. Spans: %s',
             [apoc.text.join(ids, ', ')]
         )
         RETURN null
     """,
         "audit": """
         MATCH (s:Span)
-        WHERE s.start >= s.end
+        WHERE s.start > s.end
         RETURN toString(s.start) + '-' + toString(s.end) AS violating_id
     """,
     }
@@ -983,6 +985,9 @@ async def install_triggers(driver: AsyncDriver) -> None:
     """Install all structural constraint triggers. Idempotent — safe to call on every startup."""
 
     async def write(tx: AsyncManagedTransaction) -> None:
+        for name in RETIRED_TRIGGERS:
+            await tx.run("CALL apoc.trigger.drop($database, $name)", database=DATABASE_NAME, name=name)
+
         for trigger in TRIGGERS:
             await tx.run(
                 "CALL apoc.trigger.install($database, $name, $statement, {phase: $phase})",

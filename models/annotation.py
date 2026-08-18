@@ -1,41 +1,71 @@
 from __future__ import annotations
 
-from collections.abc import Sequence
+from collections.abc import Callable, Sequence
 from itertools import pairwise
 from typing import Any, Self
 
 from pydantic import ConfigDict, Field, model_validator
 
-from .base import LocalizedString, NonEmptyStr, OpenPechaModel, _validate_range
+from .base import LocalizedString, NonEmptyStr, OpenPechaModel
 from .enums import AttributeType, BibliographyType, SegmentType
 
 
 class Span(OpenPechaModel):
+    """Half-open character range. An empty range marks a position rather than covering text, which is
+    how a page with no text and a heading with no content of its own are expressed.
+    """
+
     start: int = Field(..., ge=0, description="Start character position (inclusive)")
-    end: int = Field(..., ge=1, description="End character position (exclusive)")
+    end: int = Field(..., ge=0, description="End character position (exclusive)")
 
     @model_validator(mode="after")
-    def validate_span_range(self) -> Self:
-        _validate_range(self.start, self.end)
+    def validate_span_not_inverted(self) -> Self:
+        if self.start > self.end:
+            raise ValueError("'start' must not be greater than 'end'")
         return self
+
+
+def _validate_layout(spans: Sequence[Span], holds: Callable[[Span, Span], bool], requirement: str) -> None:
+    """Check how each span sits against the one before it, in the order given."""
+    for previous, current in pairwise(spans):
+        if not holds(previous, current):
+            raise ValueError(
+                f"spans must be {requirement}: [{previous.start},{previous.end}) "
+                f"is followed by [{current.start},{current.end})"
+            )
+
+
+def _validate_contiguous(spans: Sequence[Span]) -> None:
+    _validate_layout(spans, lambda previous, current: current.start == previous.end, "contiguous")
+
+
+def _validate_disjoint(spans: Sequence[Span]) -> None:
+    _validate_layout(spans, lambda previous, current: current.start >= previous.end, "sorted and non-overlapping")
+
+
+def _validate_sorted(spans: Sequence[Span]) -> None:
+    _validate_layout(spans, lambda previous, current: current.start >= previous.start, "sorted by start")
 
 
 class AnnotationMetadata(OpenPechaModel):
     name: NonEmptyStr | None = None
 
 
-def _validate_lines(lines: list[Span]) -> None:
-    for prev, curr in pairwise(lines):
-        if curr.start != prev.end:
-            raise ValueError("lines must be continuous and sorted")
+class SingleSpanAnnotation(OpenPechaModel):
+    span: Span
+    metadata: AnnotationMetadata | None = None
+
+    @property
+    def max_end(self) -> int:
+        return self.span.end
 
 
 class LinesModel(OpenPechaModel):
     lines: list[Span] = Field(min_length=1)
 
     @model_validator(mode="after")
-    def validate_lines(self) -> Self:
-        _validate_lines(self.lines)
+    def validate_lines_contiguous(self) -> Self:
+        _validate_contiguous(self.lines)
         return self
 
     @property
@@ -69,16 +99,6 @@ class RelatedSegmentationOutput(OpenPechaModel):
     segments: list[SegmentWithContextOutput]
 
 
-def _is_sorted_by_span_start(segments: Sequence[LinesModel]) -> bool:
-    previous_start: int | None = None
-    for segment in segments:
-        start = segment.lines[0].start
-        if previous_start is not None and start < previous_start:
-            return False
-        previous_start = start
-    return True
-
-
 class SegmentationInput(OpenPechaModel):
     segments: list[SegmentInput] = Field(min_length=1)
     metadata: AnnotationMetadata | None = None
@@ -89,8 +109,7 @@ class SegmentationInput(OpenPechaModel):
 
     @model_validator(mode="after")
     def validate_segments_sorted(self) -> Self:
-        if hasattr(self, "segments") and not _is_sorted_by_span_start(self.segments):
-            raise ValueError("segments must be sorted by span start")
+        _validate_sorted([segment.span for segment in self.segments])
         return self
 
     @model_validator(mode="after")
@@ -124,12 +143,8 @@ class Volume(OpenPechaModel):
         return Span.model_validate({"start": self.pages[0].span.start, "end": self.pages[-1].span.end})
 
     @model_validator(mode="after")
-    def validate_pages_continuous(self) -> Self:
-        for prev, curr in pairwise(self.pages):
-            prev_end = prev.lines[-1].end
-            curr_start = curr.lines[0].start
-            if curr_start != prev_end:
-                raise ValueError("pages must be continuous and sorted")
+    def validate_pages_contiguous(self) -> Self:
+        _validate_contiguous([page.span for page in self.pages])
         return self
 
 
@@ -141,6 +156,8 @@ class PaginationBase(OpenPechaModel):
     def max_end(self) -> int:
         return max(volume.span.end for volume in self.volumes)
 
+
+class PaginationInput(PaginationBase):
     @model_validator(mode="after")
     def validate_volume_indexes(self) -> Self:
         if len(self.volumes) == 1:
@@ -159,15 +176,9 @@ class PaginationBase(OpenPechaModel):
 
     @model_validator(mode="after")
     def validate_volume_spans_disjoint(self) -> Self:
-        volumes = sorted(self.volumes, key=lambda volume: volume.index or 0)
-        for prev, curr in pairwise(volumes):
-            if curr.span.start < prev.span.end:
-                raise ValueError("volume spans must not overlap and must be ordered by volume index")
+        by_index = sorted(self.volumes, key=lambda volume: volume.index or 0)
+        _validate_disjoint([volume.span for volume in by_index])
         return self
-
-
-class PaginationInput(PaginationBase):
-    pass
 
 
 class PaginationOutput(PaginationBase):
@@ -183,10 +194,11 @@ class TableOfContentsSectionInput(OpenPechaModel):
     subsections: list[TableOfContentsSectionInput] = Field(default_factory=list)
 
     @model_validator(mode="after")
-    def validate_subsection_spans_contained(self) -> Self:
+    def validate_subsections(self) -> Self:
         for subsection in self.subsections:
             if subsection.span.start < self.span.start or subsection.span.end > self.span.end:
                 raise ValueError("subsection span must be contained within parent section span")
+        _validate_disjoint([subsection.span for subsection in self.subsections])
         return self
 
 
@@ -197,6 +209,11 @@ class TableOfContentsInput(OpenPechaModel):
     @property
     def max_end(self) -> int:
         return max(section.span.end for section in self.sections)
+
+    @model_validator(mode="after")
+    def validate_sections_disjoint(self) -> Self:
+        _validate_disjoint([section.span for section in self.sections])
+        return self
 
 
 class TableOfContentsSectionOutput(OpenPechaModel):
@@ -215,14 +232,8 @@ class TableOfContentsOutput(OpenPechaModel):
     metadata: AnnotationMetadata | None = None
 
 
-class BibliographicMetadataBase(OpenPechaModel):
-    span: Span
+class BibliographicMetadataBase(SingleSpanAnnotation):
     type: BibliographyType
-    metadata: AnnotationMetadata | None = None
-
-    @property
-    def max_end(self) -> int:
-        return self.span.end
 
 
 class BibliographicMetadataInput(BibliographicMetadataBase):
@@ -235,14 +246,8 @@ class BibliographicMetadataOutput(BibliographicMetadataBase):
     text_id: NonEmptyStr
 
 
-class NoteBase(OpenPechaModel):
-    span: Span
+class NoteBase(SingleSpanAnnotation):
     text: NonEmptyStr
-    metadata: AnnotationMetadata | None = None
-
-    @property
-    def max_end(self) -> int:
-        return self.span.end
 
 
 class NoteInput(NoteBase):
@@ -255,11 +260,9 @@ class NoteOutput(NoteBase):
     text_id: NonEmptyStr
 
 
-class AttributeBase(OpenPechaModel):
-    span: Span
+class AttributeBase(SingleSpanAnnotation):
     type: AttributeType
     value: Any
-    metadata: AnnotationMetadata | None = None
 
 
 class AttributeInput(AttributeBase):

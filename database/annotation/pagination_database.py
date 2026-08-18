@@ -14,7 +14,7 @@ from models.annotation import PaginationInput, PaginationOutput
 class PaginationDatabase:
     _GET_QUERY_BODY: LiteralString = """
     WITH pagination, edition, text, volume, page, span
-    ORDER BY volume.index, span.start
+    ORDER BY volume.index, span.start, span.end
     WITH pagination, edition, text, volume, page, collect({start: span.start, end: span.end}) AS lines
     WITH pagination, edition, text, volume, collect({reference: page.reference, lines: lines}) AS pages
     WITH pagination, edition, text, collect({index: volume.index, pages: pages}) AS volumes

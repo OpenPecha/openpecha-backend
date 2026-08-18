@@ -962,6 +962,33 @@ class TestAddPagination(TestAnnotationsEndpoints):
         response = await client.post(f"/v2/editions/{edition_id}/pagination", json=pagination_data)
         assert response.status_code == 201
 
+    async def test_add_pagination_with_blank_page_succeeds(self, client, test_database, test_person_data):
+        """A folio with no text is a page whose single line is empty at the position it sits."""
+        person_id = await self._create_test_person(test_database, test_person_data)
+        text_id = await self._create_test_text(test_database, person_id)
+        edition_id = await self._create_test_edition(
+            test_database, text_id, "0" * 16, edition_type=EditionType.CRITICAL
+        )
+
+        pagination_data = {
+            "volumes": [
+                {
+                    "pages": [
+                        {"reference": "1a", "lines": [{"start": 0, "end": 8}]},
+                        {"reference": "1b", "lines": [{"start": 8, "end": 8}]},
+                        {"reference": "2a", "lines": [{"start": 8, "end": 16}]},
+                    ]
+                }
+            ]
+        }
+
+        response = await client.post(f"/v2/editions/{edition_id}/pagination", json=pagination_data)
+        assert response.status_code == 201, response.json()
+
+        pages = (await client.get(f"/v2/paginations/{response.json()['id']}")).json()["volumes"][0]["pages"]
+        assert [page["reference"] for page in pages] == ["1a", "1b", "2a"]
+        assert pages[1]["lines"] == [{"start": 8, "end": 8}]
+
     async def test_add_pagination_multiple_volumes_without_index_fails(self, client, test_database, test_person_data):
         """Test that pagination creation fails when multiple volumes don't specify indexes"""
         person_id = await self._create_test_person(test_database, test_person_data)

@@ -231,8 +231,7 @@ Important validation rules:
 - Diplomatic editions require `metadata.bdrc` and `pagination`; they must not include `segmentation`.
 - Critical editions must not include `metadata.bdrc`; they require `segmentation` and must not include `pagination`.
 - `alt_incipit_titles` can only be set when `incipit_title` is set.
-- Pagination pages and segment lines must be sorted and continuous.
-- Pagination volumes must not overlap; see [Pagination](#pagination).
+- Every span must satisfy `0 <= start <= end`; see [span layout rules](#span-layout-rules).
 
 ### Span offset semantics
 
@@ -250,6 +249,26 @@ so note the following:
 - JavaScript's `String.length` and Python's `len()` both work for Tibetan and romanized Pali,
   since those scripts lie in the Basic Multilingual Plane. They diverge only for characters
   above U+FFFF, such as emoji or Siddham.
+
+### Span layout rules
+
+A span is any range with `0 <= start <= end`. An empty span, where `start` equals `end`, marks a
+position rather than covering text: it is how a blank folio and a heading with no content of its own
+are recorded. A span with `start` greater than `end` is rejected with `422`.
+
+Wherever spans appear as a list, that list must follow one of three layouts:
+
+| Spans | Layout |
+| --- | --- |
+| `lines` within a page or segment | contiguous: each line starts exactly where the previous line ended |
+| `pages` within a volume | contiguous |
+| `volumes` within a pagination | sorted and non-overlapping, in volume index order; gaps are allowed |
+| sections at one level of a table of contents | sorted and non-overlapping; gaps are allowed |
+| `segments` within a segmentation | sorted by `start`; segments may overlap |
+
+Two rules are not about layout. A table of contents subsection must sit inside its parent's span, and
+volume indexes must form a continuous sequence from `1`. Content patch operations are the one place
+where an empty range is refused, because deleting or replacing zero characters does nothing.
 
 ## Edition Annotation Collections
 
@@ -366,6 +385,11 @@ carve up that text between them. Each volume must therefore start at or after th
 ends, and a pagination whose volumes overlap or run counter to their index order is rejected with
 `422`. Adjacent volumes are fine: volume 2 may start exactly where volume 1 ends.
 
+A folio with no text is a page whose single line is empty at the position where the folio sits, for
+example `{"reference": "1b", "lines": [{"start": 8, "end": 8}]}` between a page ending at `8` and the
+next page starting at `8`. Two blank folios at the same position are stored but their order between
+each other is not preserved.
+
 ### Table of contents
 
 ```http
@@ -433,6 +457,10 @@ Request:
 ```
 
 Each section has a required localized `title`, optional localized `summary`, required `span`, and optional recursive `subsections`. Each subsection span must be fully contained inside its parent section span. Multiple table of contents can be attached to the same edition. Returned sections and subsections are ordered by their span start/end positions.
+
+Sections at the same level must be sorted and must not overlap, so a table of contents is submitted in
+document order. A heading that carries no content of its own — a title immediately followed by the next
+heading — is an empty span at the position where it appears, such as `{"start": 229637, "end": 229637}`.
 
 ### Bibliographic Metadata
 

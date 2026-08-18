@@ -870,15 +870,15 @@ class TestSegmentsRelatedEdgeCases(SegmentTestBase):
         with pytest.raises(DataNotFoundError):
             await test_database.segment.get("orphan_segment")
 
-    async def test_segment_get_with_zero_length_spans_excluded(self, client, test_database):
-        """Zero-length spans are rejected by installed Neo4j triggers."""
-        seg_id = f"seg_zero_span_{generate_id()[:6]}"
+    async def test_segment_get_with_inverted_spans_excluded(self, client, test_database):
+        """Inverted spans are rejected by installed Neo4j triggers."""
+        seg_id = f"seg_inverted_span_{generate_id()[:6]}"
         async with test_database.get_session() as session:
-            with pytest.raises(Exception, match="enforce_span_start_lt_end"):
+            with pytest.raises(Exception, match="enforce_span_start_lte_end"):
                 result = await session.run("""
                     CREATE (sgn:Segmentation {id: $sgn_id})
                     CREATE (seg:Segment {id: $seg_id})-[:SEGMENT_OF]->(sgn)
-                    CREATE (span:Span {start: 5, end: 5})-[:SPAN_OF]->(seg)
+                    CREATE (span:Span {start: 6, end: 5})-[:SPAN_OF]->(seg)
                 """, sgn_id=f"sgn_{seg_id}", seg_id=seg_id)
                 await result.consume()
 

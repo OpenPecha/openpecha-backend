@@ -22,11 +22,6 @@ def _dedupe[T](items: list[T], exclude: T) -> list[T]:
     return seen
 
 
-def _validate_range(start: int, end: int, *, start_name: str = "start", end_name: str = "end") -> None:
-    if start >= end:
-        raise ValueError(f"'{start_name}' must be less than '{end_name}'")
-
-
 class OpenPechaModel(BaseModel):
     model_config = ConfigDict(extra="forbid")
 

@@ -2,7 +2,7 @@ from typing import Annotated, Literal, Self
 
 from pydantic import Field, RootModel, model_validator
 
-from .base import OpenPechaModel, _validate_range
+from .base import OpenPechaModel
 
 
 class InsertOperation(OpenPechaModel):
@@ -17,7 +17,9 @@ class RangedOperation(OpenPechaModel):
 
     @model_validator(mode="after")
     def validate_range(self) -> Self:
-        _validate_range(self.start, self.end)
+        # Unlike an annotation span, an empty range here is a no-op rather than a position.
+        if self.start >= self.end:
+            raise ValueError("'start' must be less than 'end'")
         return self
 
 

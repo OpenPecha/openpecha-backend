@@ -153,8 +153,8 @@ def _custom_cases() -> dict[str, str]:
             CREATE (source)-[:COMMENTARY_OF]->(target_commentary)
             RETURN [source] AS createdNodes, [] AS createdRelationships, [] AS deletedRelationships, [] AS deletedNodes
         """,
-        "enforce_span_start_lt_end": """
-            CREATE (span:Span {start: 5, end: 5})
+        "enforce_span_start_lte_end": """
+            CREATE (span:Span {start: 6, end: 5})
             RETURN [span] AS createdNodes, [] AS createdRelationships, [] AS deletedRelationships, [] AS deletedNodes
         """,
         "enforce_nomen_no_alternative_chain": """
