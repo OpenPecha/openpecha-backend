@@ -127,8 +127,7 @@ class DatabaseValidator:
         content_length = record["content_length"]
         if content_length is None:
             raise DataValidationError(
-                f"Edition '{edition_id}' has no recorded content length, so offsets cannot be validated; "
-                "run scripts/backfill_content_length.py"
+                f"Edition '{edition_id}' has no recorded content length, so offsets cannot be validated"
             )
 
         if max_end > content_length:
