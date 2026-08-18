@@ -117,6 +117,8 @@ class SegmentationDatabase:
     async def add_with_transaction(
         tx: AsyncManagedTransaction, edition_id: str, segmentation: SegmentationInput
     ) -> str:
+        await DatabaseValidator.validate_edition_spans(tx, edition_id, segmentation.max_end)
+
         segmentation_id = generate_id()
 
         segments_data = [
@@ -137,7 +139,6 @@ class SegmentationDatabase:
         )
         record = await result.single()
         if not record or record["segment_count"] == 0:
-            await DatabaseValidator.validate_edition_exists(tx, edition_id)
             raise DataConflictError(f"Edition with ID '{edition_id}' already has a segmentation")
         return segmentation_id
 

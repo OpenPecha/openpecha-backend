@@ -102,7 +102,7 @@ class BibliographicDatabase:
         edition_id: str,
         item: BibliographicMetadataInput,
     ) -> str:
-        await DatabaseValidator.validate_edition_exists(tx, edition_id)
+        await DatabaseValidator.validate_edition_spans(tx, edition_id, item.max_end)
 
         generated_id = generate_id()
 

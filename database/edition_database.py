@@ -98,7 +98,9 @@ class EditionDatabase:
     MATCH (e:Text {id: $text_id})
     OPTIONAL MATCH (it:Nomen {id: $incipit_nomen_id})
     MERGE (mt:EditionType {name: $type})
-    CREATE (m:Edition {id: $edition_id, bdrc: $bdrc, wiki: $wiki, colophon: $colophon})
+    CREATE (m:Edition {
+        id: $edition_id, bdrc: $bdrc, wiki: $wiki, colophon: $colophon, content_length: $content_length
+    })
     WITH m, e, mt, it
     CREATE (m)-[:EDITION_OF]->(e), (m)-[:HAS_TYPE]->(mt)
     CALL (*) { WHEN it IS NOT NULL THEN { CREATE (m)-[:HAS_INCIPIT_TITLE]->(it) } }
@@ -161,6 +163,7 @@ class EditionDatabase:
         edition: EditionInput,
         edition_id: str,
         text_id: str,
+        content_length: int,
         text: TextInput | None = None,
         pagination: PaginationInput | None = None,
         segmentation: SegmentationInput | None = None,
@@ -169,7 +172,7 @@ class EditionDatabase:
             if text:
                 await TextDatabase.create_with_transaction(tx, text, text_id)
 
-            await self.create_with_transaction(tx, edition, text_id, edition_id)
+            await self.create_with_transaction(tx, edition, text_id, edition_id, content_length)
 
             if segmentation is not None:
                 await SegmentationDatabase.add_with_transaction(tx, edition_id, segmentation)
@@ -204,7 +207,7 @@ class EditionDatabase:
 
     @staticmethod
     async def create_with_transaction(
-        tx: AsyncManagedTransaction, edition: EditionInput, text_id: str, edition_id: str
+        tx: AsyncManagedTransaction, edition: EditionInput, text_id: str, edition_id: str, content_length: int
     ) -> str:
         await EditionDatabase._validate_create(tx, edition, text_id)
 
@@ -225,6 +228,7 @@ class EditionDatabase:
             colophon=edition.colophon,
             incipit_nomen_id=incipit_nomen_id,
             source=edition.source,
+            content_length=content_length,
         )
 
         record = await result.single()

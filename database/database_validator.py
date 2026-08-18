@@ -111,6 +111,33 @@ class DatabaseValidator:
             raise DataNotFoundError(f"Edition with ID '{edition_id}' not found")
 
     @staticmethod
+    async def validate_edition_spans(tx: AsyncManagedTransaction, edition_id: str, max_end: int) -> None:
+        """Validate the edition exists and that annotation offsets fit within its content."""
+        query = """
+        MATCH (m:Edition {id: $edition_id})
+        RETURN m.content_length AS content_length
+        """
+
+        result = await tx.run(query, edition_id=edition_id)
+        record = await result.single()
+
+        if record is None:
+            raise DataNotFoundError(f"Edition with ID '{edition_id}' not found")
+
+        content_length = record["content_length"]
+        if content_length is None:
+            raise DataValidationError(
+                f"Edition '{edition_id}' has no recorded content length, so offsets cannot be validated; "
+                "run scripts/backfill_content_length.py"
+            )
+
+        if max_end > content_length:
+            raise DataValidationError(
+                f"Offsets extend to {max_end} but edition '{edition_id}' content is {content_length} characters; "
+                "offsets must be Unicode code point positions in the edition content"
+            )
+
+    @staticmethod
     async def validate_language_code_exists(tx: AsyncManagedTransaction, language_code: str) -> None:
         """Validate that a given base language code exists.
 

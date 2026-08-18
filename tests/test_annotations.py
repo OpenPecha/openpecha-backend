@@ -97,7 +97,9 @@ class TestAnnotationsEndpoints:
             pagination = PaginationInput(
                 volumes=[Volume(pages=[Page(reference="1a", lines=[Span(start=0, end=max(len(content), 1))])])]
             )
-        await db.edition.create(edition_data, edition_id, text_id, pagination=pagination)
+        await db.edition.create(
+            edition_data, edition_id, text_id, content_length=max(len(content), 1), pagination=pagination
+        )
         return edition_id
 
 
@@ -565,6 +567,54 @@ class TestDeleteBibliographic(TestAnnotationsEndpoints):
         assert response.status_code == 204
 
 
+class TestAddAnnotationSpanBounds(TestAnnotationsEndpoints):
+    """Tests that annotation spans must fit the edition's content length"""
+
+    async def test_post_segmentation_rejects_span_beyond_content(self, client, test_database, test_person_data):
+        """Test that a segmentation span past the end of the content is rejected"""
+        person_id = await self._create_test_person(test_database, test_person_data)
+        text_id = await self._create_test_text(test_database, person_id)
+        edition_id = await self._create_test_edition(
+            test_database, text_id, "0123456789", edition_type=EditionType.CRITICAL
+        )
+
+        response = await client.post(
+            f"/v2/editions/{edition_id}/segmentation",
+            json={"segments": [{"lines": [{"start": 0, "end": 99}]}]},
+        )
+
+        assert response.status_code == 422
+        assert "error" in response.json()
+
+    async def test_post_durchen_rejects_span_beyond_content(self, client, test_database, test_person_data):
+        """Test that a durchen note span past the end of the content is rejected"""
+        person_id = await self._create_test_person(test_database, test_person_data)
+        text_id = await self._create_test_text(test_database, person_id)
+        edition_id = await self._create_test_edition(test_database, text_id, "0123456789")
+
+        response = await client.post(
+            f"/v2/editions/{edition_id}/durchens",
+            json={"span": {"start": 0, "end": 99}, "text": "Test note"},
+        )
+
+        assert response.status_code == 422
+
+    async def test_post_segmentation_accepts_span_at_content_end(self, client, test_database, test_person_data):
+        """Test that a span ending exactly at the content length is accepted"""
+        person_id = await self._create_test_person(test_database, test_person_data)
+        text_id = await self._create_test_text(test_database, person_id)
+        edition_id = await self._create_test_edition(
+            test_database, text_id, "0123456789", edition_type=EditionType.CRITICAL
+        )
+
+        response = await client.post(
+            f"/v2/editions/{edition_id}/segmentation",
+            json={"segments": [{"lines": [{"start": 0, "end": 10}]}]},
+        )
+
+        assert response.status_code == 201
+
+
 class TestAddAnnotationEditionNotFound(TestAnnotationsEndpoints):
     """Tests for annotation creation with non-existent edition"""
 
@@ -575,10 +625,10 @@ class TestAddAnnotationEditionNotFound(TestAnnotationsEndpoints):
         async with test_database.get_session() as session:
             await session.run("MERGE (:BibliographyType {name: 'colophon'})")
 
-        items = [BibliographicMetadataInput(span=Span(start=0, end=10), type=BibliographyType.COLOPHON)]
+        item = BibliographicMetadataInput(span=Span(start=0, end=10), type=BibliographyType.COLOPHON)
 
         with pytest.raises(DataNotFoundError) as exc_info:
-            await test_database.annotation.bibliographic.add("nonexistent_edition_id", items)
+            await test_database.annotation.bibliographic.add("nonexistent_edition_id", item)
 
         assert "Edition with ID 'nonexistent_edition_id' not found" in str(exc_info.value)
 
@@ -615,10 +665,10 @@ class TestAddAnnotationEditionNotFound(TestAnnotationsEndpoints):
         async with test_database.get_session() as session:
             await session.run("MERGE (:NoteType {name: 'durchen'})")
 
-        notes = [NoteInput(span=Span(start=0, end=10), text="Test note")]
+        note = NoteInput(span=Span(start=0, end=10), text="Test note")
 
         with pytest.raises(DataNotFoundError) as exc_info:
-            await test_database.annotation.note.add_durchen("nonexistent_edition_id", notes)
+            await test_database.annotation.note.add_durchen("nonexistent_edition_id", note)
 
         assert "Edition with ID 'nonexistent_edition_id' not found" in str(exc_info.value)
 
@@ -786,9 +836,10 @@ class TestAddPagination(TestAnnotationsEndpoints):
         person_id = await self._create_test_person(test_database, test_person_data)
         text_id = await self._create_test_text(test_database, person_id)
         edition_id = await self._create_test_edition(
-            test_database, text_id, "0123456789ABCDEF", edition_type=EditionType.CRITICAL
+            test_database, text_id, "0" * 32, edition_type=EditionType.CRITICAL
         )
 
+        # Volumes carve up one base text, so volume 2 continues where volume 1 ends.
         pagination_data = {
             "volumes": [
                 {
@@ -801,8 +852,8 @@ class TestAddPagination(TestAnnotationsEndpoints):
                 {
                     "index": 2,
                     "pages": [
-                        {"reference": "2a", "lines": [{"start": 0, "end": 10}]},
-                        {"reference": "2b", "lines": [{"start": 10, "end": 20}]},
+                        {"reference": "2a", "lines": [{"start": 16, "end": 24}]},
+                        {"reference": "2b", "lines": [{"start": 24, "end": 32}]},
                     ]
                 }
             ]
@@ -831,6 +882,85 @@ class TestAddPagination(TestAnnotationsEndpoints):
         assert len(data["volumes"][1]["pages"]) == 2
         assert data["volumes"][1]["pages"][0]["reference"] == "2a"
         assert data["volumes"][1]["pages"][1]["reference"] == "2b"
+
+    async def test_add_pagination_overlapping_volumes_fails(self, client, test_database, test_person_data):
+        """Test that pagination creation fails when two volumes cover overlapping offsets"""
+        person_id = await self._create_test_person(test_database, test_person_data)
+        text_id = await self._create_test_text(test_database, person_id)
+        edition_id = await self._create_test_edition(
+            test_database, text_id, "0" * 32, edition_type=EditionType.CRITICAL
+        )
+
+        pagination_data = {
+            "volumes": [
+                {
+                    "index": 1,
+                    "pages": [
+                        {"reference": "1a", "lines": [{"start": 0, "end": 8}]},
+                        {"reference": "1b", "lines": [{"start": 8, "end": 16}]},
+                    ]
+                },
+                {
+                    "index": 2,
+                    "pages": [
+                        {"reference": "2a", "lines": [{"start": 12, "end": 20}]},
+                    ]
+                }
+            ]
+        }
+
+        response = await client.post(f"/v2/editions/{edition_id}/pagination", json=pagination_data)
+        assert response.status_code == 422
+        errors = response.json()["detail"]
+        assert any("overlap" in str(error).lower() for error in errors)
+
+    async def test_add_pagination_volumes_ordered_against_index_fails(
+        self, client, test_database, test_person_data
+    ):
+        """Test that pagination creation fails when a later volume covers earlier offsets"""
+        person_id = await self._create_test_person(test_database, test_person_data)
+        text_id = await self._create_test_text(test_database, person_id)
+        edition_id = await self._create_test_edition(
+            test_database, text_id, "0" * 32, edition_type=EditionType.CRITICAL
+        )
+
+        pagination_data = {
+            "volumes": [
+                {
+                    "index": 1,
+                    "pages": [
+                        {"reference": "1a", "lines": [{"start": 16, "end": 24}]},
+                    ]
+                },
+                {
+                    "index": 2,
+                    "pages": [
+                        {"reference": "2a", "lines": [{"start": 0, "end": 8}]},
+                    ]
+                }
+            ]
+        }
+
+        response = await client.post(f"/v2/editions/{edition_id}/pagination", json=pagination_data)
+        assert response.status_code == 422
+
+    async def test_add_pagination_adjacent_volumes_succeed(self, client, test_database, test_person_data):
+        """Test that a volume starting exactly where the previous one ends is accepted"""
+        person_id = await self._create_test_person(test_database, test_person_data)
+        text_id = await self._create_test_text(test_database, person_id)
+        edition_id = await self._create_test_edition(
+            test_database, text_id, "0" * 16, edition_type=EditionType.CRITICAL
+        )
+
+        pagination_data = {
+            "volumes": [
+                {"index": 1, "pages": [{"reference": "1a", "lines": [{"start": 0, "end": 8}]}]},
+                {"index": 2, "pages": [{"reference": "2a", "lines": [{"start": 8, "end": 16}]}]},
+            ]
+        }
+
+        response = await client.post(f"/v2/editions/{edition_id}/pagination", json=pagination_data)
+        assert response.status_code == 201
 
     async def test_add_pagination_multiple_volumes_without_index_fails(self, client, test_database, test_person_data):
         """Test that pagination creation fails when multiple volumes don't specify indexes"""

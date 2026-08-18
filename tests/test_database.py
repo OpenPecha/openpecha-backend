@@ -692,7 +692,7 @@ class TestDatabase:
 
         # Create edition in database
         edition_id = generate_id()
-        await test_database.edition.create(edition, edition_id, text_id)
+        await test_database.edition.create(edition, edition_id, text_id, content_length=10)
 
         # Verify we can get raw editions list
         retrieved_editions = await test_database.edition.get_all(text_id)
@@ -724,7 +724,7 @@ class TestDatabase:
             colophon="First edition",
         )
         edition1_id = generate_id()
-        await test_database.edition.create(edition1, edition1_id, text_id)
+        await test_database.edition.create(edition1, edition1_id, text_id, content_length=10)
 
         # Create second edition (DIPLOMATIC - requires bdrc)
         edition2 = EditionInput(
@@ -738,7 +738,7 @@ class TestDatabase:
             volumes=[Volume(pages=[Page(reference="1a", lines=[Span(start=0, end=1)])])]
         )
         await test_database.edition.create(
-            edition2, edition2_id, text_id, pagination=edition2_pagination
+            edition2, edition2_id, text_id, content_length=10, pagination=edition2_pagination
         )
 
         # Retrieve all editions
@@ -765,7 +765,7 @@ class TestDatabase:
 
         # Should raise DataValidationError for non-existent text
         with pytest.raises(DataValidationError, match="Text nonexistent-id does not exist"):
-            await test_database.edition.create(edition, generate_id(), "nonexistent-id")
+            await test_database.edition.create(edition, generate_id(), "nonexistent-id", content_length=10)
 
 
     async def test_create_edition_with_source(self, test_database):
@@ -791,7 +791,7 @@ class TestDatabase:
             colophon="Test colophon",
         )
         edition_id = generate_id()
-        await test_database.edition.create(edition, edition_id, text_id)
+        await test_database.edition.create(edition, edition_id, text_id, content_length=10)
 
         # Retrieve and verify source is returned
         retrieved = await test_database.edition.get(edition_id)
@@ -822,7 +822,7 @@ class TestDatabase:
             type=EditionType.CRITICAL,
         )
         edition_id = generate_id()
-        await test_database.edition.create(edition, edition_id, text_id)
+        await test_database.edition.create(edition, edition_id, text_id, content_length=10)
 
         # Retrieve and verify source is None
         retrieved = await test_database.edition.get(edition_id)
@@ -858,7 +858,7 @@ class TestDatabase:
         edition_id = generate_id()
         text_id = generate_id()
         await test_database.edition.create(
-            edition, edition_id, text_id, text=text
+            edition, edition_id, text_id, content_length=10, text=text
         )
 
         # Verify text was created
@@ -900,7 +900,7 @@ class TestDatabase:
         # Should fail due to invalid person in text
         with pytest.raises(DataValidationError, match="nonexistent-person-id"):
             await test_database.edition.create(
-                edition, edition_id, text_id, text=text
+                edition, edition_id, text_id, content_length=10, text=text
             )
 
         # Verify nothing was created (transaction rolled back)
@@ -949,7 +949,7 @@ class TestDatabase:
             volumes=[Volume(pages=[Page(reference="1a", lines=[Span(start=0, end=1)])])]
         )
         await test_database.edition.create(
-            edition, edition_id, translation_id, text=translation_text, pagination=pagination
+            edition, edition_id, translation_id, content_length=10, text=translation_text, pagination=pagination
         )
 
         # Verify translation text was created with parent link
@@ -983,7 +983,7 @@ class TestSpanDatabase:
 
         edition = EditionInput(type=EditionType.CRITICAL)
         edition_id = generate_id()
-        await test_database.edition.create(edition, edition_id, text_id)
+        await test_database.edition.create(edition, edition_id, text_id, content_length=10)
 
         segment_id = generate_id()
         segmentation_id = generate_id()

@@ -100,7 +100,7 @@ class NoteDatabase:
         note: NoteInput,
         note_type: str,
     ) -> str:
-        await DatabaseValidator.validate_edition_exists(tx, edition_id)
+        await DatabaseValidator.validate_edition_spans(tx, edition_id, note.max_end)
 
         generated_id = generate_id()
 

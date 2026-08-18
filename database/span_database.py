@@ -1,5 +1,7 @@
 from typing import TYPE_CHECKING, LiteralString
 
+from .database_validator import DatabaseValidator
+
 if TYPE_CHECKING:
     from neo4j import AsyncManagedTransaction
 
@@ -156,8 +158,19 @@ class SpanDatabase:
     FINISH
     """
 
+    SHIFT_CONTENT_LENGTH_QUERY: LiteralString = """
+    MATCH (m:Edition {id: $edition_id})
+    SET m.content_length = m.content_length + $delta
+    FINISH
+    """
+
     def __init__(self, db: Database) -> None:
         self._db = db
+
+    @staticmethod
+    async def _shift_content_length(tx: AsyncManagedTransaction, edition_id: str, delta: int) -> None:
+        if delta:
+            await tx.run(SpanDatabase.SHIFT_CONTENT_LENGTH_QUERY, edition_id=edition_id, delta=delta)
 
     @staticmethod
     async def _flush_batch(
@@ -177,6 +190,7 @@ class SpanDatabase:
         """Adjust all spans for an INSERT operation."""
 
         async def write(tx: AsyncManagedTransaction) -> None:
+            await DatabaseValidator.validate_edition_spans(tx, edition_id, position)
             updates: list[dict[str, str | int]] = []
 
             result = await tx.run(self.FIND_CONTINUOUS_SPANS_QUERY, edition_id=edition_id)
@@ -192,6 +206,7 @@ class SpanDatabase:
                     updates.append({"entity_id": record["entity_id"], "new_start": adjusted[0], "new_end": adjusted[1]})
 
             await self._flush_batch(tx, updates, [], self.BATCH_UPDATE_SPANS_QUERY, self.BATCH_DELETE_ENTITIES_QUERY)
+            await self._shift_content_length(tx, edition_id, length)
 
         async with self._db.get_session() as session:
             await session.execute_write(write)
@@ -200,6 +215,7 @@ class SpanDatabase:
         """Adjust all spans for a DELETE operation."""
 
         async def write(tx: AsyncManagedTransaction) -> None:
+            await DatabaseValidator.validate_edition_spans(tx, edition_id, end)
             updates: list[dict[str, str | int]] = []
             deletes: list[str] = []
 
@@ -222,6 +238,7 @@ class SpanDatabase:
             await self._flush_batch(
                 tx, updates, deletes, self.BATCH_UPDATE_SPANS_QUERY, self.BATCH_DELETE_ENTITIES_QUERY
             )
+            await self._shift_content_length(tx, edition_id, start - end)
 
         async with self._db.get_session() as session:
             await session.execute_write(write)
@@ -230,6 +247,7 @@ class SpanDatabase:
         """Adjust all spans for a REPLACE operation."""
 
         async def write(tx: AsyncManagedTransaction) -> None:
+            await DatabaseValidator.validate_edition_spans(tx, edition_id, end)
             updates: list[dict[str, str | int]] = []
             deletes: list[str] = []
             first_encompassed_found = False
@@ -262,6 +280,7 @@ class SpanDatabase:
             await self._flush_batch(
                 tx, updates, deletes, self.BATCH_UPDATE_SPANS_QUERY, self.BATCH_DELETE_ENTITIES_QUERY
             )
+            await self._shift_content_length(tx, edition_id, new_len - (end - start))
 
         async with self._db.get_session() as session:
             await session.execute_write(write)

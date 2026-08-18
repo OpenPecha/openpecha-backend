@@ -139,6 +139,7 @@ async def create_edition(
         edition=data.metadata,
         edition_id=edition_id,
         text_id=text_id,
+        content_length=len(data.content),
         pagination=data.pagination,
         segmentation=data.segmentation,
     )

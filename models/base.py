@@ -10,7 +10,7 @@ from pydantic import (
     model_validator,
 )
 
-type NonEmptyStr = Annotated[StrictStr, StringConstraints(min_length=1, strip_whitespace=True)]
+type NonEmptyStr = Annotated[StrictStr, StringConstraints(min_length=1, pattern=r"\S")]
 
 
 def _dedupe[T](items: list[T], exclude: T) -> list[T]:
@@ -28,10 +28,7 @@ def _validate_range(start: int, end: int, *, start_name: str = "start", end_name
 
 
 class OpenPechaModel(BaseModel):
-    model_config = ConfigDict(
-        extra="forbid",
-        str_strip_whitespace=True,
-    )
+    model_config = ConfigDict(extra="forbid")
 
 
 class PatchModel(OpenPechaModel):

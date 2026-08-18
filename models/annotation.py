@@ -83,6 +83,10 @@ class SegmentationInput(OpenPechaModel):
     segments: list[SegmentInput] = Field(min_length=1)
     metadata: AnnotationMetadata | None = None
 
+    @property
+    def max_end(self) -> int:
+        return max(segment.span.end for segment in self.segments)
+
     @model_validator(mode="after")
     def validate_segments_sorted(self) -> Self:
         if hasattr(self, "segments") and not _is_sorted_by_span_start(self.segments):
@@ -109,11 +113,15 @@ class Page(LinesModel):
 
 
 class Volume(OpenPechaModel):
-    model_config = ConfigDict(extra="forbid", str_strip_whitespace=True, json_schema_mode_override="validation")
+    model_config = ConfigDict(extra="forbid", json_schema_mode_override="validation")
 
     index: int | None = Field(default=None, ge=1, description="Volume index (1-based)")
     pages: list[Page] = Field(min_length=1)
     metadata: AnnotationMetadata | None = None
+
+    @property
+    def span(self) -> Span:
+        return Span.model_validate({"start": self.pages[0].span.start, "end": self.pages[-1].span.end})
 
     @model_validator(mode="after")
     def validate_pages_continuous(self) -> Self:
@@ -129,6 +137,10 @@ class PaginationBase(OpenPechaModel):
     volumes: list[Volume] = Field(min_length=1)
     metadata: AnnotationMetadata | None = None
 
+    @property
+    def max_end(self) -> int:
+        return max(volume.span.end for volume in self.volumes)
+
     @model_validator(mode="after")
     def validate_volume_indexes(self) -> Self:
         if len(self.volumes) == 1:
@@ -143,6 +155,14 @@ class PaginationBase(OpenPechaModel):
             sorted_indexes = sorted([i for i in indexes if i is not None])
             if sorted_indexes != list(range(1, len(indexes) + 1)):
                 raise ValueError("volume indexes must form a continuous sequence starting from 1")
+        return self
+
+    @model_validator(mode="after")
+    def validate_volume_spans_disjoint(self) -> Self:
+        volumes = sorted(self.volumes, key=lambda volume: volume.index or 0)
+        for prev, curr in pairwise(volumes):
+            if curr.span.start < prev.span.end:
+                raise ValueError("volume spans must not overlap and must be ordered by volume index")
         return self
 
 
@@ -174,6 +194,10 @@ class TableOfContentsInput(OpenPechaModel):
     sections: list[TableOfContentsSectionInput] = Field(min_length=1)
     metadata: AnnotationMetadata | None = None
 
+    @property
+    def max_end(self) -> int:
+        return max(section.span.end for section in self.sections)
+
 
 class TableOfContentsSectionOutput(OpenPechaModel):
     id: NonEmptyStr
@@ -196,6 +220,10 @@ class BibliographicMetadataBase(OpenPechaModel):
     type: BibliographyType
     metadata: AnnotationMetadata | None = None
 
+    @property
+    def max_end(self) -> int:
+        return self.span.end
+
 
 class BibliographicMetadataInput(BibliographicMetadataBase):
     pass
@@ -211,6 +239,10 @@ class NoteBase(OpenPechaModel):
     span: Span
     text: NonEmptyStr
     metadata: AnnotationMetadata | None = None
+
+    @property
+    def max_end(self) -> int:
+        return self.span.end
 
 
 class NoteInput(NoteBase):

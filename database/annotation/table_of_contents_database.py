@@ -236,7 +236,7 @@ class TableOfContentsDatabase:
         edition_id: str,
         toc: TableOfContentsInput,
     ) -> str:
-        await DatabaseValidator.validate_edition_exists(tx, edition_id)
+        await DatabaseValidator.validate_edition_spans(tx, edition_id, toc.max_end)
 
         toc_id = generate_id()
         metadata_id = generate_id() if toc.metadata is not None else None

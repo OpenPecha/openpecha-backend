@@ -182,7 +182,7 @@ class TestGetEditionMetadata(TestEditionsEndpoints):
         pagination = PaginationInput(
             volumes=[Volume(pages=[Page(reference="1a", lines=[Span(start=0, end=1)])])]
         )
-        await test_database.edition.create(edition_data, edition_id, text_id, pagination=pagination)
+        await test_database.edition.create(edition_data, edition_id, text_id, content_length=1, pagination=pagination)
 
         response = await client.get(f"/v2/editions/{edition_id}")
 
@@ -250,7 +250,7 @@ class TestCreateEdition(TestEditionsEndpoints):
                 "volumes": [{
                     "pages": [
                         {"reference": "1a", "lines": [{"start": 0, "end": 20}]},
-                        {"reference": "1b", "lines": [{"start": 20, "end": 46}]},
+                        {"reference": "1b", "lines": [{"start": 20, "end": 45}]},
                     ],
                 }]
             },
@@ -268,7 +268,7 @@ class TestCreateEdition(TestEditionsEndpoints):
         pagination_response = annotations_response.json()
         assert pagination_response["volumes"][0]["pages"] == [
             {"reference": "1a", "lines": [{"start": 0, "end": 20}]},
-            {"reference": "1b", "lines": [{"start": 20, "end": 46}]},
+            {"reference": "1b", "lines": [{"start": 20, "end": 45}]},
         ]
 
     async def test_create_edition_missing_body(self, client, test_database, test_person_data):
@@ -445,6 +445,89 @@ class TestCreateEdition(TestEditionsEndpoints):
         assert metadata["wiki"] == "Q123456"
         assert metadata["colophon"] == "Test colophon"
 
+    async def test_create_edition_preserves_surrounding_whitespace(self, client, test_database, test_person_data):
+        """Content must be stored verbatim so annotation offsets stay valid"""
+        person_id = await self._create_test_person(test_database, test_person_data)
+        text_id = await self._create_test_text(test_database, person_id)
+
+        content = "\n  Namo tassa bhagavato arahato sammāsambuddhassa\n"
+        edition_data = {
+            "content": content,
+            "metadata": {
+                "type": "critical",
+                "source": "Test Source",
+            },
+            "segmentation": {
+                "segments": [{"lines": [{"start": 0, "end": len(content)}]}]
+            },
+        }
+
+        response = await client.post(f"/v2/texts/{text_id}/editions", json=edition_data)
+        assert response.status_code == 201, response.json()
+        edition_id = response.json()["id"]
+
+        content_response = await client.get(f"/v2/editions/{edition_id}/content")
+        assert content_response.status_code == 200
+        assert content_response.json() == content
+
+    async def test_create_edition_rejects_span_beyond_content(self, client, test_database, test_person_data):
+        """Spans that extend past the end of the content are rejected"""
+        person_id = await self._create_test_person(test_database, test_person_data)
+        text_id = await self._create_test_text(test_database, person_id)
+
+        edition_data = {
+            "content": "Short content",
+            "metadata": {
+                "type": "critical",
+                "source": "Test Source",
+            },
+            "segmentation": {
+                "segments": [{"lines": [{"start": 0, "end": 99}]}]
+            },
+        }
+
+        response = await client.post(f"/v2/texts/{text_id}/editions", json=edition_data)
+        assert response.status_code == 422
+
+    async def test_create_edition_rejects_utf8_byte_offsets(self, client, test_database, test_person_data):
+        """Byte offsets overshoot code point offsets for Tibetan and are rejected"""
+        person_id = await self._create_test_person(test_database, test_person_data)
+        text_id = await self._create_test_text(test_database, person_id)
+
+        content = "བདེ་ལེགས"
+        edition_data = {
+            "content": content,
+            "metadata": {
+                "type": "critical",
+                "source": "Test Source",
+            },
+            "segmentation": {
+                "segments": [{"lines": [{"start": 0, "end": len(content.encode("utf-8"))}]}]
+            },
+        }
+
+        response = await client.post(f"/v2/texts/{text_id}/editions", json=edition_data)
+        assert response.status_code == 422
+
+    async def test_create_edition_rejects_blank_content(self, client, test_database, test_person_data):
+        """Whitespace-only content is rejected even though it is not stripped"""
+        person_id = await self._create_test_person(test_database, test_person_data)
+        text_id = await self._create_test_text(test_database, person_id)
+
+        edition_data = {
+            "content": "   \n  ",
+            "metadata": {
+                "type": "critical",
+                "source": "Test Source",
+            },
+            "segmentation": {
+                "segments": [{"lines": [{"start": 0, "end": 6}]}]
+            },
+        }
+
+        response = await client.post(f"/v2/texts/{text_id}/editions", json=edition_data)
+        assert response.status_code == 422
+
 
 @pytest.mark.asyncio(loop_scope="session")
 class TestEditionAnnotations(TestEditionsEndpoints):
@@ -551,7 +634,7 @@ class TestEditionAnnotations(TestEditionsEndpoints):
             source="Test Source",
         )
         edition_id = generate_id()
-        await test_database.edition.create(edition_data, edition_id, text_id)
+        await test_database.edition.create(edition_data, edition_id, text_id, content_length=16)
 
         annotation_data = {
             "volumes": [{
@@ -861,6 +944,16 @@ class TestDeleteEdition(TestEditionsEndpoints):
 class TestPatchContent(TestEditionsEndpoints):
     """Integration tests for PATCH /v2/editions/{edition_id}/content endpoint."""
 
+    async def _get_content_length(self, test_database, edition_id):
+        """Read the internal content_length, which is deliberately absent from the API."""
+        async with test_database.get_session() as session:
+            result = await session.run(
+                "MATCH (m:Edition {id: $edition_id}) RETURN m.content_length AS content_length",
+                edition_id=edition_id,
+            )
+            record = await result.single()
+            return record["content_length"]
+
     async def test_patch_content_insert_success(self, client, test_database, test_person_data):
         """Test successful insert operation."""
         person_id = await self._create_test_person(test_database, test_person_data)
@@ -876,6 +969,117 @@ class TestPatchContent(TestEditionsEndpoints):
 
         content_response = await client.get(f"/v2/editions/{edition_id}/content")
         assert content_response.json() == "Hello Beautiful World"
+
+    async def test_patch_content_rejects_offset_beyond_content(self, client, test_database, test_person_data):
+        """Test that an operation reaching past the end of the content is rejected."""
+        person_id = await self._create_test_person(test_database, test_person_data)
+        text_id = await self._create_test_text(test_database, person_id)
+        edition_id = await self._create_test_edition(client, text_id, "Hello World")
+
+        response = await client.patch(
+            f"/v2/editions/{edition_id}/content",
+            json={"type": "insert", "position": 100, "text": "XY"}
+        )
+
+        assert response.status_code == 422
+
+        content_response = await client.get(f"/v2/editions/{edition_id}/content")
+        assert content_response.json() == "Hello World"
+
+    async def test_patch_content_updates_content_length(self, client, test_database, test_person_data):
+        """Test that content_length tracks the text through patches that grow and shrink it."""
+        person_id = await self._create_test_person(test_database, test_person_data)
+        text_id = await self._create_test_text(test_database, person_id)
+        edition_id = await self._create_test_edition(client, text_id, "Hello World")
+
+        grow = await client.patch(
+            f"/v2/editions/{edition_id}/content",
+            json={"type": "insert", "position": 6, "text": "Beautiful "}
+        )
+        assert grow.status_code == 204
+        assert await self._get_content_length(test_database, edition_id) == len("Hello Beautiful World")
+
+        shrink = await client.patch(
+            f"/v2/editions/{edition_id}/content",
+            json={"type": "delete", "start": 6, "end": 16}
+        )
+        assert shrink.status_code == 204
+        assert await self._get_content_length(test_database, edition_id) == len("Hello World")
+
+        # Spans are now validated against the shrunken length
+        accepted = await client.post(
+            f"/v2/editions/{edition_id}/durchens",
+            json={"span": {"start": 0, "end": 11}, "text": "note"},
+        )
+        assert accepted.status_code == 201
+
+        rejected = await client.post(
+            f"/v2/editions/{edition_id}/durchens",
+            json={"span": {"start": 0, "end": 12}, "text": "note"},
+        )
+        assert rejected.status_code == 422
+
+    async def test_patch_content_preserves_whitespace_in_payload(self, client, test_database, test_person_data):
+        """Patch text must be applied verbatim so offsets after it stay valid"""
+        person_id = await self._create_test_person(test_database, test_person_data)
+        text_id = await self._create_test_text(test_database, person_id)
+        edition_id = await self._create_test_edition(client, text_id, "AB")
+
+        inserted = await client.patch(
+            f"/v2/editions/{edition_id}/content",
+            json={"type": "insert", "position": 1, "text": "\n  x  \n"}
+        )
+        assert inserted.status_code == 204
+
+        content_response = await client.get(f"/v2/editions/{edition_id}/content")
+        assert content_response.json() == "A\n  x  \nB"
+        assert await self._get_content_length(test_database, edition_id) == len("A\n  x  \nB")
+
+        # Whitespace-only payloads are legitimate edits, not empty input
+        replaced = await client.patch(
+            f"/v2/editions/{edition_id}/content",
+            json={"type": "replace", "start": 1, "end": 8, "text": " "}
+        )
+        assert replaced.status_code == 204
+
+        content_response = await client.get(f"/v2/editions/{edition_id}/content")
+        assert content_response.json() == "A B"
+
+        empty = await client.patch(
+            f"/v2/editions/{edition_id}/content",
+            json={"type": "insert", "position": 0, "text": ""}
+        )
+        assert empty.status_code == 422
+
+    async def test_patch_content_restores_length_when_storage_fails(
+        self, client, test_database, test_person_data, mock_storage
+    ):
+        """Test that a failed storage write leaves content_length as it was."""
+        person_id = await self._create_test_person(test_database, test_person_data)
+        text_id = await self._create_test_text(test_database, person_id)
+        edition_id = await self._create_test_edition(client, text_id, "Hello World")
+
+        async def fail(*_args, **_kwargs):
+            raise RuntimeError("storage unavailable")
+
+        original = mock_storage.apply_insert
+        mock_storage.apply_insert = fail
+        try:
+            # A deployed client receives 500: Starlette sends the error response and then re-raises
+            # so test clients can inspect the cause. Matching it proves the router compensated and
+            # re-raised our failure rather than swallowing or replacing it.
+            with pytest.raises(RuntimeError, match="storage unavailable"):
+                await client.patch(
+                    f"/v2/editions/{edition_id}/content",
+                    json={"type": "insert", "position": 6, "text": "Beautiful "}
+                )
+        finally:
+            mock_storage.apply_insert = original
+
+        assert await self._get_content_length(test_database, edition_id) == len("Hello World")
+
+        content_response = await client.get(f"/v2/editions/{edition_id}/content")
+        assert content_response.json() == "Hello World"
 
     async def test_patch_content_delete_success(self, client, test_database, test_person_data):
         """Test successful delete operation."""

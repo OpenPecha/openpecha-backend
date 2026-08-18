@@ -107,6 +107,9 @@ Validation rules:
 - `start` must be less than `end`.
 - Insert and replace text must be non-empty.
 - Extra fields are rejected.
+- An operation reaching past the end of the content is rejected with `422`.
+
+Subsequent annotation spans are validated against the patched text, not the original.
 
 The database span adjustment is performed before the storage write. If the storage write fails, the code compensates the span adjustment before re-raising.
 
@@ -222,16 +225,40 @@ Response:
 
 Important validation rules:
 
-- `content` is required and must be non-empty.
+- `content` is required and must contain at least one non-whitespace character.
+- `content` is stored exactly as submitted, including leading and trailing whitespace.
+- Span offsets must not extend past the end of `content`.
 - Diplomatic editions require `metadata.bdrc` and `pagination`; they must not include `segmentation`.
 - Critical editions must not include `metadata.bdrc`; they require `segmentation` and must not include `pagination`.
 - `alt_incipit_titles` can only be set when `incipit_title` is set.
 - Pagination pages and segment lines must be sorted and continuous.
+- Pagination volumes must not overlap; see [Pagination](#pagination).
+
+### Span offset semantics
+
+All `start` and `end` values are **Unicode code point offsets** into `content` exactly as
+submitted, with `end` exclusive. Getting the unit wrong silently misaligns every annotation,
+so note the following:
+
+- Do not send UTF-8 byte offsets. Tibetan code points are three bytes each, so byte offsets
+  run roughly 3× long and are rejected.
+- Do not send grapheme cluster counts. A Tibetan stack with subjoined consonants is several
+  code points but one visual unit.
+- Normalize before computing offsets, and send the same form you measured. In romanized Pali,
+  `ā` is one code point as NFC but two as NFD, so `sammāsambuddhassa` is 17 or 18 code points
+  depending on form. The API stores content byte-for-byte and never normalizes it.
+- JavaScript's `String.length` and Python's `len()` both work for Tibetan and romanized Pali,
+  since those scripts lie in the Basic Multilingual Plane. They diverge only for characters
+  above U+FFFF, such as emoji or Siddham.
 
 ## Edition Annotation Collections
 
 Annotations can be listed and created by type under an edition. Creation returns `{ "id": "..." }`.
 Each edition has at most one segmentation. Large segment collections are paginated from the edition segmentation `/segments` endpoint.
+
+Spans follow the [span offset semantics](#span-offset-semantics) above and are checked against the
+edition's current content. A span reaching past the end of the content is rejected with `422` and
+nothing is written.
 
 ### Segmentations
 
@@ -333,6 +360,11 @@ POST /v2/editions/{edition_id}/pagination
 ```
 
 A single-volume pagination must omit `index`. Multi-volume pagination must use unique continuous indexes starting at `1`.
+
+Page offsets are positions in the edition's single base text, not per-volume positions, so volumes
+carve up that text between them. Each volume must therefore start at or after the previous volume
+ends, and a pagination whose volumes overlap or run counter to their index order is rejected with
+`422`. Adjacent volumes are fine: volume 2 may start exactly where volume 1 ends.
 
 ### Table of contents
 

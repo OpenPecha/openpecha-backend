@@ -38,7 +38,8 @@ async def _create_test_edition(db, text_id: str) -> str:
     pagination = PaginationInput(
         volumes=[Volume(pages=[Page(reference="1a", lines=[Span(start=0, end=1)])])]
     )
-    await db.edition.create(edition_data, edition_id, text_id, pagination=pagination)
+    # Large enough for the section spans used across these tests; no base text is stored.
+    await db.edition.create(edition_data, edition_id, text_id, content_length=1000, pagination=pagination)
     return edition_id
 
 

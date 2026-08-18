@@ -1,5 +1,6 @@
 from typing import TYPE_CHECKING, LiteralString
 
+from database.database_validator import DatabaseValidator
 from exceptions import DataConflictError, DataNotFoundError
 
 if TYPE_CHECKING:
@@ -104,6 +105,8 @@ class PaginationDatabase:
         edition_id: str,
         pagination: PaginationInput,
     ) -> str:
+        await DatabaseValidator.validate_edition_spans(tx, edition_id, pagination.max_end)
+
         existing = await tx.run(
             "RETURN EXISTS { (:Pagination)-[:PAGINATION_OF]->(:Edition {id: $edition_id}) } AS exists",
             edition_id=edition_id,
@@ -127,15 +130,12 @@ class PaginationDatabase:
             ]
             volumes_data.append({"id": volume_id, "index": volume.index, "pages": pages_data})
 
-        result = await tx.run(
+        await tx.run(
             PaginationDatabase.CREATE_QUERY,
             edition_id=edition_id,
             pagination_id=pagination_id,
             volumes=volumes_data,
         )
-        record = await result.single()
-        if not record or record["count"] == 0:
-            raise DataNotFoundError(f"Edition with ID '{edition_id}' not found")
         return pagination_id
 
     @staticmethod

@@ -2147,7 +2147,7 @@ class TestGetEditionsV2:
             },
             "pagination": {
                 "volumes": [{
-                    "pages": [{"reference": "1a", "lines": [{"start": 0, "end": 24}]}]
+                    "pages": [{"reference": "1a", "lines": [{"start": 0, "end": 18}]}]
                 }]
             },
         }
@@ -2164,7 +2164,7 @@ class TestGetEditionsV2:
             },
             "pagination": {
                 "volumes": [{
-                    "pages": [{"reference": "1a", "lines": [{"start": 0, "end": 24}]}]
+                    "pages": [{"reference": "1a", "lines": [{"start": 0, "end": 18}]}]
                 }]
             },
         }

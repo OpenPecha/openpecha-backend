@@ -40,6 +40,8 @@ Localized strings are objects keyed by language code:
 }
 ```
 
+Strings are stored exactly as submitted and are never trimmed. Every string field must contain at least one non-whitespace character, so `""` and `"   "` are both rejected with `422`. A value sent with surrounding whitespace is stored with it, so `"W22084 "` will not match a later lookup for `"W22084"`; callers should send values already normalized. The one exception is the `text` of a content patch, where a whitespace-only payload such as a single space is a legitimate edit.
+
 Character spans use half-open ranges: `start` is inclusive and `end` is exclusive. A segment contains one or more continuous `lines`; multiple lines inside one segment must be sorted and adjacent.
 
 Paginated list endpoints return:

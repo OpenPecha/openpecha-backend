@@ -26,7 +26,7 @@ class AlignmentPaginationParams(AnnotationSegmentsPaginationParams):
 
 class TextFilter(OpenPechaModel):
     language: str | None = None
-    title: str | None = Field(default=None, min_length=2, description="Filter by title, minimum 2 characters")
+    title: NonEmptyStr | None = Field(default=None, min_length=2, description="Filter by title, minimum 2 characters")
     category_id: str | None = None
     tag_id: str | None = None
     author_id: str | None = None
@@ -39,7 +39,9 @@ class TextsQueryParams(PaginationParams, TextFilter):
 
 
 class PersonFilter(OpenPechaModel):
-    name: str | None = Field(default=None, min_length=2, description="Filter by person name, minimum 2 characters")
+    name: NonEmptyStr | None = Field(
+        default=None, min_length=2, description="Filter by person name, minimum 2 characters"
+    )
     bdrc: str | None = Field(None, description="Filter by BDRC ID")
     wiki: str | None = Field(None, description="Filter by Wiki ID")
 
@@ -67,6 +69,16 @@ class EditionRequestModel(OpenPechaModel):
     pagination: PaginationInput | None = None
     segmentation: SegmentationInput | None = None
     content: NonEmptyStr
+
+    @model_validator(mode="after")
+    def validate_spans_within_content(self) -> Self:
+        annotation = self.segmentation or self.pagination
+        if annotation and annotation.max_end > len(self.content):
+            raise ValueError(
+                f"annotation spans extend to {annotation.max_end} but content is {len(self.content)} characters; "
+                "spans must be Unicode code point offsets into the submitted content"
+            )
+        return self
 
     @model_validator(mode="after")
     def validate_annotation(self) -> Self:
