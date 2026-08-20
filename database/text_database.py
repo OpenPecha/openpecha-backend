@@ -230,6 +230,11 @@ class TextDatabase:
     RETURN elementId(c) as contribution_element_id
     """
 
+    DELETE_CONTRIBUTIONS_QUERY: LiteralString = """
+    MATCH (e:Text {id: $text_id})-[:HAS_CONTRIBUTION]->(c:Contribution)
+    DETACH DELETE c
+    """
+
     DELETE_CHECK_QUERY: LiteralString = """
     MATCH (e:Text {id: $text_id})-[:TEXT_OF]->(w:Work)
     RETURN w.id AS work_id,
@@ -383,7 +388,7 @@ class TextDatabase:
         if text.category_id:
             await tx.run(TextDatabase.LINK_WORK_TO_CATEGORY_QUERY, work_id=work_id, category_id=text.category_id)
 
-        for contribution in text.contributions or []:
+        for contribution in text.contributions:
             await TextDatabase._create_contribution(tx, text_id, contribution)
 
         if text.tag_ids:
@@ -451,6 +456,7 @@ class TextDatabase:
         merged_language = patch.language if patch.language is not None else existing.language
         merged_category_id = patch.category_id if patch.category_id is not None else existing.category_id
         merged_license = patch.license if patch.license is not None else existing.license
+        merged_contributions = patch.contributions if patch.contributions is not None else existing.contributions
 
         TextOutput.model_validate(
             {
@@ -463,7 +469,7 @@ class TextDatabase:
                 "language": merged_language,
                 "category_id": merged_category_id,
                 "license": merged_license,
-                "contributions": [c.model_dump() for c in existing.contributions],
+                "contributions": [c.model_dump() for c in merged_contributions],
             }
         )
 
@@ -495,6 +501,12 @@ class TextDatabase:
 
             if patch.category_id is not None:
                 await tx.run(TextDatabase.UPDATE_CATEGORY_QUERY, text_id=text_id, category_id=patch.category_id)
+
+            if patch.contributions is not None:
+                await DatabaseValidator.validate_contribution_references(tx, patch.contributions)
+                await tx.run(TextDatabase.DELETE_CONTRIBUTIONS_QUERY, text_id=text_id)
+                for contribution in patch.contributions:
+                    await TextDatabase._create_contribution(tx, text_id, contribution)
 
             if patch.tag_ids is not None:
                 await DatabaseValidator.validate_tags_exist(tx, list(patch.tag_ids))

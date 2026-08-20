@@ -1,12 +1,24 @@
 import logging
+from collections.abc import Sequence
+from typing import LiteralString
 
 from neo4j import AsyncManagedTransaction
 
 from exceptions import DataNotFoundError, DataValidationError, InvalidRequestError
-from models.contribution import PersonContributionInput
+from models.contribution import ContributionInputItem, PersonContributionInput
 from models.text import TextInput
 
 logger = logging.getLogger(__name__)
+
+_MISSING_PERSON_IDS_QUERY: LiteralString = """
+MATCH (p:Person) WHERE p.id IN $references
+RETURN apoc.coll.subtract($references, collect(DISTINCT p.id)) AS missing
+"""
+
+_MISSING_PERSON_BDRC_IDS_QUERY: LiteralString = """
+MATCH (p:Person) WHERE p.bdrc IN $references
+RETURN apoc.coll.subtract($references, collect(DISTINCT p.bdrc)) AS missing
+"""
 
 
 class DatabaseValidator:
@@ -14,40 +26,28 @@ class DatabaseValidator:
         pass
 
     @staticmethod
-    async def validate_person_references(tx: AsyncManagedTransaction, person_ids: list[str]) -> None:
-        if not person_ids:
-            return
+    async def validate_contribution_references(
+        tx: AsyncManagedTransaction, contributions: Sequence[ContributionInputItem]
+    ) -> None:
+        persons = [contrib for contrib in contributions if isinstance(contrib, PersonContributionInput)]
+        ids = [person.id for person in persons if person.id]
+        bdrc_ids = [person.bdrc_id for person in persons if person.bdrc_id]
 
-        query = """
-        MATCH (p:Person)
-        WHERE p.id IN $person_ids
-        RETURN apoc.coll.subtract($person_ids, collect(DISTINCT p.id)) AS missing_persons
-        """
+        checks: tuple[tuple[LiteralString, str, list[str]], ...] = (
+            (_MISSING_PERSON_IDS_QUERY, "persons", ids),
+            (_MISSING_PERSON_BDRC_IDS_QUERY, "person BDRC IDs", bdrc_ids),
+        )
 
-        result = await tx.run(query, person_ids=person_ids)
-        record = await result.single()
-        missing_persons = record["missing_persons"] if record else []
+        for query, label, references in checks:
+            if not references:
+                continue
 
-        if missing_persons:
-            raise DataValidationError(f"Referenced persons do not exist: {', '.join(missing_persons)}")
+            result = await tx.run(query, references=references)
+            record = await result.single()
+            missing = record["missing"] if record else []
 
-    @staticmethod
-    async def validate_person_bdrc_references(tx: AsyncManagedTransaction, person_bdrc_ids: list[str]) -> None:
-        if not person_bdrc_ids:
-            return
-
-        query = """
-        MATCH (p:Person)
-        WHERE p.bdrc IN $person_bdrc_ids
-        RETURN apoc.coll.subtract($person_bdrc_ids, collect(DISTINCT p.bdrc)) AS missing_persons
-        """
-
-        result = await tx.run(query, person_bdrc_ids=person_bdrc_ids)
-        record = await result.single()
-        missing_persons = record["missing_persons"] if record else []
-
-        if missing_persons:
-            raise DataValidationError(f"Referenced person BDRC IDs do not exist: {', '.join(missing_persons)}")
+            if missing:
+                raise DataValidationError(f"Referenced {label} do not exist: {', '.join(missing)}")
 
     @staticmethod
     async def validate_text_creation(tx: AsyncManagedTransaction, text: TextInput, work_id: str) -> None:
@@ -56,20 +56,7 @@ class DatabaseValidator:
         if not text.commentary_of and not text.translation_of:
             await DatabaseValidator.validate_original_text_uniqueness(tx, work_id)
 
-        if text.contributions:
-            person_ids = [
-                contrib.id
-                for contrib in text.contributions
-                if isinstance(contrib, PersonContributionInput) and contrib.id
-            ]
-            person_bdrc_ids = [
-                contrib.bdrc_id
-                for contrib in text.contributions
-                if isinstance(contrib, PersonContributionInput) and contrib.bdrc_id
-            ]
-
-            await DatabaseValidator.validate_person_references(tx, person_ids)
-            await DatabaseValidator.validate_person_bdrc_references(tx, person_bdrc_ids)
+        await DatabaseValidator.validate_contribution_references(tx, text.contributions)
 
     @staticmethod
     async def validate_original_text_uniqueness(tx: AsyncManagedTransaction, work_id: str) -> None:

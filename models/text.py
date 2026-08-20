@@ -41,7 +41,7 @@ class TextBase(OpenPechaModel):
 
 
 class TextInput(TextBase):
-    contributions: list[ContributionInputItem]
+    contributions: list[ContributionInputItem] = Field(default_factory=list)
     tag_ids: list[NonEmptyStr] = Field(default_factory=list)
 
 
@@ -54,6 +54,7 @@ class TextPatch(PatchModel):
     language: NonEmptyStr | None = None
     category_id: NonEmptyStr | None = None
     license: LicenseType | None = None
+    contributions: list[ContributionInputItem] | None = None
     tag_ids: list[NonEmptyStr] | None = None
 
     @model_validator(mode="after")

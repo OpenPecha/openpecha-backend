@@ -283,7 +283,6 @@ POST /v2/texts
 | `title`         | object | Localized title (language code → text mapping) |
 | `language`      | string | Primary language code (e.g., "bo", "en")       |
 | `category_id`   | string | Category ID this text belongs to               |
-| `contributions` | array  | At least one contribution (person or AI)       |
 
 
 **Optional Fields:**
@@ -291,6 +290,7 @@ POST /v2/texts
 
 | Field            | Type   | Description                                        |
 | ---------------- | ------ | -------------------------------------------------- |
+| `contributions`  | array  | Contributions (person or AI); omit when unknown    |
 | `bdrc`           | string | BDRC identifier                                    |
 | `wiki`           | string | Wikidata identifier                                |
 | `date`           | string | Date of composition                                |
@@ -304,13 +304,13 @@ POST /v2/texts
 
 - `title` must contain a localized title for the text language or its base language. For example, language `bo-x-ewts` can use a `bo` title.
 - A text cannot set both `translation_of` and `commentary_of`.
-- `contributions` must include either `type` with `id` or `bdrc_id` depending on contribution type.
+- `contributions` may be omitted or empty when attribution is unknown. Each entry must include either `type` with `id` or `bdrc_id` depending on contribution type.
 - Extra fields are rejected.
 
 
 #### Contributions
 
-Each contribution must specify a role and either a person or AI identifier:
+Contributions are optional. Each contribution must specify a role and either a person or AI identifier:
 
 **Human Contribution:**
 
@@ -550,6 +550,7 @@ All fields are optional. Only include fields you want to update.
     }
   ],
   "license": "cc0",
+  "contributions": [{"type": "person", "id": "P12345678", "role": "author"}],
   "tag_ids": ["TAG123"]
 }
 ```
@@ -557,20 +558,23 @@ All fields are optional. Only include fields you want to update.
 **Updatable Fields:**
 
 
-| Field         | Type   | Description                            |
-| ------------- | ------ | -------------------------------------- |
-| `title`       | object | Localized title (language code → text) |
-| `alt_titles`  | array  | Alternative localized titles           |
-| `language`    | string | Primary language code                  |
-| `category_id` | string | Category ID                            |
-| `bdrc`        | string | BDRC identifier                        |
-| `wiki`        | string | Wikidata identifier                    |
-| `date`        | string | Date of composition                    |
-| `license`     | string | License type                           |
-| `tag_ids`     | array  | Replaces the text's current tag IDs    |
+| Field           | Type   | Description                                   |
+| --------------- | ------ | --------------------------------------------- |
+| `title`         | object | Localized title (language code → text)        |
+| `alt_titles`    | array  | Alternative localized titles                  |
+| `language`      | string | Primary language code                         |
+| `category_id`   | string | Category ID                                   |
+| `bdrc`          | string | BDRC identifier                               |
+| `wiki`          | string | Wikidata identifier                           |
+| `date`          | string | Date of composition                           |
+| `license`       | string | License type                                  |
+| `contributions` | array  | Replaces the text's current contributions     |
+| `tag_ids`       | array  | Replaces the text's current tag IDs           |
 
 
-**Note:** You cannot update `translation_of`, `commentary_of`, or `contributions` via PATCH. These are set during creation. PATCH requires at least one field, rejects `null`, and rejects extra fields.
+**Note:** You cannot update `translation_of` or `commentary_of` via PATCH. These are set during creation. PATCH requires at least one field, rejects `null`, and rejects extra fields.
+
+`contributions` and `tag_ids` replace the whole set rather than appending to it: send the full list you want the text to end up with, or `[]` to remove all of them.
 
 **Response: 200 OK**
 

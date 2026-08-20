@@ -622,6 +622,23 @@ class TestPostTextV2:
         assert verify_data["translation_of"] is None
         assert verify_data["commentary_of"] is None
 
+    async def test_create_text_without_contributions_success(self, client):
+        """Test creating a text when attribution is unknown"""
+        text_data = {
+            "title": {"en": "Anonymous text"},
+            "language": "en",
+            "category_id": "category",
+        }
+
+        response = await client.post("/v2/texts", json=text_data)
+
+        assert response.status_code == 201
+        created_id = response.json()["id"]
+
+        verify_response = await client.get(f"/v2/texts/{created_id}")
+        assert verify_response.status_code == 200
+        assert verify_response.json()["contributions"] == []
+
     async def test_create_text_with_duplicate_title_rejected(self, client, test_database, test_person_data):
         """Test creating a text with a title already used by another text is rejected."""
         person = PersonInput.model_validate(test_person_data)
@@ -952,6 +969,102 @@ class TestPatchTextV2:
         get_data = get_response.json()
         assert get_data["bdrc"] == "W222222"
         assert get_data["title"]["en"] == "Original Title"
+
+    async def test_patch_text_adds_contributions_when_created_without_any(
+        self, client, test_database, test_person_data
+    ):
+        """Test attributing a text that was created without contributions"""
+        person = PersonInput.model_validate(test_person_data)
+        person_id = await test_database.person.create(person)
+
+        text = TextInput.model_validate(
+            {"title": {"en": "Unattributed Title"}, "language": "en", "category_id": "category"}
+        )
+        text_id = await test_database.text.create(text)
+
+        response = await client.patch(
+            f"/v2/texts/{text_id}",
+            json={"contributions": [{"type": "person", "id": person_id, "role": "author"}]},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["contributions"] == [
+            {"type": "person", "id": person_id, "bdrc_id": "P123456", "role": "author", "name": person.name.root}
+        ]
+
+        get_response = await client.get(f"/v2/texts/{text_id}")
+        assert len(get_response.json()["contributions"]) == 1
+
+    async def test_patch_text_replaces_existing_contributions(self, client, test_database, test_person_data):
+        """Test that contributions are replaced as a whole set, not appended to"""
+        person = PersonInput.model_validate(test_person_data)
+        person_id = await test_database.person.create(person)
+
+        text = TextInput.model_validate(
+            {
+                "title": {"en": "Replaced Contributions"},
+                "language": "en",
+                "category_id": "category",
+                "contributions": [{"type": "person", "id": person_id, "role": "author"}],
+            }
+        )
+        text_id = await test_database.text.create(text)
+
+        response = await client.patch(
+            f"/v2/texts/{text_id}",
+            json={"contributions": [{"type": "ai", "id": "gpt-4", "role": "translator"}]},
+        )
+
+        assert response.status_code == 200
+        assert response.json()["contributions"] == [{"type": "ai", "id": "gpt-4", "role": "translator"}]
+
+    async def test_patch_text_clears_contributions(self, client, test_database, test_person_data):
+        """Test removing every contribution with an empty list"""
+        person = PersonInput.model_validate(test_person_data)
+        person_id = await test_database.person.create(person)
+
+        text = TextInput.model_validate(
+            {
+                "title": {"en": "Cleared Contributions"},
+                "language": "en",
+                "category_id": "category",
+                "contributions": [{"type": "person", "id": person_id, "role": "author"}],
+            }
+        )
+        text_id = await test_database.text.create(text)
+
+        response = await client.patch(f"/v2/texts/{text_id}", json={"contributions": []})
+
+        assert response.status_code == 200
+        assert response.json()["contributions"] == []
+
+    async def test_patch_text_with_nonexistent_person_keeps_contributions(
+        self, client, test_database, test_person_data
+    ):
+        """Test that a rejected contribution patch leaves the existing contributions in place"""
+        person = PersonInput.model_validate(test_person_data)
+        person_id = await test_database.person.create(person)
+
+        text = TextInput.model_validate(
+            {
+                "title": {"en": "Kept Contributions"},
+                "language": "en",
+                "category_id": "category",
+                "contributions": [{"type": "person", "id": person_id, "role": "author"}],
+            }
+        )
+        text_id = await test_database.text.create(text)
+
+        response = await client.patch(
+            f"/v2/texts/{text_id}",
+            json={"contributions": [{"type": "person", "id": "P00000000", "role": "author"}]},
+        )
+
+        assert response.status_code == 422
+        assert "do not exist" in response.json()["error"].lower()
+
+        get_response = await client.get(f"/v2/texts/{text_id}")
+        assert get_response.json()["contributions"][0]["id"] == person_id
 
     async def test_patch_text_update_wiki_only(self, client, test_database, test_person_data):
         """Test updating only the wiki field"""
