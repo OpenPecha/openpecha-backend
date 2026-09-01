@@ -109,16 +109,16 @@ class AlignmentDatabase:
     """
 
     GET_BY_EDITION_QUERY: LiteralString = """
-    MATCH (aligned_edition:Edition)-[:HAS_SEGMENTATION]->(:Segmentation)
-      <-[:SEGMENT_OF]-(:Segment)-[:ALIGNED_TO]->(:Segment)
-      -[:SEGMENT_OF]->(:Segmentation)<-[:HAS_SEGMENTATION]-(target_edition:Edition)
-    MATCH (aligned_edition)-[:EDITION_OF]->(aligned_text:Text)
-    MATCH (target_edition)-[:EDITION_OF]->(target_text:Text)
-    WHERE aligned_edition.id = $edition_id OR target_edition.id = $edition_id
-    RETURN DISTINCT aligned_edition.id AS aligned_edition_id,
-           aligned_text.id AS aligned_text_id,
-           target_edition.id AS target_edition_id,
-           target_text.id AS target_text_id
+    MATCH (e:Edition {id: $edition_id})-[:EDITION_OF]->(et:Text)
+    MATCH (e)-[:HAS_SEGMENTATION]->(:Segmentation)<-[:SEGMENT_OF]-(s:Segment)
+          -[r:ALIGNED_TO]-(os:Segment)-[:SEGMENT_OF]->(:Segmentation)
+          <-[:HAS_SEGMENTATION]-(o:Edition)-[:EDITION_OF]->(ot:Text)
+    WITH e, et, o, ot, startNode(r) = s AS outgoing
+    RETURN DISTINCT
+      CASE WHEN outgoing THEN e.id ELSE o.id END AS aligned_edition_id,
+      CASE WHEN outgoing THEN et.id ELSE ot.id END AS aligned_text_id,
+      CASE WHEN outgoing THEN o.id ELSE e.id END AS target_edition_id,
+      CASE WHEN outgoing THEN ot.id ELSE et.id END AS target_text_id
     ORDER BY aligned_text_id, aligned_edition_id, target_text_id, target_edition_id
     """
 

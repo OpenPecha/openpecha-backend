@@ -12,12 +12,14 @@ logger = logging.getLogger(__name__)
 
 _MISSING_PERSON_IDS_QUERY: LiteralString = """
 MATCH (p:Person) WHERE p.id IN $references
-RETURN apoc.coll.subtract($references, collect(DISTINCT p.id)) AS missing
+WITH collect(DISTINCT p.id) AS found
+RETURN [x IN $references WHERE NOT x IN found] AS missing
 """
 
 _MISSING_PERSON_BDRC_IDS_QUERY: LiteralString = """
 MATCH (p:Person) WHERE p.bdrc IN $references
-RETURN apoc.coll.subtract($references, collect(DISTINCT p.bdrc)) AS missing
+WITH collect(DISTINCT p.bdrc) AS found
+RETURN [x IN $references WHERE NOT x IN found] AS missing
 """
 
 
@@ -208,9 +210,9 @@ class DatabaseValidator:
             return
 
         query = """
-        MATCH (t:Tag)
-        WHERE t.id IN $tag_ids
-        RETURN apoc.coll.subtract($tag_ids, collect(DISTINCT t.id)) AS missing_tags
+        MATCH (t:Tag) WHERE t.id IN $tag_ids
+        WITH collect(DISTINCT t.id) AS found
+        RETURN [x IN $tag_ids WHERE NOT x IN found] AS missing_tags
         """
 
         result = await tx.run(query, tag_ids=tag_ids)

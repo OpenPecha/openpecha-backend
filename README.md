@@ -112,7 +112,7 @@ Or with verbose output:
 python -m pytest tests/ -v
 ```
 
-The first run will pull the `neo4j:2025` image (~500 MB), which is cached for
+The first run will pull the `neo4j:2026.07.1` image (~500 MB), which is cached for
 subsequent runs.
 
 ## Deployment

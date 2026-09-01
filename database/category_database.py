@@ -15,11 +15,8 @@ if TYPE_CHECKING:
 
 
 class CategoryDatabase:
-    GET_ALL_QUERY: LiteralString = """
-    MATCH (c:Category)-[:BELONGS_TO]->(app:Application {id: $application})
-    WHERE ($parent_id IS NULL AND NOT EXISTS { (c)-[:HAS_PARENT]->(:Category) })
-       OR (c)-[:HAS_PARENT]->(:Category {id: $parent_id})
-    RETURN {
+    _CATEGORY_RETURN: LiteralString = """
+    {
         id: c.id,
         title: apoc.map.fromPairs([(c)-[:HAS_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
             -[:HAS_LANGUAGE]->(l:Language) | [l.code, lt.text]]),
@@ -30,6 +27,18 @@ class CategoryDatabase:
         parent_id: [(c)-[:HAS_PARENT]->(parent:Category) | parent.id][0],
         children: [(child:Category)-[:HAS_PARENT]->(c) | child.id]
     } AS category
+    """
+
+    GET_ROOTS_QUERY: LiteralString = f"""
+    MATCH (c:Category)-[:BELONGS_TO]->(:Application {{id: $application}})
+    WHERE NOT EXISTS {{ (c)-[:HAS_PARENT]->(:Category) }}
+    RETURN {_CATEGORY_RETURN}
+    """
+
+    GET_CHILDREN_QUERY: LiteralString = f"""
+    MATCH (c:Category)-[:HAS_PARENT]->(:Category {{id: $parent_id}})
+    WHERE (c)-[:BELONGS_TO]->(:Application {{id: $application}})
+    RETURN {_CATEGORY_RETURN}
     """
 
     CREATE_QUERY: LiteralString = """
@@ -38,7 +47,7 @@ class CategoryDatabase:
         CREATE (c:Category {id: $category_id})
         CREATE (c)-[:HAS_TITLE]->(n)
         CREATE (c)-[:BELONGS_TO]->(app)
-        WITH c
+        WITH c, app
         OPTIONAL MATCH (parent:Category {id: $parent_id})-[:BELONGS_TO]->(app)
         OPTIONAL MATCH (desc_nomen:Nomen {id: $description_nomen_id})
         WITH c, parent, desc_nomen
@@ -47,26 +56,16 @@ class CategoryDatabase:
         RETURN c.id AS category_id
     """
 
-    GET_BY_ID_QUERY: LiteralString = """
-    MATCH (c:Category {id: $category_id})-[:BELONGS_TO]->(app:Application {id: $application})
-    RETURN {
-        id: c.id,
-        title: apoc.map.fromPairs([(c)-[:HAS_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
-            -[:HAS_LANGUAGE]->(l:Language) | [l.code, lt.text]]),
-        description: CASE WHEN EXISTS {
-            (c)-[:HAS_DESCRIPTION]->(:Nomen)-[:HAS_LOCALIZATION]->(:LocalizedText)
-        } THEN apoc.map.fromPairs([(c)-[:HAS_DESCRIPTION]->(dn:Nomen)-[:HAS_LOCALIZATION]->(dlt:LocalizedText)
-            -[:HAS_LANGUAGE]->(dl:Language) | [dl.code, dlt.text]]) ELSE null END,
-        parent_id: [(c)-[:HAS_PARENT]->(parent:Category) | parent.id][0],
-        children: [(child:Category)-[:HAS_PARENT]->(c) | child.id]
-    } AS category
+    GET_BY_ID_QUERY: LiteralString = f"""
+    MATCH (c:Category {{id: $category_id}})-[:BELONGS_TO]->(:Application {{id: $application}})
+    RETURN {_CATEGORY_RETURN}
     """
 
     FIND_EXISTING_QUERY: LiteralString = """
         UNWIND $titles AS title
-        MATCH (c:Category)-[:BELONGS_TO]->(app:Application {id: $application})
+        MATCH (c:Category)-[:BELONGS_TO]->(:Application {id: $application})
         WHERE ($parent_id IS NULL AND NOT EXISTS { (c)-[:HAS_PARENT]->(:Category) })
-        OR (c)-[:HAS_PARENT]->(:Category {id: $parent_id})
+           OR (c)-[:HAS_PARENT]->(:Category {id: $parent_id})
         MATCH (c)-[:HAS_TITLE]->(:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)
             -[r:HAS_LANGUAGE]->(lang:Language)
         WHERE coalesce(r.bcp47, lang.code) = title.language
@@ -83,17 +82,16 @@ class CategoryDatabase:
 
     DELETE_CHECK_QUERY: LiteralString = """
     MATCH (root:Category {id: $category_id})-[:BELONGS_TO]->(app:Application {id: $application})
-    OPTIONAL MATCH (c:Category)-[:BELONGS_TO]->(app)
-    WHERE c = root OR (c)-[:HAS_PARENT*1..]->(root)
+    OPTIONAL MATCH (c:Category)-[:HAS_PARENT*0..]->(root)
+    WHERE (c)-[:BELONGS_TO]->(app)
     OPTIONAL MATCH (w:Work)-[:HAS_CATEGORY]->(c)
     RETURN count(DISTINCT w) AS work_count
     """
 
     DELETE_QUERY: LiteralString = """
     MATCH (root:Category {id: $category_id})-[:BELONGS_TO]->(app:Application {id: $application})
-    WITH root, app
-    MATCH (c:Category)-[:BELONGS_TO]->(app)
-    WHERE c = root OR (c)-[:HAS_PARENT*1..]->(root)
+    MATCH (c:Category)-[:HAS_PARENT*0..]->(root)
+    WHERE (c)-[:BELONGS_TO]->(app)
     WITH collect(DISTINCT c) AS categories
     WITH categories, size(categories) AS deleted_count
     UNWIND categories AS c
@@ -126,7 +124,8 @@ class CategoryDatabase:
 
     async def get_all(self, application: str, parent_id: str | None = None) -> list[CategoryOutput]:
         async def read(tx: AsyncManagedTransaction) -> list[CategoryOutput]:
-            result = await tx.run(CategoryDatabase.GET_ALL_QUERY, application=application, parent_id=parent_id)
+            query = CategoryDatabase.GET_CHILDREN_QUERY if parent_id else CategoryDatabase.GET_ROOTS_QUERY
+            result = await tx.run(query, application=application, parent_id=parent_id)
             return [CategoryOutput.model_validate(record["category"]) for record in await result.data()]
 
         async with self.session as session:

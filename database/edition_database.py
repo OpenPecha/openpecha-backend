@@ -54,42 +54,34 @@ class EditionDatabase:
     } as edition
     """
 
-    _GET_QUERY_BODY: LiteralString = f"""
-    WITH m, e
-    WHERE $edition_type IS NULL
-       OR EXISTS {{ (m)-[:HAS_TYPE]->(:EditionType {{name: $edition_type}}) }}
-    {_EDITION_RETURN}
-    """
-
     GET_BY_ID_QUERY: LiteralString = f"""
     MATCH (m:Edition {{id: $edition_id}})-[:EDITION_OF]->(e:Text)
-    {_GET_QUERY_BODY}
+    {_EDITION_RETURN}
     """
 
     GET_BY_TEXT_ID_QUERY: LiteralString = f"""
     MATCH (m:Edition)-[:EDITION_OF]->(e:Text {{id: $text_id}})
-    {_GET_QUERY_BODY}
+    WHERE $edition_type IS NULL OR EXISTS {{ (m)-[:HAS_TYPE]->(:EditionType {{name: $edition_type}}) }}
+    {_EDITION_RETURN}
     """
 
     GET_RELATED_QUERY: LiteralString = f"""
-    // Related via segment alignment (bidirectional)
-    MATCH (source:Edition {{id: $edition_id}})
-          -[:HAS_SEGMENTATION]->(:Segmentation)
-          <-[:SEGMENT_OF]-(:Segment)
-          -[:ALIGNED_TO]-(:Segment)
-          -[:SEGMENT_OF]->(:Segmentation)
-          <-[:HAS_SEGMENTATION]-(m:Edition)
-          -[:EDITION_OF]->(e:Text)
-    WHERE m.id <> $edition_id
-    WITH DISTINCT m, e
-    {_EDITION_RETURN}
-
-    UNION
-
-    // Related via text relationships
-    MATCH (source:Edition {{id: $edition_id}})-[:EDITION_OF]->(:Text)
-          -[:TRANSLATION_OF|:COMMENTARY_OF]-(e:Text)<-[:EDITION_OF]-(m:Edition)
-    WHERE m.id <> $edition_id
+    CALL () {{
+        MATCH (:Edition {{id: $edition_id}})
+              -[:HAS_SEGMENTATION]->(:Segmentation)
+              <-[:SEGMENT_OF]-(:Segment)
+              -[:ALIGNED_TO]-(:Segment)
+              -[:SEGMENT_OF]->(:Segmentation)
+              <-[:HAS_SEGMENTATION]-(m:Edition)
+        WHERE m.id <> $edition_id
+        RETURN m
+        UNION
+        MATCH (:Edition {{id: $edition_id}})-[:EDITION_OF]->(:Text)
+              -[:TRANSLATION_OF|:COMMENTARY_OF]-(:Text)<-[:EDITION_OF]-(m:Edition)
+        WHERE m.id <> $edition_id
+        RETURN m
+    }}
+    MATCH (m)-[:EDITION_OF]->(e:Text)
     WITH DISTINCT m, e
     {_EDITION_RETURN}
     """
@@ -120,7 +112,6 @@ class EditionDatabase:
             result = await tx.run(
                 EditionDatabase.GET_BY_ID_QUERY,
                 edition_id=edition_id,
-                edition_type=None,
             )
             record = await result.single()
             if record is None:

@@ -60,7 +60,7 @@ def _required_rel_trigger(
                 CALL apoc.util.validate(
                     true,
                     '{name}: {source_label} must have {rel_type}->{target_label}. IDs: %s',
-                    [apoc.text.join(ids, ', ')]
+                    [string.join(ids, ', ')]
                 )
                 RETURN null
             """,
@@ -99,7 +99,7 @@ def _required_rel_trigger(
                 CALL apoc.util.validate(
                     true,
                     '{cardinality_name}: {source_label} must have at most one {rel_type}. IDs: %s',
-                    [apoc.text.join(ids, ', ')]
+                    [string.join(ids, ', ')]
                 )
                 RETURN null
             """,
@@ -137,7 +137,7 @@ def _rel_target_type_trigger(
             CALL apoc.util.validate(
                 true,
                 '{name}: {rel_type} must point to {target_label}. IDs: %s',
-                [apoc.text.join(ids, ', ')]
+                [string.join(ids, ', ')]
             )
             RETURN null
         """,
@@ -320,7 +320,7 @@ TRIGGERS.append(
         CALL apoc.util.validate(
             true,
             'enforce_edition_has_segmentation_max_one: Edition must have at most one segmentation. IDs: %s',
-            [apoc.text.join(ids, ', ')]
+            [string.join(ids, ', ')]
         )
         RETURN null
         """,
@@ -361,7 +361,7 @@ TRIGGERS.append(
         CALL apoc.util.validate(
             true,
             'enforce_diplomatic_edition_has_pagination: must have exactly one Pagination. IDs: %s',
-            [apoc.text.join(ids, ', ')]
+            [string.join(ids, ', ')]
         )
         RETURN null
     """,
@@ -412,7 +412,7 @@ TRIGGERS.append(
         CALL apoc.util.validate(
             true,
             'enforce_segment_reference_unique_per_segmentation: Duplicate segment references: %s',
-            [apoc.text.join(refs, ', ')]
+            [string.join(refs, ', ')]
         )
         RETURN null
         """,
@@ -762,7 +762,7 @@ TRIGGERS.append(
         CALL apoc.util.validate(
             true,
             'enforce_text_translation_commentary_exclusive: Text has both TRANSLATION_OF and COMMENTARY_OF. IDs: %s',
-            [apoc.text.join(ids, ', ')]
+            [string.join(ids, ', ')]
         )
         RETURN null
     """,
@@ -799,7 +799,7 @@ def _no_self_ref_trigger(
             CALL apoc.util.validate(
                 true,
                 '{name}: {rel_type} must not be self-referential. IDs: %s',
-                [apoc.text.join(ids, ', ')]
+                [string.join(ids, ', ')]
             )
             RETURN null
         """,
@@ -863,7 +863,7 @@ TRIGGERS.append(
         CALL apoc.util.validate(
             true,
             'enforce_span_start_lte_end: Span.start must be <= Span.end. Spans: %s',
-            [apoc.text.join(ids, ', ')]
+            [string.join(ids, ', ')]
         )
         RETURN null
     """,
@@ -894,7 +894,7 @@ TRIGGERS.append(
         CALL apoc.util.validate(
             true,
             'enforce_nomen_no_alternative_chain: ALTERNATIVE_OF must not form chains. IDs: %s',
-            [apoc.text.join(ids, ', ')]
+            [string.join(ids, ', ')]
         )
         RETURN null
     """,
@@ -930,7 +930,7 @@ TRIGGERS.append(
         CALL apoc.util.validate(
             true,
             'enforce_work_one_original_text: Work already has an original text. IDs: %s',
-            [apoc.text.join(ids, ', ')]
+            [string.join(ids, ', ')]
         )
         RETURN null
         """,
@@ -966,7 +966,7 @@ TRIGGERS.append(
         CALL apoc.util.validate(
             true,
             'enforce_text_title_unique: Duplicate title+language exists. Combos: %s',
-            [apoc.text.join(combos, ', ')]
+            [string.join(combos, ', ')]
         )
         RETURN null
         """,

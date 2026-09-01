@@ -79,26 +79,41 @@ class TextDatabase:
     """
 
     GET_BY_IDS_QUERY: LiteralString = f"""
-    UNWIND $ids AS text_id
-    MATCH (e:Text {{id: text_id}})
-    ORDER BY apoc.coll.indexOf($ids, e.id)
+    UNWIND range(0, size($ids) - 1) AS idx
+    MATCH (e:Text {{id: $ids[idx]}})
+    WITH e, idx
+    ORDER BY idx
     RETURN {_TEXT_RETURN}
     """
 
     GET_ALL_QUERY: LiteralString = f"""
-    MATCH (e:Text)
-    WHERE ($language IS NULL OR (e)-[:HAS_LANGUAGE]->(:Language {{code: $language}}))
-    AND ($category_id IS NULL OR (e)-[:TEXT_OF]->(:Work)-[:HAS_CATEGORY]->(:Category {{id: $category_id}}))
-    AND ($author_id IS NULL OR EXISTS {{
-        (e)-[:HAS_CONTRIBUTION]->(:Contribution)-[:BY]->(p:Person {{id: $author_id}})
-    }})
-    AND ($tag_id IS NULL OR (e)-[:TEXT_OF]->(:Work)-[:HAS_TAG]->(:Tag {{id: $tag_id}}))
-    AND ($bdrc IS NULL OR e.bdrc = $bdrc)
-    AND ($wiki IS NULL OR e.wiki = $wiki)
+    CALL () {{
+        WHEN $bdrc IS NOT NULL THEN {{ MATCH (e:Text {{bdrc: $bdrc}}) RETURN e }}
+        WHEN $wiki IS NOT NULL THEN {{ MATCH (e:Text {{wiki: $wiki}}) RETURN e }}
+        WHEN $author_id IS NOT NULL THEN {{
+            MATCH (e:Text)-[:HAS_CONTRIBUTION]->(:Contribution)-[:BY]->(:Person {{id: $author_id}})
+            RETURN DISTINCT e
+        }}
+        WHEN $category_id IS NOT NULL THEN {{
+            MATCH (e:Text)-[:TEXT_OF]->(:Work)-[:HAS_CATEGORY]->(:Category {{id: $category_id}}) RETURN e
+        }}
+        WHEN $tag_id IS NOT NULL THEN {{
+            MATCH (e:Text)-[:TEXT_OF]->(:Work)-[:HAS_TAG]->(:Tag {{id: $tag_id}}) RETURN e
+        }}
+        WHEN $language IS NOT NULL THEN {{
+            MATCH (e:Text)-[:HAS_LANGUAGE]->(:Language {{code: $language}}) RETURN e
+        }}
+        ELSE {{ MATCH (e:Text) RETURN e }}
+    }}
     WITH e
-    ORDER BY e.id
-    SKIP $offset
-    LIMIT $limit
+    WHERE ($language IS NULL OR (e)-[:HAS_LANGUAGE]->(:Language {{code: $language}}))
+      AND ($category_id IS NULL OR (e)-[:TEXT_OF]->(:Work)-[:HAS_CATEGORY]->(:Category {{id: $category_id}}))
+      AND ($author_id IS NULL OR EXISTS {{
+          (e)-[:HAS_CONTRIBUTION]->(:Contribution)-[:BY]->(:Person {{id: $author_id}})
+      }})
+      AND ($tag_id IS NULL OR (e)-[:TEXT_OF]->(:Work)-[:HAS_TAG]->(:Tag {{id: $tag_id}}))
+      AND ($wiki IS NULL OR e.wiki = $wiki)
+    ORDER BY e.id SKIP $offset LIMIT $limit
     RETURN {_TEXT_RETURN}
     """
 
@@ -261,7 +276,9 @@ class TextDatabase:
     WITH e, w, work_text_count
     DETACH DELETE e
     WITH w, work_text_count
-    FOREACH (_ IN CASE WHEN work_text_count = 1 THEN [1] ELSE [] END | DETACH DELETE w)
+    CALL (*) {
+        WHEN work_text_count = 1 THEN { DETACH DELETE w }
+    }
     RETURN work_text_count = 1 AS work_deleted
     """
 

@@ -22,7 +22,7 @@ class NomenDatabase:
     WITH n
     CALL (n) {
         UNWIND $localized_texts AS lt
-        MERGE (l:Language {code: lt.base_lang_code})
+        MATCH (l:Language {code: lt.base_lang_code})
         CREATE (n)-[:HAS_LOCALIZATION]->(locText:LocalizedText {text: lt.text})
             -[:HAS_LANGUAGE {bcp47: lt.bcp47_tag}]->(l)
         RETURN count(*) AS _

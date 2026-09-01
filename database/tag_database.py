@@ -16,7 +16,7 @@ if TYPE_CHECKING:
 
 class TagDatabase:
     GET_ALL_QUERY: LiteralString = """
-    MATCH (t:Tag)-[:BELONGS_TO]->(app:Application {id: $application})
+    MATCH (t:Tag)-[:BELONGS_TO]->(:Application {id: $application})
     RETURN {
         id: t.id,
         title: apoc.map.fromPairs([(t)-[:HAS_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->(lt:LocalizedText)

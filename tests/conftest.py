@@ -151,7 +151,7 @@ def _neo4j_container():
         os.environ["TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE"] = "/var/run/docker.sock"
 
     container = (
-        Neo4jContainer("neo4j:2026.03.1")
+        Neo4jContainer("neo4j:2026.07.1")
         .with_env("NEO4J_PLUGINS", '["apoc"]')
         .with_env("NEO4J_apoc_trigger_enabled", "true")
         .with_env("NEO4J_apoc_trigger_refresh", "1000")

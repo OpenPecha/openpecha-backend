@@ -39,18 +39,22 @@ class PersonDatabase:
     """
 
     GET_BY_IDS_QUERY: LiteralString = f"""
-    UNWIND $ids AS person_id
-    MATCH (p:Person {{id: person_id}})
-    ORDER BY apoc.coll.indexOf($ids, p.id)
+    UNWIND range(0, size($ids) - 1) AS idx
+    MATCH (p:Person {{id: $ids[idx]}})
+    WITH p, idx
+    ORDER BY idx
     RETURN {_PERSON_RETURN} AS person
     """
 
     GET_ALL_QUERY: LiteralString = f"""
-    MATCH (p:Person)
-    WHERE ($bdrc IS NULL OR p.bdrc = $bdrc)
-    AND ($wiki IS NULL OR p.wiki = $wiki)
-    ORDER BY p.id
-    SKIP $offset LIMIT $limit
+    CALL () {{
+        WHEN $bdrc IS NOT NULL THEN {{ MATCH (p:Person {{bdrc: $bdrc}}) RETURN p }}
+        WHEN $wiki IS NOT NULL THEN {{ MATCH (p:Person {{wiki: $wiki}}) RETURN p }}
+        ELSE {{ MATCH (p:Person) RETURN p }}
+    }}
+    WITH p
+    WHERE $wiki IS NULL OR p.wiki = $wiki
+    ORDER BY p.id SKIP $offset LIMIT $limit
     RETURN {_PERSON_RETURN} AS person
     """
 
