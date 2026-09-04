@@ -26,6 +26,7 @@ from routers.content_search import router as content_search_router
 from routers.editions import router as editions_router
 from routers.languages import router as languages_router
 from routers.persons import router as persons_router
+from routers.recordings import router as recordings_router
 from routers.segments import router as segments_router
 from routers.tags import router as tags_router
 from routers.texts import router as texts_router
@@ -118,7 +119,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 def create_app(*, testing: bool = False) -> FastAPI:
     app = FastAPI(
         title="OpenPecha API v2",
-        version="2.10.1",
+        version="2.11.0",
         lifespan=lifespan,
         docs_url="/docs",
         redoc_url="/redoc",
@@ -198,6 +199,7 @@ def create_app(*, testing: bool = False) -> FastAPI:
     app.include_router(applications_router)
     app.include_router(content_search_router)
     app.include_router(segments_router)
+    app.include_router(recordings_router)
 
     return app
 

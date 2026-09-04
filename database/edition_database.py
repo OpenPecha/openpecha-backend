@@ -12,6 +12,7 @@ from .annotation.segmentation_database import SegmentationDatabase
 from .annotation.table_of_contents_database import TableOfContentsDatabase
 from .database_validator import DatabaseValidator, DataValidationError
 from .nomen_database import NomenDatabase
+from .recording_database import RecordingDatabase
 from .text_database import TextDatabase
 
 if TYPE_CHECKING:
@@ -186,6 +187,7 @@ class EditionDatabase:
         await TableOfContentsDatabase.delete_all_with_transaction(tx, edition_id)
         await BibliographicDatabase.delete_all_with_transaction(tx, edition_id)
         await NoteDatabase.delete_all_with_transaction(tx, edition_id)
+        await RecordingDatabase.delete_all_with_transaction(tx, edition_id)
         await tx.run(EditionDatabase.DELETE_QUERY, edition_id=edition_id)
 
     async def validate_create(

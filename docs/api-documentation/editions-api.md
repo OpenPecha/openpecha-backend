@@ -124,10 +124,10 @@ Deletes the edition metadata and associated annotation data handled by the datab
 Delete behavior:
 
 - Deletes the `Edition` node and its incipit title `Nomen` and `LocalizedText` subgraphs.
-- Cascade-deletes segmentations, alignments, pagination, table of contents, bibliographic metadata, durchen notes, spans, segments, pages, volumes, and table of contents sections associated with the edition, including annotations added after edition creation.
+- Cascade-deletes segmentations, alignments, pagination, table of contents, bibliographic metadata, durchen notes, recordings, spans, segments, pages, volumes, and table of contents sections associated with the edition, including annotations added after edition creation.
 - Deletes the edition's `HAS_SOURCE` relationship, but preserves the `Source` node.
 - Does not delete the parent `Text`, underlying `Work`, categories, tags, contributors, or lookup/type nodes.
-- Does not delete stored base text or other non-database side effects.
+- Does not delete stored base text, recording audio files, or other non-database side effects.
 
 Error responses:
 
@@ -494,6 +494,15 @@ POST /v2/editions/{edition_id}/durchens
 }
 ```
 
+## Recordings
+
+```http
+GET /v2/editions/{edition_id}/recordings
+POST /v2/editions/{edition_id}/recordings
+```
+
+Audio readings of the edition, each crediting its narrator through the same `contributions` shape used by texts. Recordings are not annotations: they carry no spans, and creation is a `multipart/form-data` upload rather than a JSON body. An edition can have any number of them. See [recordings-api.md](recordings-api.md).
+
 ## Related Editions
 
 ```http
@@ -506,5 +515,5 @@ Returns editions related through alignment or text relationships.
 
 - Router: `routers/editions.py`.
 - Edition creation route: `routers/texts.py`.
-- Models: `models/edition.py`, `models/annotation.py`, `models/content_operation.py`, and `models/requests.py`.
-- Storage dependency handles base text reads/writes; database dependencies handle metadata, annotations, span adjustment, and related lookups.
+- Models: `models/edition.py`, `models/annotation.py`, `models/content_operation.py`, `models/recording.py`, and `models/requests.py`.
+- Storage dependency handles base text and recording audio reads/writes; database dependencies handle metadata, annotations, span adjustment, and related lookups.

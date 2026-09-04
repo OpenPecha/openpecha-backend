@@ -133,6 +133,12 @@ def _custom_cases() -> dict[str, str]:
             CREATE (span)-[rel_2:SPAN_OF]->(page)
             RETURN [span] AS createdNodes, [rel_1, rel_2] AS createdRelationships, [] AS deletedRelationships, [] AS deletedNodes
         """,
+        "enforce_recording_contribution_narrator": """
+            MERGE (role:RoleType {name: 'translator'})
+            CREATE (recording:Recording {id: randomUUID()})
+            CREATE (recording)-[:HAS_CONTRIBUTION]->(:Contribution)-[:WITH_ROLE]->(role)
+            RETURN [recording] AS createdNodes, [] AS createdRelationships, [] AS deletedRelationships, [] AS deletedNodes
+        """,
         "enforce_contribution_by": """
             CREATE (contribution:Contribution {id: randomUUID()})
             RETURN [contribution] AS createdNodes, [] AS createdRelationships, [] AS deletedRelationships, [] AS deletedNodes

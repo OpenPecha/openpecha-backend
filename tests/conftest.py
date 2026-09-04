@@ -91,6 +91,7 @@ def setup_test_schema(session) -> None:
             CREATE (:RoleType {name: 'translator'})
             CREATE (:RoleType {name: 'author'})
             CREATE (:RoleType {name: 'reviser'})
+            CREATE (:RoleType {name: 'narrator'})
             CREATE (:LicenseType {name: 'public'})
             CREATE (:LicenseType {name: 'cc0'})
             CREATE (:LicenseType {name: 'cc-by'})
@@ -287,6 +288,7 @@ async def test_database(_neo4j_database):
             CREATE (:RoleType {name: 'translator'})
             CREATE (:RoleType {name: 'author'})
             CREATE (:RoleType {name: 'reviser'})
+            CREATE (:RoleType {name: 'narrator'})
             CREATE (:LicenseType {name: 'public'})
             CREATE (:LicenseType {name: 'cc0'})
             CREATE (:LicenseType {name: 'cc-by'})
@@ -388,7 +390,7 @@ class MockS3Storage:
     """In-memory S3 storage mock for tests."""
 
     def __init__(self):
-        self._storage: dict[str, str] = {}
+        self._storage: dict[str, str | bytes] = {}
 
     async def store_base_text(self, text_id: str, edition_id: str, base_text: str) -> str:
         key = f"base_texts/{text_id}/{edition_id}.txt"
@@ -425,6 +427,26 @@ class MockS3Storage:
 
     async def rollback_base_text(self, text_id: str, edition_id: str) -> None:
         pass  # No-op for mock
+
+    @staticmethod
+    def _recording_path(edition_id: str, recording_id: str, extension: str) -> str:
+        return f"recordings/{edition_id}/{recording_id}.{extension}"
+
+    async def store_recording(
+        self, edition_id: str, recording_id: str, extension: str, audio: bytes, content_type: str
+    ) -> str:
+        key = self._recording_path(edition_id, recording_id, extension)
+        self._storage[key] = audio
+        return f"https://mock-s3.example.com/{key}"
+
+    async def delete_recording(self, edition_id: str, recording_id: str, extension: str) -> None:
+        self._storage.pop(self._recording_path(edition_id, recording_id, extension), None)
+
+    async def generate_recording_url(
+        self, edition_id: str, recording_id: str, extension: str, expires_in: int = 3600
+    ) -> str:
+        key = self._recording_path(edition_id, recording_id, extension)
+        return f"https://mock-s3.example.com/{key}?signed=1&expires_in={expires_in}"
 
 
 class NoOpContentSearch:

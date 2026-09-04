@@ -1,10 +1,12 @@
 import logging
 from typing import TYPE_CHECKING, Annotated
 
-from fastapi import APIRouter, BackgroundTasks, Depends, Path, Query, status
+from fastapi import APIRouter, BackgroundTasks, Depends, File, Form, Path, Query, UploadFile, status
 
 from content_search import ContentSearchService
 from dependencies import get_api_key, get_content_search, get_db, get_storage
+from exceptions import DataValidationError
+from identifier import generate_id
 from models.alignment import EditionAlignmentOutput
 from models.annotation import (
     BibliographicMetadataInput,
@@ -21,6 +23,8 @@ from models.annotation import (
 )
 from models.content_operation import ContentOperation, DeleteOperation, InsertOperation, ReplaceOperation
 from models.edition import EditionOutput
+from models.enums import AudioFormat
+from models.recording import RecordingInput, RecordingOutput
 from models.requests import AnnotationSegmentsPaginationParams
 from models.responses import IdResponse, PaginatedResponse
 
@@ -265,6 +269,75 @@ async def post_durchen_annotation(
 ) -> IdResponse:
     annotation_id = await db.annotation.note.add_durchen(edition_id, data)
     return IdResponse(id=annotation_id)
+
+
+@router.get(
+    "/{edition_id}/recordings",
+    summary="Get edition recordings",
+    description="Retrieve all audio recordings of an edition.",
+    response_model_exclude_none=True,
+)
+async def get_recordings(
+    edition_id: Annotated[str, Path(description="The ID of the edition")],
+    _api_key: Annotated[str, Depends(get_api_key)],
+    db: Annotated[Database, Depends(get_db)],
+) -> list[RecordingOutput]:
+    return await db.recording.get_all(edition_id)
+
+
+@router.post(
+    "/{edition_id}/recordings",
+    status_code=status.HTTP_201_CREATED,
+    summary="Add edition recording",
+    description="Upload an audio recording of an edition, with its metadata as a JSON form field.",
+)
+async def post_recording(
+    edition_id: Annotated[str, Path(description="The ID of the edition")],
+    metadata: Annotated[str, Form(description="JSON-encoded recording metadata")],
+    audio: Annotated[UploadFile, File(description="Audio file")],
+    _api_key: Annotated[str, Depends(get_api_key)],
+    db: Annotated[Database, Depends(get_db)],
+    storage: Annotated[Storage, Depends(get_storage)],
+) -> IdResponse:
+    """Add an audio recording to an edition."""
+    data = RecordingInput.model_validate_json(metadata)
+
+    audio_format = AudioFormat.from_content_type(audio.content_type)
+    if audio_format is None:
+        raise DataValidationError(
+            f"Unsupported audio content type '{audio.content_type}'; "
+            f"supported formats: {', '.join(sorted(AudioFormat))}"
+        )
+
+    content = await audio.read()
+    if not content:
+        raise DataValidationError("Audio file is empty")
+
+    recording_id = generate_id()
+    logger.info("Adding recording %s to edition %s (%d bytes)", recording_id, edition_id, len(content))
+
+    await db.recording.add(
+        edition_id=edition_id,
+        recording=data,
+        recording_id=recording_id,
+        audio_format=audio_format,
+        size_bytes=len(content),
+    )
+
+    try:
+        await storage.store_recording(
+            edition_id=edition_id,
+            recording_id=recording_id,
+            extension=audio_format.value,
+            audio=content,
+            content_type=audio_format.content_type,
+        )
+    except Exception:
+        logger.exception("S3 write failed for recording %s, removing its metadata", recording_id)
+        await db.recording.delete(recording_id)
+        raise
+
+    return IdResponse(id=recording_id)
 
 
 @router.get(

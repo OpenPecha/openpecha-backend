@@ -16,6 +16,7 @@ from .category_database import CategoryDatabase
 from .edition_database import EditionDatabase
 from .language_database import LanguageDatabase
 from .person_database import PersonDatabase
+from .recording_database import RecordingDatabase
 from .segment_database import SegmentDatabase
 from .span_database import SpanDatabase
 from .tag_database import TagDatabase
@@ -52,6 +53,7 @@ class Database:
     annotation: AnnotationDatabase
     alignment: AlignmentDatabase
     segment: SegmentDatabase
+    recording: RecordingDatabase
     person: PersonDatabase
     language: LanguageDatabase
     category: CategoryDatabase
@@ -71,6 +73,7 @@ class Database:
         self.annotation = AnnotationDatabase(db=self)
         self.alignment = AlignmentDatabase(db=self)
         self.segment = SegmentDatabase(db=self)
+        self.recording = RecordingDatabase(db=self)
         self.person = PersonDatabase(db=self)
         self.language = LanguageDatabase(db=self)
         self.category = CategoryDatabase(db=self)

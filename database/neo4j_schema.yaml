@@ -199,6 +199,56 @@ nodes:
         cardinality: one
         required: false
 
+  Recording:
+    properties:
+      id:
+        type: string
+        required: true
+        unique: true
+      format:
+        type: string
+        required: true
+        allowed_values:
+          - mp3
+          - wav
+          - m4a
+          - ogg
+          - flac
+      size_bytes:
+        type: integer
+        required: true
+      duration_ms:
+        type: integer
+        required: false
+      date:
+        type: string
+        required: false
+    relationships:
+      RECORDING_OF:
+        target: Edition
+        cardinality: one
+        required: true
+      HAS_TITLE:
+        target: Nomen
+        cardinality: one
+        required: false
+      HAS_LANGUAGE:
+        target: Language
+        cardinality: one
+        required: false
+        properties:
+          bcp47:
+            type: string
+            required: false
+      HAS_LICENSE:
+        target: LicenseType
+        cardinality: one
+        required: true
+      HAS_CONTRIBUTION:
+        target: Contribution
+        cardinality: many
+        required: true
+
   Source:
     properties:
       name:
@@ -584,3 +634,4 @@ nodes:
           - author
           - translator
           - scholar
+          - narrator

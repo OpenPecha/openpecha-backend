@@ -74,6 +74,58 @@ class Storage:
         await s3.delete_object(Bucket=self.bucket_name, Key=key)
         logger.info("Deleted from S3: %s", key)
 
+    @staticmethod
+    def _recording_path(edition_id: str, recording_id: str, extension: str) -> str:
+        return f"recordings/{edition_id}/{recording_id}.{extension}"
+
+    async def store_recording(
+        self,
+        edition_id: str,
+        recording_id: str,
+        extension: str,
+        audio: bytes,
+        content_type: str,
+    ) -> str:
+        """Store a recording's audio to S3."""
+        key = self._recording_path(edition_id, recording_id, extension)
+        s3 = self._client
+
+        await s3.put_object(
+            Bucket=self.bucket_name,
+            Key=key,
+            Body=audio,
+            ContentType=content_type,
+        )
+
+        url = f"https://{self.bucket_name}.s3.{self.region}.amazonaws.com/{key}"
+        logger.info("Uploaded recording to S3: %s, size: %d", url, len(audio))
+        return url
+
+    async def delete_recording(self, edition_id: str, recording_id: str, extension: str) -> None:
+        """Delete a recording's audio from S3."""
+        key = self._recording_path(edition_id, recording_id, extension)
+        s3 = self._client
+
+        await s3.delete_object(Bucket=self.bucket_name, Key=key)
+        logger.info("Deleted from S3: %s", key)
+
+    async def generate_recording_url(
+        self,
+        edition_id: str,
+        recording_id: str,
+        extension: str,
+        expires_in: int = 3600,
+    ) -> str:
+        """Generate a presigned URL for downloading a recording's audio."""
+        key = self._recording_path(edition_id, recording_id, extension)
+        s3 = self._client
+
+        return await s3.generate_presigned_url(
+            "get_object",
+            Params={"Bucket": self.bucket_name, "Key": key},
+            ExpiresIn=expires_in,
+        )
+
     async def apply_insert(self, text_id: str, edition_id: str, position: int, text: str) -> str:
         """Insert text at the specified position."""
         current_text = await self.retrieve_base_text(text_id, edition_id)

@@ -4,10 +4,10 @@ from neo4j.exceptions import ConstraintError
 
 from exceptions import DataConflictError, DataNotFoundError, DataValidationError
 from identifier import generate_id
-from models.contribution import AIContribution, PersonContributionBase
 from models.requests import TextFilter
 from models.text import TextInput, TextOutput, TextPatch
 
+from .contribution_database import ContributionDatabase, contributions_return
 from .database_validator import DatabaseValidator
 from .nomen_database import NomenDatabase
 from .tag_database import TagDatabase
@@ -16,6 +16,8 @@ if TYPE_CHECKING:
     from neo4j import AsyncManagedTransaction, AsyncSession
 
     from .database import Database
+
+TEXT_LABEL: LiteralString = "Text"
 
 
 class TextDatabase:
@@ -26,7 +28,8 @@ class TextDatabase:
     def session(self) -> AsyncSession:
         return self._db.get_session()
 
-    _TEXT_RETURN: LiteralString = """
+    _TEXT_RETURN: LiteralString = (
+        """
     {
         id: e.id,
         bdrc: e.bdrc,
@@ -35,27 +38,9 @@ class TextDatabase:
         translation_of: [(e)-[:TRANSLATION_OF]->(t_target:Text) | t_target.id][0],
         commentaries: [(e)<-[:COMMENTARY_OF]-(c_child:Text) | c_child.id],
         translations: [(e)<-[:TRANSLATION_OF]-(t_child:Text) | t_child.id],
-        contributions: (
-            [(e)-[:HAS_CONTRIBUTION]->(contrib:Contribution)-[:BY]->(person:Person) | {
-                type: "person",
-                id: person.id,
-                bdrc_id: person.bdrc,
-                role: [(contrib)-[:WITH_ROLE]->(role:RoleType) | role.name][0],
-                name: CASE WHEN EXISTS {
-                    (person)-[:HAS_NAME]->(person_name:Nomen)-[:HAS_LOCALIZATION]->(:LocalizedText)
-                    WHERE NOT EXISTS { (person_name)-[:ALTERNATIVE_OF]->(:Nomen) }
-                } THEN apoc.map.fromPairs([(person)-[:HAS_NAME]->(n:Nomen)-[:HAS_LOCALIZATION]->
-                    (lt:LocalizedText)-[r:HAS_LANGUAGE]->(lang:Language)
-                    WHERE NOT EXISTS { (n)-[:ALTERNATIVE_OF]->(:Nomen) } |
-                    [coalesce(r.bcp47, lang.code), lt.text]]) ELSE null END
-            }]
-            +
-            [(e)-[:HAS_CONTRIBUTION]->(contrib:Contribution)-[:BY]->(ai:AI) | {
-                type: "ai",
-                id: ai.id,
-                role: [(contrib)-[:WITH_ROLE]->(role:RoleType) | role.name][0]
-            }]
-        ),
+        contributions: """
+        + contributions_return("e")
+        + """,
         date: e.date,
         title: apoc.map.fromPairs([(e)-[:HAS_TITLE]->(n:Nomen)-[:HAS_LOCALIZATION]->
             (lt:LocalizedText)-[r:HAS_LANGUAGE]->(lang:Language)
@@ -72,6 +57,7 @@ class TextDatabase:
             WHERE ($application IS NULL OR (t)-[:BELONGS_TO]->(:Application {id: $application})) | t.id]
     } AS text
     """
+    )
 
     GET_QUERY: LiteralString = f"""
     MATCH (e:Text {{id: $id}})
@@ -222,32 +208,6 @@ class TextDatabase:
     MATCH (c:Category {id: $category_id})
     CREATE (w)-[:HAS_CATEGORY]->(c)
     FINISH
-    """
-
-    CREATE_CONTRIBUTION_QUERY: LiteralString = """
-    MATCH (e:Text {id: $text_id})
-    MATCH (p:Person) WHERE (($person_id IS NOT NULL AND p.id = $person_id)
-                            OR ($person_bdrc_id IS NOT NULL AND p.bdrc = $person_bdrc_id))
-    MATCH (rt:RoleType {name: $role_name})
-    CREATE (c:Contribution)
-    CREATE (e)-[:HAS_CONTRIBUTION]->(c),
-           (c)-[:BY]->(p),
-           (c)-[:WITH_ROLE]->(rt)
-    RETURN elementId(c) as contribution_element_id
-    """
-
-    CREATE_AI_CONTRIBUTION_QUERY: LiteralString = """
-    MATCH (e:Text {id: $text_id})
-    MATCH (rt:RoleType {name: $role_name})
-    MERGE (ai:AI {id: $ai_id})
-    CREATE (e)-[:HAS_CONTRIBUTION]->(c:Contribution)-[:BY]->(ai),
-        (c)-[:WITH_ROLE]->(rt)
-    RETURN elementId(c) as contribution_element_id
-    """
-
-    DELETE_CONTRIBUTIONS_QUERY: LiteralString = """
-    MATCH (e:Text {id: $text_id})-[:HAS_CONTRIBUTION]->(c:Contribution)
-    DETACH DELETE c
     """
 
     DELETE_CHECK_QUERY: LiteralString = """
@@ -406,7 +366,7 @@ class TextDatabase:
             await tx.run(TextDatabase.LINK_WORK_TO_CATEGORY_QUERY, work_id=work_id, category_id=text.category_id)
 
         for contribution in text.contributions:
-            await TextDatabase._create_contribution(tx, text_id, contribution)
+            await ContributionDatabase.create_with_transaction(tx, TEXT_LABEL, text_id, contribution)
 
         if text.tag_ids:
             await DatabaseValidator.validate_tags_exist(tx, list(text.tag_ids))
@@ -426,37 +386,6 @@ class TextDatabase:
         target_language = record.data()["text"]["language"]
         if target_language == text.language:
             raise DataValidationError("Translation must have a different language than the target text")
-
-    @staticmethod
-    async def _create_contribution(
-        tx: AsyncManagedTransaction, text_id: str, contribution: PersonContributionBase | AIContribution
-    ) -> None:
-        if isinstance(contribution, PersonContributionBase):
-            result = await tx.run(
-                TextDatabase.CREATE_CONTRIBUTION_QUERY,
-                text_id=text_id,
-                person_id=contribution.id,
-                person_bdrc_id=contribution.bdrc_id,
-                role_name=contribution.role.value,
-            )
-            record = await result.single()
-            if not record:
-                raise DataNotFoundError(
-                    f"Person or Role not found. Person: id={contribution.id}, "
-                    f"bdrc_id={contribution.bdrc_id}; Role: {contribution.role.value}"
-                )
-        elif isinstance(contribution, AIContribution):
-            result = await tx.run(
-                TextDatabase.CREATE_AI_CONTRIBUTION_QUERY,
-                text_id=text_id,
-                ai_id=contribution.id,
-                role_name=contribution.role.value,
-            )
-            record = await result.single()
-            if not record:
-                raise DataNotFoundError(
-                    f"AI contribution creation failed. AI: {contribution.id}; Role: {contribution.role.value}"
-                )
 
     async def update(self, text_id: str, patch: TextPatch, application: str | None = None) -> TextOutput:
         existing = await self.get(text_id)
@@ -521,9 +450,9 @@ class TextDatabase:
 
             if patch.contributions is not None:
                 await DatabaseValidator.validate_contribution_references(tx, patch.contributions)
-                await tx.run(TextDatabase.DELETE_CONTRIBUTIONS_QUERY, text_id=text_id)
+                await ContributionDatabase.delete_all_with_transaction(tx, TEXT_LABEL, text_id)
                 for contribution in patch.contributions:
-                    await TextDatabase._create_contribution(tx, text_id, contribution)
+                    await ContributionDatabase.create_with_transaction(tx, TEXT_LABEL, text_id, contribution)
 
             if patch.tag_ids is not None:
                 await DatabaseValidator.validate_tags_exist(tx, list(patch.tag_ids))

@@ -616,6 +616,77 @@ TRIGGERS.extend(
 )
 
 # =========================================================================
+# Recording
+# =========================================================================
+TRIGGERS.extend(
+    _required_rel_trigger(
+        "enforce_recording_recording_of",
+        "Every Recording must have RECORDING_OF->Edition",
+        "Recording",
+        "RECORDING_OF",
+        "Edition",
+    )
+)
+TRIGGERS.extend(
+    _required_rel_trigger(
+        "enforce_recording_has_license",
+        "Every Recording must have HAS_LICENSE->LicenseType",
+        "Recording",
+        "HAS_LICENSE",
+        "LicenseType",
+    )
+)
+TRIGGERS.extend(
+    _required_rel_trigger(
+        "enforce_recording_has_contribution",
+        "Every Recording must have at least one HAS_CONTRIBUTION->Contribution",
+        "Recording",
+        "HAS_CONTRIBUTION",
+        "Contribution",
+        cardinality="many",
+    )
+)
+TRIGGERS.append(
+    {
+        "name": "enforce_recording_contribution_narrator",
+        "description": "Every Contribution on a Recording must have WITH_ROLE->RoleType {name: 'narrator'}",
+        "phase": "before",
+        "query": """
+        CALL () {
+            UNWIND $createdNodes AS n
+            WITH n WHERE n:Recording
+            RETURN n AS node
+          UNION ALL
+            UNWIND $createdRelationships AS rel
+            WITH rel WHERE type(rel) = 'HAS_CONTRIBUTION'
+            WITH startNode(rel) AS n
+            WHERE n:Recording
+            RETURN n AS node
+        }
+        WITH DISTINCT node
+        WHERE NOT (node IN $deletedNodes)
+          AND EXISTS {
+            (node)-[:HAS_CONTRIBUTION]->(c:Contribution)-[:WITH_ROLE]->(rt:RoleType)
+            WHERE rt.name <> 'narrator'
+          }
+        WITH collect(node.id) AS ids
+        WHERE size(ids) > 0
+        CALL apoc.util.validate(
+            true,
+            'enforce_recording_contribution_narrator: Recording contributions must have role narrator. IDs: %s',
+            [string.join(ids, ', ')]
+        )
+        RETURN null
+    """,
+        "audit": """
+        MATCH (r:Recording)-[:HAS_CONTRIBUTION]->(:Contribution)-[:WITH_ROLE]->(rt:RoleType)
+        WHERE rt.name <> 'narrator'
+        RETURN r.id AS violating_id
+    """,
+    }
+)
+
+# =========================================================================
 # Contribution — multi-target BY, plus required WITH_ROLE
 # =========================================================================
 TRIGGERS.append(
